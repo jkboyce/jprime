@@ -6,6 +6,9 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <csignal>
+
+bool Coordinator::stopping = false;
 
 Coordinator::Coordinator(const SearchConfig& c) : config(c) {}
 
@@ -13,30 +16,39 @@ Coordinator::Coordinator(const SearchConfig& c) : config(c) {}
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void Coordinator::run(int threads) {
+void Coordinator::run(int threads, std::list<WorkAssignment>& assignments) {
+  // register signal handler for ctrl-c interrupt
+  signal(SIGINT, Coordinator::signal_handler);
+
   num_threads = threads;
   worker.reserve(num_threads);
   worker_thread.reserve(num_threads);
   for (int id = 0; id < num_threads; ++id) {
     worker[id] = new Worker(config, this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
+    workers_idle.push_back(id);
   }
 
-  give_first_assignments();
-
   while (true) {
-    process_inbox();
+    give_assignments(assignments);
+    steal_assignment();
+    process_inbox(assignments);
 
-    if (workers_idle.size() == num_threads) {
-      for (int id = 0; id < num_threads; ++id) {
-        MessageC2W msg;
-        msg.type = messages_C2W::STOP_WORKER;
-        message_worker(msg, id);
-
-        if (config.verboseflag)
-          std::cout << "worker " << id << " asked to stop" << std::endl;
-        worker_thread[id]->join();
+    if (workers_idle.size() == num_threads || Coordinator::stopping) {
+      stop_workers();
+      // any worker that was running will have sent back a RETURN_WORK message
+      inbox_lock.lock();
+      while (!inbox.empty()) {
+        MessageW2C msg = inbox.front();
+        inbox.pop();
+        if (msg.type == messages_W2C::RETURN_WORK) {
+          assignments.push_back(msg.assignment);
+          ntotal += msg.ntotal;
+          numstates = msg.numstates;
+          maxlength = msg.maxlength;
+        }
       }
+      inbox_lock.unlock();
       break;
     }
   }
@@ -46,7 +58,20 @@ void Coordinator::run(int threads) {
     delete worker_thread[id];
   }
 
+  if (assignments.size() > 0)
+    std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
   print_trailer();
+
+  /*
+  items we want to retain on disk:
+  - SearchConfig
+  - num_threads (can be overridden)
+  - assignments vector
+  - npatterns
+  - ntotal
+  - time spent
+  - text output so far
+  */
 }
 
 //------------------------------------------------------------------------------
@@ -59,28 +84,49 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) {
   worker[worker_id]->inbox_lock.unlock();
 }
 
-void Coordinator::give_first_assignments() {
-  // give the entire problem to worker 0
-  MessageC2W msg;
-  msg.type = messages_C2W::DO_WORK;
-  WorkAssignment wa;
-  wa.start_state = -1;
-  wa.end_state = -1;
-  wa.root_pos = 0;
-  for (int i = 0; i <= config.h; ++i) {
-    if (!config.xarray[i])
-      wa.root_throwval_options.push_back(i);
-  }
-  msg.assignment = wa;
-  msg.l_current = l_current;
-  message_worker(msg, 0);
+void Coordinator::give_assignments(std::list<WorkAssignment>& assignments) {
+  while (workers_idle.size() > 0 && assignments.size() > 0) {
+    int id = workers_idle.front();
+    WorkAssignment wa = assignments.front();
+    workers_idle.pop_front();
+    assignments.pop_front();
 
-  // leave the others idle for now
-  for (int id = 1; id < num_threads; ++id)
-    workers_idle.push_back(id);
+    MessageC2W msg;
+    msg.type = messages_C2W::DO_WORK;
+    msg.assignment = wa;
+    msg.l_current = l_current;
+    message_worker(msg, id);
+
+    if (config.verboseflag) {
+      std::cout << "gave work to worker " << id << ":" << std::endl;
+      std::cout << "  " << msg.assignment << std::endl;
+    }
+  }
 }
 
-void Coordinator::process_inbox() {
+void Coordinator::steal_assignment() {
+  if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
+    return;
+
+  // current strategy: take work from lowest-id worker that's busy
+
+  for (int id = 0; id < num_threads; ++id) {
+    if (std::find(workers_idle.begin(), workers_idle.end(), id)
+          != workers_idle.end())
+      continue;
+
+    waiting_for_work_from_id = id;
+    MessageC2W msg;
+    msg.type = messages_C2W::SPLIT_WORK;
+    message_worker(msg, id);
+
+    if (config.verboseflag)
+      std::cout << "requested work from worker " << id << std::endl;
+    break;
+  }
+}
+
+void Coordinator::process_inbox(std::list<WorkAssignment>& assignments) {
   int new_longest_pattern_from_id = -1;
 
   inbox_lock.lock();
@@ -117,36 +163,16 @@ void Coordinator::process_inbox() {
 
       if (config.verboseflag)
         std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
-    } else if (msg.type == messages_W2C::RETURN_WORK_PORTION) {
+    } else if (msg.type == messages_W2C::RETURN_WORK) {
       assert(workers_idle.size() > 0);
       assert(msg.worker_id == waiting_for_work_from_id);
       waiting_for_work_from_id = -1;
-
-      int id = workers_idle.front();
-      workers_idle.pop_front();
-
-      MessageC2W msg2;
-      msg2.type = messages_C2W::DO_WORK;
-      msg2.assignment = msg.assignment;
-      message_worker(msg2, id);
+      assignments.push_back(msg.assignment);
 
       if (config.verboseflag) {
-        std::cout << "worker " << msg.worker_id
-                  << " returned work, gave to worker " << id << std::endl;
-        std::cout << "  worker " << id << ": " << "{ state:"
-                  << msg.assignment.start_state
-                  << ", root_pos:" << msg.assignment.root_pos << ", prefix:\"";
-        for (int v : msg.assignment.partial_pattern)
-          std::cout << print_throw(v);
-        std::cout << "\", throws:[";
-        for (int v : msg.assignment.root_throwval_options)
-          std::cout << print_throw(v);
-        std::cout << "] }" << std::endl;
+        std::cout << "worker " << msg.worker_id << " returned work:" << std::endl;
+        std::cout << "  " << msg.assignment << std::endl;
       }
-    } else if (msg.type == messages_W2C::NOTIFY_WORKER_STOPPED) {
-      // to-do
-    } else if (msg.type == messages_W2C::RETURN_WORK_ALL) {
-      // to-do
     } else
       assert(false);
   }
@@ -171,26 +197,22 @@ void Coordinator::process_inbox() {
                   << std::endl;
     }
   }
+}
 
-  // issue new request for work assignment
-  if (waiting_for_work_from_id == -1 && workers_idle.size() > 0) {
-    // current strategy: take work from lowest-id worker that's busy
+void Coordinator::stop_workers() {
+  for (int id = 0; id < num_threads; ++id) {
+    MessageC2W msg;
+    msg.type = messages_C2W::STOP_WORKER;
+    message_worker(msg, id);
 
-    for (int id = 0; id < num_threads; ++id) {
-      if (std::find(workers_idle.begin(), workers_idle.end(), id)
-            != workers_idle.end())
-        continue;
-
-      waiting_for_work_from_id = id;
-      MessageC2W msg;
-      msg.type = messages_C2W::TAKE_WORK_PORTION;
-      message_worker(msg, id);
-
-      if (config.verboseflag)
-        std::cout << "requested work from worker " << id << std::endl;
-      break;
-    }
+    if (config.verboseflag)
+      std::cout << "worker " << id << " asked to stop" << std::endl;
+    worker_thread[id]->join();
   }
+}
+
+void Coordinator::signal_handler(int signum) {
+  stopping = true;
 }
 
 //------------------------------------------------------------------------------
@@ -204,20 +226,6 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
     else
       std::cout << msg.pattern << std::endl;
   }
-}
-
-char Coordinator::print_throw(int val) {
-  const bool plusminus = ((config.mode == NORMAL_MODE && config.longestflag) ||
-                          config.mode == BLOCK_MODE);
-  if (plusminus && val == 0)
-    return '-';
-  if (plusminus && val == config.h)
-    return '+';
-
-  if (val < 10)
-    return static_cast<char>(val + '0');
-  else
-    return static_cast<char>(val - 10 + 'A');
 }
 
 void Coordinator::print_trailer() {

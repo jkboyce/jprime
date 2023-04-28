@@ -2,65 +2,30 @@
 #ifndef JDEEP_COORDINATOR_H
 #define JDEEP_COORDINATOR_H
 
-#include <stdio.h>
-#include <mutex>
-#include <queue>
-
 #include "Messages.hpp"
+#include "SearchConfig.hpp"
 
-#define NORMAL_MODE     1
-#define BLOCK_MODE      2
-#define SUPER_MODE      3
-
-struct SearchConfig {
-  // number of objects
-  int n = 0;
-  // maximum throw value
-  int h = 0;
-  // (min) pattern length to find
-  int l = 0;
-
-  // search mode
-  int mode = NORMAL_MODE;
-  // ground state, excited state, or both
-  int groundmode = 0;
-  // print patterns to console
-  bool printflag = true;
-  // print inverses in super mode
-  bool invertflag = false;
-  // trim out states excluded by block throws
-  bool trimflag = true;
-  // search for the longest pattern(s)
-  bool longestflag = true;
-  // search for an exact pattern length
-  bool exactflag = false;
-  // find patterns in dual graph
-  bool dualflag = false;
-  // print search metadata
-  bool verboseflag = false;
-  // for block mode
-  int skiplimit = 0;
-  // for super mode
-  int shiftlimit = 0;
-  // throw values to exclude from search
-  std::vector<bool> xarray;
-};
+#include <queue>
+#include <mutex>
+#include <list>
+#include <vector>
 
 class Worker;
 
 class Coordinator {
  public:
+  static bool stopping;
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
 
   Coordinator(const SearchConfig& config);
-  void run(int threads);
+  void run(int threads, std::list<WorkAssignment>& assignments);
 
  private:
   int num_threads;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
-  std::vector<bool> worker_running;
+  // std::vector<bool> worker_running;
   std::list<int> workers_idle;
   int waiting_for_work_from_id = -1;
 
@@ -73,10 +38,12 @@ class Coordinator {
   int maxlength = 0;
 
   void message_worker(const MessageC2W& msg, int worker_id);
-  void give_first_assignments();
-  void process_inbox();
+  void give_assignments(std::list<WorkAssignment>& assignments);
+  void steal_assignment();
+  void process_inbox(std::list<WorkAssignment>& assignments);
+  void stop_workers();
+  static void signal_handler(int signum);
   void print_pattern(const MessageW2C& msg);
-  char print_throw(int val);
   void print_trailer();
 };
 

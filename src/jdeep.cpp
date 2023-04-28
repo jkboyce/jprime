@@ -128,8 +128,8 @@ this cutoff.
 -------------------------------------------------------------------------
 */
 
-#include "jdeep.hpp"
 #include "Coordinator.hpp"
+#include "WorkAssignment.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -175,6 +175,11 @@ void print_help() {
 
   std::cout << helpString << std::endl;
 }
+
+struct JdeepConfig {
+  SearchConfig sc;
+  int num_threads = 1;
+};
 
 JdeepConfig parse_CLI_parameters(int argc, char** argv) {
   JdeepConfig config;
@@ -331,7 +336,7 @@ int main(int argc, char** argv) {
     std::exit(0);
   }
 
-  JdeepConfig config = parse_CLI_parameters(argc, argv);
+  JdeepConfig jdc = parse_CLI_parameters(argc, argv);
 
   /*
   if (jcore.fileoutputflag) {
@@ -344,10 +349,21 @@ int main(int argc, char** argv) {
       jcore.fpout = stdout;
   */
 
+  std::list<WorkAssignment> assignments;
+  WorkAssignment wa;
+  wa.start_state = -1;
+  wa.end_state = -1;
+  wa.root_pos = 0;
+  for (int i = 0; i <= jdc.sc.h; ++i) {
+    if (!jdc.sc.xarray[i])
+      wa.root_throwval_options.push_back(i);
+  }
+  assignments.push_back(wa);
+
   timespec start_ts, end_ts;
   timespec_get(&start_ts, TIME_UTC);
-  Coordinator coordinator(config.sc);
-  coordinator.run(config.num_threads);
+  Coordinator coordinator(jdc.sc);
+  coordinator.run(jdc.num_threads, assignments);
   timespec_get(&end_ts, TIME_UTC);
 
   double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -

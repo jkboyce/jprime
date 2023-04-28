@@ -2,25 +2,16 @@
 #ifndef JDEEP_MESSAGES_H
 #define JDEEP_MESSAGES_H
 
+#include "WorkAssignment.hpp"
+
 #include <string>
 #include <list>
-
-// Defines a work assignment that can be handed off
-struct WorkAssignment {
-  int start_state = 1;
-  int end_state = 1;
-  int root_pos = 0;
-  std::list<int> root_throwval_options;
-  std::vector<int> partial_pattern;
-};
-
 
 enum messages_C2W {
   DO_WORK,
   UPDATE_METADATA,
-  TAKE_WORK_PORTION,
+  SPLIT_WORK,
   STOP_WORKER,
-  TAKE_WORK_ALL,
 };
 
 struct MessageC2W {
@@ -36,9 +27,7 @@ struct MessageC2W {
 enum messages_W2C {
   SEARCH_RESULT,
   WORKER_IDLE,
-  RETURN_WORK_PORTION,
-  NOTIFY_WORKER_STOPPED,
-  RETURN_WORK_ALL,
+  RETURN_WORK,
 };
 
 struct MessageW2C {
@@ -50,12 +39,12 @@ struct MessageW2C {
   std::string meta;
   int length = 0;
 
-  // for type WORKER_IDLE
+  // for types WORKER_IDLE and RETURN_WORK
   unsigned long ntotal = 0L;
   int numstates = 0;
   int maxlength = 0;
 
-  // for types RETURN_WORK_PORTION and RETURN_WORK_ALL
+  // for type RETURN_WORK
   WorkAssignment assignment;
 };
 

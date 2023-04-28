@@ -4,10 +4,10 @@
 
 #include "Coordinator.hpp"
 #include "Messages.hpp"
+#include "SearchConfig.hpp"
 
-//#include <stdio.h>
-#include <mutex>
 #include <queue>
+#include <mutex>
 #include <list>
 #include <ctime>
 
@@ -96,6 +96,7 @@ class Worker {
   void process_inbox();
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment split_off_work_assignment();
+  WorkAssignment get_work_assignment();
   void gen_patterns();
   void gen_loops_normal();
   void gen_loops_block();

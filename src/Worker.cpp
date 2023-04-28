@@ -2,6 +2,7 @@
 #include "Worker.hpp"
 #include "Coordinator.hpp"
 #include "Messages.hpp"
+#include "JdeepStopException.hpp"
 
 #include <iostream>
 #include <string>
@@ -74,7 +75,6 @@ Worker::~Worker() {
 //------------------------------------------------------------------------------
 
 void Worker::run() {
-
   while (true) {
     bool new_assignment = false;
     bool stop_worker = false;
@@ -86,17 +86,14 @@ void Worker::run() {
 
       if (msg.type == messages_C2W::DO_WORK) {
         load_work_assignment(msg.assignment);
-        l = std::max(l, msg.l_current);
         new_assignment = true;
-      } else if (msg.type == messages_C2W::STOP_WORKER) {
-        stop_worker = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore here
-      } else if (msg.type == messages_C2W::TAKE_WORK_PORTION) {
+      } else if (msg.type == messages_C2W::SPLIT_WORK) {
         // leave in the inbox
         inbox.push(msg);
-      } else if (msg.type == messages_C2W::TAKE_WORK_ALL) {
-        assert(false);  // to-do
+      } else if (msg.type == messages_C2W::STOP_WORKER) {
+        stop_worker = true;
       } else
         assert(false);
     }
@@ -111,7 +108,19 @@ void Worker::run() {
       timespec_get(&last_ts, TIME_UTC);
 
     // complete the new work assignment
-    gen_patterns();
+    try {
+      gen_patterns();
+    } catch (const JdeepStopException& jdse) {
+      MessageW2C msg;
+      msg.type = messages_W2C::RETURN_WORK;
+      msg.worker_id = worker_id;
+      msg.ntotal = ntotal;
+      msg.numstates = numstates;
+      msg.maxlength = maxlength;
+      msg.assignment = get_work_assignment();
+      message_coordinator(msg);
+      break;
+    }
 
     inbox_lock.lock();
     inbox = std::queue<MessageC2W>();
@@ -162,6 +171,7 @@ void Worker::process_inbox() {
   }
 
   bool stealing_work = false;
+  bool stopping_work = false;
 
   inbox_lock.lock();
   while (!inbox.empty()) {
@@ -172,33 +182,28 @@ void Worker::process_inbox() {
       assert(false);
     } else if (msg.type == messages_C2W::UPDATE_METADATA) {
       l = std::max(l, msg.l_current);
-    } else if (msg.type == messages_C2W::TAKE_WORK_PORTION) {
+    } else if (msg.type == messages_C2W::SPLIT_WORK) {
       assert(!stealing_work);
       stealing_work = true;
     } else if (msg.type == messages_C2W::STOP_WORKER) {
-      assert(false);  // to-do; throw an exception to unwind back to run()
-    } else if (msg.type == messages_C2W::TAKE_WORK_ALL) {
-      assert(false);
+      stopping_work = true;
     }
   }
   inbox_lock.unlock();
 
+  if (stopping_work)
+    throw JdeepStopException();
+
   if (stealing_work) {
     MessageW2C msg;
-    msg.type = messages_W2C::RETURN_WORK_PORTION;
+    msg.type = messages_W2C::RETURN_WORK;
     msg.worker_id = worker_id;
     msg.assignment = split_off_work_assignment();
 
     if (verboseflag) {
       std::ostringstream sstr;
-      sstr << "  worker " << worker_id << ": " << "{ state:" << start_state
-           << ", root_pos:" << root_pos << ", prefix:\"";
-      for (int i = 0; i < root_pos; ++i)
-        print_throw(sstr, pattern[i]);
-      sstr << "\", throws:[";
-      for (int v : root_throwval_options)
-        print_throw(sstr, v);
-      sstr << "] }";
+      sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
+      sstr << "  " << get_work_assignment();
 
       MessageW2C msg2;
       msg2.type = messages_W2C::SEARCH_RESULT;
@@ -222,6 +227,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
+  l = wa.l_current;
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
@@ -241,6 +247,7 @@ WorkAssignment Worker::split_off_work_assignment() {
   wa.end_state = start_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
+  wa.l_current = l;
   for (int i = 0; i < root_pos; ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
@@ -293,6 +300,22 @@ WorkAssignment Worker::split_off_work_assignment() {
     root_throwval_options.push_back(outthrowval[from_state][col]);
   assert(root_throwval_options.size() > 0);
 
+  return wa;
+}
+
+WorkAssignment Worker::get_work_assignment() {
+  WorkAssignment wa;
+
+  wa.start_state = start_state;
+  wa.end_state = end_state;
+  wa.root_pos = root_pos;
+  wa.root_throwval_options = root_throwval_options;
+  wa.l_current = l;
+  for (int i = 0; i <= numstates; ++i) {
+    if (pattern[i] == -1)
+      break;
+    wa.partial_pattern.push_back(pattern[i]);
+  }
   return wa;
 }
 
@@ -490,6 +513,7 @@ void Worker::gen_loops_normal() {
       }
       if (!found)
         continue;
+      /*
       if (verboseflag) {
         MessageW2C msg;
         msg.type = messages_W2C::SEARCH_RESULT;
@@ -500,6 +524,7 @@ void Worker::gen_loops_normal() {
         msg.meta = sstr.str();
         message_coordinator(msg);
       }
+      */
 
       if (remaining == 0) {
         // using our last option at this root level, so go one step down
@@ -509,6 +534,7 @@ void Worker::gen_loops_normal() {
             continue;
           root_throwval_options.push_back(outthrowval[to][col2]);
         }
+        /*
         if (verboseflag) {
           MessageW2C msg;
           msg.type = messages_W2C::SEARCH_RESULT;
@@ -518,6 +544,7 @@ void Worker::gen_loops_normal() {
           msg.meta = sstr.str();
           message_coordinator(msg);
         }
+        */
       }
     }
 
