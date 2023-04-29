@@ -1,4 +1,6 @@
 
+#include "SearchConfig.hpp"
+#include "SearchContext.hpp"
 #include "Coordinator.hpp"
 #include "Worker.hpp"
 #include "Messages.hpp"
@@ -10,91 +12,84 @@
 
 bool Coordinator::stopping = false;
 
-Coordinator::Coordinator(const SearchConfig& c) : config(c) {}
+Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
+    : config(a), context(b) {}
 
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void Coordinator::run(int threads, std::list<WorkAssignment>& assignments) {
+void Coordinator::run() {
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
 
-  num_threads = threads;
-  worker.reserve(num_threads);
-  worker_thread.reserve(num_threads);
-  for (int id = 0; id < num_threads; ++id) {
+  worker.reserve(context.num_threads);
+  worker_thread.reserve(context.num_threads);
+  for (int id = 0; id < context.num_threads; ++id) {
     worker[id] = new Worker(config, this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
     workers_idle.push_back(id);
   }
 
   while (true) {
-    give_assignments(assignments);
-    steal_assignment();
-    process_inbox(assignments);
+    give_assignments();
+    steal_work();
+    process_inbox();
 
-    if (workers_idle.size() == num_threads || Coordinator::stopping) {
+    if ((workers_idle.size() == context.num_threads
+          && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
       // any worker that was running will have sent back a RETURN_WORK message
       inbox_lock.lock();
       while (!inbox.empty()) {
         MessageW2C msg = inbox.front();
         inbox.pop();
-        if (msg.type == messages_W2C::RETURN_WORK) {
-          assignments.push_back(msg.assignment);
-          ntotal += msg.ntotal;
-          numstates = msg.numstates;
-          maxlength = msg.maxlength;
+        if (msg.type == messages_W2C::SEARCH_RESULT) {
+          process_search_result(msg);
+        } else if (msg.type == messages_W2C::RETURN_WORK) {
+          context.assignments.push_back(msg.assignment);
+          context.ntotal += msg.ntotal;
+          context.numstates = msg.numstates;
+          context.maxlength = msg.maxlength;
         }
+        // ignore other message types
       }
       inbox_lock.unlock();
       break;
     }
   }
 
-  for (int id = 0; id < num_threads; ++id) {
+  for (int id = 0; id < context.num_threads; ++id) {
     delete worker[id];
     delete worker_thread[id];
   }
 
-  if (assignments.size() > 0)
+  if (context.assignments.size() > 0)
     std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
   print_trailer();
-
-  /*
-  items we want to retain on disk:
-  - SearchConfig
-  - num_threads (can be overridden)
-  - assignments vector
-  - npatterns
-  - ntotal
-  - time spent
-  - text output so far
-  */
 }
 
 //------------------------------------------------------------------------------
 // Handle interactions with the Worker threads
 //------------------------------------------------------------------------------
 
-void Coordinator::message_worker(const MessageC2W& msg, int worker_id) {
+void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
   worker[worker_id]->inbox_lock.lock();
   worker[worker_id]->inbox.push(msg);
   worker[worker_id]->inbox_lock.unlock();
 }
 
-void Coordinator::give_assignments(std::list<WorkAssignment>& assignments) {
-  while (workers_idle.size() > 0 && assignments.size() > 0) {
+void Coordinator::give_assignments() {
+  while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     int id = workers_idle.front();
-    WorkAssignment wa = assignments.front();
+    WorkAssignment wa = context.assignments.front();
     workers_idle.pop_front();
-    assignments.pop_front();
+    context.assignments.pop_front();
 
     MessageC2W msg;
     msg.type = messages_C2W::DO_WORK;
     msg.assignment = wa;
-    msg.l_current = l_current;
+    msg.l_current = context.l_current;
     message_worker(msg, id);
 
     if (config.verboseflag) {
@@ -104,13 +99,13 @@ void Coordinator::give_assignments(std::list<WorkAssignment>& assignments) {
   }
 }
 
-void Coordinator::steal_assignment() {
+void Coordinator::steal_work() {
   if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
     return;
 
   // current strategy: take work from lowest-id worker that's busy
 
-  for (int id = 0; id < num_threads; ++id) {
+  for (int id = 0; id < context.num_threads; ++id) {
     if (std::find(workers_idle.begin(), workers_idle.end(), id)
           != workers_idle.end())
       continue;
@@ -126,7 +121,7 @@ void Coordinator::steal_assignment() {
   }
 }
 
-void Coordinator::process_inbox(std::list<WorkAssignment>& assignments) {
+void Coordinator::process_inbox() {
   int new_longest_pattern_from_id = -1;
 
   inbox_lock.lock();
@@ -135,27 +130,12 @@ void Coordinator::process_inbox(std::list<WorkAssignment>& assignments) {
     inbox.pop();
 
     if (msg.type == messages_W2C::SEARCH_RESULT) {
-      if (msg.length == 0) {
-        if (config.verboseflag)
-          std::cout << msg.meta << std::endl;
-      } else if (!config.longestflag) {
-        print_pattern(msg);
-        ++npatterns;
-      } else if (msg.length > l_current) {
-        print_pattern(msg);
-        l_current = msg.length;
-        npatterns = 1;
-        new_longest_pattern_from_id = msg.worker_id;
-      } else if (msg.length == l_current) {
-        print_pattern(msg);
-        ++npatterns;
-      }
-      // ignore patterns shorter than current length if longestflag == true
+      new_longest_pattern_from_id = process_search_result(msg);
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
       workers_idle.push_back(msg.worker_id);
-      ntotal += msg.ntotal;
-      numstates = msg.numstates;
-      maxlength = msg.maxlength;
+      context.ntotal += msg.ntotal;
+      context.numstates = msg.numstates;
+      context.maxlength = msg.maxlength;
 
       // worker went idle before it could return a work assignment
       if (msg.worker_id == waiting_for_work_from_id)
@@ -167,40 +147,67 @@ void Coordinator::process_inbox(std::list<WorkAssignment>& assignments) {
       assert(workers_idle.size() > 0);
       assert(msg.worker_id == waiting_for_work_from_id);
       waiting_for_work_from_id = -1;
-      assignments.push_back(msg.assignment);
+      context.assignments.push_back(msg.assignment);
 
       if (config.verboseflag) {
-        std::cout << "worker " << msg.worker_id << " returned work:" << std::endl;
-        std::cout << "  " << msg.assignment << std::endl;
+        std::cout << "worker " << msg.worker_id << " returned work:"
+                  << std::endl
+                  << "  " << msg.assignment << std::endl;
       }
     } else
       assert(false);
   }
   inbox_lock.unlock();
 
-  // notify about new metadata
-  if (new_longest_pattern_from_id >= 0) {
-    for (int id = 0; id < num_threads; ++id) {
-      if (id == new_longest_pattern_from_id)
-        continue;
-      if (std::find(workers_idle.begin(), workers_idle.end(), id)
-            != workers_idle.end())
-        continue;
+  if (new_longest_pattern_from_id >= 0)
+    notify_metadata(new_longest_pattern_from_id);
+}
 
-      MessageC2W msg;
-      msg.type = messages_C2W::UPDATE_METADATA;
-      msg.l_current = l_current;
-      message_worker(msg, id);
+int Coordinator::process_search_result(const MessageW2C& msg) {
+  int new_longest_pattern_from_id = -1;
 
-      if (config.verboseflag)
-        std::cout << "worker " << id << " notified of new length " << l_current
-                  << std::endl;
-    }
+  if (msg.length == 0) {
+    if (config.verboseflag)
+      std::cout << msg.meta << std::endl;
+  } else if (!config.longestflag) {
+    print_pattern(msg);
+    ++context.npatterns;
+  } else if (msg.length > context.l_current) {
+    context.patterns.clear();
+    print_pattern(msg);
+    context.l_current = msg.length;
+    context.npatterns = 1;
+    new_longest_pattern_from_id = msg.worker_id;
+  } else if (msg.length == context.l_current) {
+    print_pattern(msg);
+    ++context.npatterns;
+  }
+  // ignore patterns shorter than current length if longestflag == true
+
+  return new_longest_pattern_from_id;
+}
+
+void Coordinator::notify_metadata(int skip_id) const {
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (id == skip_id)
+      continue;
+    if (std::find(workers_idle.begin(), workers_idle.end(), id)
+          != workers_idle.end())
+      continue;
+
+    MessageC2W msg;
+    msg.type = messages_C2W::UPDATE_METADATA;
+    msg.l_current = context.l_current;
+    message_worker(msg, id);
+
+    if (config.verboseflag)
+      std::cout << "worker " << id << " notified of new length "
+                << context.l_current << std::endl;
   }
 }
 
-void Coordinator::stop_workers() {
-  for (int id = 0; id < num_threads; ++id) {
+void Coordinator::stop_workers() const {
+  for (int id = 0; id < context.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::STOP_WORKER;
     message_worker(msg, id);
@@ -226,9 +233,11 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
     else
       std::cout << msg.pattern << std::endl;
   }
+
+  context.patterns.push_back(msg.pattern);
 }
 
-void Coordinator::print_trailer() {
+void Coordinator::print_trailer() const {
   std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n);
   std::cout << ", max throw: " << config.h << std::endl;
 
@@ -249,12 +258,13 @@ void Coordinator::print_trailer() {
   }
 
   if (config.longestflag) {
-    std::cout << "pattern length: " << l_current << " throws (" << maxlength
-              << " maximum, " << numstates << " states)" << std::endl;
+    std::cout << "pattern length: " << context.l_current
+              << " throws (" << context.maxlength << " maximum, "
+              << context.numstates << " states)" << std::endl;
   }
 
-  std::cout << npatterns << " patterns found (" << ntotal << " seen)"
-            << std::endl;
+  std::cout << context.npatterns << " patterns found (" << context.ntotal
+            << " seen)" << std::endl;
 
   if (config.groundmode == 1)
     std::cout << "ground state search" << std::endl;

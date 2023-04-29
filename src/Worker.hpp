@@ -48,7 +48,7 @@ class Worker {
   int maxoutdegree = 0;
   int maxindegree = 0;
   unsigned long* state;
-  int** partners;  // for finding supersimple patterns
+  int** partners;  // for finding superprime patterns
   int numcycles = 0;  // total number of shift cycles
 
   // for loading and sharing work assignments
@@ -75,7 +75,6 @@ class Worker {
   int** inmatrix;
   int* indegree;
   int* used;
-  int* thrownum;
   int* cyclenum;  // cycle number for state
   int* cycleperiod;  // indexed by shift cycle number
   int* deadstates;  // indexed by shift cycle number
@@ -91,12 +90,12 @@ class Worker {
   int steps_taken = 0;
   timespec last_ts;
 
-  void message_coordinator(const MessageW2C& msg);
-  void message_coordinator(const MessageW2C& msg1, const MessageW2C& msg2);
+  void message_coordinator(const MessageW2C& msg) const;
+  void message_coordinator(const MessageW2C& msg1, const MessageW2C& msg2) const;
   void process_inbox();
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment split_off_work_assignment();
-  WorkAssignment get_work_assignment();
+  WorkAssignment get_work_assignment() const;
   void gen_patterns();
   void gen_loops_normal();
   void gen_loops_block();
@@ -106,16 +105,19 @@ class Worker {
   void inupdate(int statenum, int slot);
   void trim_outgoing(int from_trim, int to_trim, int slot);
   void trim_ingoing(int from_trim, int to_trim, int slot);
-  void report_pattern();
-  void print_throw(std::ostringstream& buffer, int val);
-  void print_inverse(std::ostringstream& buffer);
-  void print_inverse_dual(std::ostringstream& buffer);
-  int reverse_state(int statenum);
+  void report_pattern() const;
+  void print_throw(std::ostringstream& buffer, int val) const;
+  void print_inverse(std::ostringstream& buffer) const;
+  void print_inverse_dual(std::ostringstream& buffer) const;
+  int reverse_state(int statenum) const;
   static int num_states(int n, int h);
   void prepcorearrays(const std::vector<bool>& xarray);
   static void die();
   static int gen_states(unsigned long* state, int num, int pos, int left, int h, int ns);
   void gen_matrices(const std::vector<bool>& xarray);
+};
+
+class JdeepStopException : public std::exception {
 };
 
 #endif

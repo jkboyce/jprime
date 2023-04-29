@@ -4,6 +4,8 @@
 
 #include <vector>
 
+// Defines items that are constant during the duration of the search
+
 #define NORMAL_MODE     1
 #define BLOCK_MODE      2
 #define SUPER_MODE      3

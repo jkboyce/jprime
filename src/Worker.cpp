@@ -2,7 +2,6 @@
 #include "Worker.hpp"
 #include "Coordinator.hpp"
 #include "Messages.hpp"
-#include "JdeepStopException.hpp"
 
 #include <iostream>
 #include <string>
@@ -60,7 +59,6 @@ Worker::~Worker() {
   delete inmatrix;
   delete partners;
   delete used;
-  delete thrownum;
   delete outdegree;
   delete indegree;
   delete cyclenum;
@@ -111,6 +109,7 @@ void Worker::run() {
     try {
       gen_patterns();
     } catch (const JdeepStopException& jdse) {
+      // a STOP_WORKER message while running unwinds back here
       MessageW2C msg;
       msg.type = messages_W2C::RETURN_WORK;
       msg.worker_id = worker_id;
@@ -141,14 +140,14 @@ void Worker::run() {
 // Handle interactions with the Coordinator thread
 //------------------------------------------------------------------------------
 
-void Worker::message_coordinator(const MessageW2C& msg) {
+void Worker::message_coordinator(const MessageW2C& msg) const {
     coordinator->inbox_lock.lock();
     coordinator->inbox.push(msg);
     coordinator->inbox_lock.unlock();
 }
 
 void Worker::message_coordinator(const MessageW2C& msg1,
-      const MessageW2C& msg2) {
+      const MessageW2C& msg2) const {
     coordinator->inbox_lock.lock();
     coordinator->inbox.push(msg1);
     coordinator->inbox.push(msg2);
@@ -170,7 +169,6 @@ void Worker::process_inbox() {
         secs_per_inbox_check_target / time_spent);
   }
 
-  bool stealing_work = false;
   bool stopping_work = false;
 
   inbox_lock.lock();
@@ -183,8 +181,22 @@ void Worker::process_inbox() {
     } else if (msg.type == messages_C2W::UPDATE_METADATA) {
       l = std::max(l, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
-      assert(!stealing_work);
-      stealing_work = true;
+      MessageW2C msg;
+      msg.type = messages_W2C::RETURN_WORK;
+      msg.worker_id = worker_id;
+      msg.assignment = split_off_work_assignment();
+
+      if (verboseflag) {
+        std::ostringstream sstr;
+        sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
+        sstr << "  " << get_work_assignment();
+
+        MessageW2C msg2;
+        msg2.type = messages_W2C::SEARCH_RESULT;
+        msg2.meta = sstr.str();
+        message_coordinator(msg, msg2);
+      } else
+        message_coordinator(msg);
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -193,25 +205,6 @@ void Worker::process_inbox() {
 
   if (stopping_work)
     throw JdeepStopException();
-
-  if (stealing_work) {
-    MessageW2C msg;
-    msg.type = messages_W2C::RETURN_WORK;
-    msg.worker_id = worker_id;
-    msg.assignment = split_off_work_assignment();
-
-    if (verboseflag) {
-      std::ostringstream sstr;
-      sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
-      sstr << "  " << get_work_assignment();
-
-      MessageW2C msg2;
-      msg2.type = messages_W2C::SEARCH_RESULT;
-      msg2.meta = sstr.str();
-      message_coordinator(msg, msg2);
-    } else
-      message_coordinator(msg);
-  }
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
@@ -233,7 +226,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   for (int i = 0; i <= numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
-    assert(thrownum[i] == 0 && used[i] == 0);
+    assert(used[i] == 0);
   }
 }
 
@@ -277,6 +270,8 @@ WorkAssignment Worker::split_off_work_assignment() {
   int new_root_pos = -1;
   int col = 0;
 
+  // have to start from the beginning because we don't record the traversed
+  // states as we build the pattern
   for (int pos2 = 0; pos2 <= pos; ++pos2) {
     const int throwval = pattern[pos2];
     for (col = 0; col < outdegree[from_state]; ++col) {
@@ -296,14 +291,17 @@ WorkAssignment Worker::split_off_work_assignment() {
 
   root_pos = new_root_pos;
   root_throwval_options.clear();
-  for (; col < outdegree[from_state]; ++col)
-    root_throwval_options.push_back(outthrowval[from_state][col]);
+  for (; col < outdegree[from_state]; ++col) {
+    const int throwval = outthrowval[from_state][col];
+    if (throwval != pattern[root_pos])
+      root_throwval_options.push_back(outthrowval[from_state][col]);
+  }
   assert(root_throwval_options.size() > 0);
 
   return wa;
 }
 
-WorkAssignment Worker::get_work_assignment() {
+WorkAssignment Worker::get_work_assignment() const {
   WorkAssignment wa;
 
   wa.start_state = start_state;
@@ -513,38 +511,15 @@ void Worker::gen_loops_normal() {
       }
       if (!found)
         continue;
-      /*
-      if (verboseflag) {
-        MessageW2C msg;
-        msg.type = messages_W2C::SEARCH_RESULT;
-        msg.worker_id = worker_id;
-        std::ostringstream sstr;
-        sstr << "worker " << worker_id << " placed throw " << throwval
-             << " at root_pos:" << root_pos;
-        msg.meta = sstr.str();
-        message_coordinator(msg);
-      }
-      */
 
       if (remaining == 0) {
-        // using our last option at this root level, so go one step down
+        // using our last option at this root level, go one step deeper
         ++root_pos;
         for (int col2 = 0; col2 < maxoutdegree; ++col2) {
           if (outmatrix[to][col2] < start_state)
             continue;
           root_throwval_options.push_back(outthrowval[to][col2]);
         }
-        /*
-        if (verboseflag) {
-          MessageW2C msg;
-          msg.type = messages_W2C::SEARCH_RESULT;
-          msg.worker_id = worker_id;
-          std::ostringstream sstr;
-          sstr << "worker " << worker_id << " going to root_pos:" << root_pos;
-          msg.meta = sstr.str();
-          message_coordinator(msg);
-        }
-        */
       }
     }
 
@@ -641,7 +616,7 @@ void Worker::gen_loops_normal() {
     assert(old_max_possible == max_possible);
 
     if (++steps_taken >= steps_per_inbox_check &&
-        pos > root_pos && col < outdegree[from] - 1) {
+          pos > root_pos && col < outdegree[from] - 1) {
       // the restrictions on when we enter here are in case we get a message to
       // hand off work to another thread; see split_off_work_assignment()
 
@@ -1125,7 +1100,7 @@ void Worker::trim_ingoing(int from_trim, int to_trim, int slot) {
 // Output a pattern during run
 //------------------------------------------------------------------------------
 
-void Worker::report_pattern() {
+void Worker::report_pattern() const {
   std::ostringstream buffer;
 
   if (groundmode != 1) {
@@ -1181,7 +1156,7 @@ void Worker::report_pattern() {
 #endif
 }
 
-void Worker::print_throw(std::ostringstream& buffer, int val) {
+void Worker::print_throw(std::ostringstream& buffer, int val) const {
   const bool plusminus = ((mode == NORMAL_MODE && longestflag) ||
                           mode == BLOCK_MODE);
   if (plusminus && val == 0) {
@@ -1198,7 +1173,7 @@ void Worker::print_throw(std::ostringstream& buffer, int val) {
     buffer << static_cast<char>(val - 10 + 'A');
 }
 
-void Worker::print_inverse(std::ostringstream& buffer) {
+void Worker::print_inverse(std::ostringstream& buffer) const {
   // first decide on a starting state
   // state to avoid on first shift cycle:
   int avoid = reverse_state(start_state);
@@ -1287,7 +1262,7 @@ void Worker::print_inverse(std::ostringstream& buffer) {
   }
 }
 
-void Worker::print_inverse_dual(std::ostringstream& buffer) {
+void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   // inverse was found in dual space, so we have to transform as we read it
   // first decide on a starting state
   // dual state to avoid on first shift cycle:
@@ -1376,7 +1351,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) {
   }
 }
 
-int Worker::reverse_state(int statenum) {
+int Worker::reverse_state(int statenum) const {
   unsigned long temp = 0;
   unsigned long mask1 = 1L;
   unsigned long mask2 = 1L << (h - 1);
@@ -1420,10 +1395,6 @@ void Worker::prepcorearrays(const std::vector<bool>& xarray) {
     die();
   for (int i = 0; i <= numstates; ++i)
     used[i] = 0;
-  if (!(thrownum = new int[numstates + 2]))
-    die();
-  for (int i = 0; i < numstates + 2; ++i)
-    thrownum[i] = 0;
 
   if (!(outmatrix = new int*[numstates + 1]))
     die();
@@ -1528,17 +1499,8 @@ void Worker::prepcorearrays(const std::vector<bool>& xarray) {
   }
 
   pattern = tempperiod;  // reuse array
-
-  for (int i = 0; i <= numstates; ++i) {
+  for (int i = 0; i <= numstates; ++i)
     pattern[i] = -1;
-    thrownum[i] = used[i] = 0;
-  }
-  thrownum[numstates + 1] = 0;
-
-  /*  printf("%d shift cycles -- periods = {%d", numcycles, cycleperiod[0]);
-      for (i = 1; i < cycleindex; i++)
-          printf(", %d", cycleperiod[i]);
-      printf("}\n");*/
 }
 
 void Worker::die() {

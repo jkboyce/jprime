@@ -14,12 +14,12 @@ std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
   ost << "{ start_state:" << wa.start_state
       << ", end_state:" << wa.end_state
       << ", root_pos:" << wa.root_pos
-      << ", prefix:\"";
-  for (int i = 0; i < wa.root_pos; ++i)
-    ost << throw_char(wa.partial_pattern[i]);
-  ost << "\", throws:[";
+      << ", root_options:[";
   for (int v : wa.root_throwval_options)
     ost << throw_char(v);
-  ost << "] }";
+  ost << "], current:\"";
+  for (int i = 0; i < wa.partial_pattern.size(); ++i)
+    ost << throw_char(wa.partial_pattern[i]);
+  ost << "\" }";
   return ost;
 }
