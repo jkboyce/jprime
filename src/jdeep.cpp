@@ -34,6 +34,7 @@ Version history:
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <thread>
 #include <ctime>
 
@@ -78,90 +79,106 @@ void print_help() {
   std::cout << helpString << std::endl;
 }
 
-bool try_file_resume(char* file, SearchConfig& config, SearchContext& context) {
-  return false;
-}
+void parse_args(int argc, char** argv, SearchConfig* const config,
+      SearchContext* const context) {
+  if (config != nullptr) {
+    config->n = atoi(argv[1]);
+    if (config->n < 1) {
+      std::cout << "Must have at least 1 object" << std::endl;
+      std::exit(0);
+    }
+    config->h = atoi(argv[2]);
+    if (config->h < config->n) {
+      std::cout << "Max. throw value must equal or exceed number of objects"
+                << std::endl;
+      std::exit(0);
+    }
 
-void configure_search(int argc, char** argv, SearchConfig& config,
-      SearchContext& context) {
-  config.n = atoi(argv[1]);
-  if (config.n < 1) {
-    std::cout << "Must have at least 1 object" << std::endl;
-    std::exit(0);
-  }
-  config.h = atoi(argv[2]);
-  if (config.h < config.n) {
-    std::cout << "Max. throw value must equal or exceed number of objects"
-              << std::endl;
-    std::exit(0);
-  }
+    // excluded self-throws
+    config->xarray.resize(config->n, false);
 
-  // excluded self-throws
-  config.xarray.resize(config.n, false);
-
-  // defaults for going into dual space
-  if (config.h > (2 * config.n)) {
-    config.dualflag = true;
-    config.n = config.h - config.n;
+    // defaults for going into dual space
+    if (config->h > (2 * config->n)) {
+      config->dualflag = true;
+      config->n = config->h - config->n;
+    }
   }
 
   bool trimspecified = false;
-  for (int i = 3; i < argc; ++i) {
+
+  for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
-      config.printflag = false;
+      if (config != nullptr)
+        config->printflag = false;
     } else if (!strcmp(argv[i], "-inverse")) {
-      config.invertflag = true;
+      if (config != nullptr)
+        config->invertflag = true;
     } else if (!strcmp(argv[i], "-g")) {
-      config.groundmode = 1;
+      if (config != nullptr)
+        config->groundmode = 1;
     } else if (!strcmp(argv[i], "-ng")) {
-      config.groundmode = 2;
+      if (config != nullptr)
+        config->groundmode = 2;
     } else if (!strcmp(argv[i], "-trim")) {
       trimspecified = true;
-      config.trimflag = true;
+      if (config != nullptr)
+        config->trimflag = true;
     } else if (!strcmp(argv[i], "-notrim")) {
       trimspecified = true;
-      config.trimflag = false;
+      if (config != nullptr)
+        config->trimflag = false;
     } else if (!strcmp(argv[i], "-full")) {
-      config.longestflag = false;
+      if (config != nullptr)
+        config->longestflag = false;
     } else if (!strcmp(argv[i], "-exact")) {
-      config.exactflag = 1;
-      config.longestflag = false;
-      if (config.l < 2) {
-        std::cout << "Must specify a length > 1 when using -exact flag"
-                  << std::endl;
-        std::exit(0);
+      if (config != nullptr) {
+        config->exactflag = 1;
+        config->longestflag = false;
+        if (config->l < 2) {
+          std::cout << "Must specify a length > 1 when using -exact flag"
+                    << std::endl;
+          std::exit(0);
+        }
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
-        if (config.mode != NORMAL_MODE) {
+        if (config != nullptr && config->mode != NORMAL_MODE) {
           std::cout << "Can only select one mode at a time" << std::endl;
           std::exit(0);
         }
-        config.mode = SUPER_MODE;
-        config.shiftlimit = (double)atoi(argv[++i]);
-        if (config.shiftlimit == 0)
-          config.xarray[0] = config.xarray[config.h] = 1;
+        ++i;
+        if (config != nullptr) {
+          config->mode = SUPER_MODE;
+          config->shiftlimit = (double)atoi(argv[i]);
+          if (config->shiftlimit == 0)
+            config->xarray[0] = config->xarray[config->h] = 1;
+        }
       } else {
         std::cout << "Must provide shift limit in -super mode" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-file")) {
       if ((i + 1) < argc) {
-        context.fileoutputflag = true;
-        context.outfile = argv[i + 1];
         ++i;
+        if (context != nullptr) {
+          context->fileoutputflag = true;
+          context->outfile = std::string(argv[i]);
+        }
       } else {
         std::cout << "No filename provided after -file" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
-        if (config.mode != NORMAL_MODE) {
+        if (config != nullptr && config->mode != NORMAL_MODE) {
           std::cout << "Can only select one mode at a time" << std::endl;
           std::exit(0);
         }
-        config.mode = BLOCK_MODE;
-        config.skiplimit = (double)atoi(argv[++i]);
+        ++i;
+        if (config != nullptr) {
+          config->mode = BLOCK_MODE;
+          config->skiplimit = (double)atoi(argv[i]);
+        }
       } else {
         std::cout << "Must provide skip limit in -block mode" << std::endl;
         std::exit(0);
@@ -170,74 +187,89 @@ void configure_search(int argc, char** argv, SearchConfig& config,
       ++i;
       while (i < argc && argv[i][0] != '-') {
         int j = atoi(argv[i]);
-        if (j >= 0 && j <= config.h)
-          config.xarray[config.dualflag ? (config.h - j) : j] = 1;
+        if (config != nullptr && j >= 0 && j <= config->h)
+          config->xarray[config->dualflag ? (config->h - j) : j] = 1;
         ++i;
       }
       --i;
     } else if (!strcmp(argv[i], "-verbose")) {
-      config.verboseflag = true;
+      if (config != nullptr)
+        config->verboseflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
-      if ((i + 1) < argc)
-        context.num_threads = static_cast<int>(atoi(argv[++i]));
-      else {
+      if ((i + 1) < argc) {
+        ++i;
+        if (context != nullptr)
+          context->num_threads = static_cast<int>(atoi(argv[i]));
+      } else {
         std::cout << "Missing number of threads after -threads" << std::endl;
         std::exit(0);
       }
-    } else {
+    } else if (i > 2) {
       char* p;
       long temp = strtol(argv[i], &p, 10);
-      if (*p) {
+      if (*p || i != 3) {
         std::cout << "unrecognized input: " << argv[i] << std::endl;
         std::exit(0);
-      } else
-        config.l = temp;
+      } else if (config != nullptr)
+        config->l = static_cast<int>(temp);
     }
   }
 
   // consistency checks
-  if (config.invertflag && config.mode != SUPER_MODE) {
+  if (config != nullptr && config->invertflag && config->mode != SUPER_MODE) {
     std::cout << "-inverse flag can only be used in -super mode" << std::endl;
     std::exit(0);
   }
 
   // defaults for when to trim and when not to
-  if (!trimspecified) {
-    if (config.mode == BLOCK_MODE)
-      config.trimflag = false;
-    else if (config.mode == SUPER_MODE)
-      config.trimflag = false;
-    else if (config.longestflag)
-      config.trimflag = true;
+  if (config != nullptr && !trimspecified) {
+    if (config->mode == BLOCK_MODE)
+      config->trimflag = false;
+    else if (config->mode == SUPER_MODE)
+      config->trimflag = false;
+    else if (config->longestflag)
+      config->trimflag = true;
     else
-      config.trimflag = false;
+      config->trimflag = false;
   }
-
-  // set initial work assignment
-  WorkAssignment wa;
-  wa.start_state = -1;
-  wa.end_state = -1;
-  wa.root_pos = 0;
-  for (int i = 0; i <= config.h; ++i) {
-    if (!config.xarray[i])
-      wa.root_throwval_options.push_back(i);
-  }
-  context.assignments.push_back(wa);
 }
 
-void save_output_file(const SearchContext& context) {
+void parse_args(std::string str, SearchConfig* const config,
+      SearchContext* const context) {
+  // tokenize the argslist string
+  std::stringstream ss(str);
+  std::string s;
+  std::vector<std::string> args;
+  while (std::getline(ss, s, ' '))
+    args.push_back(s);
+
+  const int argc = args.size();
+  char** argv = new char*[argc];
+  for (int i = 0; i < argc; ++i)
+    argv[i] = &(args[i][0]);
+
+  parse_args(argc, argv, config, context);
+
+  delete[] argv;
+}
+
+void save_context(const SearchContext& context) {
   std::ofstream myfile;
   myfile.open(context.outfile, std::ios::out | std::ios::trunc);
+  if (!myfile || !myfile.is_open())
+    return;
 
-  myfile << "version          6.0" << std::endl
-         << "command line     " << context.arglist << std::endl
-         << "length           " << context.l_current << std::endl
-         << "length limit     " << context.maxlength << std::endl
-         << "num states       " << context.numstates << std::endl
-         << "patterns (max)   " << context.npatterns << std::endl
-         << "patterns (seen)  " << context.ntotal << std::endl
-         << "hw threads       " << std::thread::hardware_concurrency() << std::endl
-         << "secs elapsed     " << context.secs_elapsed << std::endl
+  myfile << "version           6.0" << std::endl
+         << "command line      " << context.arglist << std::endl
+         << "length            " << context.l_current << std::endl
+         << "length limit      " << context.maxlength << std::endl
+         << "states            " << context.numstates << std::endl
+         << "patterns          " << context.npatterns << std::endl
+         << "patterns (seen)   " << context.ntotal << std::endl
+         << "nodes visited     " << context.nnodes << std::endl
+         << "threads           " << context.num_threads << std::endl
+         << "hardware threads  " << std::thread::hardware_concurrency() << std::endl
+         << "seconds elapsed   " << context.secs_elapsed << std::endl
          << std::endl;
 
   myfile << "patterns" << std::endl;
@@ -253,6 +285,170 @@ void save_output_file(const SearchContext& context) {
   myfile.close();
 }
 
+static inline void trim(std::string& s) {
+  // trim left, then trim right
+  s.erase(
+      s.begin(),
+      std::find_if(s.begin(), s.end(),
+          [](unsigned char ch) { return !std::isspace(ch); })
+  );
+  s.erase(
+      std::find_if(s.rbegin(), s.rend(),
+          [](unsigned char ch) { return !std::isspace(ch); }).base(),
+      s.end()
+  );
+}
+
+// return true on success
+bool load_context(std::string file, SearchContext& context) {
+  std::ifstream myfile;
+  myfile.open(file, std::ios::in);
+  if (!myfile || !myfile.is_open())
+    return false;
+
+  std::string s;
+  int linenum = 0;
+  bool reading_assignments = false;
+
+  while (myfile) {
+    std::getline(myfile, s);
+    //std::cout << s << std::endl;
+    std::string val;
+    std::string error;
+
+    switch (linenum) {
+      case 0:
+        if (s.rfind("version", 0) != 0) {
+          error = "syntax in line 1";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        if (val != "6.0") {
+          error = "file version is not 6.0";
+          break;
+        }
+        break;
+      case 1:
+        if (s.rfind("command", 0) != 0) {
+          error = "syntax in line 2";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.arglist = val;
+        break;
+      case 2:
+        if (s.rfind("length", 0) != 0) {
+          error = "syntax in line 3";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.l_current = std::stoi(val);
+        break;
+      case 3:
+        if (s.rfind("length", 0) != 0) {
+          error = "syntax in line 4";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.maxlength = std::stoi(val);
+        break;
+      case 4:
+        if (s.rfind("states", 0) != 0) {
+          error = "syntax in line 5";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.numstates = std::stoi(val);
+        break;
+      case 5:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 6";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.npatterns = std::stol(val);
+        break;
+      case 6:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 7";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.ntotal = std::stoi(val);
+        break;
+      case 7:
+        if (s.rfind("nodes", 0) != 0) {
+          error = "syntax in line 8";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.nnodes = std::stol(val);
+        break;
+      case 8:
+      case 9:
+        break;
+      case 10:
+        if (s.rfind("seconds", 0) != 0) {
+          error = "syntax in line 10";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.secs_elapsed = std::stod(val);
+        break;
+      case 11:
+        break;
+      case 12:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 12";
+          break;
+        }
+        break;
+    }
+
+    if (error.size() > 0) {
+      std::cout << "error reading file: " << error << std::endl;
+      myfile.close();
+      return false;
+    }
+
+    val = s;
+    trim(val);
+    if (reading_assignments) {
+      WorkAssignment wa;
+      if (val.size() == 0) {
+        // ignore empty line
+      } else if (wa.from_string(val)) {
+        context.assignments.push_back(wa);
+      } else {
+        std::cout << "error reading work assignment in line " << (linenum + 1)
+                  << std::endl;
+        myfile.close();
+        return false;
+      }
+    } else if (linenum > 12) {
+      if (s.rfind("work", 0) == 0) {
+        reading_assignments = true;
+      } else if (val.size() > 0) {
+          context.patterns.push_back(s);
+          // std::cout << "added pattern: " << s << std::endl;
+      }
+    }
+
+    ++linenum;
+  }
+  myfile.close();
+  return true;
+}
+
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
@@ -265,7 +461,55 @@ int main(int argc, char** argv) {
 
   SearchConfig config;
   SearchContext context;
-  configure_search(argc, argv, config, context);
+  bool context_ready = false;
+
+  SearchContext args_context;
+  parse_args(argc, argv, nullptr, &args_context);
+
+  if (args_context.fileoutputflag) {
+    std::ifstream myfile(args_context.outfile);
+    if (myfile.good()) {
+      // resuming a calculation from an existing file
+      std::cout << "reading checkpoint file '" << args_context.outfile << "'"
+                << std::endl;
+
+      if (load_context(args_context.outfile, context)) {
+        if (context.assignments.size() == 0) {
+          std::cout << "calculation is finished" << std::endl;
+          std::exit(0);
+        }
+        // parse the loaded argument list (from the original invocation) to get
+        // the config, plus fill in the elements of context that aren't loaded
+        parse_args(context.arglist, &config, &context);
+        context_ready = true;
+
+        std::cout << "resuming calculation: " << context.arglist << std::endl
+                  << "loaded " << context.npatterns << " patterns (length "
+                  << context.l_current << ") and "
+                  << context.assignments.size() << " work assignments"
+                  << std::endl;
+        for (const std::string& s : context.patterns)
+          std::cout << s << std::endl;
+      } else
+        std::exit(0);
+    }
+  }
+
+  if (!context_ready) {
+    // get config and context from args
+    parse_args(argc, argv, &config, &context);
+
+    // set initial work assignment
+    WorkAssignment wa;
+    wa.start_state = -1;
+    wa.end_state = -1;
+    wa.root_pos = 0;
+    for (int i = 0; i <= config.h; ++i) {
+      if (!config.xarray[i])
+        wa.root_throwval_options.push_back(i);
+    }
+    context.assignments.push_back(wa);
+  }
 
   Coordinator coordinator(config, context);
 
@@ -289,8 +533,9 @@ int main(int argc, char** argv) {
         context.arglist += argv[i];
       }
     }
-
-    save_output_file(context);
+    save_context(context);
+    std::cout << "saved to checkpoint file '" << context.outfile << "'"
+              << std::endl;
   }
 
   return 0;

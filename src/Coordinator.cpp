@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <thread>
-#include <chrono>
 #include <csignal>
 
 bool Coordinator::stopping = false;
@@ -23,6 +22,7 @@ void Coordinator::run() {
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
 
+  // start worker threads
   worker.reserve(context.num_threads);
   worker_thread.reserve(context.num_threads);
   for (int id = 0; id < context.num_threads; ++id) {
@@ -49,6 +49,7 @@ void Coordinator::run() {
         } else if (msg.type == messages_W2C::RETURN_WORK) {
           context.assignments.push_back(msg.assignment);
           context.ntotal += msg.ntotal;
+          context.nnodes += msg.nnodes;
           context.numstates = msg.numstates;
           context.maxlength = msg.maxlength;
         }
@@ -134,6 +135,7 @@ void Coordinator::process_inbox() {
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
       workers_idle.push_back(msg.worker_id);
       context.ntotal += msg.ntotal;
+      context.nnodes += msg.nnodes;
       context.numstates = msg.numstates;
       context.maxlength = msg.maxlength;
 
@@ -264,7 +266,7 @@ void Coordinator::print_trailer() const {
   }
 
   std::cout << context.npatterns << " patterns found (" << context.ntotal
-            << " seen)" << std::endl;
+            << " seen, " << context.nnodes << " nodes)" << std::endl;
 
   if (config.groundmode == 1)
     std::cout << "ground state search" << std::endl;

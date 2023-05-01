@@ -84,6 +84,7 @@ void Worker::run() {
 
       if (msg.type == messages_C2W::DO_WORK) {
         load_work_assignment(msg.assignment);
+        l = msg.l_current;
         new_assignment = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore here
@@ -114,6 +115,7 @@ void Worker::run() {
       msg.type = messages_W2C::RETURN_WORK;
       msg.worker_id = worker_id;
       msg.ntotal = ntotal;
+      msg.nnodes = nnodes;
       msg.numstates = numstates;
       msg.maxlength = maxlength;
       msg.assignment = get_work_assignment();
@@ -129,10 +131,12 @@ void Worker::run() {
     msg.type = messages_W2C::WORKER_IDLE;
     msg.worker_id = worker_id;
     msg.ntotal = ntotal;
+    msg.nnodes = nnodes;
     msg.numstates = numstates;
     msg.maxlength = maxlength;
     message_coordinator(msg);
     ntotal = 0;
+    nnodes = 0;
   }
 }
 
@@ -220,7 +224,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
-  l = wa.l_current;
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
@@ -240,7 +243,6 @@ WorkAssignment Worker::split_off_work_assignment() {
   wa.end_state = start_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  wa.l_current = l;
   for (int i = 0; i < root_pos; ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
@@ -308,7 +310,6 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  wa.l_current = l;
   for (int i = 0; i <= numstates; ++i) {
     if (pattern[i] == -1)
       break;
@@ -331,6 +332,7 @@ void Worker::gen_patterns() {
     skipcount = 0;
 
     if (!loading_work) {
+      // subsequent values of start_state, reset key variables
       root_pos = 0;
 
       root_throwval_options.clear();
@@ -453,6 +455,7 @@ void Worker::gen_loops_normal() {
         if (outthrowval[from][col] == pattern[pos])
           break;
       }
+
       /*
       if (col == maxoutdegree) {
         std::ostringstream buffer;
@@ -509,7 +512,7 @@ void Worker::gen_loops_normal() {
           ++remaining;
         }
       }
-      if (!found)
+      if (!found && !loading_work)
         continue;
 
       if (remaining == 0) {
@@ -575,6 +578,8 @@ void Worker::gen_loops_normal() {
       ++pos;
       int old_from = from;
       from = to;
+      if (!loading_work)
+        ++nnodes;
 
       gen_loops_normal();
 
@@ -735,6 +740,8 @@ void Worker::gen_loops_block() {
       ++pos;
       int old_from = from;
       from = to;
+      if (!loading_work)
+        ++nnodes;
 
       if (trimflag)
         trim_outgoing(from, to, 0);
@@ -820,12 +827,12 @@ void Worker::gen_loops_super() {
           --used[partners[to][j]];
       }
 
-      // statelist[pos] = (dualflag ? from : to);
-
       pattern[pos] = throwval;
       ++pos;
       int old_from = from;
       from = to;
+      if (!loading_work)
+        ++nnodes;
 
       if (trimflag)
         trim_outgoing(from, to, 0);

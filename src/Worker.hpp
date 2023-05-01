@@ -81,6 +81,7 @@ class Worker {
 
   // search data to report to Coordinator
   unsigned long ntotal = 0L;
+  unsigned long nnodes = 0L;
 
   static constexpr double secs_per_inbox_check_target = 0.01;
   static constexpr int steps_per_inbox_check_initial = 5000000;

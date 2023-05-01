@@ -41,6 +41,7 @@ struct MessageW2C {
 
   // for types WORKER_IDLE and RETURN_WORK
   unsigned long ntotal = 0L;
+  unsigned long nnodes = 0L;
   int numstates = 0;
   int maxlength = 0;
 
