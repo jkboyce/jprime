@@ -10,12 +10,12 @@
 #include <mutex>
 #include <list>
 #include <vector>
+#include <thread>
 
 class Worker;
 
 class Coordinator {
  public:
-  static bool stopping;
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
 
@@ -29,16 +29,24 @@ class Coordinator {
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
   std::list<int> workers_idle;
+  std::list<int> workers_run_order;
+  std::vector<int> worker_rootpos;
+  std::vector<int> worker_longest;
   int waiting_for_work_from_id = -1;
+  static bool stopping;
 
   void message_worker(const MessageC2W& msg, int worker_id) const;
   void give_assignments();
   void steal_work();
   void process_inbox();
   int process_search_result(const MessageW2C& msg);
+  void remove_from_run_order(int id);
+  void process_worker_idle(const MessageW2C& msg);
+  void process_worker_status(const MessageW2C& msg);
   void notify_metadata(int skip_id) const;
   void stop_workers() const;
   static void signal_handler(int signum);
+  int find_stealing_target_lowid();
   void print_pattern(const MessageW2C& msg);
   void print_trailer() const;
 };

@@ -25,10 +25,15 @@ void Coordinator::run() {
   // start worker threads
   worker.reserve(context.num_threads);
   worker_thread.reserve(context.num_threads);
+  worker_rootpos.reserve(context.num_threads);
+  worker_longest.reserve(context.num_threads);
+
   for (int id = 0; id < context.num_threads; ++id) {
     worker[id] = new Worker(config, this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
     workers_idle.push_back(id);
+    worker_rootpos[id] = 0;
+    worker_longest[id] = 0;
   }
 
   while (true) {
@@ -39,6 +44,7 @@ void Coordinator::run() {
     if ((workers_idle.size() == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
+
       // any worker that was running will have sent back a RETURN_WORK message
       inbox_lock.lock();
       while (!inbox.empty()) {
@@ -83,14 +89,17 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     int id = workers_idle.front();
-    WorkAssignment wa = context.assignments.front();
     workers_idle.pop_front();
+    WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
 
     MessageC2W msg;
     msg.type = messages_C2W::DO_WORK;
     msg.assignment = wa;
     msg.l_current = context.l_current;
+    workers_run_order.push_back(id);
+    worker_rootpos[id] = wa.root_pos;
+    worker_longest[id] = 0;
     message_worker(msg, id);
 
     if (config.verboseflag) {
@@ -104,22 +113,23 @@ void Coordinator::steal_work() {
   if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
     return;
 
-  // current strategy: take work from lowest-id worker that's busy
-
-  for (int id = 0; id < context.num_threads; ++id) {
-    if (std::find(workers_idle.begin(), workers_idle.end(), id)
-          != workers_idle.end())
-      continue;
-
-    waiting_for_work_from_id = id;
-    MessageC2W msg;
-    msg.type = messages_C2W::SPLIT_WORK;
-    message_worker(msg, id);
-
-    if (config.verboseflag)
-      std::cout << "requested work from worker " << id << std::endl;
-    break;
+  int id = 0;
+  switch (context.steal_alg) {
+    case 1:
+      id = find_stealing_target_lowid();
+      break;
+    default:
+      assert(false);
   }
+
+  waiting_for_work_from_id = id;
+  MessageC2W msg;
+  msg.type = messages_C2W::SPLIT_WORK;
+  msg.split_alg = context.split_alg;
+  message_worker(msg, id);
+
+  if (config.verboseflag)
+    std::cout << "requested work from worker " << id << std::endl;
 }
 
 void Coordinator::process_inbox() {
@@ -133,31 +143,27 @@ void Coordinator::process_inbox() {
     if (msg.type == messages_W2C::SEARCH_RESULT) {
       new_longest_pattern_from_id = process_search_result(msg);
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
-      workers_idle.push_back(msg.worker_id);
-      context.ntotal += msg.ntotal;
-      context.nnodes += msg.nnodes;
-      context.numstates = msg.numstates;
-      context.maxlength = msg.maxlength;
-
-      // worker went idle before it could return a work assignment
-      if (msg.worker_id == waiting_for_work_from_id)
-        waiting_for_work_from_id = -1;
-
-      if (config.verboseflag)
-        std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
+      process_worker_idle(msg);
     } else if (msg.type == messages_W2C::RETURN_WORK) {
       assert(workers_idle.size() > 0);
       assert(msg.worker_id == waiting_for_work_from_id);
       waiting_for_work_from_id = -1;
       context.assignments.push_back(msg.assignment);
 
+      // put splittee at the back of the run order list
+      remove_from_run_order(msg.worker_id);
+      workers_run_order.push_back(msg.worker_id);
+
       if (config.verboseflag) {
         std::cout << "worker " << msg.worker_id << " returned work:"
                   << std::endl
                   << "  " << msg.assignment << std::endl;
       }
-    } else
+    } else if (msg.type == messages_W2C::WORKER_STATUS) {
+      process_worker_status(msg);
+    } else {
       assert(false);
+    }
   }
   inbox_lock.unlock();
 
@@ -168,10 +174,7 @@ void Coordinator::process_inbox() {
 int Coordinator::process_search_result(const MessageW2C& msg) {
   int new_longest_pattern_from_id = -1;
 
-  if (msg.length == 0) {
-    if (config.verboseflag)
-      std::cout << msg.meta << std::endl;
-  } else if (!config.longestflag) {
+  if (!config.longestflag) {
     print_pattern(msg);
     ++context.npatterns;
   } else if (msg.length > context.l_current) {
@@ -187,6 +190,64 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
   // ignore patterns shorter than current length if longestflag == true
 
   return new_longest_pattern_from_id;
+}
+
+void Coordinator::remove_from_run_order(int id) {
+  // remove worker from workers_run_order
+  std::list<int>::iterator iter = workers_run_order.begin();
+  std::list<int>::iterator end = workers_run_order.end();
+  bool found = false;
+
+  while (iter != end) {
+    if (*iter == id) {
+      found = true;
+      iter = workers_run_order.erase(iter);
+    } else
+      ++iter;
+  }
+  assert(found);
+}
+
+void Coordinator::process_worker_idle(const MessageW2C& msg) {
+  workers_idle.push_back(msg.worker_id);
+  context.ntotal += msg.ntotal;
+  context.nnodes += msg.nnodes;
+  context.numstates = msg.numstates;
+  context.maxlength = msg.maxlength;
+  worker_rootpos[msg.worker_id] = 0;
+  worker_longest[msg.worker_id] = 0;
+
+  remove_from_run_order(msg.worker_id);
+
+  // worker went idle before it could return a work assignment
+  if (msg.worker_id == waiting_for_work_from_id)
+    waiting_for_work_from_id = -1;
+
+  if (config.verboseflag)
+    std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
+}
+
+void Coordinator::process_worker_status(const MessageW2C& msg) {
+  if (msg.meta.size() > 0 && config.verboseflag)
+      std::cout << msg.meta << std::endl;
+
+  if (msg.root_pos >= 0) {
+    worker_rootpos[msg.worker_id] = msg.root_pos;
+
+    if (config.verboseflag) {
+      std::cout << "worker " << msg.worker_id
+                << " new root_pos: " << msg.root_pos << std::endl;
+    }
+  }
+
+  if (msg.longest_found >= 0) {
+    worker_longest[msg.worker_id] = msg.longest_found;
+
+    if (config.verboseflag) {
+      std::cout << "worker " << msg.worker_id
+                << " new longest_found: " << msg.longest_found << std::endl;
+    }
+  }
 }
 
 void Coordinator::notify_metadata(int skip_id) const {
@@ -225,6 +286,22 @@ void Coordinator::signal_handler(int signum) {
 }
 
 //------------------------------------------------------------------------------
+// Algorithms for deciding which process to steal work from
+//------------------------------------------------------------------------------
+
+int Coordinator::find_stealing_target_lowid() {
+  // strategy: take work from lowest-id worker that's busy
+
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (std::find(workers_idle.begin(), workers_idle.end(), id)
+          != workers_idle.end())
+      continue;
+    return id;
+  }
+  assert(false);
+}
+
+//------------------------------------------------------------------------------
 // Handle output
 //------------------------------------------------------------------------------
 
@@ -240,8 +317,8 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 }
 
 void Coordinator::print_trailer() const {
-  std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n);
-  std::cout << ", max throw: " << config.h << std::endl;
+  std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
+            << ", max throw: " << config.h << std::endl;
 
   switch (config.mode) {
     case NORMAL_MODE:

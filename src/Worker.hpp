@@ -57,7 +57,7 @@ class Worker {
   int root_pos = 0;
   std::list<int> root_throwval_options;
   bool loading_work = false;
-  int loading_pos = 0;
+  int loading_pos = 0;  // can deprecate
 
   // variables for search
   int* pattern;
@@ -79,9 +79,10 @@ class Worker {
   int* cycleperiod;  // indexed by shift cycle number
   int* deadstates;  // indexed by shift cycle number
 
-  // search data to report to Coordinator
+  // status data to report to Coordinator
   unsigned long ntotal = 0L;
   unsigned long nnodes = 0L;
+  int longest_found = 0;
 
   static constexpr double secs_per_inbox_check_target = 0.01;
   static constexpr int steps_per_inbox_check_initial = 5000000;
@@ -95,8 +96,11 @@ class Worker {
   void message_coordinator(const MessageW2C& msg1, const MessageW2C& msg2) const;
   void process_inbox();
   void load_work_assignment(const WorkAssignment& wa);
-  WorkAssignment split_off_work_assignment();
+  WorkAssignment split_work_assignment(int split_alg);
   WorkAssignment get_work_assignment() const;
+  void notify_coordinator_rootpos();
+  void notify_coordinator_longest();
+  WorkAssignment split_work_assignment_takeall();
   void gen_patterns();
   void gen_loops_normal();
   void gen_loops_block();

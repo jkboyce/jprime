@@ -23,6 +23,8 @@ struct SearchContext {
   int num_threads = 1;
   bool fileoutputflag = false;
   std::string outfile;
+  int steal_alg = 1;
+  int split_alg = 1;
 };
 
 #endif

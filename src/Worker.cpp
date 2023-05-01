@@ -11,7 +11,7 @@
 #include <iomanip>
 
 Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
-    coordinator(coord), worker_id(id) {
+      coordinator(coord), worker_id(id) {
   n = config.n;
   h = config.h;
   l = config.l;
@@ -87,7 +87,7 @@ void Worker::run() {
         l = msg.l_current;
         new_assignment = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
-        // ignore here
+        // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
         // leave in the inbox
         inbox.push(msg);
@@ -103,6 +103,8 @@ void Worker::run() {
     if (!new_assignment)
       continue;
 
+    // save a timestamp to calibrate how often to check the inbox
+    // while running
     if (calibrations_remaining > 0)
       timespec_get(&last_ts, TIME_UTC);
 
@@ -110,7 +112,8 @@ void Worker::run() {
     try {
       gen_patterns();
     } catch (const JdeepStopException& jdse) {
-      // a STOP_WORKER message while running unwinds back here
+      // a STOP_WORKER message while running unwinds back here; send any
+      // remaining work back to the Coordinator
       MessageW2C msg;
       msg.type = messages_W2C::RETURN_WORK;
       msg.worker_id = worker_id;
@@ -123,10 +126,12 @@ void Worker::run() {
       break;
     }
 
+    // empty the inbox
     inbox_lock.lock();
     inbox = std::queue<MessageC2W>();
     inbox_lock.unlock();
 
+    // notify coordinator that we're idle again
     MessageW2C msg;
     msg.type = messages_W2C::WORKER_IDLE;
     msg.worker_id = worker_id;
@@ -185,22 +190,23 @@ void Worker::process_inbox() {
     } else if (msg.type == messages_C2W::UPDATE_METADATA) {
       l = std::max(l, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
-      MessageW2C msg;
-      msg.type = messages_W2C::RETURN_WORK;
-      msg.worker_id = worker_id;
-      msg.assignment = split_off_work_assignment();
+      MessageW2C msg2;
+      msg2.type = messages_W2C::RETURN_WORK;
+      msg2.worker_id = worker_id;
+      msg2.assignment = split_work_assignment(msg.split_alg);
 
       if (verboseflag) {
         std::ostringstream sstr;
         sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
         sstr << "  " << get_work_assignment();
 
-        MessageW2C msg2;
-        msg2.type = messages_W2C::SEARCH_RESULT;
-        msg2.meta = sstr.str();
-        message_coordinator(msg, msg2);
+        MessageW2C msg3;
+        msg3.type = messages_W2C::WORKER_STATUS;
+        msg3.worker_id = worker_id;
+        msg3.meta = sstr.str();
+        message_coordinator(msg2, msg3);
       } else
-        message_coordinator(msg);
+        message_coordinator(msg2);
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -224,6 +230,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
+  longest_found = 0;
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
@@ -233,7 +240,45 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
 }
 
-WorkAssignment Worker::split_off_work_assignment() {
+WorkAssignment Worker::split_work_assignment(int split_alg) {
+  return split_work_assignment_takeall();
+}
+
+WorkAssignment Worker::get_work_assignment() const {
+  WorkAssignment wa;
+  wa.start_state = start_state;
+  wa.end_state = end_state;
+  wa.root_pos = root_pos;
+  wa.root_throwval_options = root_throwval_options;
+  for (int i = 0; i <= numstates; ++i) {
+    if (pattern[i] == -1)
+      break;
+    wa.partial_pattern.push_back(pattern[i]);
+  }
+  return wa;
+}
+
+void Worker::notify_coordinator_rootpos() {
+  MessageW2C msg;
+  msg.type = messages_W2C::WORKER_STATUS;
+  msg.worker_id = worker_id;
+  msg.root_pos = root_pos;
+  message_coordinator(msg);
+}
+
+void Worker::notify_coordinator_longest() {
+  MessageW2C msg;
+  msg.type = messages_W2C::WORKER_STATUS;
+  msg.worker_id = worker_id;
+  msg.longest_found = longest_found;
+  message_coordinator(msg);
+}
+
+//------------------------------------------------------------------------------
+// Work-splitting algorithms
+//------------------------------------------------------------------------------
+
+WorkAssignment Worker::split_work_assignment_takeall() {
   // give away all the other throw value options at the current root position,
   // and move this worker to a deeper root position
   assert(root_throwval_options.size() > 0);
@@ -292,6 +337,8 @@ WorkAssignment Worker::split_off_work_assignment() {
   assert(new_root_pos != -1);
 
   root_pos = new_root_pos;
+  notify_coordinator_rootpos();
+
   root_throwval_options.clear();
   for (; col < outdegree[from_state]; ++col) {
     const int throwval = outthrowval[from_state][col];
@@ -300,21 +347,6 @@ WorkAssignment Worker::split_off_work_assignment() {
   }
   assert(root_throwval_options.size() > 0);
 
-  return wa;
-}
-
-WorkAssignment Worker::get_work_assignment() const {
-  WorkAssignment wa;
-
-  wa.start_state = start_state;
-  wa.end_state = end_state;
-  wa.root_pos = root_pos;
-  wa.root_throwval_options = root_throwval_options;
-  for (int i = 0; i <= numstates; ++i) {
-    if (pattern[i] == -1)
-      break;
-    wa.partial_pattern.push_back(pattern[i]);
-  }
   return wa;
 }
 
@@ -330,10 +362,13 @@ void Worker::gen_patterns() {
     pos = 0;
     firstblocklength = -1; // -1 signals unknown
     skipcount = 0;
+    longest_found = 0;
+    notify_coordinator_longest();
 
     if (!loading_work) {
-      // subsequent values of start_state, reset key variables
+      // reset variables for each new starting state
       root_pos = 0;
+      notify_coordinator_rootpos();
 
       root_throwval_options.clear();
       for (int col = 0; col < maxoutdegree; ++col) {
@@ -393,8 +428,6 @@ void Worker::gen_loops_normal() {
 
   if (loading_work) {
     if (pos == root_pos) {
-      // std::list<int> rto_copy = std::list<int>(root_throwval_options);
-
       // Coordinator may have given us throw values that don't work at this
       // point in the state graph, so remove any bad elements from the list
       std::list<int>::iterator iter = root_throwval_options.begin();
@@ -446,9 +479,9 @@ void Worker::gen_loops_normal() {
       assert(root_throwval_options.size() > 0);
     }
 
-    if (pattern[pos] == -1)
+    if (pattern[pos] == -1) {
       loading_work = false;
-    else {
+    } else {
       for (; col < maxoutdegree; ++col) {
         if (outmatrix[from][col] < start_state)
           continue;
@@ -518,6 +551,8 @@ void Worker::gen_loops_normal() {
       if (remaining == 0) {
         // using our last option at this root level, go one step deeper
         ++root_pos;
+        notify_coordinator_rootpos();
+
         for (int col2 = 0; col2 < maxoutdegree; ++col2) {
           if (outmatrix[to][col2] < start_state)
             continue;
@@ -532,8 +567,12 @@ void Worker::gen_loops_normal() {
       if (pos >= (l - 1) || l == 0) {
         if (longestflag && pos >= l)
           l = pos + 1;
-        pattern[pos] = outthrowval[from][col];
+        pattern[pos] = throwval;
         report_pattern();
+      }
+      if (pos > (longest_found - 1)) {
+        longest_found = pos + 1;
+        notify_coordinator_longest();
       }
       continue;
     }

@@ -56,31 +56,33 @@ void print_help() {
     "    <min. length> = shortest patterns to find (optional, speeds search)\n"
     "\n"
     "Recognized options:\n"
-    "    -block <skips>  find patterns in block form, allowing the specified\n"
-    "                       number of skips\n"
-    "    -super <shifts> find (nearly) superprime patterns, allowing the specified\n"
-    "                       number of shift throws\n"
-    "    -inverse        print inverse also, in -super mode\n"
-    "    -g              find ground-state patterns only\n"
-    "    -ng             find excited-state patterns only\n"
-    "    -full           print all patterns; otherwise only patterns as long\n"
-    "                       currently-longest one found are printed\n"
-    "    -noprint        suppress printing of patterns\n"
-    "    -exact          prints patterns of exact length specified (no longer)\n"
+    "    -block <skips>    find patterns in block form, allowing the specified\n"
+    "                         number of skips\n"
+    "    -super <shifts>   find (nearly) superprime patterns, allowing the\n"
+    "                         specified number of shift throws\n"
+    "    -inverse          print inverse also, in -super mode\n"
+    "    -g                find ground-state patterns only\n"
+    "    -ng               find excited-state patterns only\n"
+    "    -full             print all patterns; otherwise only patterns as long\n"
+    "                         currently-longest one found are printed\n"
+    "    -noprint          suppress printing of patterns\n"
+    "    -exact            prints patterns of exact length specified (no longer)\n"
     "    -x <throw1 throw2 ...>\n"
-    "                    exclude listed throws (speeds search)\n"
-    "    -trim           turn graph trimming on\n"
-    "    -notrim         turn graph trimming off\n"
-    "    -file <name>    use the named file for checkpointing (when jdeep is\n"
-    "                       interrupted), resuming, and final output\n"
-    "    -threads <num>  run with the given number of worker threads\n"
-    "    -verbose        print worker status information\n";
+    "                      exclude listed throws (speeds search)\n"
+    "    -trim             turn graph trimming on\n"
+    "    -notrim           turn graph trimming off\n"
+    "    -file <name>      use the named file for checkpointing (when jdeep is\n"
+    "                         interrupted), resuming, and final output\n"
+    "    -threads <num>    run with the given number of worker threads\n"
+    "    -verbose          print worker status information\n"
+    "    -steal_alg <num>  algorithm for selecting a worker to take work from\n"
+    "    -split_alg <num>  algorithm for splitting a stolen work assignment\n";
 
   std::cout << helpString << std::endl;
 }
 
 //------------------------------------------------------------------------------
-// Parsing command-line arguments
+// Parsing command line arguments
 //------------------------------------------------------------------------------
 
 void parse_args(int argc, char** argv, SearchConfig* const config,
@@ -101,7 +103,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     // excluded self-throws
     config->xarray.resize(config->n, false);
 
-    // defaults for going into dual space
+    // defaults for using dual graph
     if (config->h > (2 * config->n)) {
       config->dualflag = true;
       config->n = config->h - config->n;
@@ -153,7 +155,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         ++i;
         if (config != nullptr) {
           config->mode = SUPER_MODE;
-          config->shiftlimit = (double)atoi(argv[i]);
+          config->shiftlimit = atoi(argv[i]);
           if (config->shiftlimit == 0)
             config->xarray[0] = config->xarray[config->h] = 1;
         }
@@ -172,6 +174,24 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         std::cout << "No filename provided after -file" << std::endl;
         std::exit(0);
       }
+    } else if (!strcmp(argv[i], "-steal_alg")) {
+      if ((i + 1) < argc) {
+        ++i;
+        if (context != nullptr)
+          context->steal_alg = atoi(argv[i]);
+      } else {
+        std::cout << "No number provided after -steal_alg" << std::endl;
+        std::exit(0);
+      }
+    } else if (!strcmp(argv[i], "-split_alg")) {
+      if ((i + 1) < argc) {
+        ++i;
+        if (context != nullptr)
+          context->split_alg = atoi(argv[i]);
+      } else {
+        std::cout << "No number provided after -split_alg" << std::endl;
+        std::exit(0);
+      }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != NORMAL_MODE) {
@@ -181,7 +201,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         ++i;
         if (config != nullptr) {
           config->mode = BLOCK_MODE;
-          config->skiplimit = (double)atoi(argv[i]);
+          config->skiplimit = atoi(argv[i]);
         }
       } else {
         std::cout << "Must provide skip limit in -block mode" << std::endl;
@@ -225,7 +245,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     std::exit(0);
   }
 
-  // defaults for when to trim and when not to
+  // defaults for when to trim the graph
   if (config != nullptr && !trimspecified) {
     if (config->mode == BLOCK_MODE)
       config->trimflag = false;
@@ -258,7 +278,7 @@ void parse_args(std::string str, SearchConfig* const config,
 }
 
 //------------------------------------------------------------------------------
-// Loading/saving checkpoint files
+// Saving and loading checkpoint files
 //------------------------------------------------------------------------------
 
 void save_context(const SearchContext& context) {
@@ -320,7 +340,6 @@ bool load_context(std::string file, SearchContext& context) {
 
   while (myfile) {
     std::getline(myfile, s);
-    //std::cout << s << std::endl;
     std::string val;
     std::string error;
 
@@ -405,7 +424,7 @@ bool load_context(std::string file, SearchContext& context) {
         break;
       case 10:
         if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 10";
+          error = "syntax in line 11";
           break;
         }
         val = s.substr(17, s.size());
@@ -416,7 +435,7 @@ bool load_context(std::string file, SearchContext& context) {
         break;
       case 12:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 12";
+          error = "syntax in line 13";
           break;
         }
         break;
@@ -446,8 +465,7 @@ bool load_context(std::string file, SearchContext& context) {
       if (s.rfind("work", 0) == 0) {
         reading_assignments = true;
       } else if (val.size() > 0) {
-          context.patterns.push_back(s);
-          // std::cout << "added pattern: " << s << std::endl;
+        context.patterns.push_back(s);
       }
     }
 
@@ -463,41 +481,53 @@ bool load_context(std::string file, SearchContext& context) {
 
 void prepare_calculation(int argc, char** argv, SearchConfig& config,
       SearchContext& context) {
+  // first check if the user wants file output mode
   SearchContext args_context;
   parse_args(argc, argv, nullptr, &args_context);
 
   if (args_context.fileoutputflag) {
-    // user selected file output mode
     std::ifstream myfile(args_context.outfile);
     if (myfile.good()) {
-      // resuming from an existing file
-      std::cout << "reading checkpoint file '" << args_context.outfile << "'"
-                << std::endl;
+      // file exists; try resuming calculation
+      std::cout << "reading checkpoint file '" << args_context.outfile
+                << "'" << std::endl;
 
       if (load_context(args_context.outfile, context)) {
         if (context.assignments.size() == 0) {
           std::cout << "calculation is finished" << std::endl;
           std::exit(0);
         }
+
         // parse the loaded argument list (from the original invocation) to get
         // the config, plus fill in the elements of context that aren't loaded
         parse_args(context.arglist, &config, &context);
 
         std::cout << "resuming calculation: " << context.arglist << std::endl
-                  << "loaded " << context.npatterns << " patterns (length "
-                  << context.l_current << ") and "
-                  << context.assignments.size() << " work assignments"
-                  << std::endl;
+                  << "loaded " << context.npatterns
+                  << " patterns (length " << context.l_current
+                  << ") and " << context.assignments.size()
+                  << " work assignments" << std::endl;
         for (const std::string& s : context.patterns)
           std::cout << s << std::endl;
         return;
-      } else
+      } else {
+        // error in load_context()
         std::exit(0);
+      }
     }
   }
 
-  // get config and context from args
+  // if not resuming, then get config and context from args
   parse_args(argc, argv, &config, &context);
+
+  // save original argument list
+  if (context.fileoutputflag) {
+    for (int i = 0; i < argc; ++i) {
+      if (i != 0)
+        context.arglist += " ";
+      context.arglist += argv[i];
+    }
+  }
 
   // set initial work assignment
   WorkAssignment wa;
@@ -521,12 +551,12 @@ int main(int argc, char** argv) {
     std::exit(0);
   }
 
+  timespec start_ts, end_ts;
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context);
 
-  timespec start_ts, end_ts;
   timespec_get(&start_ts, TIME_UTC);
   coordinator.run();
   timespec_get(&end_ts, TIME_UTC);
@@ -539,16 +569,9 @@ int main(int argc, char** argv) {
             << " sec" << std::endl;
 
   if (context.fileoutputflag) {
-    if (context.arglist.empty()) {
-      for (int i = 0; i < argc; ++i) {
-        if (i != 0)
-          context.arglist += " ";
-        context.arglist += argv[i];
-      }
-    }
     save_context(context);
-    std::cout << "saved to checkpoint file '" << context.outfile << "'"
-              << std::endl;
+    std::cout << "saved to checkpoint file '" << context.outfile
+              << "'" << std::endl;
   }
 
   return 0;

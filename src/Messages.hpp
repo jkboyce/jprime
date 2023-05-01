@@ -15,6 +15,7 @@ enum messages_C2W {
 };
 
 struct MessageC2W {
+  // for all message types
   messages_C2W type;
 
   // for type DO_WORK
@@ -22,21 +23,25 @@ struct MessageC2W {
 
   // for types DO_WORK and UPDATE_METADATA
   int l_current = 0;
+
+  // for type SPLIT_WORK
+  int split_alg = 1;
 };
 
 enum messages_W2C {
   SEARCH_RESULT,
   WORKER_IDLE,
   RETURN_WORK,
+  WORKER_STATUS,
 };
 
 struct MessageW2C {
+  // for all message types
   messages_W2C type;
   int worker_id;
 
   // for type SEARCH_RESULT
   std::string pattern;
-  std::string meta;
   int length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK
@@ -47,6 +52,11 @@ struct MessageW2C {
 
   // for type RETURN_WORK
   WorkAssignment assignment;
+
+  // for type WORKER_STATUS
+  std::string meta;
+  int root_pos = -1;
+  int longest_found = -1;
 };
 
 #endif
