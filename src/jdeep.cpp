@@ -79,6 +79,10 @@ void print_help() {
   std::cout << helpString << std::endl;
 }
 
+//------------------------------------------------------------------------------
+// Parsing command-line arguments
+//------------------------------------------------------------------------------
+
 void parse_args(int argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
@@ -252,6 +256,10 @@ void parse_args(std::string str, SearchConfig* const config,
 
   delete[] argv;
 }
+
+//------------------------------------------------------------------------------
+// Loading/saving checkpoint files
+//------------------------------------------------------------------------------
 
 void save_context(const SearchContext& context) {
   std::ofstream myfile;
@@ -450,26 +458,19 @@ bool load_context(std::string file, SearchContext& context) {
 }
 
 //------------------------------------------------------------------------------
-// Execution entry point
+// Prep `config` and `context` data structures for calculation
 //------------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
-  if (argc == 1) {
-    print_help();
-    std::exit(0);
-  }
-
-  SearchConfig config;
-  SearchContext context;
-  bool context_ready = false;
-
+void prepare_calculation(int argc, char** argv, SearchConfig& config,
+      SearchContext& context) {
   SearchContext args_context;
   parse_args(argc, argv, nullptr, &args_context);
 
   if (args_context.fileoutputflag) {
+    // user selected file output mode
     std::ifstream myfile(args_context.outfile);
     if (myfile.good()) {
-      // resuming a calculation from an existing file
+      // resuming from an existing file
       std::cout << "reading checkpoint file '" << args_context.outfile << "'"
                 << std::endl;
 
@@ -481,7 +482,6 @@ int main(int argc, char** argv) {
         // parse the loaded argument list (from the original invocation) to get
         // the config, plus fill in the elements of context that aren't loaded
         parse_args(context.arglist, &config, &context);
-        context_ready = true;
 
         std::cout << "resuming calculation: " << context.arglist << std::endl
                   << "loaded " << context.npatterns << " patterns (length "
@@ -490,27 +490,40 @@ int main(int argc, char** argv) {
                   << std::endl;
         for (const std::string& s : context.patterns)
           std::cout << s << std::endl;
+        return;
       } else
         std::exit(0);
     }
   }
 
-  if (!context_ready) {
-    // get config and context from args
-    parse_args(argc, argv, &config, &context);
+  // get config and context from args
+  parse_args(argc, argv, &config, &context);
 
-    // set initial work assignment
-    WorkAssignment wa;
-    wa.start_state = -1;
-    wa.end_state = -1;
-    wa.root_pos = 0;
-    for (int i = 0; i <= config.h; ++i) {
-      if (!config.xarray[i])
-        wa.root_throwval_options.push_back(i);
-    }
-    context.assignments.push_back(wa);
+  // set initial work assignment
+  WorkAssignment wa;
+  wa.start_state = -1;
+  wa.end_state = -1;
+  wa.root_pos = 0;
+  for (int i = 0; i <= config.h; ++i) {
+    if (!config.xarray[i])
+      wa.root_throwval_options.push_back(i);
+  }
+  context.assignments.push_back(wa);
+}
+
+//------------------------------------------------------------------------------
+// Execution entry point
+//------------------------------------------------------------------------------
+
+int main(int argc, char** argv) {
+  if (argc == 1) {
+    print_help();
+    std::exit(0);
   }
 
+  SearchConfig config;
+  SearchContext context;
+  prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context);
 
   timespec start_ts, end_ts;
