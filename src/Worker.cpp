@@ -241,7 +241,16 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 }
 
 WorkAssignment Worker::split_work_assignment(int split_alg) {
-  return split_work_assignment_takeall();
+  switch (split_alg) {
+    case 1:
+      return split_work_assignment_takeall();
+      break;
+    case 2:
+      return split_work_assignment_takehalf();
+      break;
+    default:
+      assert(false);
+  }
 }
 
 WorkAssignment Worker::get_work_assignment() const {
@@ -279,73 +288,105 @@ void Worker::notify_coordinator_longest() {
 //------------------------------------------------------------------------------
 
 WorkAssignment Worker::split_work_assignment_takeall() {
-  // give away all the other throw value options at the current root position,
-  // and move this worker to a deeper root position
-  assert(root_throwval_options.size() > 0);
+  // strategy: take all of the throw options at root_pos
+  return split_work_assignment_takefraction(1, false);
+}
 
+WorkAssignment Worker::split_work_assignment_takehalf() {
+  // strategy: take half of the throw options at root_pos
+  return split_work_assignment_takefraction(0.5, false);
+}
+
+WorkAssignment Worker::split_work_assignment_takefraction(double f,
+      bool take_front) {
   WorkAssignment wa;
   wa.start_state = start_state;
   wa.end_state = start_state;
   wa.root_pos = root_pos;
-  wa.root_throwval_options = root_throwval_options;
   for (int i = 0; i < root_pos; ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
-  // remove the throw value at `root_pos` from the list of
-  // possibilities we're giving away
-  std::list<int>::iterator iter = wa.root_throwval_options.begin();
-  std::list<int>::iterator end = wa.root_throwval_options.end();
+  // ensure the throw value at `root_pos` isn't on the list of throw options
+  std::list<int>::iterator iter = root_throwval_options.begin();
+  std::list<int>::iterator end = root_throwval_options.end();
   while (iter != end) {
     if (*iter == pattern[root_pos])
-      iter = wa.root_throwval_options.erase(iter);
+      iter = root_throwval_options.erase(iter);
     else
       ++iter;
   }
-
-  // Here we need to find the shallowest depth `new_root_pos` where there are
-  // unexplored throw options. We're giving away all the options at the current
-  // root_pos, so new_root_pos > root_pos
-  //
-  // We're also at a point in the search where we know there are unexplored
-  // options remaining at the current value of `pos` (by virtue of how we got
-  // here), and that pos > root_pos.
-  //
-  // So we know there must be a value of `new_root_pos` with the properties we
-  // need, in the range root_pos < new_root_pos <= pos;
-
-  int from_state = start_state;
-  int new_root_pos = -1;
-  int col = 0;
-
-  // have to start from the beginning because we don't record the traversed
-  // states as we build the pattern
-  for (int pos2 = 0; pos2 <= pos; ++pos2) {
-    const int throwval = pattern[pos2];
-    for (col = 0; col < outdegree[from_state]; ++col) {
-      if (throwval == outthrowval[from_state][col])
-        break;
-    }
-    assert(col != outdegree[from_state]);
-
-    if (pos2 > root_pos && col < outdegree[from_state] - 1) {
-      new_root_pos = pos2;
-      break;
-    }
-
-    from_state = outmatrix[from_state][col];
-  }
-  assert(new_root_pos != -1);
-
-  root_pos = new_root_pos;
-  notify_coordinator_rootpos();
-
-  root_throwval_options.clear();
-  for (; col < outdegree[from_state]; ++col) {
-    const int throwval = outthrowval[from_state][col];
-    if (throwval != pattern[root_pos])
-      root_throwval_options.push_back(outthrowval[from_state][col]);
-  }
   assert(root_throwval_options.size() > 0);
+
+  typedef std::list<int>::size_type li_size_t;
+  li_size_t take_count =
+      static_cast<int>(0.51 + f * root_throwval_options.size());
+  take_count = std::min(
+      std::max(static_cast<li_size_t>(1), take_count),
+      root_throwval_options.size());
+
+  li_size_t take_begin_idx = (take_front ? 0
+        : root_throwval_options.size() - take_count);
+  li_size_t take_end_idx = take_begin_idx + take_count;
+
+  iter = root_throwval_options.begin();
+  end = root_throwval_options.end();
+  li_size_t index = 0;
+  while (iter != end) {
+    if (index >= take_begin_idx && index < take_end_idx) {
+      wa.root_throwval_options.push_back(*iter);
+      iter = root_throwval_options.erase(iter);
+    } else
+      ++iter;
+    ++index;
+  }
+
+  if (root_throwval_options.size() == 0) {
+    // Gave away all our throw options at this `root_pos`
+    //
+    // We need to find the shallowest depth `new_root_pos` where there are
+    // unexplored throw options. We're giving away all the options at the
+    // current root_pos, so new_root_pos > root_pos
+    //
+    // We're also at a point in the search where we know there are unexplored
+    // options remaining at the current value of `pos` (by virtue of how we got
+    // here), and that pos > root_pos.
+    //
+    // So we know there must be a value of `new_root_pos` with the properties we
+    // need, in the range root_pos < new_root_pos <= pos;
+
+    int from_state = start_state;
+    int new_root_pos = -1;
+    int col = 0;
+
+    // have to start from the beginning because we don't record the traversed
+    // states as we build the pattern
+    for (int pos2 = 0; pos2 <= pos; ++pos2) {
+      const int throwval = pattern[pos2];
+      for (col = 0; col < outdegree[from_state]; ++col) {
+        if (throwval == outthrowval[from_state][col])
+          break;
+      }
+      assert(col != outdegree[from_state]);
+
+      if (pos2 > root_pos && col < outdegree[from_state] - 1) {
+        new_root_pos = pos2;
+        break;
+      }
+
+      from_state = outmatrix[from_state][col];
+    }
+    assert(new_root_pos != -1);
+    root_pos = new_root_pos;
+    notify_coordinator_rootpos();
+
+    root_throwval_options.clear();
+    for (; col < outdegree[from_state]; ++col) {
+      const int throwval = outthrowval[from_state][col];
+      if (throwval != pattern[root_pos])
+        root_throwval_options.push_back(outthrowval[from_state][col]);
+    }
+    assert(root_throwval_options.size() > 0);
+  }
 
   return wa;
 }

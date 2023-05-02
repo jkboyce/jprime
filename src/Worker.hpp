@@ -101,6 +101,8 @@ class Worker {
   void notify_coordinator_rootpos();
   void notify_coordinator_longest();
   WorkAssignment split_work_assignment_takeall();
+  WorkAssignment split_work_assignment_takehalf();
+  WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
   void gen_loops_normal();
   void gen_loops_block();

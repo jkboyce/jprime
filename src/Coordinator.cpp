@@ -118,6 +118,15 @@ void Coordinator::steal_work() {
     case 1:
       id = find_stealing_target_lowid();
       break;
+    case 2:
+      id = find_stealing_target_lowrootpos();
+      break;
+    case 3:
+      id = find_stealing_target_longestruntime();
+      break;
+    case 4:
+      id = find_stealing_target_longestpattern();
+      break;
     default:
       assert(false);
   }
@@ -145,7 +154,7 @@ void Coordinator::process_inbox() {
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
       process_worker_idle(msg);
     } else if (msg.type == messages_W2C::RETURN_WORK) {
-      assert(workers_idle.size() > 0);
+      // assert(workers_idle.size() > 0);
       assert(msg.worker_id == waiting_for_work_from_id);
       waiting_for_work_from_id = -1;
       context.assignments.push_back(msg.assignment);
@@ -192,7 +201,7 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
   return new_longest_pattern_from_id;
 }
 
-void Coordinator::remove_from_run_order(int id) {
+void Coordinator::remove_from_run_order(const int id) {
   // remove worker from workers_run_order
   std::list<int>::iterator iter = workers_run_order.begin();
   std::list<int>::iterator end = workers_run_order.end();
@@ -208,16 +217,21 @@ void Coordinator::remove_from_run_order(int id) {
   assert(found);
 }
 
+bool Coordinator::is_worker_idle(const int id) const {
+  return std::find(workers_idle.begin(), workers_idle.end(), id)
+      != workers_idle.end();
+}
+
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
+  remove_from_run_order(msg.worker_id);
   workers_idle.push_back(msg.worker_id);
+
   context.ntotal += msg.ntotal;
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
   context.maxlength = msg.maxlength;
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
-
-  remove_from_run_order(msg.worker_id);
 
   // worker went idle before it could return a work assignment
   if (msg.worker_id == waiting_for_work_from_id)
@@ -289,9 +303,8 @@ void Coordinator::signal_handler(int signum) {
 // Algorithms for deciding which process to steal work from
 //------------------------------------------------------------------------------
 
-int Coordinator::find_stealing_target_lowid() {
+int Coordinator::find_stealing_target_lowid() const {
   // strategy: take work from lowest-id worker that's busy
-
   for (int id = 0; id < context.num_threads; ++id) {
     if (std::find(workers_idle.begin(), workers_idle.end(), id)
           != workers_idle.end())
@@ -299,6 +312,43 @@ int Coordinator::find_stealing_target_lowid() {
     return id;
   }
   assert(false);
+}
+
+int Coordinator::find_stealing_target_lowrootpos() const {
+  // strategy: take work from the worker with the lowest root_pos
+  int id_min = -1;
+  int root_pos_min = -1;
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (is_worker_idle(id))
+      continue;
+    if (root_pos_min == -1 || root_pos_min > worker_rootpos[id]) {
+      root_pos_min = worker_rootpos[id];
+      id_min = id;
+    }
+  }
+  assert(id_min != -1);
+  return id_min;
+}
+
+int Coordinator::find_stealing_target_longestruntime() const {
+  // strategy: take work from the worker running the longest
+  return workers_run_order.front();
+}
+
+int Coordinator::find_stealing_target_longestpattern() const {
+  // strategy: take work from the worker with the longest patterns found
+  int id_max = -1;
+  int longest_max = -1;
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (is_worker_idle(id))
+      continue;
+    if (longest_max < worker_longest[id]) {
+      longest_max = worker_rootpos[id];
+      id_max = id;
+    }
+  }
+  assert(id_max != -1);
+  return id_max;
 }
 
 //------------------------------------------------------------------------------
