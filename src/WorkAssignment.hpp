@@ -6,16 +6,15 @@
 #include <vector>
 #include <string>
 
-// Defines a work assignment that can be handed off
+// Defines a work assignment to hand off between workers. Together with
+// SearchConfig these completely define the computation.
+
 struct WorkAssignment {
   int start_state = 1;
   int end_state = 1;
   int root_pos = 0;
   std::list<int> root_throwval_options;
   std::vector<int> partial_pattern;
-
-  // not saved and loaded
-  //int l_current = 0;
 
   bool from_string(std::string str);
 };

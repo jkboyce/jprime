@@ -234,8 +234,9 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       if (*p || i != 3) {
         std::cout << "unrecognized input: " << argv[i] << std::endl;
         std::exit(0);
-      } else if (config != nullptr)
+      } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
+      }
     }
   }
 
@@ -298,6 +299,7 @@ void save_context(const SearchContext& context) {
          << "threads           " << context.num_threads << std::endl
          << "hardware threads  " << std::thread::hardware_concurrency() << std::endl
          << "seconds elapsed   " << context.secs_elapsed << std::endl
+         << "seconds working   " << context.secs_elapsed_working << std::endl
          << std::endl;
 
   myfile << "patterns" << std::endl;
@@ -432,10 +434,19 @@ bool load_context(std::string file, SearchContext& context) {
         context.secs_elapsed = std::stod(val);
         break;
       case 11:
+        if (s.rfind("seconds", 0) != 0) {
+          error = "syntax in line 12";
+          break;
+        }
+        val = s.substr(17, s.size());
+        trim(val);
+        context.secs_elapsed_working = std::stod(val);
         break;
       case 12:
+        break;
+      case 13:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 13";
+          error = "syntax in line 14";
           break;
         }
         break;
@@ -461,7 +472,7 @@ bool load_context(std::string file, SearchContext& context) {
         myfile.close();
         return false;
       }
-    } else if (linenum > 12) {
+    } else if (linenum > 13) {
       if (s.rfind("work", 0) == 0) {
         reading_assignments = true;
       } else if (val.size() > 0) {
@@ -567,6 +578,12 @@ int main(int argc, char** argv) {
   std::cout << "running time = "
             << std::setprecision(5) << context.secs_elapsed
             << " sec" << std::endl;
+  if (context.num_threads > 1) {
+    std::cout << "worker utilization = "
+              << ((context.secs_elapsed_working / context.num_threads) /
+                     context.secs_elapsed) * 100
+              << " %" << std::endl;
+  }
 
   if (context.fileoutputflag) {
     save_context(context);

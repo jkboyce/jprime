@@ -49,6 +49,7 @@ struct MessageW2C {
   unsigned long nnodes = 0L;
   int numstates = 0;
   int maxlength = 0;
+  double secs_elapsed_working = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;

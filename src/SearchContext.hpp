@@ -17,6 +17,7 @@ struct SearchContext {
   unsigned long ntotal = 0L;
   unsigned long nnodes = 0L;
   double secs_elapsed = 0;
+  double secs_elapsed_working = 0;
   std::vector<std::string> patterns;
   std::list<WorkAssignment> assignments;
 

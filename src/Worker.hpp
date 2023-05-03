@@ -83,9 +83,10 @@ class Worker {
   unsigned long ntotal = 0L;
   unsigned long nnodes = 0L;
   int longest_found = 0;
+  double secs_elapsed_working = 0;
 
-  static constexpr double secs_per_inbox_check_target = 0.01;
-  static constexpr int steps_per_inbox_check_initial = 5000000;
+  static constexpr double secs_per_inbox_check_target = 0.001;
+  static constexpr int steps_per_inbox_check_initial = 50000;
 
   int steps_per_inbox_check = steps_per_inbox_check_initial;
   int calibrations_remaining = 10;
@@ -95,6 +96,9 @@ class Worker {
   void message_coordinator(const MessageW2C& msg) const;
   void message_coordinator(const MessageW2C& msg1, const MessageW2C& msg2) const;
   void process_inbox();
+  void record_elapsed_time(timespec& start);
+  void calibrate_inbox_check();
+  void process_split_work_request(const MessageC2W& msg);
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment split_work_assignment(int split_alg);
   WorkAssignment get_work_assignment() const;

@@ -12,7 +12,12 @@
 bool Coordinator::stopping = false;
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
-    : config(a), context(b) {}
+      : config(a), context(b) {
+  worker.reserve(context.num_threads);
+  worker_thread.reserve(context.num_threads);
+  worker_rootpos.reserve(context.num_threads);
+  worker_longest.reserve(context.num_threads);
+}
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -23,11 +28,6 @@ void Coordinator::run() {
   signal(SIGINT, Coordinator::signal_handler);
 
   // start worker threads
-  worker.reserve(context.num_threads);
-  worker_thread.reserve(context.num_threads);
-  worker_rootpos.reserve(context.num_threads);
-  worker_longest.reserve(context.num_threads);
-
   for (int id = 0; id < context.num_threads; ++id) {
     worker[id] = new Worker(config, this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
@@ -53,11 +53,7 @@ void Coordinator::run() {
         if (msg.type == messages_W2C::SEARCH_RESULT) {
           process_search_result(msg);
         } else if (msg.type == messages_W2C::RETURN_WORK) {
-          context.assignments.push_back(msg.assignment);
-          context.ntotal += msg.ntotal;
-          context.nnodes += msg.nnodes;
-          context.numstates = msg.numstates;
-          context.maxlength = msg.maxlength;
+          process_worker_returned_work(msg);
         }
         // ignore other message types
       }
@@ -154,20 +150,7 @@ void Coordinator::process_inbox() {
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
       process_worker_idle(msg);
     } else if (msg.type == messages_W2C::RETURN_WORK) {
-      // assert(workers_idle.size() > 0);
-      assert(msg.worker_id == waiting_for_work_from_id);
-      waiting_for_work_from_id = -1;
-      context.assignments.push_back(msg.assignment);
-
-      // put splittee at the back of the run order list
-      remove_from_run_order(msg.worker_id);
-      workers_run_order.push_back(msg.worker_id);
-
-      if (config.verboseflag) {
-        std::cout << "worker " << msg.worker_id << " returned work:"
-                  << std::endl
-                  << "  " << msg.assignment << std::endl;
-      }
+      process_worker_returned_work(msg);
     } else if (msg.type == messages_W2C::WORKER_STATUS) {
       process_worker_status(msg);
     } else {
@@ -201,22 +184,6 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
   return new_longest_pattern_from_id;
 }
 
-void Coordinator::remove_from_run_order(const int id) {
-  // remove worker from workers_run_order
-  std::list<int>::iterator iter = workers_run_order.begin();
-  std::list<int>::iterator end = workers_run_order.end();
-  bool found = false;
-
-  while (iter != end) {
-    if (*iter == id) {
-      found = true;
-      iter = workers_run_order.erase(iter);
-    } else
-      ++iter;
-  }
-  assert(found);
-}
-
 bool Coordinator::is_worker_idle(const int id) const {
   return std::find(workers_idle.begin(), workers_idle.end(), id)
       != workers_idle.end();
@@ -230,15 +197,41 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
   context.maxlength = msg.maxlength;
+  context.secs_elapsed_working += msg.secs_elapsed_working;
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
-  // worker went idle before it could return a work assignment
+  // worker went idle before it could return a work assignment; the
+  // SPLIT_WORK message will be held in the worker's inbox until it becomes
+  // active again. In any case we don't want to block on it because that may
+  // deadlock the program.
   if (msg.worker_id == waiting_for_work_from_id)
     waiting_for_work_from_id = -1;
 
   if (config.verboseflag)
     std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
+}
+
+void Coordinator::process_worker_returned_work(const MessageW2C& msg) {
+  if (msg.worker_id == waiting_for_work_from_id)
+    waiting_for_work_from_id = -1;
+  context.assignments.push_back(msg.assignment);
+
+  // put splittee at the back of the run order list
+  remove_from_run_order(msg.worker_id);
+  workers_run_order.push_back(msg.worker_id);
+
+  context.ntotal += msg.ntotal;
+  context.nnodes += msg.nnodes;
+  context.numstates = msg.numstates;
+  context.maxlength = msg.maxlength;
+  context.secs_elapsed_working += msg.secs_elapsed_working;
+
+  if (config.verboseflag) {
+    std::cout << "worker " << msg.worker_id << " returned work:"
+              << std::endl
+              << "  " << msg.assignment << std::endl;
+  }
 }
 
 void Coordinator::process_worker_status(const MessageW2C& msg) {
@@ -262,6 +255,22 @@ void Coordinator::process_worker_status(const MessageW2C& msg) {
                 << " new longest_found: " << msg.longest_found << std::endl;
     }
   }
+}
+
+void Coordinator::remove_from_run_order(const int id) {
+  // remove worker from workers_run_order
+  std::list<int>::iterator iter = workers_run_order.begin();
+  std::list<int>::iterator end = workers_run_order.end();
+  bool found = false;
+
+  while (iter != end) {
+    if (*iter == id) {
+      found = true;
+      iter = workers_run_order.erase(iter);
+    } else
+      ++iter;
+  }
+  assert(found);
 }
 
 void Coordinator::notify_metadata(int skip_id) const {

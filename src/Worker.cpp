@@ -84,7 +84,7 @@ void Worker::run() {
 
       if (msg.type == messages_C2W::DO_WORK) {
         load_work_assignment(msg.assignment);
-        l = msg.l_current;
+        l = std::max(l, msg.l_current);
         new_assignment = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
@@ -103,17 +103,20 @@ void Worker::run() {
     if (!new_assignment)
       continue;
 
-    // save a timestamp to calibrate how often to check the inbox
-    // while running
+    timespec start_ts;
+    timespec_get(&start_ts, TIME_UTC);
+    // for calibrating how often to check the inbox while running
     if (calibrations_remaining > 0)
       timespec_get(&last_ts, TIME_UTC);
 
     // complete the new work assignment
     try {
       gen_patterns();
+      record_elapsed_time(start_ts);
     } catch (const JdeepStopException& jdse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the Coordinator
+      record_elapsed_time(start_ts);
       MessageW2C msg;
       msg.type = messages_W2C::RETURN_WORK;
       msg.worker_id = worker_id;
@@ -121,6 +124,7 @@ void Worker::run() {
       msg.nnodes = nnodes;
       msg.numstates = numstates;
       msg.maxlength = maxlength;
+      msg.secs_elapsed_working = secs_elapsed_working;
       msg.assignment = get_work_assignment();
       message_coordinator(msg);
       break;
@@ -131,7 +135,7 @@ void Worker::run() {
     inbox = std::queue<MessageC2W>();
     inbox_lock.unlock();
 
-    // notify coordinator that we're idle again
+    // notify coordinator that we're idle
     MessageW2C msg;
     msg.type = messages_W2C::WORKER_IDLE;
     msg.worker_id = worker_id;
@@ -139,9 +143,11 @@ void Worker::run() {
     msg.nnodes = nnodes;
     msg.numstates = numstates;
     msg.maxlength = maxlength;
+    msg.secs_elapsed_working = secs_elapsed_working;
     message_coordinator(msg);
     ntotal = 0;
     nnodes = 0;
+    secs_elapsed_working = 0;
   }
 }
 
@@ -164,19 +170,8 @@ void Worker::message_coordinator(const MessageW2C& msg1,
 }
 
 void Worker::process_inbox() {
-  if (calibrations_remaining > 0) {
-    timespec current_ts;
-    timespec_get(&current_ts, TIME_UTC);
-    double time_spent =
-        ((double)current_ts.tv_sec + 1.0e-9 * current_ts.tv_nsec) -
-        ((double)last_ts.tv_sec + 1.0e-9 * last_ts.tv_nsec);
-    last_ts = current_ts;
-    --calibrations_remaining;
-
-    steps_per_inbox_check =
-        static_cast<int>(static_cast<double>(steps_per_inbox_check) *
-        secs_per_inbox_check_target / time_spent);
-  }
+  if (calibrations_remaining > 0)
+    calibrate_inbox_check();
 
   bool stopping_work = false;
 
@@ -190,23 +185,7 @@ void Worker::process_inbox() {
     } else if (msg.type == messages_C2W::UPDATE_METADATA) {
       l = std::max(l, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
-      MessageW2C msg2;
-      msg2.type = messages_W2C::RETURN_WORK;
-      msg2.worker_id = worker_id;
-      msg2.assignment = split_work_assignment(msg.split_alg);
-
-      if (verboseflag) {
-        std::ostringstream sstr;
-        sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
-        sstr << "  " << get_work_assignment();
-
-        MessageW2C msg3;
-        msg3.type = messages_W2C::WORKER_STATUS;
-        msg3.worker_id = worker_id;
-        msg3.meta = sstr.str();
-        message_coordinator(msg2, msg3);
-      } else
-        message_coordinator(msg2);
+      process_split_work_request(msg);
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -215,6 +194,56 @@ void Worker::process_inbox() {
 
   if (stopping_work)
     throw JdeepStopException();
+}
+
+void Worker::record_elapsed_time(timespec& start_ts) {
+  timespec end_ts;
+  timespec_get(&end_ts, TIME_UTC);
+  double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -
+      ((double)start_ts.tv_sec + 1.0e-9 * start_ts.tv_nsec);
+  secs_elapsed_working += runtime;
+}
+
+void Worker::calibrate_inbox_check() {
+  timespec current_ts;
+  timespec_get(&current_ts, TIME_UTC);
+  double time_spent =
+      ((double)current_ts.tv_sec + 1.0e-9 * current_ts.tv_nsec) -
+      ((double)last_ts.tv_sec + 1.0e-9 * last_ts.tv_nsec);
+  last_ts = current_ts;
+  --calibrations_remaining;
+
+  steps_per_inbox_check =
+      static_cast<int>(static_cast<double>(steps_per_inbox_check) *
+      secs_per_inbox_check_target / time_spent);
+}
+
+void Worker::process_split_work_request(const MessageC2W& msg) {
+  MessageW2C msg2;
+  msg2.type = messages_W2C::RETURN_WORK;
+  msg2.worker_id = worker_id;
+  msg2.assignment = split_work_assignment(msg.split_alg);
+  msg2.ntotal = ntotal;
+  msg2.nnodes = nnodes;
+  msg2.numstates = numstates;
+  msg2.maxlength = maxlength;
+  msg2.secs_elapsed_working = secs_elapsed_working;
+  ntotal = 0;
+  nnodes = 0;
+  secs_elapsed_working = 0;
+
+  if (verboseflag) {
+    std::ostringstream sstr;
+    sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
+    sstr << "  " << get_work_assignment();
+
+    MessageW2C msg3;
+    msg3.type = messages_W2C::WORKER_STATUS;
+    msg3.worker_id = worker_id;
+    msg3.meta = sstr.str();
+    message_coordinator(msg2, msg3);
+  } else
+    message_coordinator(msg2);
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
@@ -266,6 +295,7 @@ WorkAssignment Worker::get_work_assignment() const {
   }
   return wa;
 }
+
 
 void Worker::notify_coordinator_rootpos() {
   MessageW2C msg;
@@ -344,8 +374,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // Gave away all our throw options at this `root_pos`
     //
     // We need to find the shallowest depth `new_root_pos` where there are
-    // unexplored throw options. We're giving away all the options at the
-    // current root_pos, so new_root_pos > root_pos
+    // unexplored throw options. We have no more options at the current
+    // root_pos, so new_root_pos > root_pos
     //
     // We're also at a point in the search where we know there are unexplored
     // options remaining at the current value of `pos` (by virtue of how we got
@@ -365,6 +395,15 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       for (col = 0; col < outdegree[from_state]; ++col) {
         if (throwval == outthrowval[from_state][col])
           break;
+      }
+      if (col == outdegree[from_state]) {
+        std::cout << "pos2 = " << pos2
+                  << ", from_state = " << from_state
+                  << ", start_state = " << start_state
+                  << ", root_pos = " << root_pos
+                  << ", col = " << col
+                  << ", throwval = " << throwval
+                  << std::endl;
       }
       assert(col != outdegree[from_state]);
 
@@ -399,6 +438,8 @@ void Worker::gen_patterns() {
   const bool pretrim_graph = false;
 
   for (; start_state <= end_state; ++start_state) {
+    if (longestflag && start_state > (maxlength - l + 1))
+      continue;
     from = start_state;
     pos = 0;
     firstblocklength = -1; // -1 signals unknown
