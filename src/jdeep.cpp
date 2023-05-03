@@ -518,8 +518,6 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
                   << " patterns (length " << context.l_current
                   << ") and " << context.assignments.size()
                   << " work assignments" << std::endl;
-        for (const std::string& s : context.patterns)
-          std::cout << s << std::endl;
         return;
       } else {
         // error in load_context()

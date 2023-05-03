@@ -50,6 +50,8 @@ class Worker {
   unsigned long* state;
   int** partners;  // for finding superprime patterns
   int numcycles = 0;  // total number of shift cycles
+  unsigned long highmask = 0L;
+  unsigned long allmask = 0L;
 
   // for loading and sharing work assignments
   int start_state = 1;
@@ -111,6 +113,9 @@ class Worker {
   void gen_loops_normal();
   void gen_loops_block();
   void gen_loops_super();
+  int load_one_throw();
+  bool mark_off_rootpos_option(int throwval, int to_state);
+  void handle_finished_pattern(int throwval);
   void delete_vertices(int statenum);
   void outupdate(int statenum, int slot);
   void inupdate(int statenum, int slot);

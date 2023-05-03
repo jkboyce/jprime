@@ -39,6 +39,8 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   prepcorearrays(config.xarray);
   maxlength = (mode == SUPER_MODE) ? (numcycles + shiftlimit)
       : (numstates - numcycles);
+  highmask = 1L << (config.h - 1);
+  allmask = (1L << config.h) - 1;
 
   if (l > maxlength) {
     std::cout << "No patterns longer than " << maxlength << " are possible"
@@ -265,7 +267,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   for (int i = 0; i <= numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
-    assert(used[i] == 0);
+    assert(mode == SUPER_MODE || used[i] == 0);
   }
 }
 
@@ -506,156 +508,16 @@ void Worker::gen_loops_normal() {
   if (pos < root_pos && !loading_work)
     return;
 
-  int col = 0;
-
-  if (loading_work) {
-    if (pos == root_pos) {
-      // Coordinator may have given us throw values that don't work at this
-      // point in the state graph, so remove any bad elements from the list
-      std::list<int>::iterator iter = root_throwval_options.begin();
-      std::list<int>::iterator end = root_throwval_options.end();
-
-      while (iter != end) {
-        bool allowed = false;
-        for (int col2 = 0; col2 < maxoutdegree; ++col2) {
-          if (outmatrix[from][col2] < start_state)
-            continue;
-          if (*iter == outthrowval[from][col2]) {
-            allowed = true;
-            break;
-          }
-        }
-        if (allowed)
-          ++iter;
-        else
-          iter = root_throwval_options.erase(iter);
-      }
-
-      /*
-      if (root_throwval_options.size() == 0) {
-        std::ostringstream buffer;
-        for (int i = 0; i <= pos; ++i) {
-          int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
-          print_throw(buffer, throwval);
-        }
-        std::cout << "worker: " << worker_id << std::endl
-                  << "pos: " << pos << std::endl
-                  << "root_pos: " << root_pos << std::endl
-                  << "from: " << from << std::endl
-                  << "state[from]: " << state[from] << std::endl
-                  << "start_state: " << start_state << std::endl
-                  << "pattern: " << buffer.str() << std::endl
-                  << "outthrowval[from][]: ";
-        for (int i = 0; i < maxoutdegree; ++i)
-          std::cout << outthrowval[from][i] << ", ";
-        std::cout << std::endl << "outmatrix[from][]: ";
-        for (int i = 0; i < maxoutdegree; ++i)
-          std::cout << outmatrix[from][i] << ", ";
-        std::cout << std::endl;
-        std::cout << "throw options: ";
-        for (int val : rto_copy)
-          std::cout << val << " ";
-        std::cout << std::endl;
-      }
-      */
-      assert(root_throwval_options.size() > 0);
-    }
-
-    if (pattern[pos] == -1) {
-      loading_work = false;
-    } else {
-      for (; col < maxoutdegree; ++col) {
-        if (outmatrix[from][col] < start_state)
-          continue;
-        if (outthrowval[from][col] == pattern[pos])
-          break;
-      }
-
-      /*
-      if (col == maxoutdegree) {
-        std::ostringstream buffer;
-        for (int i = 0; i <= pos; ++i) {
-          int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
-          print_throw(buffer, throwval);
-        }
-        std::cout << "worker: " << worker_id << std::endl
-                  << "pos: " << pos << std::endl
-                  << "root_pos: " << root_pos << std::endl
-                  << "from: " << from << std::endl
-                  << "state[from]: " << state[from] << std::endl
-                  << "start_state: " << start_state << std::endl
-                  << "pattern: " << buffer.str() << std::endl
-                  << "outthrowval[from][]: ";
-        for (int i = 0; i < maxoutdegree; ++i)
-          std::cout << outthrowval[from][i] << ", ";
-        std::cout << std::endl << "outmatrix[from][]: ";
-        for (int i = 0; i < maxoutdegree; ++i)
-          std::cout << outmatrix[from][i] << ", ";
-        std::cout << std::endl << "state[outmatrix[from][]]: ";
-        for (int i = 0; i < maxoutdegree; ++i)
-          std::cout << state[outmatrix[from][i]] << ", ";
-        std::cout << std::endl;
-      }
-      */
-      assert(col != maxoutdegree);
-    }
-  }
-
-  const unsigned long highmask = 1L << (h - 1);
-  const unsigned long allmask = (1L << h) - 1;
-
+  int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
     const int to = outmatrix[from][col];
-    if (used[to] != 0 || to < start_state)
+    if (used[to] == 1 || to < start_state)
       continue;
     const int throwval = outthrowval[from][col];
-
-    if (pos == root_pos) {
-      // check to see if this throwval is in our allowed list,
-      // and if so remove it
-      bool found = false;
-      int remaining = 0;
-      std::list<int>::iterator iter = root_throwval_options.begin();
-      std::list<int>::iterator end = root_throwval_options.end();
-
-      while (iter != end) {
-        if (*iter == throwval) {
-          found = true;
-          iter = root_throwval_options.erase(iter);
-        } else {
-          ++iter;
-          ++remaining;
-        }
-      }
-      if (!found && !loading_work)
-        continue;
-
-      if (remaining == 0) {
-        // using our last option at this root level, go one step deeper
-        ++root_pos;
-        notify_coordinator_rootpos();
-
-        for (int col2 = 0; col2 < maxoutdegree; ++col2) {
-          if (outmatrix[to][col2] < start_state)
-            continue;
-          root_throwval_options.push_back(outthrowval[to][col2]);
-        }
-      }
-    }
-
-    // finished?
+    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+      continue;
     if (to == start_state) {
-      ++ntotal;
-      if (pos >= (l - 1) || l == 0) {
-        if (longestflag && pos >= l)
-          l = pos + 1;
-        pattern[pos] = throwval;
-        report_pattern();
-      }
-      if (pos > (longest_found - 1)) {
-        longest_found = pos + 1;
-        notify_coordinator_longest();
-      }
+      handle_finished_pattern(throwval);
       continue;
     }
 
@@ -884,58 +746,33 @@ void Worker::gen_loops_block() {
 void Worker::gen_loops_super() {
   if (exactflag && pos >= l)
     return;
+  if (pos < root_pos && !loading_work)
+    return;
 
-  int col = 0;
-
-  if (loading_work) {
-    if (pattern[loading_pos] == -1)
-      loading_work = false;
-    else {
-      for (; col < maxoutdegree; ++col) {
-        if (outthrowval[from][col] == pattern[loading_pos])
-          break;
-      }
-      assert(col != maxoutdegree);
-      ++loading_pos;
-    }
-  }
-
+  int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
     const int to = outmatrix[from][col];
-
-    if (to < start_state || used[to] == 1)
+    if (used[to] == 1 || to < start_state)
       continue;
-
+    const int throwval = outthrowval[from][col];
+    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+      continue;
     if (to == start_state) {
-      ++ntotal;
-      if (l != 0 && pos < (l - 1))
-        continue;
-
-      const int throwval = outthrowval[from][col];
-
-      if ((throwval == 0 || throwval == h) && shiftlimit > 0
-            && shiftcount == shiftlimit)
-        continue;
-
-      if (longestflag && pos >= l)
-        l = pos + 1;
-      pattern[pos] = throwval;
-      report_pattern();
+      handle_finished_pattern(throwval);
       continue;
     }
 
-    const int throwval = outthrowval[from][col];
-    const int oldshiftcount = shiftcount;
     bool valid = true;
+    const int oldshiftcount = shiftcount;
 
     if (throwval == 0 || throwval == h) {
       if (shiftcount == shiftlimit)
         valid = false;
       else
         ++shiftcount;
-    } else {
-      if (used[to] < 0)
-        valid = false; // block throw into occupied shift cycle
+    } else if (used[to] < 0) {
+      // block throw into occupied shift cycle
+      valid = false;
     }
 
     // if current position is valid then continue recursively
@@ -972,6 +809,171 @@ void Worker::gen_loops_super() {
 
     // undo changes so we can backtrack
     shiftcount = oldshiftcount;
+
+    if (++steps_taken >= steps_per_inbox_check &&
+          pos > root_pos && col < outdegree[from] - 1) {
+      if (valid)
+        pattern[pos + 1] = -1;
+      else
+        pattern[pos] = -1;
+
+      process_inbox();
+      steps_taken = 0;
+    }
+
+    if (pos < root_pos)
+      break;
+  }
+}
+
+int Worker::load_one_throw() {
+  int col = 0;
+
+  if (pos == root_pos) {
+    // Coordinator may have given us throw values that don't work at this
+    // point in the state graph, so remove any bad elements from the list
+    std::list<int>::iterator iter = root_throwval_options.begin();
+    std::list<int>::iterator end = root_throwval_options.end();
+
+    while (iter != end) {
+      bool allowed = false;
+      for (int col2 = 0; col2 < maxoutdegree; ++col2) {
+        if (outmatrix[from][col2] < start_state)
+          continue;
+        if (*iter == outthrowval[from][col2]) {
+          allowed = true;
+          break;
+        }
+      }
+      if (allowed)
+        ++iter;
+      else
+        iter = root_throwval_options.erase(iter);
+    }
+
+    /*
+    if (root_throwval_options.size() == 0) {
+      std::ostringstream buffer;
+      for (int i = 0; i <= pos; ++i) {
+        int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
+        print_throw(buffer, throwval);
+      }
+      std::cout << "worker: " << worker_id << std::endl
+                << "pos: " << pos << std::endl
+                << "root_pos: " << root_pos << std::endl
+                << "from: " << from << std::endl
+                << "state[from]: " << state[from] << std::endl
+                << "start_state: " << start_state << std::endl
+                << "pattern: " << buffer.str() << std::endl
+                << "outthrowval[from][]: ";
+      for (int i = 0; i < maxoutdegree; ++i)
+        std::cout << outthrowval[from][i] << ", ";
+      std::cout << std::endl << "outmatrix[from][]: ";
+      for (int i = 0; i < maxoutdegree; ++i)
+        std::cout << outmatrix[from][i] << ", ";
+      std::cout << std::endl;
+      std::cout << "throw options: ";
+      for (int val : rto_copy)
+        std::cout << val << " ";
+      std::cout << std::endl;
+    }
+    */
+    assert(root_throwval_options.size() > 0);
+  }
+
+  if (pattern[pos] == -1) {
+    loading_work = false;
+  } else {
+    for (; col < maxoutdegree; ++col) {
+      if (outmatrix[from][col] < start_state)
+        continue;
+      if (outthrowval[from][col] == pattern[pos])
+        break;
+    }
+
+    /*
+    if (col == maxoutdegree) {
+      std::ostringstream buffer;
+      for (int i = 0; i <= pos; ++i) {
+        int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
+        print_throw(buffer, throwval);
+      }
+      std::cout << "worker: " << worker_id << std::endl
+                << "pos: " << pos << std::endl
+                << "root_pos: " << root_pos << std::endl
+                << "from: " << from << std::endl
+                << "state[from]: " << state[from] << std::endl
+                << "start_state: " << start_state << std::endl
+                << "pattern: " << buffer.str() << std::endl
+                << "outthrowval[from][]: ";
+      for (int i = 0; i < maxoutdegree; ++i)
+        std::cout << outthrowval[from][i] << ", ";
+      std::cout << std::endl << "outmatrix[from][]: ";
+      for (int i = 0; i < maxoutdegree; ++i)
+        std::cout << outmatrix[from][i] << ", ";
+      std::cout << std::endl << "state[outmatrix[from][]]: ";
+      for (int i = 0; i < maxoutdegree; ++i)
+        std::cout << state[outmatrix[from][i]] << ", ";
+      std::cout << std::endl;
+    }
+    */
+    assert(col != maxoutdegree);
+  }
+
+  return col;
+}
+
+bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
+  // check to see if this throwval is in our allowed list, and if so remove it
+  bool found = false;
+  int remaining = 0;
+  std::list<int>::iterator iter = root_throwval_options.begin();
+  std::list<int>::iterator end = root_throwval_options.end();
+
+  while (iter != end) {
+    if (*iter == throwval) {
+      found = true;
+      iter = root_throwval_options.erase(iter);
+    } else {
+      ++iter;
+      ++remaining;
+    }
+  }
+  if (!found && !loading_work)
+    return false;
+
+  if (remaining == 0) {
+    // using our last option at this root level, go one step deeper
+    ++root_pos;
+    notify_coordinator_rootpos();
+
+    for (int col = 0; col < maxoutdegree; ++col) {
+      if (outmatrix[to_state][col] < start_state)
+        continue;
+      root_throwval_options.push_back(outthrowval[to_state][col]);
+    }
+  }
+
+  return true;
+}
+
+void Worker::handle_finished_pattern(int throwval) {
+  ++ntotal;
+
+  if (pos >= (l - 1) || l == 0) {
+    if (mode == SUPER_MODE && (throwval == 0 || throwval == h)
+          && shiftlimit > 0 && shiftcount == shiftlimit)
+      return;
+
+    if (longestflag && pos >= l)
+      l = pos + 1;
+    pattern[pos] = throwval;
+    report_pattern();
+  }
+
+  if (pos > (longest_found - 1)) {
+    longest_found = pos + 1;
+    notify_coordinator_longest();
   }
 }
 
@@ -1298,7 +1300,7 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
   if (val < 10)
     buffer << static_cast<char>(val + '0');
   else
-    buffer << static_cast<char>(val - 10 + 'A');
+    buffer << static_cast<char>(val - 10 + 'a');
 }
 
 void Worker::print_inverse(std::ostringstream& buffer) const {
@@ -1356,7 +1358,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
     if (throwval < 10)
       buffer << throwval;
     else
-      buffer << static_cast<char>(throwval - 10 + 'A');
+      buffer << static_cast<char>(throwval - 10 + 'a');
 
     unsigned long tempstate = (state[current] / 2) | (1L << (throwval - 1));
     bool errorflag = true;
@@ -1445,7 +1447,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
     if (temp < 10)
       buffer << temp;
     else
-      buffer << static_cast<char>(temp - 10 + 'A');
+      buffer << static_cast<char>(temp - 10 + 'a');
 
     unsigned long tempstate = (state[current] * 2 + 1) ^ (1L << (h - temp));
     bool errorflag = true;
