@@ -6,6 +6,7 @@
 #include "Messages.hpp"
 
 #include <iostream>
+#include <iomanip>
 #include <thread>
 #include <csignal>
 
@@ -36,6 +37,9 @@ void Coordinator::run() {
     worker_longest[id] = 0;
   }
 
+  timespec start_ts, end_ts;
+  timespec_get(&start_ts, TIME_UTC);
+
   while (true) {
     give_assignments();
     steal_work();
@@ -61,6 +65,11 @@ void Coordinator::run() {
       break;
     }
   }
+
+  timespec_get(&end_ts, TIME_UTC);
+  double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -
+      ((double)start_ts.tv_sec + 1.0e-9 * start_ts.tv_nsec);
+  context.secs_elapsed += runtime;
 
   for (int id = 0; id < context.num_threads; ++id) {
     delete worker[id];
@@ -408,4 +417,14 @@ void Coordinator::print_trailer() const {
     std::cout << "ground state search" << std::endl;
   if (config.groundmode == 2)
     std::cout << "excited state search" << std::endl;
+
+  std::cout << "running time = "
+            << std::setprecision(5) << context.secs_elapsed
+            << " sec" << std::endl;
+  if (context.num_threads > 1) {
+    std::cout << "worker utilization = "
+              << ((context.secs_elapsed_working / context.num_threads) /
+                     context.secs_elapsed) * 100
+              << " %" << std::endl;
+  }
 }

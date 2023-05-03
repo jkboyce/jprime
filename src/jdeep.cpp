@@ -33,10 +33,7 @@ Version history:
 
 #include <iostream>
 #include <fstream>
-#include <iomanip>
 #include <sstream>
-#include <thread>
-#include <ctime>
 
 void print_help() {
   const std::string helpString =
@@ -500,8 +497,8 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     std::ifstream myfile(args_context.outfile);
     if (myfile.good()) {
       // file exists; try resuming calculation
-      std::cout << "reading checkpoint file '" << args_context.outfile
-                << "'" << std::endl;
+      std::cout << "reading checkpoint file '" << args_context.outfile << "'"
+                << std::endl;
 
       if (load_context(args_context.outfile, context)) {
         if (context.assignments.size() == 0) {
@@ -560,34 +557,16 @@ int main(int argc, char** argv) {
     std::exit(0);
   }
 
-  timespec start_ts, end_ts;
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context);
-
-  timespec_get(&start_ts, TIME_UTC);
   coordinator.run();
-  timespec_get(&end_ts, TIME_UTC);
-
-  double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -
-      ((double)start_ts.tv_sec + 1.0e-9 * start_ts.tv_nsec);
-  context.secs_elapsed += runtime;
-  std::cout << "running time = "
-            << std::setprecision(5) << context.secs_elapsed
-            << " sec" << std::endl;
-  if (context.num_threads > 1) {
-    std::cout << "worker utilization = "
-              << ((context.secs_elapsed_working / context.num_threads) /
-                     context.secs_elapsed) * 100
-              << " %" << std::endl;
-  }
 
   if (context.fileoutputflag) {
     save_context(context);
-    std::cout << "saved to checkpoint file '" << context.outfile
-              << "'" << std::endl;
+    std::cout << "saved to checkpoint file '" << context.outfile << "'"
+              << std::endl;
   }
-
   return 0;
 }
