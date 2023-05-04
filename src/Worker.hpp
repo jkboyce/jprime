@@ -34,7 +34,6 @@ class Worker {
   int groundmode = 0;
   bool printflag = true;
   bool invertflag = false;
-  bool trimflag = true;
   bool longestflag = true;
   bool exactflag = false;
   bool dualflag = false;
@@ -44,10 +43,17 @@ class Worker {
 
   // calculated at construction and do not change during search
   int numstates = 0;
+  unsigned long* state;
   int maxlength = 0;
   int maxoutdegree = 0;
-  int maxindegree = 0;
-  unsigned long* state;
+  int maxindegree = 0;  // unused
+  int** outmatrix;
+  int** outthrowval;
+  int* outdegree;
+  int** inmatrix;  // unused
+  int* indegree;  // unused
+  int* cyclenum;  // cycle number for state
+  int* cycleperiod;  // indexed by shift cycle number
   int** partners;  // for finding superprime patterns
   int numcycles = 0;  // total number of shift cycles
   unsigned long highmask = 0L;
@@ -61,7 +67,7 @@ class Worker {
   bool loading_work = false;
   int loading_pos = 0;  // can deprecate
 
-  // variables for search
+  // working variables for search
   int* pattern;
   int pos = 0;
   int from = 1;
@@ -70,15 +76,7 @@ class Worker {
   int shiftcount = 0;
   int blocklength = 0;
   int max_possible = 0;
-
-  int** outmatrix;
-  int** outthrowval;
-  int* outdegree;
-  int** inmatrix;
-  int* indegree;
   int* used;
-  int* cyclenum;  // cycle number for state
-  int* cycleperiod;  // indexed by shift cycle number
   int* deadstates;  // indexed by shift cycle number
 
   // status data to report to Coordinator
@@ -116,11 +114,6 @@ class Worker {
   int load_one_throw();
   bool mark_off_rootpos_option(int throwval, int to_state);
   void handle_finished_pattern(int throwval);
-  void delete_vertices(int statenum);
-  void outupdate(int statenum, int slot);
-  void inupdate(int statenum, int slot);
-  void trim_outgoing(int from_trim, int to_trim, int slot);
-  void trim_ingoing(int from_trim, int to_trim, int slot);
   void report_pattern() const;
   void print_throw(std::ostringstream& buffer, int val) const;
   void print_inverse(std::ostringstream& buffer) const;

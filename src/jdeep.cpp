@@ -66,8 +66,6 @@ void print_help() {
     "    -exact            prints patterns of exact length specified (no longer)\n"
     "    -x <throw1 throw2 ...>\n"
     "                      exclude listed throws (speeds search)\n"
-    "    -trim             turn graph trimming on\n"
-    "    -notrim           turn graph trimming off\n"
     "    -file <name>      use the named file for checkpointing (when jdeep is\n"
     "                         interrupted), resuming, and final output\n"
     "    -threads <num>    run with the given number of worker threads\n"
@@ -107,8 +105,6 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     }
   }
 
-  bool trimspecified = false;
-
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
       if (config != nullptr)
@@ -122,14 +118,6 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-ng")) {
       if (config != nullptr)
         config->groundmode = 2;
-    } else if (!strcmp(argv[i], "-trim")) {
-      trimspecified = true;
-      if (config != nullptr)
-        config->trimflag = true;
-    } else if (!strcmp(argv[i], "-notrim")) {
-      trimspecified = true;
-      if (config != nullptr)
-        config->trimflag = false;
     } else if (!strcmp(argv[i], "-full")) {
       if (config != nullptr)
         config->longestflag = false;
@@ -241,18 +229,6 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   if (config != nullptr && config->invertflag && config->mode != SUPER_MODE) {
     std::cout << "-inverse flag can only be used in -super mode" << std::endl;
     std::exit(0);
-  }
-
-  // defaults for when to trim the graph
-  if (config != nullptr && !trimspecified) {
-    if (config->mode == BLOCK_MODE)
-      config->trimflag = false;
-    else if (config->mode == SUPER_MODE)
-      config->trimflag = false;
-    else if (config->longestflag)
-      config->trimflag = true;
-    else
-      config->trimflag = false;
   }
 }
 

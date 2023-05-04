@@ -18,7 +18,6 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   printflag = config.printflag;
   invertflag = config.invertflag;
   groundmode = config.groundmode;
-  trimflag = config.trimflag;
   longestflag = config.longestflag;
   exactflag = config.exactflag;
   dualflag = config.dualflag;
@@ -437,8 +436,6 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 //------------------------------------------------------------------------------
 
 void Worker::gen_patterns() {
-  const bool pretrim_graph = false;
-
   for (; start_state <= end_state; ++start_state) {
     if (longestflag && start_state > (maxlength - l + 1))
       continue;
@@ -472,10 +469,7 @@ void Worker::gen_patterns() {
     switch (mode) {
       case NORMAL_MODE:
         max_possible = maxlength;
-        if (pretrim_graph)
-          delete_vertices(1);
-        else
-          gen_loops_normal();
+        gen_loops_normal();
         break;
       case BLOCK_MODE:
         if (longestflag) {
@@ -484,19 +478,13 @@ void Worker::gen_patterns() {
             continue;
         } else
           max_possible = numstates;
-        if (pretrim_graph)
-          delete_vertices(1);
-        else
-          gen_loops_block();
+        gen_loops_block();
         break;
       case SUPER_MODE:
         for (int i = 0; i < (n - 1); ++i)
           used[partners[start_state][i]] = 1;
         max_possible = numstates;
-        if (pretrim_graph)
-          delete_vertices(1);
-        else
-          gen_loops_super();
+        gen_loops_super();
         break;
     }
   }
@@ -524,7 +512,7 @@ void Worker::gen_loops_normal() {
     bool valid = true;
     int old_max_possible = max_possible;
 
-    if (trimflag && throwval > 0 && throwval < h) {
+    if (throwval > 0 && throwval < h) {
       // throwing to a new shift cycle:
       // 1. kill states downstream in 'from' cycle that end in 'x'
       int j = h - 2;
@@ -572,7 +560,7 @@ void Worker::gen_loops_normal() {
     }
 
     // undo changes made above, so we can backtrack
-    if (trimflag && throwval > 0 && throwval < h) {
+    if (throwval > 0 && throwval < h) {
       // block throw:
       // kill states downstream in 'from' cycle that end in 'x'
       int j = h - 2;
@@ -649,7 +637,6 @@ void Worker::gen_loops_block() {
     if (to < start_state || used[to] == 1)
       continue;
 
-    // are we finished?
     if (to == start_state) {
       ++ntotal;
 
@@ -702,8 +689,7 @@ void Worker::gen_loops_block() {
 
     if (throwval > 0 && throwval < h) { // block throw?
       if (firstblocklength >= 0) {
-        if (blocklength != (h - 2))
-        { // got a skip
+        if (blocklength != (h - 2)) { // got a skip
           if (skipcount == skiplimit)
             valid = false;
           else
@@ -726,10 +712,7 @@ void Worker::gen_loops_block() {
       if (!loading_work)
         ++nnodes;
 
-      if (trimflag)
-        trim_outgoing(from, to, 0);
-      else
-        gen_loops_block();
+      gen_loops_block();
 
       used[to] = 0;
       --pos;
@@ -792,10 +775,7 @@ void Worker::gen_loops_super() {
       if (!loading_work)
         ++nnodes;
 
-      if (trimflag)
-        trim_outgoing(from, to, 0);
-      else
-        gen_loops_super();
+      gen_loops_super();
 
       for (int j = 0; j < (h - 1); ++j) {
         if (used[partners[to][j]] < 0)
@@ -975,255 +955,6 @@ void Worker::handle_finished_pattern(int throwval) {
     longest_found = pos + 1;
     notify_coordinator_longest();
   }
-}
-
-//------------------------------------------------------------------------------
-// Optional graph trimming before finding patterns
-//------------------------------------------------------------------------------
-
-// Delete all vertices lower than `start_state` since they can't
-// participate in the final pattern.
-void Worker::delete_vertices(int statenum) {
-  if (statenum >= start_state) {
-    outupdate(start_state, 0);
-    return;
-  }
-
-  int i, j;
-
-  if (indegree[statenum] != 0) {
-    for (i = 0; i < maxindegree; ++i) {
-      if (inmatrix[statenum][i] > 0)
-        break;
-    }
-    assert(i != maxindegree);
-    int temp = inmatrix[statenum][i];
-
-    for (j = 0; j < maxoutdegree; ++j) {
-      if (outmatrix[temp][j] == statenum)
-        break;
-    }
-    assert(j != maxoutdegree);
-
-    inmatrix[statenum][i] = -1;
-    outmatrix[temp][j] = -1;
-    --indegree[statenum];
-    --outdegree[temp];
-    delete_vertices(statenum);
-    inmatrix[statenum][i] = temp;
-    outmatrix[temp][j] = statenum;
-    ++indegree[statenum];
-    ++outdegree[temp];
-    return;
-  } else if (outdegree[statenum] != 0) {
-    for (i = 0; i < maxoutdegree; ++i) {
-      if (outmatrix[statenum][i] > 0)
-        break;
-    }
-    assert(i != maxoutdegree);
-    int temp = outmatrix[statenum][i];
-
-    for (j = 0; j < maxindegree; ++j) {
-      if (inmatrix[temp][j] == statenum)
-        break;
-    }
-    assert(j != maxindegree);
-
-    outmatrix[statenum][i] = -1;
-    inmatrix[temp][j] = -1;
-    --outdegree[statenum];
-    --indegree[temp];
-    delete_vertices(statenum);
-    outmatrix[statenum][i] = temp;
-    inmatrix[temp][j] = statenum;
-    ++outdegree[statenum];
-    ++indegree[temp];
-    return;
-  } else {
-    delete_vertices(statenum + 1);
-    return;
-  }
-}
-
-void Worker::outupdate(int statenum, int slot) {
-  while (statenum <= numstates &&
-      (outdegree[statenum] != 0 || indegree[statenum] == 0)) {
-    ++statenum;
-    slot = 0;
-  }
-
-  if (statenum == (numstates + 1)) {
-    // finished with current recursion
-    inupdate(start_state, 0);
-    return;
-  }
-
-  // outdegree of current state is zero, indegree is not.  delete a link
-  for (; slot < maxindegree; ++slot) {
-    int from = inmatrix[statenum][slot];
-
-    if (from == 0)
-      return;
-    if (from < 0)
-      continue;
-
-    int col = 0;
-    for (; col < maxoutdegree; ++col) {
-      if (outmatrix[from][col] == statenum)
-        break;
-    }
-    if (indegree[statenum] == 1) {
-      if (max_possible <= l)
-        return;
-      --max_possible;
-    }
-    inmatrix[statenum][slot] = -1;
-    --indegree[statenum];
-    outmatrix[from][col] = -1;
-    --outdegree[from];
-
-    if (outdegree[from] == 0 && from < statenum)
-      outupdate(from, 0); // continue earlier
-    else
-      outupdate(statenum, slot + 1); // continue here
-
-    inmatrix[statenum][slot] = from;
-    if (indegree[statenum] == 0)
-      ++max_possible;
-    ++indegree[statenum];
-    outmatrix[from][col] = statenum;
-    ++outdegree[from];
-    return;
-  }
-}
-
-void Worker::inupdate(int statenum, int slot) {
-  while (statenum <= numstates &&
-      (indegree[statenum] != 0 || outdegree[statenum] == 0)) {
-    ++statenum;
-    slot = 0;
-  }
-
-  if (statenum == (numstates + 1)) {
-    // finished trimming the juggling graph, now find patterns
-    switch (mode) {
-      case NORMAL_MODE:
-        gen_loops_normal();
-        break;
-      case BLOCK_MODE:
-        gen_loops_block();
-        break;
-      case SUPER_MODE:
-        gen_loops_super();
-        break;
-    }
-    return;
-  }
-
-  // indegree of current state is zero, outdegree is not.  delete a link
-  for (; slot < maxoutdegree; ++slot) {
-    int to = outmatrix[statenum][slot];
-
-    if (to == 0)
-      return;
-    if (to < 0)
-      continue;
-
-    int col = 0;
-    for (; col < maxindegree; ++col) {
-      if (inmatrix[to][col] == statenum)
-        break;
-    }
-
-    if (outdegree[statenum] == 1) {
-      if (max_possible <= l)
-        return;
-      --max_possible;
-    }
-    outmatrix[statenum][slot] = -1;
-    --outdegree[statenum];
-    inmatrix[to][col] = -1;
-    --indegree[to];
-
-    if (indegree[to] == 0 && to < statenum)
-      inupdate(to, 0); // continue earlier
-    else
-      inupdate(statenum, slot + 1); // continue here
-
-    outmatrix[statenum][slot] = to;
-    if (outdegree[statenum] == 0)
-      ++max_possible;
-    ++outdegree[statenum];
-    inmatrix[to][col] = statenum;
-    ++indegree[to];
-    return;
-  }
-}
-
-//------------------------------------------------------------------------------
-// Graph trimming specific to BLOCK and SUPER mode and -trim flag
-//------------------------------------------------------------------------------
-
-void Worker::trim_outgoing(int from_trim, int to_trim, int slot) {
-  for (; slot < maxoutdegree; ++slot) {
-    int to = outmatrix[from_trim][slot];
-
-    if (to == 0)
-      break;
-    if (to <= 0 || to == to_trim)
-      continue;
-
-    outmatrix[from_trim][slot] = -1;
-
-    int col = 0;
-    for (; col < maxindegree; ++col) {
-      if (inmatrix[to][col] == from_trim) {
-        inmatrix[to][col] = -1;
-        break;
-      }
-    }
-    --outdegree[from_trim];
-    --indegree[to];
-    trim_outgoing(from_trim, to_trim, slot + 1);
-    outmatrix[from_trim][slot] = to;
-    inmatrix[to][col] = from_trim;
-    ++outdegree[from_trim];
-    ++indegree[to];
-    return;
-  }
-
-  trim_ingoing(from_trim, to_trim, 0);
-}
-
-void Worker::trim_ingoing(int from_trim, int to_trim, int slot) {
-  for (; slot < maxindegree; slot++) {
-    int from = inmatrix[to_trim][slot];
-
-    if (from == 0)
-      break;
-    if (from < 0 || from == from_trim)
-      continue;
-
-    inmatrix[to_trim][slot] = -1;
-
-    int col = 0;
-    for (; col < maxoutdegree; ++col) {
-      if (outmatrix[from][col] == to_trim) {
-        outmatrix[from][col] = -1;
-        break;
-      }
-    }
-    --indegree[to_trim];
-    --outdegree[from];
-    trim_ingoing(from_trim, to_trim, slot + 1);
-    inmatrix[to_trim][slot] = from;
-    outmatrix[from][col] = to_trim;
-    indegree[to_trim]++;
-    outdegree[from]++;
-    return;
-  }
-
-  outupdate(start_state, 0);
 }
 
 //------------------------------------------------------------------------------

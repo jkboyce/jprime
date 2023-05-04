@@ -26,8 +26,6 @@ struct SearchConfig {
   bool printflag = true;
   // print inverses in super mode
   bool invertflag = false;
-  // trim out states excluded by block throws
-  bool trimflag = true;
   // search for the longest pattern(s)
   bool longestflag = true;
   // search for an exact pattern length
