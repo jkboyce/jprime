@@ -237,8 +237,7 @@ void Coordinator::process_worker_returned_work(const MessageW2C& msg) {
   context.secs_elapsed_working += msg.secs_elapsed_working;
 
   if (config.verboseflag) {
-    std::cout << "worker " << msg.worker_id << " returned work:"
-              << std::endl
+    std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
               << "  " << msg.assignment << std::endl;
   }
 }
@@ -318,7 +317,7 @@ void Coordinator::signal_handler(int signum) {
 }
 
 //------------------------------------------------------------------------------
-// Algorithms for deciding which process to steal work from
+// Algorithms for deciding which worker to steal work from
 //------------------------------------------------------------------------------
 
 int Coordinator::find_stealing_target_lowid() const {
@@ -380,7 +379,6 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
     else
       std::cout << msg.pattern << std::endl;
   }
-
   context.patterns.push_back(msg.pattern);
 }
 
