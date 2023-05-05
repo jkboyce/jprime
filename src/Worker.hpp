@@ -26,7 +26,7 @@ class Worker {
   Coordinator* const coordinator;
   const int worker_id;
 
-  // copied from SearchConfig during construction
+  // copied from SearchConfig during construction and do not change
   int n = 0;
   int h = 0;
   int l = 0;
@@ -41,17 +41,17 @@ class Worker {
   int skiplimit = 0;
   int shiftlimit = 0;
 
-  // calculated at construction and do not change during search
+  // calculated at construction and do not change
   int numstates = 0;
-  unsigned long* state;
   int maxlength = 0;
-  int maxoutdegree = 0;
-  int maxindegree = 0;  // unused
+  unsigned long* state;
   int** outmatrix;
-  int** outthrowval;
   int* outdegree;
+  int maxoutdegree = 0;
+  int** outthrowval;
   int** inmatrix;  // unused
   int* indegree;  // unused
+  int maxindegree = 0;  // unused
   int* cyclenum;  // cycle number for state
   int* cycleperiod;  // indexed by shift cycle number
   int** partners;  // for finding superprime patterns
@@ -65,7 +65,6 @@ class Worker {
   int root_pos = 0;
   std::list<int> root_throwval_options;
   bool loading_work = false;
-  int loading_pos = 0;  // can deprecate
 
   // working variables for search
   int* pattern;
@@ -85,9 +84,9 @@ class Worker {
   int longest_found = 0;
   double secs_elapsed_working = 0;
 
+  // for managing the frequency to check the inbox while running
   static constexpr double secs_per_inbox_check_target = 0.001;
   static constexpr int steps_per_inbox_check_initial = 50000;
-
   int steps_per_inbox_check = steps_per_inbox_check_initial;
   int calibrations_remaining = 10;
   int steps_taken = 0;
@@ -95,7 +94,7 @@ class Worker {
 
   void message_coordinator(const MessageW2C& msg) const;
   void message_coordinator(const MessageW2C& msg1, const MessageW2C& msg2) const;
-  void process_inbox();
+  void process_inbox_running();
   void record_elapsed_time(timespec& start);
   void calibrate_inbox_check();
   void process_split_work_request(const MessageC2W& msg);

@@ -121,16 +121,16 @@ void Coordinator::steal_work() {
   int id = 0;
   switch (context.steal_alg) {
     case 1:
-      id = find_stealing_target_lowid();
+      id = find_stealing_target_longestpattern();
       break;
     case 2:
-      id = find_stealing_target_lowrootpos();
+      id = find_stealing_target_lowestid();
       break;
     case 3:
-      id = find_stealing_target_longestruntime();
+      id = find_stealing_target_lowestrootpos();
       break;
     case 4:
-      id = find_stealing_target_longestpattern();
+      id = find_stealing_target_longestruntime();
       break;
     default:
       assert(false);
@@ -210,7 +210,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
-  // worker went idle before it could return a work assignment; the
+  // If worker went idle before it could return a work assignment, the
   // SPLIT_WORK message will be held in the worker's inbox until it becomes
   // active again. In any case we don't want to block on it because that may
   // deadlock the program.
@@ -320,7 +320,23 @@ void Coordinator::signal_handler(int signum) {
 // Algorithms for deciding which worker to steal work from
 //------------------------------------------------------------------------------
 
-int Coordinator::find_stealing_target_lowid() const {
+int Coordinator::find_stealing_target_longestpattern() const {
+  // strategy: take work from the worker with the longest patterns found
+  int id_max = -1;
+  int longest_max = -1;
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (is_worker_idle(id))
+      continue;
+    if (longest_max < worker_longest[id]) {
+      longest_max = worker_rootpos[id];
+      id_max = id;
+    }
+  }
+  assert(id_max != -1);
+  return id_max;
+}
+
+int Coordinator::find_stealing_target_lowestid() const {
   // strategy: take work from lowest-id worker that's busy
   for (int id = 0; id < context.num_threads; ++id) {
     if (std::find(workers_idle.begin(), workers_idle.end(), id)
@@ -331,7 +347,7 @@ int Coordinator::find_stealing_target_lowid() const {
   assert(false);
 }
 
-int Coordinator::find_stealing_target_lowrootpos() const {
+int Coordinator::find_stealing_target_lowestrootpos() const {
   // strategy: take work from the worker with the lowest root_pos
   int id_min = -1;
   int root_pos_min = -1;
@@ -350,22 +366,6 @@ int Coordinator::find_stealing_target_lowrootpos() const {
 int Coordinator::find_stealing_target_longestruntime() const {
   // strategy: take work from the worker running the longest
   return workers_run_order.front();
-}
-
-int Coordinator::find_stealing_target_longestpattern() const {
-  // strategy: take work from the worker with the longest patterns found
-  int id_max = -1;
-  int longest_max = -1;
-  for (int id = 0; id < context.num_threads; ++id) {
-    if (is_worker_idle(id))
-      continue;
-    if (longest_max < worker_longest[id]) {
-      longest_max = worker_rootpos[id];
-      id_max = id;
-    }
-  }
-  assert(id_max != -1);
-  return id_max;
 }
 
 //------------------------------------------------------------------------------
@@ -409,7 +409,11 @@ void Coordinator::print_trailer() const {
   }
 
   std::cout << context.npatterns << " patterns found (" << context.ntotal
-            << " seen, " << context.nnodes << " nodes)" << std::endl;
+            << " seen, " << context.nnodes << " nodes, "
+            << std::fixed << std::setprecision(2)
+            << (static_cast<double>(context.nnodes) / context.secs_elapsed /
+                1000000)
+            << "M nodes/sec)" << std::endl;
 
   if (config.groundmode == 1)
     std::cout << "ground state search" << std::endl;
@@ -417,12 +421,12 @@ void Coordinator::print_trailer() const {
     std::cout << "excited state search" << std::endl;
 
   std::cout << "running time = "
-            << std::setprecision(5) << context.secs_elapsed
-            << " sec" << std::endl;
+            << std::fixed << std::setprecision(4)
+            << context.secs_elapsed << " sec";
   if (context.num_threads > 1) {
-    std::cout << "worker utilization = "
+    std::cout << " (worker util = " << std::setprecision(2)
               << ((context.secs_elapsed_working / context.num_threads) /
-                     context.secs_elapsed) * 100
-              << " %" << std::endl;
+                     context.secs_elapsed) * 100 << " %)";
   }
+  std::cout << std::endl;
 }

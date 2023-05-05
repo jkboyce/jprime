@@ -40,8 +40,8 @@ void print_help() {
     "jdeep version 6.0           by Jack Boyce\n"
     "   (04/14/23)                  jboyce@gmail.com\n"
     "\n"
-    "The purpose of this program is to search for long prime async siteswap\n"
-    "patterns. For an explanation of these terms, consult the page:\n"
+    "This program searches for long prime async siteswap patterns. For an\n"
+    "explanation of these terms, consult the page:\n"
     "    http://www.juggling.org/help/siteswap/\n"
     "\n"
     "Command-line format is:\n"
@@ -57,21 +57,24 @@ void print_help() {
     "                         number of skips\n"
     "    -super <shifts>   find (nearly) superprime patterns, allowing the\n"
     "                         specified number of shift throws\n"
-    "    -inverse          print inverse also, in -super mode\n"
     "    -g                find ground-state patterns only\n"
     "    -ng               find excited-state patterns only\n"
-    "    -full             print all patterns; otherwise only patterns as long\n"
-    "                         currently-longest one found are printed\n"
-    "    -noprint          suppress printing of patterns\n"
-    "    -exact            prints patterns of exact length specified (no longer)\n"
     "    -x <throw1 throw2 ...>\n"
     "                      exclude listed throws (speeds search)\n"
-    "    -file <name>      use the named file for checkpointing (when jdeep is\n"
-    "                         interrupted), resuming, and final output\n"
+    "    -full             print all patterns; otherwise only patterns as long\n"
+    "                         currently-longest one found are printed\n"
+    "    -exact            print patterns of the exact length specified (no longer)\n"
+    "    -inverse          print inverse pattern also, in -super mode\n"
+    "    -noprint          suppress printing of patterns\n"
     "    -threads <num>    run with the given number of worker threads\n"
     "    -verbose          print worker status information\n"
     "    -steal_alg <num>  algorithm for selecting a worker to take work from\n"
-    "    -split_alg <num>  algorithm for splitting a stolen work assignment\n";
+    "    -split_alg <num>  algorithm for splitting a stolen work assignment\n"
+    "    -file <name>      use the named file for checkpointing (when jdeep is\n"
+    "                         interrupted), resuming, and final output\n"
+    "\n"
+    "When resuming a calculation from a checkpoint file, the other parts of the\n"
+    "input are ignored and can be omitted. For example: jdeep -file testrun\n";
 
   std::cout << helpString << std::endl;
 }
@@ -271,7 +274,8 @@ void save_context(const SearchContext& context) {
          << "nodes visited     " << context.nnodes << std::endl
          << "threads           " << context.num_threads << std::endl
          << "hardware threads  " << std::thread::hardware_concurrency() << std::endl
-         << "seconds elapsed   " << context.secs_elapsed << std::endl
+         << "seconds elapsed   " << std::fixed << std::setprecision(4)
+                                 << context.secs_elapsed << std::endl
          << "seconds working   " << context.secs_elapsed_working << std::endl
          << std::endl;
 
@@ -312,6 +316,7 @@ bool load_context(std::string file, SearchContext& context) {
   std::string s;
   int linenum = 0;
   bool reading_assignments = false;
+  const int column_start = 17;
 
   while (myfile) {
     std::getline(myfile, s);
@@ -324,7 +329,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 1";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         if (val != "6.0") {
           error = "file version is not 6.0";
@@ -336,7 +341,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 2";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.arglist = val;
         break;
@@ -345,7 +350,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 3";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.l_current = std::stoi(val);
         break;
@@ -354,7 +359,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 4";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.maxlength = std::stoi(val);
         break;
@@ -363,7 +368,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 5";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.numstates = std::stoi(val);
         break;
@@ -372,7 +377,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 6";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.npatterns = std::stol(val);
         break;
@@ -381,7 +386,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 7";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.ntotal = std::stoi(val);
         break;
@@ -390,7 +395,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 8";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.nnodes = std::stol(val);
         break;
@@ -402,7 +407,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 11";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.secs_elapsed = std::stod(val);
         break;
@@ -411,7 +416,7 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 12";
           break;
         }
-        val = s.substr(17, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         context.secs_elapsed_working = std::stod(val);
         break;

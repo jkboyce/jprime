@@ -27,12 +27,10 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   shiftlimit = config.shiftlimit;
 
   numstates = num_states(n, h);
-
   for (int i = 0; i <= h; ++i) {
     if (!config.xarray[i])
       ++maxoutdegree;
   }
-
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   maxindegree = n + 1;
   prepcorearrays(config.xarray);
@@ -108,7 +106,7 @@ void Worker::run() {
     timespec_get(&start_ts, TIME_UTC);
     // for calibrating how often to check the inbox while running
     if (calibrations_remaining > 0)
-      timespec_get(&last_ts, TIME_UTC);
+      last_ts = start_ts;
 
     // complete the new work assignment
     try {
@@ -170,7 +168,7 @@ void Worker::message_coordinator(const MessageW2C& msg1,
     coordinator->inbox_lock.unlock();
 }
 
-void Worker::process_inbox() {
+void Worker::process_inbox_running() {
   if (calibrations_remaining > 0)
     calibrate_inbox_check();
 
@@ -249,7 +247,6 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
   loading_work = true;
-  loading_pos = 0;
 
   start_state = wa.start_state;
   end_state = wa.end_state;
@@ -499,11 +496,12 @@ void Worker::gen_loops_normal() {
   int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
     const int to = outmatrix[from][col];
-    if (used[to] == 1 || to < start_state)
+    if (used[to] != 0 || to < start_state)
       continue;
     const int throwval = outthrowval[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
+
     if (to == start_state) {
       handle_finished_pattern(throwval);
       continue;
@@ -544,14 +542,15 @@ void Worker::gen_loops_normal() {
     }
 
     if (valid) {
-      used[to] = 1;
       pattern[pos] = throwval;
+
+      used[to] = 1;
       ++pos;
       int old_from = from;
       from = to;
+
       if (!loading_work)
         ++nnodes;
-
       gen_loops_normal();
 
       from = old_from;
@@ -561,8 +560,6 @@ void Worker::gen_loops_normal() {
 
     // undo changes made above, so we can backtrack
     if (throwval > 0 && throwval < h) {
-      // block throw:
-      // kill states downstream in 'from' cycle that end in 'x'
       int j = h - 2;
       unsigned long tempstate = state[from];
       int cnum = cyclenum[from];
@@ -575,7 +572,6 @@ void Worker::gen_loops_normal() {
         tempstate >>= 1;
       } while (tempstate & 1L);
 
-      // kill states upstream in 'to' cycle that start with '-'
       j = 0;
       tempstate = state[to];
       cnum = cyclenum[to];
@@ -603,7 +599,7 @@ void Worker::gen_loops_normal() {
       else
         pattern[pos] = -1;
 
-      process_inbox();
+      process_inbox_running();
       steps_taken = 0;
     }
 
@@ -615,114 +611,85 @@ void Worker::gen_loops_normal() {
 void Worker::gen_loops_block() {
   if (exactflag && pos >= l)
     return;
+  if (pos < root_pos && !loading_work)
+    return;
 
-  int col = 0;
-
-  if (loading_work) {
-    if (pattern[loading_pos] == -1)
-      loading_work = false;
-    else {
-      for (; col < maxoutdegree; ++col) {
-        if (outthrowval[from][col] == pattern[loading_pos])
-          break;
-      }
-      assert(col != maxoutdegree);
-      ++loading_pos;
-    }
-  }
-
+  int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
     const int to = outmatrix[from][col];
-
-    if (to < start_state || used[to] == 1)
+    if (used[to] != 0 || to < start_state)
       continue;
-
-    if (to == start_state) {
-      ++ntotal;
-
-      if (l != 0 && pos < (l - 1))
-        continue;
-
-      const int throwval = outthrowval[from][col];
-      const int oldblocklength = blocklength;
-      const int oldskipcount = skipcount;
-      const int oldfirstblocklength = firstblocklength;
-      bool valid = true;
-
-      if (throwval > 0 && throwval < h) {
-        if (firstblocklength >= 0) {
-          if (blocklength != (h - 2)) { // got a skip
-            if (skipcount == skiplimit)
-              valid = false;
-            else
-              ++skipcount;
-          }
-        } else // first block throw encountered
-          firstblocklength = pos;
-
-        blocklength = 0;
-      } else
-        ++blocklength;
-
-      if (skipcount == skiplimit &&
-          (blocklength + firstblocklength) != (h - 2))
-        valid = false;
-
-      if (valid) {
-        if (longestflag && pos >= l)
-          l = pos + 1;
-        pattern[pos] = throwval;
-        report_pattern();
-      }
-
-      blocklength = oldblocklength;
-      skipcount = oldskipcount;
-      firstblocklength = oldfirstblocklength;
-      continue;
-    }
-
     const int throwval = outthrowval[from][col];
+    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+      continue;
+
+    bool valid = true;
+
     const int oldblocklength = blocklength;
     const int oldskipcount = skipcount;
     const int oldfirstblocklength = firstblocklength;
-    bool valid = true;
 
-    if (throwval > 0 && throwval < h) { // block throw?
+    // handle checks for block throws and skips
+    if (throwval > 0 && throwval < h) {
       if (firstblocklength >= 0) {
-        if (blocklength != (h - 2)) { // got a skip
+        if (blocklength != (h - 2)) {
+          // got a skip
           if (skipcount == skiplimit)
             valid = false;
           else
             ++skipcount;
         }
-      } else // first block throw encountered
+      } else {
+        // first block throw encountered
         firstblocklength = pos;
+      }
 
       blocklength = 0;
     } else
       ++blocklength;
 
-    // continue recursively, if current position is valid
-    if (valid) {
-      used[to] = 1;
+    if (to == start_state) {
+      if (skipcount == skiplimit &&
+            (blocklength + firstblocklength) != (h - 2))
+        valid = false;
+
+      if (valid)
+        handle_finished_pattern(throwval);
+    } else if (valid) {
       pattern[pos] = throwval;
+
+      used[to] = 1;
       ++pos;
-      int old_from = from;
+      const int old_from = from;
       from = to;
+
       if (!loading_work)
         ++nnodes;
-
       gen_loops_block();
 
-      used[to] = 0;
-      --pos;
       from = old_from;
+      --pos;
+      used[to] = 0;
     }
 
     // undo changes so we can backtrack
     blocklength = oldblocklength;
     skipcount = oldskipcount;
     firstblocklength = oldfirstblocklength;
+
+    if (++steps_taken >= steps_per_inbox_check &&
+          pos > root_pos && col < outdegree[from] - 1) {
+      if (valid)
+        pattern[pos + 1] = -1;
+      else
+        pattern[pos] = -1;
+
+      process_inbox_running();
+      steps_taken = 0;
+    }
+
+    if (pos < root_pos)
+      break;
   }
 }
 
@@ -735,56 +702,50 @@ void Worker::gen_loops_super() {
   int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
     const int to = outmatrix[from][col];
-    if (used[to] == 1 || to < start_state)
+    if (used[to] != 0 || to < start_state)
       continue;
     const int throwval = outthrowval[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (to == start_state) {
-      handle_finished_pattern(throwval);
-      continue;
-    }
 
     bool valid = true;
     const int oldshiftcount = shiftcount;
 
+    // handle checks for shift throws and limits
     if (throwval == 0 || throwval == h) {
       if (shiftcount == shiftlimit)
         valid = false;
       else
         ++shiftcount;
-    } else if (used[to] < 0) {
-      // block throw into occupied shift cycle
-      valid = false;
     }
 
-    // if current position is valid then continue recursively
-    if (valid) {
+    if (to == start_state) {
+      if (valid)
+        handle_finished_pattern(throwval);
+    } else if (valid) {
+      pattern[pos] = throwval;
+
       const int oldusedvalue = used[to];
       used[to] = 1;
-
       for (int j = 0; j < (h - 1); ++j) {
         if (used[partners[to][j]] < 1)
           --used[partners[to][j]];
       }
-
-      pattern[pos] = throwval;
       ++pos;
       int old_from = from;
       from = to;
+
       if (!loading_work)
         ++nnodes;
-
       gen_loops_super();
 
+      from = old_from;
+      --pos;
       for (int j = 0; j < (h - 1); ++j) {
         if (used[partners[to][j]] < 0)
           ++used[partners[to][j]];
       }
-
       used[to] = oldusedvalue;
-      --pos;
-      from = old_from;
     }
 
     // undo changes so we can backtrack
@@ -797,7 +758,7 @@ void Worker::gen_loops_super() {
       else
         pattern[pos] = -1;
 
-      process_inbox();
+      process_inbox_running();
       steps_taken = 0;
     }
 
@@ -941,10 +902,6 @@ void Worker::handle_finished_pattern(int throwval) {
   ++ntotal;
 
   if (pos >= (l - 1) || l == 0) {
-    if (mode == SUPER_MODE && (throwval == 0 || throwval == h)
-          && shiftlimit > 0 && shiftcount == shiftlimit)
-      return;
-
     if (longestflag && pos >= l)
       l = pos + 1;
     pattern[pos] = throwval;

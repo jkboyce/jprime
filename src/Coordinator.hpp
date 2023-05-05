@@ -48,10 +48,10 @@ class Coordinator {
   void notify_metadata(int skip_id) const;
   void stop_workers() const;
   static void signal_handler(int signum);
-  int find_stealing_target_lowid() const;
-  int find_stealing_target_lowrootpos() const;
-  int find_stealing_target_longestruntime() const;
   int find_stealing_target_longestpattern() const;
+  int find_stealing_target_lowestid() const;
+  int find_stealing_target_lowestrootpos() const;
+  int find_stealing_target_longestruntime() const;
   void print_pattern(const MessageW2C& msg);
   void print_trailer() const;
 };
