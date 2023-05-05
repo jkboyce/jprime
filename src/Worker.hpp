@@ -112,6 +112,8 @@ class Worker {
   void gen_loops_super();
   int load_one_throw();
   bool mark_off_rootpos_option(int throwval, int to_state);
+  bool mark_unreachable_states(int to_state);
+  void unmark_unreachable_states(int to_state);
   void handle_finished_pattern(int throwval);
   void report_pattern() const;
   void print_throw(std::ostringstream& buffer, int val) const;

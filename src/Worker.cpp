@@ -436,15 +436,21 @@ void Worker::gen_patterns() {
   for (; start_state <= end_state; ++start_state) {
     if (longestflag && start_state > (maxlength - l + 1))
       continue;
-    from = start_state;
+
+    // reset all working variables
     pos = 0;
+    from = start_state;
     firstblocklength = -1; // -1 signals unknown
     skipcount = 0;
+    shiftcount = 0;
+    blocklength = 0;
+    for (int i = 0; i <= numstates; ++i)
+      used[i] = 0;
     longest_found = 0;
     notify_coordinator_longest();
 
     if (!loading_work) {
-      // reset variables for each new starting state
+      // reset `root_pos` and throw options there
       root_pos = 0;
       notify_coordinator_rootpos();
 
@@ -460,27 +466,19 @@ void Worker::gen_patterns() {
         continue;
     }
 
-    for (int i = 0; i <= numstates; ++i)
-      used[i] = 0;
-
     switch (mode) {
       case NORMAL_MODE:
         max_possible = maxlength;
         gen_loops_normal();
         break;
       case BLOCK_MODE:
-        if (longestflag) {
-          max_possible = numstates - start_state + 1;
-          if (l > max_possible)
-            continue;
-        } else
-          max_possible = numstates;
+        max_possible = maxlength;
         gen_loops_block();
         break;
       case SUPER_MODE:
         for (int i = 0; i < (n - 1); ++i)
           used[partners[start_state][i]] = 1;
-        max_possible = numstates;
+        max_possible = numcycles;
         gen_loops_super();
         break;
     }
@@ -490,8 +488,8 @@ void Worker::gen_patterns() {
 void Worker::gen_loops_normal() {
   if (exactflag && pos >= l)
     return;
-  if (pos < root_pos && !loading_work)
-    return;
+  if (!loading_work)
+    ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
@@ -508,84 +506,24 @@ void Worker::gen_loops_normal() {
     }
 
     bool valid = true;
-    int old_max_possible = max_possible;
-
-    if (throwval > 0 && throwval < h) {
-      // throwing to a new shift cycle:
-      // 1. kill states downstream in 'from' cycle that end in 'x'
-      int j = h - 2;
-      unsigned long tempstate = state[from];
-      int cnum = cyclenum[from];
-
-      do {
-        if (used[partners[from][j]]++ == 0 && deadstates[cnum]++ >= 1
-              && --max_possible < l)
-          valid = false;
-
-        --j;
-        tempstate >>= 1;
-      } while (tempstate & 1L);
-
-      // 2. kill states upstream in 'to' cycle that start with '-'
-      j = 0;
-      tempstate = state[to];
-      cnum = cyclenum[to];
-
-      do {
-        if (used[partners[to][j]]++ == 0 && deadstates[cnum]++ >= 1
-              && --max_possible < l)
-          valid = false;
-
-        ++j;
-        tempstate = (tempstate << 1) & allmask;
-      } while ((tempstate & highmask) == 0);
-    }
+    if (throwval > 0 && throwval < h)
+      valid = mark_unreachable_states(to);
 
     if (valid) {
       pattern[pos] = throwval;
-
       used[to] = 1;
       ++pos;
       int old_from = from;
       from = to;
-
-      if (!loading_work)
-        ++nnodes;
       gen_loops_normal();
-
       from = old_from;
       --pos;
       used[to] = 0;
     }
 
     // undo changes made above, so we can backtrack
-    if (throwval > 0 && throwval < h) {
-      int j = h - 2;
-      unsigned long tempstate = state[from];
-      int cnum = cyclenum[from];
-
-      do {
-        if (--used[partners[from][j]] == 0 && --deadstates[cnum] >= 1)
-          ++max_possible;
-
-        --j;
-        tempstate >>= 1;
-      } while (tempstate & 1L);
-
-      j = 0;
-      tempstate = state[to];
-      cnum = cyclenum[to];
-
-      do {
-        if (--used[partners[to][j]] == 0 && --deadstates[cnum] >= 1)
-          ++max_possible;
-
-        ++j;
-        tempstate = (tempstate << 1) & allmask;
-      } while ((tempstate & highmask) == 0);
-    }
-
-    assert(old_max_possible == max_possible);
+    if (throwval > 0 && throwval < h)
+      unmark_unreachable_states(to);
 
     if (++steps_taken >= steps_per_inbox_check &&
           pos > root_pos && col < outdegree[from] - 1) {
@@ -611,8 +549,8 @@ void Worker::gen_loops_normal() {
 void Worker::gen_loops_block() {
   if (exactflag && pos >= l)
     return;
-  if (pos < root_pos && !loading_work)
-    return;
+  if (!loading_work)
+    ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
@@ -624,7 +562,6 @@ void Worker::gen_loops_block() {
       continue;
 
     bool valid = true;
-
     const int oldblocklength = blocklength;
     const int oldskipcount = skipcount;
     const int oldfirstblocklength = firstblocklength;
@@ -656,20 +593,23 @@ void Worker::gen_loops_block() {
       if (valid)
         handle_finished_pattern(throwval);
     } else if (valid) {
-      pattern[pos] = throwval;
+      if (throwval > 0 && throwval < h)
+        valid = mark_unreachable_states(to);
 
-      used[to] = 1;
-      ++pos;
-      const int old_from = from;
-      from = to;
+      if (valid) {
+        pattern[pos] = throwval;
+        used[to] = 1;
+        ++pos;
+        const int old_from = from;
+        from = to;
+        gen_loops_block();
+        from = old_from;
+        --pos;
+        used[to] = 0;
+      }
 
-      if (!loading_work)
-        ++nnodes;
-      gen_loops_block();
-
-      from = old_from;
-      --pos;
-      used[to] = 0;
+      if (throwval > 0 && throwval < h)
+        unmark_unreachable_states(to);
     }
 
     // undo changes so we can backtrack
@@ -696,8 +636,8 @@ void Worker::gen_loops_block() {
 void Worker::gen_loops_super() {
   if (exactflag && pos >= l)
     return;
-  if (pos < root_pos && !loading_work)
-    return;
+  if (!loading_work)
+    ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
   for (; col < maxoutdegree; ++col) {
@@ -724,7 +664,6 @@ void Worker::gen_loops_super() {
         handle_finished_pattern(throwval);
     } else if (valid) {
       pattern[pos] = throwval;
-
       const int oldusedvalue = used[to];
       used[to] = 1;
       for (int j = 0; j < (h - 1); ++j) {
@@ -734,11 +673,7 @@ void Worker::gen_loops_super() {
       ++pos;
       int old_from = from;
       from = to;
-
-      if (!loading_work)
-        ++nnodes;
       gen_loops_super();
-
       from = old_from;
       --pos;
       for (int j = 0; j < (h - 1); ++j) {
@@ -896,6 +831,62 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
   }
 
   return true;
+}
+
+bool inline Worker::mark_unreachable_states(int to_state) {
+  bool valid = true;
+
+  // 1. kill states downstream in 'from' cycle that end in 'x'
+  int j = h - 2;
+  unsigned long tempstate = state[from];
+  int cnum = cyclenum[from];
+
+  do {
+    if (used[partners[from][j]]++ == 0 && deadstates[cnum]++ >= 1
+          && --max_possible < l)
+      valid = false;
+    --j;
+    tempstate >>= 1;
+  } while (tempstate & 1L);
+
+  // 2. kill states upstream in 'to' cycle that start with '-'
+  j = 0;
+  tempstate = state[to_state];
+  cnum = cyclenum[to_state];
+
+  do {
+    if (used[partners[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
+          && --max_possible < l)
+      valid = false;
+    ++j;
+    tempstate = (tempstate << 1) & allmask;
+  } while ((tempstate & highmask) == 0);
+
+  return valid;
+}
+
+void inline Worker::unmark_unreachable_states(int to_state) {
+  int j = h - 2;
+  unsigned long tempstate = state[from];
+  int cnum = cyclenum[from];
+
+  do {
+    if (--used[partners[from][j]] == 0 && --deadstates[cnum] >= 1)
+      ++max_possible;
+    --j;
+    tempstate >>= 1;
+  } while (tempstate & 1L);
+
+  j = 0;
+  tempstate = state[to_state];
+  cnum = cyclenum[to_state];
+
+  do {
+    if (--used[partners[to_state][j]] == 0 && --deadstates[cnum] >= 1)
+      ++max_possible;
+    ++j;
+    tempstate = (tempstate << 1) & allmask;
+  } while ((tempstate & highmask) == 0);
 }
 
 void Worker::handle_finished_pattern(int throwval) {
