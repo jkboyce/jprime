@@ -267,19 +267,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
 }
 
-WorkAssignment Worker::split_work_assignment(int split_alg) {
-  switch (split_alg) {
-    case 1:
-      return split_work_assignment_takeall();
-      break;
-    case 2:
-      return split_work_assignment_takehalf();
-      break;
-    default:
-      assert(false);
-  }
-}
-
 WorkAssignment Worker::get_work_assignment() const {
   WorkAssignment wa;
   wa.start_state = start_state;
@@ -293,7 +280,6 @@ WorkAssignment Worker::get_work_assignment() const {
   }
   return wa;
 }
-
 
 void Worker::notify_coordinator_rootpos() {
   MessageW2C msg;
@@ -314,6 +300,19 @@ void Worker::notify_coordinator_longest() {
 //------------------------------------------------------------------------------
 // Work-splitting algorithms
 //------------------------------------------------------------------------------
+
+WorkAssignment Worker::split_work_assignment(int split_alg) {
+  switch (split_alg) {
+    case 1:
+      return split_work_assignment_takeall();
+      break;
+    case 2:
+      return split_work_assignment_takehalf();
+      break;
+    default:
+      assert(false);
+  }
+}
 
 WorkAssignment Worker::split_work_assignment_takeall() {
   // strategy: take all of the throw options at root_pos
@@ -919,9 +918,6 @@ void Worker::report_pattern() const {
       buffer << "* ";
   }
 
-  const bool plusminus = ((mode == NORMAL_MODE && longestflag) ||
-                          mode == BLOCK_MODE);
-
   for (int i = 0; i <= pos; ++i) {
     int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
     print_throw(buffer, throwval);
@@ -944,25 +940,6 @@ void Worker::report_pattern() const {
   msg.pattern = buffer.str();
   msg.length = pos + 1;
   message_coordinator(msg);
-
-#ifdef STATELIST
-  fprintf(fpout, "  missing states:\n");
-
-  for (int i = start_state + 1; i <= numstates; ++i) {
-    if (used[i] == 1)
-      continue;
-
-    unsigned long temp2 = state[i];
-    for (int j = 0; j < h; ++j) {
-      if (temp2 & 1)
-        fprintf(fpout, "x");
-      else
-        fprintf(fpout, "-");
-      temp2 >>= 1;
-    }
-    fprintf(fpout, "\n");
-  }
-#endif
 }
 
 void Worker::print_throw(std::ostringstream& buffer, int val) const {

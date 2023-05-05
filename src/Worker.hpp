@@ -99,10 +99,10 @@ class Worker {
   void calibrate_inbox_check();
   void process_split_work_request(const MessageC2W& msg);
   void load_work_assignment(const WorkAssignment& wa);
-  WorkAssignment split_work_assignment(int split_alg);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_rootpos();
   void notify_coordinator_longest();
+  WorkAssignment split_work_assignment(int split_alg);
   WorkAssignment split_work_assignment_takeall();
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);

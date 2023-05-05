@@ -23,7 +23,7 @@ class Coordinator {
   void run();
 
  private:
-  const SearchConfig config;
+  const SearchConfig& config;
   SearchContext& context;
 
   std::vector<Worker*> worker;
