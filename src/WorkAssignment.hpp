@@ -10,8 +10,8 @@
 // SearchConfig these completely define the computation.
 
 struct WorkAssignment {
-  int start_state = 1;
-  int end_state = 1;
+  int start_state = -1;
+  int end_state = -1;
   int root_pos = 0;
   std::list<int> root_throwval_options;
   std::vector<int> partial_pattern;

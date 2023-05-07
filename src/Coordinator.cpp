@@ -10,7 +10,11 @@
 #include <thread>
 #include <csignal>
 
-bool Coordinator::stopping = false;
+// Coordinator thread that manages the overall search.
+//
+// The computation is depth first search on multiple worker threads using work
+// stealing to keep the workers busy. The business of the coordinator is to
+// interact with the workers to distribute work, and also to manage output.
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
       : config(a), context(b) {
@@ -57,7 +61,7 @@ void Coordinator::run() {
         if (msg.type == messages_W2C::SEARCH_RESULT) {
           process_search_result(msg);
         } else if (msg.type == messages_W2C::RETURN_WORK) {
-          process_worker_returned_work(msg);
+          process_returned_work(msg);
         }
         // ignore other message types
       }
@@ -91,6 +95,9 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
   worker[worker_id]->inbox_lock.unlock();
 }
 
+// Give assignments to idle workers, while there are available assignments and
+// idle workers to take them.
+
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     int id = workers_idle.front();
@@ -114,37 +121,7 @@ void Coordinator::give_assignments() {
   }
 }
 
-void Coordinator::steal_work() {
-  if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
-    return;
-
-  int id = 0;
-  switch (context.steal_alg) {
-    case 1:
-      id = find_stealing_target_longestpattern();
-      break;
-    case 2:
-      id = find_stealing_target_lowestid();
-      break;
-    case 3:
-      id = find_stealing_target_lowestrootpos();
-      break;
-    case 4:
-      id = find_stealing_target_longestruntime();
-      break;
-    default:
-      assert(false);
-  }
-
-  waiting_for_work_from_id = id;
-  MessageC2W msg;
-  msg.type = messages_C2W::SPLIT_WORK;
-  msg.split_alg = context.split_alg;
-  message_worker(msg, id);
-
-  if (config.verboseflag)
-    std::cout << "requested work from worker " << id << std::endl;
-}
+// Receive and handle messages from the worker threads.
 
 void Coordinator::process_inbox() {
   int new_longest_pattern_from_id = -1;
@@ -159,7 +136,7 @@ void Coordinator::process_inbox() {
     } else if (msg.type == messages_W2C::WORKER_IDLE) {
       process_worker_idle(msg);
     } else if (msg.type == messages_W2C::RETURN_WORK) {
-      process_worker_returned_work(msg);
+      process_returned_work(msg);
     } else if (msg.type == messages_W2C::WORKER_STATUS) {
       process_worker_status(msg);
     } else {
@@ -202,6 +179,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   remove_from_run_order(msg.worker_id);
   workers_idle.push_back(msg.worker_id);
 
+  // collect statistics reported by the worker
   context.ntotal += msg.ntotal;
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
@@ -221,7 +199,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
     std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
 }
 
-void Coordinator::process_worker_returned_work(const MessageW2C& msg) {
+void Coordinator::process_returned_work(const MessageW2C& msg) {
   if (msg.worker_id == waiting_for_work_from_id)
     waiting_for_work_from_id = -1;
   context.assignments.push_back(msg.assignment);
@@ -312,6 +290,9 @@ void Coordinator::stop_workers() const {
   }
 }
 
+// static variable for indicating that the user has interrupted execution
+bool Coordinator::stopping = false;
+
 void Coordinator::signal_handler(int signum) {
   stopping = true;
 }
@@ -319,6 +300,42 @@ void Coordinator::signal_handler(int signum) {
 //------------------------------------------------------------------------------
 // Algorithms for deciding which worker to steal work from
 //------------------------------------------------------------------------------
+
+// Identify a (not idle) worker to steal work from, and send it a SPLIT_WORK
+// message. There is no single preferred way to identify the best target, so we
+// implement several approaches.
+
+void Coordinator::steal_work() {
+  if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
+    return;
+
+  int id = 0;
+  switch (context.steal_alg) {
+    case 1:
+      id = find_stealing_target_longestpattern();
+      break;
+    case 2:
+      id = find_stealing_target_lowestid();
+      break;
+    case 3:
+      id = find_stealing_target_lowestrootpos();
+      break;
+    case 4:
+      id = find_stealing_target_longestruntime();
+      break;
+    default:
+      assert(false);
+  }
+
+  waiting_for_work_from_id = id;
+  MessageC2W msg;
+  msg.type = messages_C2W::SPLIT_WORK;
+  msg.split_alg = context.split_alg;
+  message_worker(msg, id);
+
+  if (config.verboseflag)
+    std::cout << "requested work from worker " << id << std::endl;
+}
 
 int Coordinator::find_stealing_target_longestpattern() const {
   // strategy: take work from the worker with the longest patterns found

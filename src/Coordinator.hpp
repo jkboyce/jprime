@@ -37,17 +37,17 @@ class Coordinator {
 
   void message_worker(const MessageC2W& msg, int worker_id) const;
   void give_assignments();
-  void steal_work();
   void process_inbox();
   int process_search_result(const MessageW2C& msg);
   bool is_worker_idle(const int id) const;
   void process_worker_idle(const MessageW2C& msg);
-  void process_worker_returned_work(const MessageW2C& msg);
+  void process_returned_work(const MessageW2C& msg);
   void process_worker_status(const MessageW2C& msg);
   void remove_from_run_order(const int id);
   void notify_metadata(int skip_id) const;
   void stop_workers() const;
   static void signal_handler(int signum);
+  void steal_work();
   int find_stealing_target_longestpattern() const;
   int find_stealing_target_lowestid() const;
   int find_stealing_target_lowestrootpos() const;

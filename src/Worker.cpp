@@ -4,11 +4,18 @@
 #include "Messages.hpp"
 
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <sstream>
 #include <cassert>
 #include <ctime>
-#include <iomanip>
+
+// Worker thread that executes work assignments given to it by the
+// Coordinator thread.
+//
+// The overall computation is depth first search on multiple worker threads,
+// with a work stealing scheme to balance work among the threads. Each worker
+// communicates only with the coordinator thread, via a set of message types.
 
 Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
       coordinator(coord), worker_id(id) {
@@ -33,12 +40,17 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   maxindegree = n + 1;
-  prepcorearrays(config.xarray);
+  highmask = 1L << (h - 1);
+  allmask = (1L << h) - 1;
+
+  allocate_arrays();
+  int ns = gen_states(state, 0, h - 1, n, h, numstates);
+  assert(ns == numstates);
+  gen_matrices(config.xarray);
+  find_shift_cycles();
+
   maxlength = (mode == SUPER_MODE) ? (numcycles + shiftlimit)
       : (numstates - numcycles);
-  highmask = 1L << (config.h - 1);
-  allmask = (1L << config.h) - 1;
-
   if (l > maxlength) {
     std::cout << "No patterns longer than " << maxlength << " are possible"
               << std::endl;
@@ -47,29 +59,15 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
 }
 
 Worker::~Worker() {
-  for (int i = 0; i <= numstates; ++i) {
-    delete outmatrix[i];
-    delete outthrowval[i];
-    delete inmatrix[i];
-    delete partners[i];
-  }
-  delete outmatrix;
-  delete outthrowval;
-  delete inmatrix;
-  delete partners;
-  delete used;
-  delete outdegree;
-  delete indegree;
-  delete cyclenum;
-  delete state;
-  delete pattern;
-  delete cycleperiod;
-  delete deadstates;
+  delete_arrays();
 }
 
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
+
+// Execute the main run loop for the worker, which waits until it receives an
+// assignment from the coordinator.
 
 void Worker::run() {
   while (true) {
@@ -82,13 +80,14 @@ void Worker::run() {
       inbox.pop();
 
       if (msg.type == messages_C2W::DO_WORK) {
+        assert(!new_assignment);
         load_work_assignment(msg.assignment);
         l = std::max(l, msg.l_current);
         new_assignment = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
-        // leave in the inbox
+        // leave in the inbox for when we get work
         inbox.push(msg);
       } else if (msg.type == messages_C2W::STOP_WORKER) {
         stop_worker = true;
@@ -97,16 +96,17 @@ void Worker::run() {
     }
     inbox_lock.unlock();
 
-    if (stop_worker)
+    if (stop_worker) {
+      if (new_assignment)
+        send_work_to_coordinator(get_work_assignment());
       break;
+    }
     if (!new_assignment)
       continue;
 
+    // get timestamp so we can report working time to coordinator
     timespec start_ts;
     timespec_get(&start_ts, TIME_UTC);
-    // for calibrating how often to check the inbox while running
-    if (calibrations_remaining > 0)
-      last_ts = start_ts;
 
     // complete the new work assignment
     try {
@@ -114,18 +114,9 @@ void Worker::run() {
       record_elapsed_time(start_ts);
     } catch (const JdeepStopException& jdse) {
       // a STOP_WORKER message while running unwinds back here; send any
-      // remaining work back to the Coordinator
+      // remaining work back to the coordinator
       record_elapsed_time(start_ts);
-      MessageW2C msg;
-      msg.type = messages_W2C::RETURN_WORK;
-      msg.worker_id = worker_id;
-      msg.ntotal = ntotal;
-      msg.nnodes = nnodes;
-      msg.numstates = numstates;
-      msg.maxlength = maxlength;
-      msg.secs_elapsed_working = secs_elapsed_working;
-      msg.assignment = get_work_assignment();
-      message_coordinator(msg);
+      send_work_to_coordinator(get_work_assignment());
       break;
     }
 
@@ -134,19 +125,7 @@ void Worker::run() {
     inbox = std::queue<MessageC2W>();
     inbox_lock.unlock();
 
-    // notify coordinator that we're idle
-    MessageW2C msg;
-    msg.type = messages_W2C::WORKER_IDLE;
-    msg.worker_id = worker_id;
-    msg.ntotal = ntotal;
-    msg.nnodes = nnodes;
-    msg.numstates = numstates;
-    msg.maxlength = maxlength;
-    msg.secs_elapsed_working = secs_elapsed_working;
-    message_coordinator(msg);
-    ntotal = 0;
-    nnodes = 0;
-    secs_elapsed_working = 0;
+    notify_coordinator_idle();
   }
 }
 
@@ -160,13 +139,8 @@ void Worker::message_coordinator(const MessageW2C& msg) const {
     coordinator->inbox_lock.unlock();
 }
 
-void Worker::message_coordinator(const MessageW2C& msg1,
-      const MessageW2C& msg2) const {
-    coordinator->inbox_lock.lock();
-    coordinator->inbox.push(msg1);
-    coordinator->inbox.push(msg2);
-    coordinator->inbox_lock.unlock();
-}
+// Handle incoming messages from the coordinator that have queued while the
+// worker is running.
 
 void Worker::process_inbox_running() {
   if (calibrations_remaining > 0)
@@ -191,9 +165,14 @@ void Worker::process_inbox_running() {
   }
   inbox_lock.unlock();
 
-  if (stopping_work)
+  if (stopping_work) {
+    // unwind back to Worker::run()
     throw JdeepStopException();
+  }
 }
+
+// Get a finishing timestamp and record elapsed-time statistics to report to
+// the coordinator later on.
 
 void Worker::record_elapsed_time(timespec& start_ts) {
   timespec end_ts;
@@ -204,6 +183,12 @@ void Worker::record_elapsed_time(timespec& start_ts) {
 }
 
 void Worker::calibrate_inbox_check() {
+  if (calibrations_remaining == calibrations_initial) {
+    timespec_get(&last_ts, TIME_UTC);
+    --calibrations_remaining;
+    return;
+  }
+
   timespec current_ts;
   timespec_get(&current_ts, TIME_UTC);
   double time_spent =
@@ -217,32 +202,37 @@ void Worker::calibrate_inbox_check() {
       secs_per_inbox_check_target / time_spent);
 }
 
-void Worker::process_split_work_request(const MessageC2W& msg) {
-  MessageW2C msg2;
-  msg2.type = messages_W2C::RETURN_WORK;
-  msg2.worker_id = worker_id;
-  msg2.assignment = split_work_assignment(msg.split_alg);
-  msg2.ntotal = ntotal;
-  msg2.nnodes = nnodes;
-  msg2.numstates = numstates;
-  msg2.maxlength = maxlength;
-  msg2.secs_elapsed_working = secs_elapsed_working;
+void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
+  MessageW2C msg;
+  msg.type = messages_W2C::RETURN_WORK;
+  msg.worker_id = worker_id;
+  msg.assignment = wa;
+  msg.ntotal = ntotal;
+  msg.nnodes = nnodes;
+  msg.numstates = numstates;
+  msg.maxlength = maxlength;
+  msg.secs_elapsed_working = secs_elapsed_working;
   ntotal = 0;
   nnodes = 0;
   secs_elapsed_working = 0;
+  message_coordinator(msg);
+}
+
+void Worker::process_split_work_request(const MessageC2W& msg) {
+  send_work_to_coordinator(split_work_assignment(msg.split_alg));
 
   if (verboseflag) {
     std::ostringstream sstr;
-    sstr << "worker " << worker_id << " remaining work after split:" << std::endl;
-    sstr << "  " << get_work_assignment();
+    sstr << "worker " << worker_id
+         << " remaining work after split:" << std::endl
+         << "  " << get_work_assignment();
 
-    MessageW2C msg3;
-    msg3.type = messages_W2C::WORKER_STATUS;
-    msg3.worker_id = worker_id;
-    msg3.meta = sstr.str();
-    message_coordinator(msg2, msg3);
-  } else
+    MessageW2C msg2;
+    msg2.type = messages_W2C::WORKER_STATUS;
+    msg2.worker_id = worker_id;
+    msg2.meta = sstr.str();
     message_coordinator(msg2);
+  }
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
@@ -255,9 +245,14 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   if (end_state == -1)
     end_state = (groundmode == 1) ? 1 : numstates;
 
+  longest_found = 0;
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
-  longest_found = 0;
+  if (wa.start_state == -1 || wa.end_state == -1) {
+    // assignment came from the coordinator which doesn't know how to correctly
+    // set the throw options, so do that here
+    build_rootpos_throw_options(start_state);
+  }
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
@@ -266,6 +261,10 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
     assert(mode == SUPER_MODE || used[i] == 0);
   }
 }
+
+// Return the work assignment corresponding to the current state of the worker.
+// Note this is distinct from split_work_assignment(), which splits off a
+// portion of the worker's assignment to give back to the coordinator.
 
 WorkAssignment Worker::get_work_assignment() const {
   WorkAssignment wa;
@@ -280,6 +279,28 @@ WorkAssignment Worker::get_work_assignment() const {
   }
   return wa;
 }
+
+// Notify the coordinator that the worker is idle and ready for another
+// work assignment.
+
+void Worker::notify_coordinator_idle() {
+  MessageW2C msg;
+  msg.type = messages_W2C::WORKER_IDLE;
+  msg.worker_id = worker_id;
+  msg.ntotal = ntotal;
+  msg.nnodes = nnodes;
+  msg.numstates = numstates;
+  msg.maxlength = maxlength;
+  msg.secs_elapsed_working = secs_elapsed_working;
+  ntotal = 0;
+  nnodes = 0;
+  secs_elapsed_working = 0;
+  message_coordinator(msg);
+}
+
+// Notify the coordinator of certain changes in the status of the search. The
+// coordinator may use this information to determine which worker to steal work
+// from when another worker goes idle.
 
 void Worker::notify_coordinator_rootpos() {
   MessageW2C msg;
@@ -300,6 +321,11 @@ void Worker::notify_coordinator_longest() {
 //------------------------------------------------------------------------------
 // Work-splitting algorithms
 //------------------------------------------------------------------------------
+
+// Return a work assignment that corresponds to a portion of the worker's
+// current work assignment, for handing off to another idle worker. There is no
+// single way to do this so we implement a number of strategies and measure
+// performance.
 
 WorkAssignment Worker::split_work_assignment(int split_alg) {
   switch (split_alg) {
@@ -368,24 +394,24 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   }
 
   if (root_throwval_options.size() == 0) {
-    // Gave away all our throw options at this `root_pos`
+    // Gave away all our throw options at this `root_pos`.
     //
     // We need to find the shallowest depth `new_root_pos` where there are
     // unexplored throw options. We have no more options at the current
-    // root_pos, so new_root_pos > root_pos
+    // root_pos, so new_root_pos > root_pos.
     //
     // We're also at a point in the search where we know there are unexplored
     // options remaining at the current value of `pos` (by virtue of how we got
     // here), and that pos > root_pos.
     //
     // So we know there must be a value of `new_root_pos` with the properties we
-    // need, in the range root_pos < new_root_pos <= pos;
+    // need, in the range root_pos < new_root_pos <= pos.
 
     int from_state = start_state;
     int new_root_pos = -1;
     int col = 0;
 
-    // have to start from the beginning because we don't record the traversed
+    // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
     for (int pos2 = 0; pos2 <= pos; ++pos2) {
       const int throwval = pattern[pos2];
@@ -393,6 +419,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
         if (throwval == outthrowval[from_state][col])
           break;
       }
+      // diagnostics if there's a problem
       if (col == outdegree[from_state]) {
         std::cout << "pos2 = " << pos2
                   << ", from_state = " << from_state
@@ -414,13 +441,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     assert(new_root_pos != -1);
     root_pos = new_root_pos;
     notify_coordinator_rootpos();
-
-    root_throwval_options.clear();
-    for (; col < outdegree[from_state]; ++col) {
-      const int throwval = outthrowval[from_state][col];
-      if (throwval != pattern[root_pos])
-        root_throwval_options.push_back(outthrowval[from_state][col]);
-    }
+    build_rootpos_throw_options(from_state);
     assert(root_throwval_options.size() > 0);
   }
 
@@ -431,9 +452,14 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 // Search the juggling graph for patterns
 //------------------------------------------------------------------------------
 
+// Find all patterns within a range of `start_state` values.
+//
+// We enforce that a prime pattern has no state numbers smaller than the state
+// it starts with, which ensures each pattern is generated exactly once.
+
 void Worker::gen_patterns() {
   for (; start_state <= end_state; ++start_state) {
-    if (longestflag && start_state > (maxlength - l + 1))
+    if (longestflag && (numstates - start_state + 1) < l)
       continue;
 
     // reset all working variables
@@ -452,15 +478,7 @@ void Worker::gen_patterns() {
       // reset `root_pos` and throw options there
       root_pos = 0;
       notify_coordinator_rootpos();
-
-      root_throwval_options.clear();
-      for (int col = 0; col < maxoutdegree; ++col) {
-        if (outmatrix[from][col] >= start_state) {
-          root_throwval_options.push_back(outthrowval[from][col]);
-          if (outthrowval[from][col] == 0)
-            break;
-        }
-      }
+      build_rootpos_throw_options(start_state);
       if (root_throwval_options.size() == 0)
         continue;
     }
@@ -484,23 +502,30 @@ void Worker::gen_patterns() {
   }
 }
 
+// Try all allowed throw values at the current pattern position `pos`,
+// recursively continuing until (a) a pattern is found, or (b) we determine
+// that we can't generate a path of length `l` or longer from our current
+// position.
+//
+// This version is for NORMAL mode.
+
 void Worker::gen_loops_normal() {
   if (exactflag && pos >= l)
     return;
-  if (!loading_work)
-    ++nnodes;
+  ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < maxoutdegree; ++col) {
+  for (; col < outdegree[from]; ++col) {
     const int to = outmatrix[from][col];
-    if (used[to] != 0 || to < start_state)
-      continue;
     const int throwval = outthrowval[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
+    if (used[to] != 0 || to < start_state)
+      continue;
 
     if (to == start_state) {
-      handle_finished_pattern(throwval);
+      pattern[pos] = throwval;
+      handle_finished_pattern();
       continue;
     }
 
@@ -509,6 +534,7 @@ void Worker::gen_loops_normal() {
       valid = mark_unreachable_states(to);
 
     if (valid) {
+      // we need to go deeper
       pattern[pos] = throwval;
       used[to] = 1;
       ++pos;
@@ -520,44 +546,46 @@ void Worker::gen_loops_normal() {
       used[to] = 0;
     }
 
-    // undo changes made above, so we can backtrack
+    // undo changes made above so we can backtrack
     if (throwval > 0 && throwval < h)
       unmark_unreachable_states(to);
 
-    if (++steps_taken >= steps_per_inbox_check &&
-          pos > root_pos && col < outdegree[from] - 1) {
+    // see if it's time to check the inbox
+    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
+          && col < outdegree[from] - 1) {
       // the restrictions on when we enter here are in case we get a message to
-      // hand off work to another thread; see split_off_work_assignment()
+      // hand off work to another thread; see split_work_assignment()
 
       // terminate the pattern at the current position in case we get a
       // STOP_WORKER message and need to unwind back to run()
-      if (valid)
-        pattern[pos + 1] = -1;
-      else
-        pattern[pos] = -1;
-
+      pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
     }
 
+    // only a single allowed throw value for `pos` < `root_pos`
     if (pos < root_pos)
       break;
   }
 }
 
+// As above, but for BLOCK mode.
+//
+// Here there is additional structure we impose on the form of the pattern,
+// which makes the search generally faster than NORMAL mode.
+
 void Worker::gen_loops_block() {
   if (exactflag && pos >= l)
     return;
-  if (!loading_work)
-    ++nnodes;
+  ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < maxoutdegree; ++col) {
-    const int to = outmatrix[from][col];
-    if (used[to] != 0 || to < start_state)
-      continue;
+  for (; col < outdegree[from]; ++col) {
     const int throwval = outthrowval[from][col];
+    const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+      continue;
+    if (used[to] != 0 || to < start_state)
       continue;
 
     bool valid = true;
@@ -589,8 +617,10 @@ void Worker::gen_loops_block() {
             (blocklength + firstblocklength) != (h - 2))
         valid = false;
 
-      if (valid)
-        handle_finished_pattern(throwval);
+      if (valid) {
+        pattern[pos] = throwval;
+        handle_finished_pattern();
+      }
     } else if (valid) {
       if (throwval > 0 && throwval < h)
         valid = mark_unreachable_states(to);
@@ -616,13 +646,9 @@ void Worker::gen_loops_block() {
     skipcount = oldskipcount;
     firstblocklength = oldfirstblocklength;
 
-    if (++steps_taken >= steps_per_inbox_check &&
-          pos > root_pos && col < outdegree[from] - 1) {
-      if (valid)
-        pattern[pos + 1] = -1;
-      else
-        pattern[pos] = -1;
-
+    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
+          && col < outdegree[from] - 1) {
+      pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
     }
@@ -632,19 +658,24 @@ void Worker::gen_loops_block() {
   }
 }
 
+// As above, but for SUPER mode.
+//
+// Since a superprime pattern can only visit a single state in each shift cycle,
+// this is the fastest version because so many states are excluded by each
+// throw in the pattern.
+
 void Worker::gen_loops_super() {
   if (exactflag && pos >= l)
     return;
-  if (!loading_work)
-    ++nnodes;
+  ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < maxoutdegree; ++col) {
-    const int to = outmatrix[from][col];
-    if (used[to] != 0 || to < start_state)
-      continue;
+  for (; col < outdegree[from]; ++col) {
     const int throwval = outthrowval[from][col];
+    const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+      continue;
+    if (used[to] != 0 || to < start_state)
       continue;
 
     bool valid = true;
@@ -659,8 +690,10 @@ void Worker::gen_loops_super() {
     }
 
     if (to == start_state) {
-      if (valid)
-        handle_finished_pattern(throwval);
+      if (valid) {
+        pattern[pos] = throwval;
+        handle_finished_pattern();
+      }
     } else if (valid) {
       pattern[pos] = throwval;
       const int oldusedvalue = used[to];
@@ -685,13 +718,9 @@ void Worker::gen_loops_super() {
     // undo changes so we can backtrack
     shiftcount = oldshiftcount;
 
-    if (++steps_taken >= steps_per_inbox_check &&
-          pos > root_pos && col < outdegree[from] - 1) {
-      if (valid)
-        pattern[pos + 1] = -1;
-      else
-        pattern[pos] = -1;
-
+    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
+          && col < outdegree[from] - 1) {
+      pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
     }
@@ -701,102 +730,73 @@ void Worker::gen_loops_super() {
   }
 }
 
+// Return the column number in the `outmatrix[from]` row vector that
+// corresponds to the throw value at position `pos` in the pattern. This allows
+// us to resume where we left off when loading from a work assignment.
+
 int Worker::load_one_throw() {
-  int col = 0;
-
-  if (pos == root_pos) {
-    // Coordinator may have given us throw values that don't work at this
-    // point in the state graph, so remove any bad elements from the list
-    std::list<int>::iterator iter = root_throwval_options.begin();
-    std::list<int>::iterator end = root_throwval_options.end();
-
-    while (iter != end) {
-      bool allowed = false;
-      for (int col2 = 0; col2 < maxoutdegree; ++col2) {
-        if (outmatrix[from][col2] < start_state)
-          continue;
-        if (*iter == outthrowval[from][col2]) {
-          allowed = true;
-          break;
-        }
-      }
-      if (allowed)
-        ++iter;
-      else
-        iter = root_throwval_options.erase(iter);
-    }
-
-    /*
-    if (root_throwval_options.size() == 0) {
-      std::ostringstream buffer;
-      for (int i = 0; i <= pos; ++i) {
-        int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
-        print_throw(buffer, throwval);
-      }
-      std::cout << "worker: " << worker_id << std::endl
-                << "pos: " << pos << std::endl
-                << "root_pos: " << root_pos << std::endl
-                << "from: " << from << std::endl
-                << "state[from]: " << state[from] << std::endl
-                << "start_state: " << start_state << std::endl
-                << "pattern: " << buffer.str() << std::endl
-                << "outthrowval[from][]: ";
-      for (int i = 0; i < maxoutdegree; ++i)
-        std::cout << outthrowval[from][i] << ", ";
-      std::cout << std::endl << "outmatrix[from][]: ";
-      for (int i = 0; i < maxoutdegree; ++i)
-        std::cout << outmatrix[from][i] << ", ";
-      std::cout << std::endl;
-      std::cout << "throw options: ";
-      for (int val : rto_copy)
-        std::cout << val << " ";
-      std::cout << std::endl;
-    }
-    */
-    assert(root_throwval_options.size() > 0);
-  }
-
   if (pattern[pos] == -1) {
     loading_work = false;
-  } else {
-    for (; col < maxoutdegree; ++col) {
-      if (outmatrix[from][col] < start_state)
-        continue;
-      if (outthrowval[from][col] == pattern[pos])
-        break;
-    }
-
-    /*
-    if (col == maxoutdegree) {
-      std::ostringstream buffer;
-      for (int i = 0; i <= pos; ++i) {
-        int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
-        print_throw(buffer, throwval);
-      }
-      std::cout << "worker: " << worker_id << std::endl
-                << "pos: " << pos << std::endl
-                << "root_pos: " << root_pos << std::endl
-                << "from: " << from << std::endl
-                << "state[from]: " << state[from] << std::endl
-                << "start_state: " << start_state << std::endl
-                << "pattern: " << buffer.str() << std::endl
-                << "outthrowval[from][]: ";
-      for (int i = 0; i < maxoutdegree; ++i)
-        std::cout << outthrowval[from][i] << ", ";
-      std::cout << std::endl << "outmatrix[from][]: ";
-      for (int i = 0; i < maxoutdegree; ++i)
-        std::cout << outmatrix[from][i] << ", ";
-      std::cout << std::endl << "state[outmatrix[from][]]: ";
-      for (int i = 0; i < maxoutdegree; ++i)
-        std::cout << state[outmatrix[from][i]] << ", ";
-      std::cout << std::endl;
-    }
-    */
-    assert(col != maxoutdegree);
+    return 0;
   }
 
+  int col = 0;
+  for (; col < maxoutdegree; ++col) {
+    if (outmatrix[from][col] < 1)
+      continue;
+    if (outthrowval[from][col] == pattern[pos])
+      break;
+  }
+
+  // diagnostic information
+  if (col == maxoutdegree) {
+    std::ostringstream buffer;
+    for (int i = 0; i <= pos; ++i)
+      print_throw(buffer, pattern[i]);
+    std::cout << "worker: " << worker_id << std::endl
+              << "pos: " << pos << std::endl
+              << "root_pos: " << root_pos << std::endl
+              << "from: " << from << std::endl
+              << "state[from]: " << state[from] << std::endl
+              << "start_state: " << start_state << std::endl
+              << "pattern: " << buffer.str() << std::endl
+              << "outthrowval[from][]: ";
+    for (int i = 0; i < maxoutdegree; ++i)
+      std::cout << outthrowval[from][i] << ", ";
+    std::cout << std::endl << "outmatrix[from][]: ";
+    for (int i = 0; i < maxoutdegree; ++i)
+      std::cout << outmatrix[from][i] << ", ";
+    std::cout << std::endl << "state[outmatrix[from][]]: ";
+    for (int i = 0; i < maxoutdegree; ++i)
+      std::cout << state[outmatrix[from][i]] << ", ";
+    std::cout << std::endl;
+  }
+  assert(col != maxoutdegree);
   return col;
 }
+
+// Determine the set of throw options available at position `root_pos` in
+// the pattern. This list of options is maintained in case we get a request
+// to split work.
+
+void Worker::build_rootpos_throw_options(int rootpos_from_state) {
+  root_throwval_options.clear();
+
+  for (int col = 0; col < maxoutdegree; ++col) {
+    if (outmatrix[rootpos_from_state][col] < 1)
+      continue;
+    root_throwval_options.push_back(outthrowval[rootpos_from_state][col]);
+  }
+}
+
+// Mark off `throwval` from our set of allowed throw options at position
+// `root_pos` in the pattern.
+//
+// If this exhausts the set of allowed options, then advance `root_pos` by one
+// and generate a new set of options. As an invariant we never allow
+// `root_throwval_options` to be empty, in case we get a request to split work.
+//
+// Returns true if the value was found, false otherwise.
 
 bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
   // check to see if this throwval is in our allowed list, and if so remove it
@@ -821,21 +821,23 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
     // using our last option at this root level, go one step deeper
     ++root_pos;
     notify_coordinator_rootpos();
-
-    for (int col = 0; col < maxoutdegree; ++col) {
-      if (outmatrix[to_state][col] < start_state)
-        continue;
-      root_throwval_options.push_back(outthrowval[to_state][col]);
-    }
+    build_rootpos_throw_options(to_state);
   }
 
   return true;
 }
 
+// Mark all of the states as used that are excluded by a throw from state
+// `from` to state `to_state`.
+//
+// Returns false if the number of newly-excluded states implies that we can't
+// finish a pattern of at least length `l` from our current position. Returns
+// true otherwise.
+
 bool inline Worker::mark_unreachable_states(int to_state) {
   bool valid = true;
 
-  // 1. kill states downstream in 'from' cycle that end in 'x'
+  // 1. kill states downstream in `from` shift cycle that end in 'x'
   int j = h - 2;
   unsigned long tempstate = state[from];
   int cnum = cyclenum[from];
@@ -848,7 +850,7 @@ bool inline Worker::mark_unreachable_states(int to_state) {
     tempstate >>= 1;
   } while (tempstate & 1L);
 
-  // 2. kill states upstream in 'to' cycle that start with '-'
+  // 2. kill states upstream in 'to' shift cycle that start with '-'
   j = 0;
   tempstate = state[to_state];
   cnum = cyclenum[to_state];
@@ -863,6 +865,8 @@ bool inline Worker::mark_unreachable_states(int to_state) {
 
   return valid;
 }
+
+// Reverse the marking operation above, so we can backtrack.
 
 void inline Worker::unmark_unreachable_states(int to_state) {
   int j = h - 2;
@@ -888,17 +892,16 @@ void inline Worker::unmark_unreachable_states(int to_state) {
   } while ((tempstate & highmask) == 0);
 }
 
-void Worker::handle_finished_pattern(int throwval) {
+void Worker::handle_finished_pattern() {
   ++ntotal;
 
-  if (pos >= (l - 1) || l == 0) {
+  if ((pos + 1) >= l) {
     if (longestflag && pos >= l)
       l = pos + 1;
-    pattern[pos] = throwval;
     report_pattern();
   }
 
-  if (pos > (longest_found - 1)) {
+  if ((pos + 1) > longest_found) {
     longest_found = pos + 1;
     notify_coordinator_longest();
   }
@@ -907,6 +910,9 @@ void Worker::handle_finished_pattern(int throwval) {
 //------------------------------------------------------------------------------
 // Output a pattern during run
 //------------------------------------------------------------------------------
+
+// Send a message to the coordinator with the completed pattern. Note that all
+// console output is done by the coordinator, not the worker threads.
 
 void Worker::report_pattern() const {
   std::ostringstream buffer;
@@ -958,6 +964,9 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
   else
     buffer << static_cast<char>(val - 10 + 'a');
 }
+
+// Write the inverse of the current pattern to a buffer. If the inverse is not
+// well-defined, indicate this.
 
 void Worker::print_inverse(std::ostringstream& buffer) const {
   // first decide on a starting state
@@ -1048,6 +1057,8 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
   }
 }
 
+// As above, but when we're using the dual version of the juggling graph.
+
 void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   // inverse was found in dual space, so we have to transform as we read it
   // first decide on a starting state
@@ -1137,6 +1148,11 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   }
 }
 
+// Find the reverse of a given state, where both the input and output are
+// referenced to the state number (i.e., index in the state[] array).
+//
+// For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
+
 int Worker::reverse_state(int statenum) const {
   unsigned long temp = 0;
   unsigned long mask1 = 1L;
@@ -1158,135 +1174,90 @@ int Worker::reverse_state(int statenum) const {
 }
 
 //------------------------------------------------------------------------------
-// Prep core data structures during startup
+// Prep core data structures during construction
 //------------------------------------------------------------------------------
 
-// Find the number of states for a given number of balls and maximum throw value
-int Worker::num_states(int n, int h) {
-  int result = 1;
+// Allocate all arrays used by the worker and initialize to default values.
 
-  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
-    result = (result * (h - denom + 1)) / denom;
-
-  return result;
-}
-
-void Worker::prepcorearrays(const std::vector<bool>& xarray) {
-  int k, cycleindex, periodfound, cycleper, newshiftcycle, *tempperiod;
-  unsigned long temp, highmask, lowmask;
-
-  // initialize arrays
-
+void Worker::allocate_arrays() {
+  if (!(pattern = new int[numstates + 1]))
+    die();
   if (!(used = new int[numstates + 1]))
     die();
-  for (int i = 0; i <= numstates; ++i)
+  if (!(outdegree = new int[numstates + 1]))
+    die();
+  if (!(indegree = new int[numstates + 1]))
+    die();
+  if (!(cyclenum = new int[numstates + 1]))
+    die();
+  if (!(state = new unsigned long[numstates + 1]))
+    die();
+  if (!(cycleperiod = new int[numstates + 1]))
+    die();
+  if (!(deadstates = new int[numstates + 1]))
+    die();
+
+  for (int i = 0; i <= numstates; ++i) {
+    pattern[i] = -1;
     used[i] = 0;
+    outdegree[i] = 0;
+    indegree[i] = 0;
+    cyclenum[i] = 0;
+    state[i] = 0L;
+    cycleperiod[i] = 0;
+    deadstates[i] = 0;
+  }
 
   if (!(outmatrix = new int*[numstates + 1]))
+    die();
+  if (!(outthrowval = new int*[numstates + 1]))
+    die();
+  if (!(inmatrix = new int*[numstates + 1]))
+    die();
+  if (!(partners = new int*[numstates + 1]))
     die();
   for (int i = 0; i <= numstates; ++i) {
     if (!(outmatrix[i] = new int[maxoutdegree]))
       die();
-  }
-  if (!(outthrowval = new int*[numstates + 1]))
-    die();
-  for (int i = 0; i <= numstates; ++i) {
     if (!(outthrowval[i] = new int[maxoutdegree]))
       die();
-  }
-  if (!(outdegree = new int[numstates + 1]))
-    die();
-  if (!(inmatrix = new int*[numstates + 1]))
-    die();
-  for (int i = 0; i <= numstates; ++i) {
     if (!(inmatrix[i] = new int[maxindegree]))
       die();
-  }
-  if (!(indegree = new int[numstates + 1]))
-    die();
-
-  if (!(partners = new int*[numstates + 1]))
-    die();
-  for (int i = 0; i <= numstates; ++i) {
     if (!(partners[i] = new int[h - 1]))
       die();
   }
-  if (!(cyclenum = new int[numstates + 1]))
-    die();
-
-  state = new unsigned long[numstates + 1];
-  for (int i = 0; i <= numstates; ++i)
-    state[i] = 0L;
-  int ns = gen_states(state, 0, h - 1, n, h, numstates);
-  assert(ns == numstates);
 
   for (int i = 0; i <= numstates; ++i) {
-    for (int j = 0; j < maxoutdegree; ++j)
-      outmatrix[i][j] = outthrowval[i][j] = 0;
+    for (int j = 0; j < maxoutdegree; ++j) {
+      outmatrix[i][j] = 0;
+      outthrowval[i][j] = 0;
+    }
     for (int j = 0; j < maxindegree; ++j)
       inmatrix[i][j] = 0;
-    indegree[i] = outdegree[i] = 0;
-  }
-  gen_matrices(xarray);
-
-  // calculate shift cycles
-
-  highmask = 1L << (h - 1);
-  lowmask = highmask - 1;
-  cycleindex = 0;
-  if (!(tempperiod = new int[numstates + 1]))
-    die();
-
-  for (int i = 1; i <= numstates; ++i) {
     for (int j = 0; j < (h - 1); ++j)
       partners[i][j] = 0;
-
-    temp = state[i];
-    periodfound = 0;
-    newshiftcycle = 1;
-    cycleper = h; // default period
-
-    for (int j = 0; j < (h - 1); ++j) {
-      if (temp & highmask)
-        temp = ((temp & lowmask) * 2) + 1;
-      else
-        temp *= 2;
-
-      int k = 1;
-      for (; k <= numstates; k++) {
-        if (state[k] == temp)
-          break;
-      }
-      assert(k <= numstates);
-
-      partners[i][j] = k;
-      if (k == i && !periodfound) {
-        cycleper = j + 1;
-        periodfound = 1;
-      } else if (k < i)
-        newshiftcycle = 0;
-    }
-
-    if (newshiftcycle) {
-      cyclenum[i] = cycleindex;
-      for (int j = 0; j < (h - 1); j++)
-        cyclenum[partners[i][j]] = cycleindex;
-      tempperiod[cycleindex++] = cycleper;
-    }
   }
-  numcycles = cycleindex;
-  if (!(cycleperiod = new int[cycleindex]))
-    die();
-  if (!(deadstates = new int[cycleindex]))
-    die();
-  for (int i = 0; i < cycleindex; ++i) {
-    cycleperiod[i] = tempperiod[i];
-    deadstates[i] = 0;
-  }
+}
 
-  pattern = tempperiod;  // reuse array
-  for (int i = 0; i <= numstates; ++i)
-    pattern[i] = -1;
+void Worker::delete_arrays() {
+  for (int i = 0; i <= numstates; ++i) {
+    delete outmatrix[i];
+    delete outthrowval[i];
+    delete inmatrix[i];
+    delete partners[i];
+  }
+  delete outmatrix;
+  delete outthrowval;
+  delete inmatrix;
+  delete partners;
+  delete pattern;
+  delete used;
+  delete outdegree;
+  delete indegree;
+  delete cyclenum;
+  delete state;
+  delete cycleperiod;
+  delete deadstates;
 }
 
 void Worker::die() {
@@ -1294,9 +1265,20 @@ void Worker::die() {
   std::exit(0);
 }
 
-// Generate the set of all possible states into the state[] array
+// Find the number of states (vertices) in the juggling graph, for a given
+// number of balls and maximum throw value. This is just (h choose n).
+
+int Worker::num_states(int n, int h) {
+  int result = 1;
+  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
+    result = (result * (h - denom + 1)) / denom;
+  return result;
+}
+
+// Generate the list of all possible states into the state[] array.
 //
-// Returns the number of states found
+// Returns the number of states found.
+
 int Worker::gen_states(unsigned long* state, int num, int pos, int left, int h,
       int ns) {
   if (left > (pos + 1))
@@ -1323,8 +1305,18 @@ int Worker::gen_states(unsigned long* state, int num, int pos, int left, int h,
   return num;
 }
 
-// Generate a matrix containing the outward connections from each state
-// (vertex) in the graph, and the throw value for each.
+// Generate matrices describing the structure of the juggling graph:
+//
+// - Outward degree from each state (vertex) in the graph:
+//         outdegree[statenum] --> degree
+// - Outward connections from each state:
+//         outmatrix[statenum][col] --> statenum  (where col < outdegree)
+// - Throw values corresponding to outward connections from each state:
+//         outthrowval[statenum][col] --> throw
+// - Inward degree to each state in the graph:
+//         indegree[statenum] --> degree
+// - Inward connections to each state:
+//         inmatrix[statenum][col] --> statenum  (where col < indegree)
 //
 // outmatrix[][] == 0 indicates no connection.
 
@@ -1432,4 +1424,54 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
       }
     }
   }
+}
+
+// Generate arrays describing the shift cycles of the juggling graph.
+//
+// - Which shift cycle number a given state belongs to:
+//         cyclenum[statenum] --> cyclenum
+// - The period of a given shift cycle number:
+//         cycleperiod[cyclenum] --> period
+// - The other states on a given state's shift cycle:
+//         partners[statenum][i] --> statenum  (where i < h - 1)
+
+void Worker::find_shift_cycles() {
+  const unsigned long lowmask = highmask - 1;
+  int cycleindex = 0;
+
+  for (int i = 1; i <= numstates; ++i) {
+    unsigned long temp = state[i];
+    bool periodfound = false;
+    bool newshiftcycle = true;
+    int cycleper = h;
+
+    for (int j = 0; j < (h - 1); ++j) {
+      if (temp & highmask)
+        temp = ((temp & lowmask) * 2) + 1;
+      else
+        temp *= 2;
+
+      int k = 1;
+      for (; k <= numstates; k++) {
+        if (state[k] == temp)
+          break;
+      }
+      assert(k <= numstates);
+
+      partners[i][j] = k;
+      if (k == i && !periodfound) {
+        cycleper = j + 1;
+        periodfound = true;
+      } else if (k < i)
+        newshiftcycle = false;
+    }
+
+    if (newshiftcycle) {
+      cyclenum[i] = cycleindex;
+      for (int j = 0; j < (h - 1); j++)
+        cyclenum[partners[i][j]] = cycleindex;
+      cycleperiod[cycleindex++] = cycleper;
+    }
+  }
+  numcycles = cycleindex;
 }

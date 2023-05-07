@@ -516,15 +516,8 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     }
   }
 
-  // set initial work assignment
+  // set initial work assignment; default value does entire calculation
   WorkAssignment wa;
-  wa.start_state = -1;
-  wa.end_state = -1;
-  wa.root_pos = 0;
-  for (int i = 0; i <= config.h; ++i) {
-    if (!config.xarray[i])
-      wa.root_throwval_options.push_back(i);
-  }
   context.assignments.push_back(wa);
 }
 
