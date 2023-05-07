@@ -2,7 +2,7 @@
 #ifndef JDEEP_SEARCHCONTEXT_H
 #define JDEEP_SEARCHCONTEXT_H
 
-#include "WorkAssignment.hpp"
+#include "WorkAssignment.h"
 
 #include <string>
 #include <vector>

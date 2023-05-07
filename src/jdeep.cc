@@ -27,9 +27,9 @@ Version history:
           in -super mode.
 ------------------------------------------------------------------------------*/
 
-#include "SearchConfig.hpp"
-#include "SearchContext.hpp"
-#include "Coordinator.hpp"
+#include "SearchConfig.h"
+#include "SearchContext.h"
+#include "Coordinator.h"
 
 #include <iostream>
 #include <fstream>
@@ -538,6 +538,7 @@ int main(int argc, char** argv) {
   coordinator.run();
 
   if (context.fileoutputflag) {
+    std::sort(context.patterns.rbegin(), context.patterns.rend());
     save_context(context);
     std::cout << "saved to checkpoint file '" << context.outfile << "'"
               << std::endl;

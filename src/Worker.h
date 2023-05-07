@@ -2,9 +2,9 @@
 #ifndef JDEEP_WORKER_H
 #define JDEEP_WORKER_H
 
-#include "Coordinator.hpp"
-#include "Messages.hpp"
-#include "SearchConfig.hpp"
+#include "Coordinator.h"
+#include "Messages.h"
+#include "SearchConfig.h"
 
 #include <queue>
 #include <mutex>

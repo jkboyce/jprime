@@ -2,9 +2,9 @@
 #ifndef JDEEP_COORDINATOR_H
 #define JDEEP_COORDINATOR_H
 
-#include "Messages.hpp"
-#include "SearchConfig.hpp"
-#include "SearchContext.hpp"
+#include "Messages.h"
+#include "SearchConfig.h"
+#include "SearchContext.h"
 
 #include <queue>
 #include <mutex>

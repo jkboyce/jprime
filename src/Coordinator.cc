@@ -1,9 +1,9 @@
 
-#include "SearchConfig.hpp"
-#include "SearchContext.hpp"
-#include "Coordinator.hpp"
-#include "Worker.hpp"
-#include "Messages.hpp"
+#include "SearchConfig.h"
+#include "SearchContext.h"
+#include "Coordinator.h"
+#include "Worker.h"
+#include "Messages.h"
 
 #include <iostream>
 #include <iomanip>
@@ -261,10 +261,7 @@ void Coordinator::remove_from_run_order(const int id) {
 
 void Coordinator::notify_metadata(int skip_id) const {
   for (int id = 0; id < context.num_threads; ++id) {
-    if (id == skip_id)
-      continue;
-    if (std::find(workers_idle.begin(), workers_idle.end(), id)
-          != workers_idle.end())
+    if (id == skip_id || is_worker_idle(id))
       continue;
 
     MessageC2W msg;

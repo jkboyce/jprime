@@ -2,10 +2,12 @@
 #ifndef JDEEP_MESSAGES_H
 #define JDEEP_MESSAGES_H
 
-#include "WorkAssignment.hpp"
+#include "WorkAssignment.h"
 
 #include <string>
 #include <list>
+
+// Messages from the coordinator to the worker
 
 enum messages_C2W {
   DO_WORK,
@@ -27,6 +29,8 @@ struct MessageC2W {
   // for type SPLIT_WORK
   int split_alg = 1;
 };
+
+// Messages from the worker to the coordinator
 
 enum messages_W2C {
   SEARCH_RESULT,

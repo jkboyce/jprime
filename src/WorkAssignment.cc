@@ -1,5 +1,5 @@
 
-#include "WorkAssignment.hpp"
+#include "WorkAssignment.h"
 
 #include <iostream>
 #include <string>

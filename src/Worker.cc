@@ -1,7 +1,7 @@
 
-#include "Worker.hpp"
-#include "Coordinator.hpp"
-#include "Messages.hpp"
+#include "Worker.h"
+#include "Coordinator.h"
+#include "Messages.h"
 
 #include <iostream>
 #include <iomanip>
