@@ -177,8 +177,9 @@ void Worker::process_inbox_running() {
 void Worker::record_elapsed_time(timespec& start_ts) {
   timespec end_ts;
   timespec_get(&end_ts, TIME_UTC);
-  double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -
-      ((double)start_ts.tv_sec + 1.0e-9 * start_ts.tv_nsec);
+  double runtime =
+      (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
+      (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
   secs_elapsed_working += runtime;
 }
 
@@ -192,8 +193,8 @@ void Worker::calibrate_inbox_check() {
   timespec current_ts;
   timespec_get(&current_ts, TIME_UTC);
   double time_spent =
-      ((double)current_ts.tv_sec + 1.0e-9 * current_ts.tv_nsec) -
-      ((double)last_ts.tv_sec + 1.0e-9 * last_ts.tv_nsec);
+      (static_cast<double>(current_ts.tv_sec) + 1.0e-9 * current_ts.tv_nsec) -
+      (static_cast<double>(last_ts.tv_sec) + 1.0e-9 * last_ts.tv_nsec);
   last_ts = current_ts;
   --calibrations_remaining;
 

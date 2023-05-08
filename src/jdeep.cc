@@ -491,26 +491,23 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       std::cout << "reading checkpoint file '" << args_context.outfile << "'"
                 << std::endl;
 
-      if (load_context(args_context.outfile, context)) {
-        if (context.assignments.size() == 0) {
-          std::cout << "calculation is finished" << std::endl;
-          std::exit(0);
-        }
-
-        // parse the loaded argument list (from the original invocation) to get
-        // the config, plus fill in the elements of context that weren't loaded
-        parse_args(context.arglist, &config, &context);
-
-        std::cout << "resuming calculation: " << context.arglist << std::endl
-                  << "loaded " << context.npatterns
-                  << " patterns (length " << context.l_current
-                  << ") and " << context.assignments.size()
-                  << " work assignments" << std::endl;
-        return;
-      } else {
-        // error in load_context()
+      if (!load_context(args_context.outfile, context))
+        std::exit(0);
+      if (context.assignments.size() == 0) {
+        std::cout << "calculation is finished" << std::endl;
         std::exit(0);
       }
+
+      // parse the loaded argument list (from the original invocation) to get
+      // the config, plus fill in the elements of context that weren't loaded
+      parse_args(context.arglist, &config, &context);
+
+      std::cout << "resuming calculation: " << context.arglist << std::endl
+                << "loaded " << context.npatterns
+                << " patterns (length " << context.l_current
+                << ") and " << context.assignments.size()
+                << " work assignments" << std::endl;
+      return;
     }
   }
 
@@ -546,7 +543,7 @@ int main(int argc, char** argv) {
   coordinator.run();
 
   if (context.fileoutputflag) {
-    std::cout << "saving to checkpoint file '" << context.outfile << "'"
+    std::cout << "saving checkpoint file '" << context.outfile << "'"
               << std::endl;
     std::sort(context.patterns.rbegin(), context.patterns.rend());
     save_context(context);

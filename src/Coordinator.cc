@@ -71,8 +71,9 @@ void Coordinator::run() {
   }
 
   timespec_get(&end_ts, TIME_UTC);
-  double runtime = ((double)end_ts.tv_sec + 1.0e-9 * end_ts.tv_nsec) -
-      ((double)start_ts.tv_sec + 1.0e-9 * start_ts.tv_nsec);
+  double runtime =
+      (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
+      (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
   context.secs_elapsed += runtime;
 
   for (int id = 0; id < context.num_threads; ++id) {
@@ -115,8 +116,8 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      std::cout << "gave work to worker " << id << ":" << std::endl;
-      std::cout << "  " << msg.assignment << std::endl;
+      std::cout << "gave work to worker " << id << ":" << std::endl
+                << "  " << msg.assignment << std::endl;
     }
   }
 }
@@ -269,9 +270,10 @@ void Coordinator::notify_metadata(int skip_id) const {
     msg.l_current = context.l_current;
     message_worker(msg, id);
 
-    if (config.verboseflag)
+    if (config.verboseflag) {
       std::cout << "worker " << id << " notified of new length "
                 << context.l_current << std::endl;
+    }
   }
 }
 
@@ -287,7 +289,7 @@ void Coordinator::stop_workers() const {
   }
 }
 
-// static variable for indicating that the user has interrupted execution
+// static variable for indicating the user has interrupted execution
 bool Coordinator::stopping = false;
 
 void Coordinator::signal_handler(int signum) {
@@ -353,8 +355,7 @@ int Coordinator::find_stealing_target_longestpattern() const {
 int Coordinator::find_stealing_target_lowestid() const {
   // strategy: take work from lowest-id worker that's busy
   for (int id = 0; id < context.num_threads; ++id) {
-    if (std::find(workers_idle.begin(), workers_idle.end(), id)
-          != workers_idle.end())
+    if (is_worker_idle(id))
       continue;
     return id;
   }
