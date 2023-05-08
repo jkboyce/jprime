@@ -52,7 +52,7 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   maxlength = (mode == SUPER_MODE) ? (numcycles + shiftlimit)
       : (numstates - numcycles);
   if (l > maxlength) {
-    std::cout << "No patterns longer than " << maxlength << " are possible"
+    std::cerr << "No patterns longer than " << maxlength << " are possible"
               << std::endl;
     std::exit(0);
   }
@@ -264,7 +264,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
 // Return the work assignment corresponding to the current state of the worker.
 // Note this is distinct from split_work_assignment(), which splits off a
-// portion of the worker's assignment to give back to the coordinator.
+// portion of the assignment to give back to the coordinator.
 
 WorkAssignment Worker::get_work_assignment() const {
   WorkAssignment wa;
@@ -280,8 +280,8 @@ WorkAssignment Worker::get_work_assignment() const {
   return wa;
 }
 
-// Notify the coordinator that the worker is idle and ready for another
-// work assignment.
+// Notify the coordinator that the worker is idle and ready for another work
+// assignment.
 
 void Worker::notify_coordinator_idle() {
   MessageW2C msg;
@@ -421,7 +421,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       }
       // diagnostics if there's a problem
       if (col == outdegree[from_state]) {
-        std::cout << "pos2 = " << pos2
+        std::cerr << "pos2 = " << pos2
                   << ", from_state = " << from_state
                   << ", start_state = " << start_state
                   << ", root_pos = " << root_pos
@@ -459,7 +459,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
 void Worker::gen_patterns() {
   for (; start_state <= end_state; ++start_state) {
-    if (longestflag && (numstates - start_state + 1) < l)
+    // check if no way to make a pattern of the target length
+    if ((longestflag || exactflag) && (numstates - start_state + 1) < l)
       continue;
 
     // reset all working variables
@@ -753,7 +754,7 @@ int Worker::load_one_throw() {
     std::ostringstream buffer;
     for (int i = 0; i <= pos; ++i)
       print_throw(buffer, pattern[i]);
-    std::cout << "worker: " << worker_id << std::endl
+    std::cerr << "worker: " << worker_id << std::endl
               << "pos: " << pos << std::endl
               << "root_pos: " << root_pos << std::endl
               << "from: " << from << std::endl
@@ -762,14 +763,14 @@ int Worker::load_one_throw() {
               << "pattern: " << buffer.str() << std::endl
               << "outthrowval[from][]: ";
     for (int i = 0; i < maxoutdegree; ++i)
-      std::cout << outthrowval[from][i] << ", ";
-    std::cout << std::endl << "outmatrix[from][]: ";
+      std::cerr << outthrowval[from][i] << ", ";
+    std::cerr << std::endl << "outmatrix[from][]: ";
     for (int i = 0; i < maxoutdegree; ++i)
-      std::cout << outmatrix[from][i] << ", ";
-    std::cout << std::endl << "state[outmatrix[from][]]: ";
+      std::cerr << outmatrix[from][i] << ", ";
+    std::cerr << std::endl << "state[outmatrix[from][]]: ";
     for (int i = 0; i < maxoutdegree; ++i)
-      std::cout << state[outmatrix[from][i]] << ", ";
-    std::cout << std::endl;
+      std::cerr << state[outmatrix[from][i]] << ", ";
+    std::cerr << std::endl;
   }
   assert(col != maxoutdegree);
   return col;
@@ -1261,7 +1262,7 @@ void Worker::delete_arrays() {
 }
 
 void Worker::die() {
-  std::cout << "Insufficient memory" << std::endl;
+  std::cerr << "Insufficient memory" << std::endl;
   std::exit(0);
 }
 

@@ -8,8 +8,8 @@
 #include <vector>
 #include <list>
 
-// Defines items that vary over the duration of the search, many of which are
-// saved to disk if the calculation is interrupted so that it may be resumed.
+// Defines items that change during the search, some of which are saved to disk
+// if the calculation is interrupted so that it may be resumed.
 //
 // Only the Coordinator thread has access to this data structure; the Workers
 // report all changes to the coordinator via messages.

@@ -63,7 +63,7 @@ void print_help() {
     "                      exclude listed throws (speeds search)\n"
     "    -full             print all patterns; otherwise only patterns as long\n"
     "                         currently-longest one found are printed\n"
-    "    -exact            print patterns of the exact length specified (no longer)\n"
+    "    -exact            print all patterns, of the exact length specified\n"
     "    -inverse          print inverse pattern also, in -super mode\n"
     "    -noprint          suppress printing of patterns\n"
     "    -threads <num>    run with the given number of worker threads\n"
@@ -88,12 +88,12 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   if (config != nullptr) {
     config->n = atoi(argv[1]);
     if (config->n < 1) {
-      std::cout << "Must have at least 1 object" << std::endl;
+      std::cerr << "Must have at least 1 object" << std::endl;
       std::exit(0);
     }
     config->h = atoi(argv[2]);
     if (config->h < config->n) {
-      std::cout << "Max. throw value must equal or exceed number of objects"
+      std::cerr << "Max. throw value must equal or exceed number of objects"
                 << std::endl;
       std::exit(0);
     }
@@ -107,6 +107,8 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       config->n = config->h - config->n;
     }
   }
+
+  bool fullflag = false;
 
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
@@ -122,14 +124,16 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       if (config != nullptr)
         config->groundmode = 2;
     } else if (!strcmp(argv[i], "-full")) {
-      if (config != nullptr)
+      if (config != nullptr) {
+        fullflag = true;
         config->longestflag = false;
+      }
     } else if (!strcmp(argv[i], "-exact")) {
       if (config != nullptr) {
-        config->exactflag = 1;
+        config->exactflag = true;
         config->longestflag = false;
         if (config->l < 2) {
-          std::cout << "Must specify a length > 1 when using -exact flag"
+          std::cerr << "Must specify a length > 1 when using -exact flag"
                     << std::endl;
           std::exit(0);
         }
@@ -137,7 +141,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != NORMAL_MODE) {
-          std::cout << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time" << std::endl;
           std::exit(0);
         }
         ++i;
@@ -148,7 +152,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
             config->xarray[0] = config->xarray[config->h] = 1;
         }
       } else {
-        std::cout << "Must provide shift limit in -super mode" << std::endl;
+        std::cerr << "Must provide shift limit in -super mode" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-file")) {
@@ -159,7 +163,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->outfile = std::string(argv[i]);
         }
       } else {
-        std::cout << "No filename provided after -file" << std::endl;
+        std::cerr << "No filename provided after -file" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-steal_alg")) {
@@ -168,7 +172,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->steal_alg = atoi(argv[i]);
       } else {
-        std::cout << "No number provided after -steal_alg" << std::endl;
+        std::cerr << "No number provided after -steal_alg" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
@@ -177,13 +181,13 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->split_alg = atoi(argv[i]);
       } else {
-        std::cout << "No number provided after -split_alg" << std::endl;
+        std::cerr << "No number provided after -split_alg" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != NORMAL_MODE) {
-          std::cout << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time" << std::endl;
           std::exit(0);
         }
         ++i;
@@ -192,7 +196,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           config->skiplimit = atoi(argv[i]);
         }
       } else {
-        std::cout << "Must provide skip limit in -block mode" << std::endl;
+        std::cerr << "Must provide skip limit in -block mode" << std::endl;
         std::exit(0);
       }
     } else if (!strcmp(argv[i], "-x")) {
@@ -213,14 +217,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->num_threads = static_cast<int>(atoi(argv[i]));
       } else {
-        std::cout << "Missing number of threads after -threads" << std::endl;
+        std::cerr << "Missing number of threads after -threads" << std::endl;
         std::exit(0);
       }
     } else if (i > 2) {
       char* p;
       long temp = strtol(argv[i], &p, 10);
       if (*p || i != 3) {
-        std::cout << "unrecognized input: " << argv[i] << std::endl;
+        std::cerr << "unrecognized input: " << argv[i] << std::endl;
         std::exit(0);
       } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
@@ -230,7 +234,11 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
 
   // consistency checks
   if (config != nullptr && config->invertflag && config->mode != SUPER_MODE) {
-    std::cout << "-inverse flag can only be used in -super mode" << std::endl;
+    std::cerr << "-inverse flag can only be used in -super mode" << std::endl;
+    std::exit(0);
+  }
+  if (config != nullptr && fullflag && config->exactflag) {
+    std::cerr << "-full and -exact flags cannot be used together" << std::endl;
     std::exit(0);
   }
 }
@@ -310,8 +318,10 @@ static inline void trim(std::string& s) {
 bool load_context(std::string file, SearchContext& context) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
-  if (!myfile || !myfile.is_open())
+  if (!myfile || !myfile.is_open()) {
+    std::cerr << "error reading file: could not open" << std::endl;
     return false;
+  }
 
   std::string s;
   int linenum = 0;
@@ -431,7 +441,7 @@ bool load_context(std::string file, SearchContext& context) {
     }
 
     if (error.size() > 0) {
-      std::cout << "error reading file: " << error << std::endl;
+      std::cerr << "error reading file: " << error << std::endl;
       myfile.close();
       return false;
     }
@@ -445,7 +455,7 @@ bool load_context(std::string file, SearchContext& context) {
       } else if (wa.from_string(val)) {
         context.assignments.push_back(wa);
       } else {
-        std::cout << "error reading work assignment in line " << (linenum + 1)
+        std::cerr << "error reading work assignment in line " << (linenum + 1)
                   << std::endl;
         myfile.close();
         return false;
@@ -488,7 +498,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
         }
 
         // parse the loaded argument list (from the original invocation) to get
-        // the config, plus fill in the elements of context that aren't loaded
+        // the config, plus fill in the elements of context that weren't loaded
         parse_args(context.arglist, &config, &context);
 
         std::cout << "resuming calculation: " << context.arglist << std::endl
@@ -508,12 +518,10 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
   parse_args(argc, argv, &config, &context);
 
   // save original argument list
-  if (context.fileoutputflag) {
-    for (int i = 0; i < argc; ++i) {
-      if (i != 0)
-        context.arglist += " ";
-      context.arglist += argv[i];
-    }
+  for (int i = 0; i < argc; ++i) {
+    if (i != 0)
+      context.arglist += " ";
+    context.arglist += argv[i];
   }
 
   // set initial work assignment; default value does entire calculation
@@ -538,10 +546,10 @@ int main(int argc, char** argv) {
   coordinator.run();
 
   if (context.fileoutputflag) {
+    std::cout << "saving to checkpoint file '" << context.outfile << "'"
+              << std::endl;
     std::sort(context.patterns.rbegin(), context.patterns.rend());
     save_context(context);
-    std::cout << "saved to checkpoint file '" << context.outfile << "'"
-              << std::endl;
   }
   return 0;
 }
