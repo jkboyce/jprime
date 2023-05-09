@@ -134,9 +134,9 @@ void Worker::run() {
 //------------------------------------------------------------------------------
 
 void Worker::message_coordinator(const MessageW2C& msg) const {
-    coordinator->inbox_lock.lock();
-    coordinator->inbox.push(msg);
-    coordinator->inbox_lock.unlock();
+  coordinator->inbox_lock.lock();
+  coordinator->inbox.push(msg);
+  coordinator->inbox_lock.unlock();
 }
 
 // Handle incoming messages from the coordinator that have queued while the
@@ -677,7 +677,7 @@ void Worker::gen_loops_super() {
     const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (used[to] != 0 || to < start_state)
+    if (to < start_state || (throwval > 0 && throwval < h && used[to] != 0))
       continue;
 
     bool valid = true;
@@ -742,39 +742,33 @@ int Worker::load_one_throw() {
     return 0;
   }
 
-  int col = 0;
-  for (; col < maxoutdegree; ++col) {
-    if (outmatrix[from][col] < 1)
-      continue;
+  for (int col = 0; col < outdegree[from]; ++col) {
     if (outthrowval[from][col] == pattern[pos])
-      break;
+      return col;
   }
 
-  // diagnostic information
-  if (col == maxoutdegree) {
-    std::ostringstream buffer;
-    for (int i = 0; i <= pos; ++i)
-      print_throw(buffer, pattern[i]);
-    std::cerr << "worker: " << worker_id << std::endl
-              << "pos: " << pos << std::endl
-              << "root_pos: " << root_pos << std::endl
-              << "from: " << from << std::endl
-              << "state[from]: " << state[from] << std::endl
-              << "start_state: " << start_state << std::endl
-              << "pattern: " << buffer.str() << std::endl
-              << "outthrowval[from][]: ";
-    for (int i = 0; i < maxoutdegree; ++i)
-      std::cerr << outthrowval[from][i] << ", ";
-    std::cerr << std::endl << "outmatrix[from][]: ";
-    for (int i = 0; i < maxoutdegree; ++i)
-      std::cerr << outmatrix[from][i] << ", ";
-    std::cerr << std::endl << "state[outmatrix[from][]]: ";
-    for (int i = 0; i < maxoutdegree; ++i)
-      std::cerr << state[outmatrix[from][i]] << ", ";
-    std::cerr << std::endl;
-  }
-  assert(col != maxoutdegree);
-  return col;
+  // diagnostic information if there are problems
+  std::ostringstream buffer;
+  for (int i = 0; i <= pos; ++i)
+    print_throw(buffer, pattern[i]);
+  std::cerr << "worker: " << worker_id << std::endl
+            << "pos: " << pos << std::endl
+            << "root_pos: " << root_pos << std::endl
+            << "from: " << from << std::endl
+            << "state[from]: " << state[from] << std::endl
+            << "start_state: " << start_state << std::endl
+            << "pattern: " << buffer.str() << std::endl
+            << "outthrowval[from][]: ";
+  for (int i = 0; i < maxoutdegree; ++i)
+    std::cerr << outthrowval[from][i] << ", ";
+  std::cerr << std::endl << "outmatrix[from][]: ";
+  for (int i = 0; i < maxoutdegree; ++i)
+    std::cerr << outmatrix[from][i] << ", ";
+  std::cerr << std::endl << "state[outmatrix[from][]]: ";
+  for (int i = 0; i < maxoutdegree; ++i)
+    std::cerr << state[outmatrix[from][i]] << ", ";
+  std::cerr << std::endl;
+  assert(false);
 }
 
 // Determine the set of throw options available at position `root_pos` in
@@ -895,8 +889,8 @@ void Worker::handle_finished_pattern() {
   ++ntotal;
 
   if ((pos + 1) >= l) {
-    if (longestflag && pos >= l)
-      l = pos + 1;
+    if (longestflag)
+      l = std::max(l, pos + 1);
     report_pattern();
   }
 
@@ -975,8 +969,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
   // how many adjacent states to avoid also?
   int shifts = 0;
   int index = 0;
-  while (index <= pos &&
-         (pattern[index] == 0 || pattern[index] == h)) {
+  while (index <= pos && (pattern[index] == 0 || pattern[index] == h)) {
     ++index;
     ++shifts;
   }
@@ -1012,13 +1005,11 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
         buffer << "+";
       else
         buffer << "-";
-
       current = partners[current][cycleperiod[cyclenum[current]] - 2];
     }
 
     // print the block throw
     int throwval = h - pattern[index++];
-
     if (throwval < 10)
       buffer << throwval;
     else
@@ -1037,8 +1028,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
 
     // find how many shift throws in the next block
     shifts = 0;
-    while (index <= pos &&
-           (pattern[index] == 0 || pattern[index] == h)) {
+    while (index <= pos && (pattern[index] == 0 || pattern[index] == h)) {
       ++index;
       ++shifts;
     }
@@ -1051,7 +1041,6 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
       buffer << "+";
     else
       buffer << "-";
-
     current = partners[current][cycleperiod[cyclenum[current]] - 2];
   }
 }
@@ -1067,8 +1056,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   // how many adjacent states to avoid also?
   int shifts = 0;
   int index = pos;
-  while (index >= 0 &&
-      (pattern[index] == 0 || pattern[index] == h)) {
+  while (index >= 0 && (pattern[index] == 0 || pattern[index] == h)) {
     --index;
     ++shifts;
   }
@@ -1103,13 +1091,11 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
         buffer << "-";
       else
         buffer << "+";
-
       current = partners[current][0];
     }
 
     // print the block throw
     temp = pattern[index--];
-
     if (temp < 10)
       buffer << temp;
     else
@@ -1128,8 +1114,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
 
     // how many shift throws in the next block
     shifts = 0;
-    while (index >= 0 &&
-           (pattern[index] == 0 || pattern[index] == h)) {
+    while (index >= 0 && (pattern[index] == 0 || pattern[index] == h)) {
       --index;
       ++shifts;
     }
@@ -1142,7 +1127,6 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
       buffer << "-";
     else
       buffer << "+";
-
     current = partners[current][0];
   }
 }

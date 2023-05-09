@@ -398,7 +398,7 @@ bool load_context(std::string file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.ntotal = std::stoi(val);
+        context.ntotal = std::stol(val);
         break;
       case 7:
         if (s.rfind("nodes", 0) != 0) {
