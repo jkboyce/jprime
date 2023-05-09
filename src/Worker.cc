@@ -252,7 +252,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   if (wa.start_state == -1 || wa.end_state == -1) {
     // assignment came from the coordinator which doesn't know how to correctly
     // set the throw options, so do that here
-    build_rootpos_throw_options(start_state);
+    build_rootpos_throw_options(start_state, 0);
   }
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
@@ -442,7 +442,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     assert(new_root_pos != -1);
     root_pos = new_root_pos;
     notify_coordinator_rootpos();
-    build_rootpos_throw_options(from_state);
+    build_rootpos_throw_options(from_state, col + 1);
     assert(root_throwval_options.size() > 0);
   }
 
@@ -480,7 +480,7 @@ void Worker::gen_patterns() {
       // reset `root_pos` and throw options there
       root_pos = 0;
       notify_coordinator_rootpos();
-      build_rootpos_throw_options(start_state);
+      build_rootpos_throw_options(start_state, 0);
       if (root_throwval_options.size() == 0)
         continue;
     }
@@ -781,14 +781,11 @@ int Worker::load_one_throw() {
 // the pattern. This list of options is maintained in case we get a request
 // to split work.
 
-void Worker::build_rootpos_throw_options(int rootpos_from_state) {
+void Worker::build_rootpos_throw_options(int rootpos_from_state,
+      int start_column) {
   root_throwval_options.clear();
-
-  for (int col = 0; col < maxoutdegree; ++col) {
-    if (outmatrix[rootpos_from_state][col] < 1)
-      continue;
+  for (int col = start_column; col < outdegree[rootpos_from_state]; ++col)
     root_throwval_options.push_back(outthrowval[rootpos_from_state][col]);
-  }
 }
 
 // Mark off `throwval` from our set of allowed throw options at position
@@ -823,7 +820,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
     // using our last option at this root level, go one step deeper
     ++root_pos;
     notify_coordinator_rootpos();
-    build_rootpos_throw_options(to_state);
+    build_rootpos_throw_options(to_state, 0);
   }
 
   return true;
