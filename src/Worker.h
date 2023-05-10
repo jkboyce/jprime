@@ -123,6 +123,7 @@ class Worker {
   void print_inverse(std::ostringstream& buffer) const;
   void print_inverse_dual(std::ostringstream& buffer) const;
   int reverse_state(int statenum) const;
+  std::string state_string(int statenum) const;
   void allocate_arrays();
   void delete_arrays();
   static void die();

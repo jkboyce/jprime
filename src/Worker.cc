@@ -373,7 +373,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
   typedef std::list<int>::size_type li_size_t;
   li_size_t take_count =
-      static_cast<int>(0.51 + f * root_throwval_options.size());
+      static_cast<li_size_t>(0.51 + f * root_throwval_options.size());
   take_count = std::min(
       std::max(static_cast<li_size_t>(1), take_count),
       root_throwval_options.size());
@@ -615,8 +615,8 @@ void Worker::gen_loops_block() {
       ++blocklength;
 
     if (to == start_state) {
-      if (skipcount == skiplimit &&
-            (blocklength + firstblocklength) != (h - 2))
+      if (skipcount == skiplimit
+            && (blocklength + firstblocklength) != (h - 2))
         valid = false;
 
       if (valid) {
@@ -700,9 +700,11 @@ void Worker::gen_loops_super() {
       pattern[pos] = throwval;
       const int oldusedvalue = used[to];
       used[to] = 1;
-      for (int j = 0; j < (h - 1); ++j) {
-        if (used[partners[to][j]] < 1)
-          --used[partners[to][j]];
+      if (throwval != 0 && throwval != h) {
+        for (int j = 0; j < (h - 1); ++j) {
+          if (used[partners[to][j]] < 1)
+            --used[partners[to][j]];
+        }
       }
       ++pos;
       int old_from = from;
@@ -710,9 +712,11 @@ void Worker::gen_loops_super() {
       gen_loops_super();
       from = old_from;
       --pos;
-      for (int j = 0; j < (h - 1); ++j) {
-        if (used[partners[to][j]] < 0)
-          ++used[partners[to][j]];
+      if (throwval != 0 && throwval != h) {
+        for (int j = 0; j < (h - 1); ++j) {
+          if (used[partners[to][j]] < 0)
+            ++used[partners[to][j]];
+        }
       }
       used[to] = oldusedvalue;
     }
@@ -1154,6 +1158,18 @@ int Worker::reverse_state(int statenum) const {
       return i;
   }
   assert(false);
+}
+
+// Return a text representation of a given state number
+
+std::string Worker::state_string(int statenum) const {
+  std::string result;
+  unsigned long value = state[statenum];
+  for (int i = 0; i < h; ++i) {
+    result += (value & 1 ? 'x' : '-');
+    value >>= 1;
+  }
+  return result;
 }
 
 //------------------------------------------------------------------------------
