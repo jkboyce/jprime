@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include <thread>
+#include <chrono>
 #include <csignal>
 
 // Coordinator thread that manages the overall search.
@@ -31,6 +32,9 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 void Coordinator::run() {
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
+
+  // check the inbox 10x more frequently than Workers
+  nanosecs_wait = static_cast<long>(100000000 * Worker::secs_per_inbox_check_target);
 
   // start worker threads
   for (int id = 0; id < context.num_threads; ++id) {
@@ -68,6 +72,8 @@ void Coordinator::run() {
       inbox_lock.unlock();
       break;
     }
+
+    std::this_thread::sleep_for(std::chrono::nanoseconds(nanosecs_wait));
   }
 
   timespec_get(&end_ts, TIME_UTC);
@@ -75,6 +81,7 @@ void Coordinator::run() {
       (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
       (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
   context.secs_elapsed += runtime;
+  context.secs_available += runtime * context.num_threads;
 
   for (int id = 0; id < context.num_threads; ++id) {
     delete worker[id];
@@ -185,7 +192,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
   context.maxlength = msg.maxlength;
-  context.secs_elapsed_working += msg.secs_elapsed_working;
+  context.secs_working += msg.secs_working;
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
@@ -213,7 +220,7 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
   context.maxlength = msg.maxlength;
-  context.secs_elapsed_working += msg.secs_elapsed_working;
+  context.secs_working += msg.secs_working;
 
   if (config.verboseflag) {
     std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
@@ -440,8 +447,8 @@ void Coordinator::print_trailer() const {
             << context.secs_elapsed << " sec";
   if (context.num_threads > 1) {
     std::cout << " (worker util = " << std::setprecision(2)
-              << ((context.secs_elapsed_working / context.num_threads) /
-                     context.secs_elapsed) * 100 << " %)";
+              << ((context.secs_working / context.secs_available) * 100)
+              << " %)";
   }
   std::cout << std::endl;
 }

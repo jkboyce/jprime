@@ -180,7 +180,7 @@ void Worker::record_elapsed_time(timespec& start_ts) {
   double runtime =
       (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
       (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
-  secs_elapsed_working += runtime;
+  secs_working += runtime;
 }
 
 void Worker::calibrate_inbox_check() {
@@ -212,10 +212,10 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   msg.nnodes = nnodes;
   msg.numstates = numstates;
   msg.maxlength = maxlength;
-  msg.secs_elapsed_working = secs_elapsed_working;
+  msg.secs_working = secs_working;
   ntotal = 0;
   nnodes = 0;
-  secs_elapsed_working = 0;
+  secs_working = 0;
   message_coordinator(msg);
 }
 
@@ -292,10 +292,10 @@ void Worker::notify_coordinator_idle() {
   msg.nnodes = nnodes;
   msg.numstates = numstates;
   msg.maxlength = maxlength;
-  msg.secs_elapsed_working = secs_elapsed_working;
+  msg.secs_working = secs_working;
   ntotal = 0;
   nnodes = 0;
-  secs_elapsed_working = 0;
+  secs_working = 0;
   message_coordinator(msg);
 }
 
@@ -471,6 +471,7 @@ void Worker::gen_patterns() {
     skipcount = 0;
     shiftcount = 0;
     blocklength = 0;
+    max_possible = maxlength;
     for (int i = 0; i <= numstates; ++i)
       used[i] = 0;
     longest_found = 0;
@@ -487,17 +488,14 @@ void Worker::gen_patterns() {
 
     switch (mode) {
       case NORMAL_MODE:
-        max_possible = maxlength;
         gen_loops_normal();
         break;
       case BLOCK_MODE:
-        max_possible = maxlength;
         gen_loops_block();
         break;
       case SUPER_MODE:
         for (int i = 0; i < (n - 1); ++i)
           used[partners[start_state][i]] = 1;
-        max_possible = numcycles;
         gen_loops_super();
         break;
     }

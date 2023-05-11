@@ -15,6 +15,7 @@ class Coordinator;
 
 class Worker {
  public:
+  static constexpr double secs_per_inbox_check_target = 0.001;
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
 
@@ -82,10 +83,9 @@ class Worker {
   unsigned long ntotal = 0L;
   unsigned long nnodes = 0L;
   int longest_found = 0;
-  double secs_elapsed_working = 0;
+  double secs_working = 0;
 
   // for managing the frequency to check the inbox while running
-  static constexpr double secs_per_inbox_check_target = 0.001;
   static constexpr int steps_per_inbox_check_initial = 50000;
   int steps_per_inbox_check = steps_per_inbox_check_initial;
   static constexpr int calibrations_initial = 10;

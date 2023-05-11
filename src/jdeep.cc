@@ -284,7 +284,8 @@ void save_context(const SearchContext& context) {
          << "hardware threads  " << std::thread::hardware_concurrency() << std::endl
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << context.secs_elapsed << std::endl
-         << "seconds working   " << context.secs_elapsed_working << std::endl
+         << "seconds working   " << context.secs_working << std::endl
+         << "seconds avail     " << context.secs_available << std::endl
          << std::endl;
 
   myfile << "patterns" << std::endl;
@@ -428,13 +429,22 @@ bool load_context(std::string file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.secs_elapsed_working = std::stod(val);
+        context.secs_working = std::stod(val);
         break;
       case 12:
+        if (s.rfind("seconds", 0) != 0) {
+          error = "syntax in line 13";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.secs_available = std::stod(val);
         break;
       case 13:
+        break;
+      case 14:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 14";
+          error = "syntax in line 15";
           break;
         }
         break;
@@ -460,7 +470,7 @@ bool load_context(std::string file, SearchContext& context) {
         myfile.close();
         return false;
       }
-    } else if (linenum > 13) {
+    } else if (linenum > 14) {
       if (s.rfind("work", 0) == 0) {
         reading_assignments = true;
       } else if (val.size() > 0) {

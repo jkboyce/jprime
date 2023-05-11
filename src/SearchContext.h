@@ -34,7 +34,9 @@ struct SearchContext {
   // wall clock time elapsed
   double secs_elapsed = 0;
   // sum of working (not idle) time for all workers
-  double secs_elapsed_working = 0;
+  double secs_working = 0;
+  // sum of available working time for all workers (busy or idle)
+  double secs_available = 0;
   // record of patterns found, or if `longestflag`==true then the longest ones
   std::vector<std::string> patterns;
   // work assignments remaining not assigned to a worker
