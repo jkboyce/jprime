@@ -33,9 +33,6 @@ void Coordinator::run() {
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
 
-  // check the inbox 10x more frequently than Workers
-  nanosecs_wait = static_cast<long>(100000000 * Worker::secs_per_inbox_check_target);
-
   // start worker threads
   for (int id = 0; id < context.num_threads; ++id) {
     worker[id] = new Worker(config, this, id);
@@ -44,6 +41,10 @@ void Coordinator::run() {
     worker_rootpos[id] = 0;
     worker_longest[id] = 0;
   }
+
+  // check the inbox 10x more frequently than Workers
+  const auto nanosecs_wait = std::chrono::nanoseconds(
+      static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
 
   timespec start_ts, end_ts;
   timespec_get(&start_ts, TIME_UTC);
@@ -73,7 +74,7 @@ void Coordinator::run() {
       break;
     }
 
-    std::this_thread::sleep_for(std::chrono::nanoseconds(nanosecs_wait));
+    std::this_thread::sleep_for(nanosecs_wait);
   }
 
   timespec_get(&end_ts, TIME_UTC);

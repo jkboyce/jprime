@@ -33,7 +33,6 @@ class Coordinator {
   std::vector<int> worker_rootpos;
   std::vector<int> worker_longest;
   int waiting_for_work_from_id = -1;
-  unsigned long nanosecs_wait = 0;
   static bool stopping;
 
   void message_worker(const MessageC2W& msg, int worker_id) const;
