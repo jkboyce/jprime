@@ -495,7 +495,7 @@ void Worker::gen_patterns() {
         break;
       case SUPER_MODE:
         for (int i = 0; i < (n - 1); ++i)
-          used[partners[start_state][i]] = 1;
+          used[cyclepartner[start_state][i]] = 1;
         gen_loops_super();
         break;
     }
@@ -703,8 +703,8 @@ void Worker::gen_loops_super() {
       used[to] = 1;
       if (throwval != 0 && throwval != h) {
         for (int j = 0; j < (h - 1); ++j) {
-          if (used[partners[to][j]] < 1)
-            --used[partners[to][j]];
+          if (used[cyclepartner[to][j]] < 1)
+            --used[cyclepartner[to][j]];
         }
       }
       ++pos;
@@ -715,8 +715,8 @@ void Worker::gen_loops_super() {
       --pos;
       if (throwval != 0 && throwval != h) {
         for (int j = 0; j < (h - 1); ++j) {
-          if (used[partners[to][j]] < 0)
-            ++used[partners[to][j]];
+          if (used[cyclepartner[to][j]] < 0)
+            ++used[cyclepartner[to][j]];
         }
       }
       used[to] = oldusedvalue;
@@ -841,7 +841,7 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   int cnum = cyclenum[from];
 
   do {
-    if (used[partners[from][j]]++ == 0 && deadstates[cnum]++ >= 1
+    if (used[cyclepartner[from][j]]++ == 0 && deadstates[cnum]++ >= 1
           && --max_possible < l)
       valid = false;
     --j;
@@ -854,7 +854,7 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   cnum = cyclenum[to_state];
 
   do {
-    if (used[partners[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
+    if (used[cyclepartner[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
           && --max_possible < l)
       valid = false;
     ++j;
@@ -872,7 +872,7 @@ void inline Worker::unmark_unreachable_states(int to_state) {
   int cnum = cyclenum[from];
 
   do {
-    if (--used[partners[from][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[cyclepartner[from][j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     --j;
     tempstate >>= 1;
@@ -883,7 +883,7 @@ void inline Worker::unmark_unreachable_states(int to_state) {
   cnum = cyclenum[to_state];
 
   do {
-    if (--used[partners[to_state][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[cyclepartner[to_state][j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     ++j;
     tempstate = (tempstate << 1) & allbits;
@@ -987,8 +987,8 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
   int start = numstates;
   int temp = 0;
   for (int i = cycleperiod[cyclenum[avoid]] - 2; i >= shifts; --i) {
-    if (partners[avoid][i] < start) {
-      start = partners[avoid][i];
+    if (cyclepartner[avoid][i] < start) {
+      start = cyclepartner[avoid][i];
       temp = i;
     }
   }
@@ -1010,7 +1010,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
         buffer << "+";
       else
         buffer << "-";
-      current = partners[current][cycleperiod[cyclenum[current]] - 2];
+      current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
     }
 
     // print the block throw
@@ -1046,7 +1046,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
       buffer << "+";
     else
       buffer << "-";
-    current = partners[current][cycleperiod[cyclenum[current]] - 2];
+    current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
   }
 }
 
@@ -1074,8 +1074,8 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   int start = numstates;
   int temp = 0;
   for (int i = 0; i <= cycleperiod[cyclenum[avoid]] - shifts - 2; ++i) {
-    if (partners[avoid][i] < start) {
-      start = partners[avoid][i];
+    if (cyclepartner[avoid][i] < start) {
+      start = cyclepartner[avoid][i];
       temp = i;
     }
   }
@@ -1096,7 +1096,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
         buffer << "-";
       else
         buffer << "+";
-      current = partners[current][0];
+      current = cyclepartner[current][0];
     }
 
     // print the block throw
@@ -1132,7 +1132,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
       buffer << "-";
     else
       buffer << "+";
-    current = partners[current][0];
+    current = cyclepartner[current][0];
   }
 }
 
@@ -1214,7 +1214,7 @@ void Worker::allocate_arrays() {
     die();
   if (!(inmatrix = new int*[numstates + 1]))
     die();
-  if (!(partners = new int*[numstates + 1]))
+  if (!(cyclepartner = new int*[numstates + 1]))
     die();
   for (int i = 0; i <= numstates; ++i) {
     if (!(outmatrix[i] = new int[maxoutdegree]))
@@ -1223,7 +1223,7 @@ void Worker::allocate_arrays() {
       die();
     if (!(inmatrix[i] = new int[maxindegree]))
       die();
-    if (!(partners[i] = new int[h - 1]))
+    if (!(cyclepartner[i] = new int[h]))
       die();
   }
 
@@ -1234,8 +1234,8 @@ void Worker::allocate_arrays() {
     }
     for (int j = 0; j < maxindegree; ++j)
       inmatrix[i][j] = 0;
-    for (int j = 0; j < (h - 1); ++j)
-      partners[i][j] = 0;
+    for (int j = 0; j < h; ++j)
+      cyclepartner[i][j] = 0;
   }
 }
 
@@ -1244,12 +1244,12 @@ void Worker::delete_arrays() {
     delete outmatrix[i];
     delete outthrowval[i];
     delete inmatrix[i];
-    delete partners[i];
+    delete cyclepartner[i];
   }
   delete outmatrix;
   delete outthrowval;
   delete inmatrix;
-  delete partners;
+  delete cyclepartner;
   delete pattern;
   delete used;
   delete outdegree;
@@ -1433,7 +1433,7 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
 // - The period of a given shift cycle number:
 //         cycleperiod[cyclenum] --> period
 // - The other states on a given state's shift cycle:
-//         partners[statenum][i] --> statenum  (where i < h - 1)
+//         cyclepartner[statenum][i] --> statenum  (where i < h)
 
 void Worker::find_shift_cycles() {
   const unsigned long lowerbits = highestbit - 1;
@@ -1458,7 +1458,7 @@ void Worker::find_shift_cycles() {
       }
       assert(k <= numstates);
 
-      partners[i][j] = k;
+      cyclepartner[i][j] = k;
       if (k == i && !periodfound) {
         cycleper = j + 1;
         periodfound = true;
@@ -1467,9 +1467,8 @@ void Worker::find_shift_cycles() {
     }
 
     if (newshiftcycle) {
-      cyclenum[i] = cycleindex;
-      for (int j = 0; j < (h - 1); j++)
-        cyclenum[partners[i][j]] = cycleindex;
+      for (int j = 0; j < h; j++)
+        cyclenum[cyclepartner[i][j]] = cycleindex;
       cycleperiod[cycleindex++] = cycleper;
     }
   }
