@@ -57,8 +57,8 @@ class Worker {
   int* cycleperiod;  // indexed by shift cycle number
   int** partners;  // for finding superprime patterns
   int numcycles = 0;  // total number of shift cycles
-  unsigned long highmask = 0L;
-  unsigned long allmask = 0L;
+  unsigned long highestbit = 0L;
+  unsigned long allbits = 0L;
 
   // for loading and sharing work assignments
   int start_state = 1;

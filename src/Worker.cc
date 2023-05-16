@@ -40,8 +40,8 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   maxindegree = n + 1;
-  highmask = 1L << (h - 1);
-  allmask = (1L << h) - 1;
+  highestbit = 1L << (h - 1);
+  allbits = (1L << h) - 1;
 
   allocate_arrays();
   int ns = gen_states(state, 0, h - 1, n, h, numstates);
@@ -675,7 +675,10 @@ void Worker::gen_loops_super() {
     const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (to < start_state || (throwval > 0 && throwval < h && used[to] != 0))
+    if (to < start_state)
+      continue;
+    if (throwval > 0 && throwval < h
+        && (cyclenum[from] == cyclenum[to] || used[to] != 0))
       continue;
 
     bool valid = true;
@@ -855,8 +858,8 @@ bool inline Worker::mark_unreachable_states(int to_state) {
           && --max_possible < l)
       valid = false;
     ++j;
-    tempstate = (tempstate << 1) & allmask;
-  } while ((tempstate & highmask) == 0);
+    tempstate = (tempstate << 1) & allbits;
+  } while ((tempstate & highestbit) == 0);
 
   return valid;
 }
@@ -883,8 +886,8 @@ void inline Worker::unmark_unreachable_states(int to_state) {
     if (--used[partners[to_state][j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     ++j;
-    tempstate = (tempstate << 1) & allmask;
-  } while ((tempstate & highmask) == 0);
+    tempstate = (tempstate << 1) & allbits;
+  } while ((tempstate & highestbit) == 0);
 }
 
 void Worker::handle_finished_pattern() {
@@ -1433,24 +1436,24 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
 //         partners[statenum][i] --> statenum  (where i < h - 1)
 
 void Worker::find_shift_cycles() {
-  const unsigned long lowmask = highmask - 1;
+  const unsigned long lowerbits = highestbit - 1;
   int cycleindex = 0;
 
   for (int i = 1; i <= numstates; ++i) {
-    unsigned long temp = state[i];
+    unsigned long statebits = state[i];
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
 
-    for (int j = 0; j < (h - 1); ++j) {
-      if (temp & highmask)
-        temp = ((temp & lowmask) * 2) + 1;
+    for (int j = 0; j < h; ++j) {
+      if (statebits & highestbit)
+        statebits = (statebits & lowerbits) << 1 | 1L;
       else
-        temp *= 2;
+        statebits <<= 1;
 
       int k = 1;
-      for (; k <= numstates; k++) {
-        if (state[k] == temp)
+      for (; k <= numstates; ++k) {
+        if (state[k] == statebits)
           break;
       }
       assert(k <= numstates);
