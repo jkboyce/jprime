@@ -1395,15 +1395,17 @@ void Worker::find_shift_cycles() {
 // outmatrix[][] == 0 indicates no connection.
 
 void Worker::gen_matrices(const std::vector<bool>& xarray) {
+  const bool allow_blockthrows_within_cycle = (mode != SUPER_MODE);
+
   for (int i = 1; i <= numstates; ++i) {
     int outthrownum = 0;
     int inthrownum = 0;
 
+    // first take care of outgoing throws
     for (int j = h; j >= 0; --j) {
       if (xarray[j])
         continue;
 
-      // first take care of outgoing throw
       if (j == 0) {
         if (!(state[i] & 1L)) {
           unsigned long temp = state[i] >> 1;
@@ -1426,29 +1428,36 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
 
         if (!(temp2 & temp)) {
           temp |= temp2;
-          bool found = false;
 
-          for (int k = 1; k <= numstates; ++k) {
+          bool found = false;
+          int k = 1;
+          for (; k <= numstates; ++k) {
             if (state[k] == temp) {
-              if (i != k) {
-                outmatrix[i][outthrownum] = k;
-                outthrowval[i][outthrownum++] = j;
-                ++outdegree[i];
-              }
               found = true;
               break;
             }
           }
           assert(found);
+          if (j == h || allow_blockthrows_within_cycle
+              || cyclenum[i] != cyclenum[k]) {
+            outmatrix[i][outthrownum] = k;
+            outthrowval[i][outthrownum++] = j;
+            ++outdegree[i];
+          }
         }
       }
+    }
 
-      // then take care of ingoing throw
+    // then take care of ingoing throws
+    for (int j = h; j >= 0; --j) {
+      if (xarray[j])
+        continue;
+
       if (j == 0) {
         if (!(state[i] & (1L << (h - 1)))) {
           unsigned long temp = state[i] << 1;
-          bool found = false;
 
+          bool found = false;
           for (int k = 1; k <= numstates; ++k) {
             if (state[k] == temp) {
               inmatrix[i][inthrownum++] = k;
@@ -1462,15 +1471,13 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
       } else if (j == h) {
         if (state[i] & (1L << (h - 1))) {
           unsigned long temp = state[i] ^ (1L << (h - 1));
-          bool found = false;
-
           temp = (temp << 1) | 1L;
+
+          bool found = false;
           for (int k = 1; k <= numstates; ++k) {
             if (state[k] == temp) {
-              if (i != k) {
-                inmatrix[i][inthrownum++] = k;
-                ++indegree[i];
-              }
+              inmatrix[i][inthrownum++] = k;
+              ++indegree[i];
               found = true;
               break;
             }
@@ -1480,20 +1487,22 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
       } else {
         if ((state[i] & (1L << (j - 1))) && (!(state[i] & (1L << (h - 1))))) {
           unsigned long temp = state[i] ^ (1L << (j - 1));
-          bool found = false;
-
           temp = (temp << 1) | 1L;
-          for (int k = 1; k <= numstates; ++k) {
+
+          bool found = false;
+          int k = 1;
+          for (; k <= numstates; ++k) {
             if (state[k] == temp) {
-              if (i != k) {
-                inmatrix[i][inthrownum++] = k;
-                ++indegree[i];
-              }
               found = true;
               break;
             }
           }
           assert(found);
+          if (allow_blockthrows_within_cycle
+              || cyclenum[i] != cyclenum[k]) {
+            inmatrix[i][inthrownum++] = k;
+            ++indegree[i];
+          }
         }
       }
     }
