@@ -547,7 +547,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 //------------------------------------------------------------------------------
 
 int main(int argc, char** argv) {
-  if (argc == 1) {
+  if (argc < 3) {
     print_help();
     std::exit(0);
   }
