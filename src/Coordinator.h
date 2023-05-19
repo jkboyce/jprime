@@ -1,3 +1,12 @@
+//
+// Coordinator.h
+//
+// Coordinator thread that manages the overall search.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
 
 #ifndef JDEEP_COORDINATOR_H
 #define JDEEP_COORDINATOR_H
@@ -12,6 +21,7 @@
 #include <vector>
 #include <thread>
 
+
 class Worker;
 
 class Coordinator {
@@ -19,13 +29,9 @@ class Coordinator {
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
 
-  Coordinator(const SearchConfig& config, SearchContext& context);
-  void run();
-
  private:
   const SearchConfig& config;
   SearchContext& context;
-
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
   std::list<int> workers_idle;
@@ -35,6 +41,11 @@ class Coordinator {
   int waiting_for_work_from_id = -1;
   static bool stopping;
 
+ public:
+  Coordinator(const SearchConfig& config, SearchContext& context);
+  void run();
+
+ private:
   void message_worker(const MessageC2W& msg, int worker_id) const;
   void give_assignments();
   void process_inbox();

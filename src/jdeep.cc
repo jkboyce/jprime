@@ -1,31 +1,32 @@
-
-/************************************************************************/
-/*   jdeep version 6.0             by Jack Boyce        3/11/2023       */
-/*                                 jboyce@gmail.com                     */
-/*                                                                      */
-/*   This is a modification of the original j.c, optimized for speed.   */
-/*   It finds prime (no subpatterns) async siteswaps, using several     */
-/*   tricks to speed up the search.                                     */
-/*   Try the cases:                                                     */
-/*       jdeep 4 7                                                      */
-/*       jdeep 6 10                                                     */
-/************************************************************************/
-
-/*------------------------------------------------------------------------------
-Version history:
-
- 6/98     Version 1.0
- 7/29/98  Version 2.0 adds the ability to search for block patterns (an idea
-          from Johannes Waldmann), and more command line options.
- 8/2/98   Finds patterns in dual graph, if faster.
- 1/2/99   Version 3.0 implements a new algorithm for graph trimming. My machine
-          now finds (3,9) in 10 seconds (vs 24 hours with V2.0)!
- 2/14/99  Version 5.0 can find superprime (and nearly superprime) patterns.
-          It also implements an improved algorithm for the standard mode,
-          which uses shift cycles to speed the search.
- 2/17/99  Version 5.1 adds -inverse option to print inverses of patterns found
-          in -super mode.
-------------------------------------------------------------------------------*/
+//
+// jdeep.cc
+//
+// This program finds juggling patterns in siteswap notation, in particular
+// long async siteswaps that are prime. A prime siteswap is one that has no
+// repeatable subpatterns; in a corresponding graph search problem they
+// correspond to cycles in the graph that visit no vertex more than once.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
+//------------------------------------------------------------------------------
+// Version history:
+//
+// 6/98     Version 1.0
+// 7/29/98  Version 2.0 adds the ability to search for block patterns (an idea
+//          due to Johannes Waldmann), and more command line options.
+// 8/2/98   Finds patterns in dual graph, if faster.
+// 1/2/99   Version 3.0 implements a new algorithm for graph trimming. My
+//          machine now solves (3,9) in 10 seconds (vs 24 hours with V2.0)!
+// 2/14/99  Version 5.0 can find superprime (and nearly superprime) patterns.
+//          It also implements an improved algorithm for the standard mode,
+//          which uses shift cycles to speed the search.
+// 2/17/99  Version 5.1 adds -inverse option to print inverses of patterns found
+//          in -super mode.
+// 5/17/23  Version 6.0 implements parallel depth first search in C++, to run
+//          faster on modern multicore machines.
+//
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
@@ -35,46 +36,51 @@ Version history:
 #include <fstream>
 #include <sstream>
 
+
 void print_help() {
   const std::string helpString =
-    "jdeep version 6.0           by Jack Boyce\n"
-    "   (04/14/23)                  jboyce@gmail.com\n"
+    "jdeep version 6.0 (2023.05.17)\n"
+    "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
     "explanation of these terms, consult the page:\n"
-    "    http://www.juggling.org/help/siteswap/\n"
+    "   http://www.juggling.org/help/siteswap/\n"
     "\n"
     "Command-line format is:\n"
     "   jdeep <# objects> <max. throw> [<min. length>] [options]\n"
     "\n"
     "where:\n"
-    "    <# objects>   = number of objects\n"
-    "    <max. throw>  = largest allowed throw value\n"
-    "    <min. length> = shortest patterns to find (optional, speeds search)\n"
+    "   <# objects>       = number of objects\n"
+    "   <max. throw>      = largest allowed throw value\n"
+    "   <min. length>     = shortest patterns to find (optional, speeds search)\n"
     "\n"
     "Recognized options:\n"
-    "    -block <skips>    find patterns in block form, allowing the specified\n"
-    "                         number of skips\n"
-    "    -super <shifts>   find (nearly) superprime patterns, allowing the\n"
-    "                         specified number of shift throws\n"
-    "    -g                find ground-state patterns only\n"
-    "    -ng               find excited-state patterns only\n"
-    "    -x <throw1 throw2 ...>\n"
-    "                      exclude listed throws (speeds search)\n"
-    "    -full             print all patterns; otherwise only patterns as long\n"
-    "                         currently-longest one found are printed\n"
-    "    -exact            print all patterns, of the exact length specified\n"
-    "    -inverse          print inverse pattern also, in -super mode\n"
-    "    -noprint          suppress printing of patterns\n"
-    "    -threads <num>    run with the given number of worker threads\n"
-    "    -verbose          print worker status information\n"
-    "    -steal_alg <num>  algorithm for selecting a worker to take work from\n"
-    "    -split_alg <num>  algorithm for splitting a stolen work assignment\n"
-    "    -file <name>      use the named file for checkpointing (when jdeep is\n"
-    "                         interrupted), resuming, and final output\n"
+    "   -block <skips>    find patterns in block form, allowing the specified\n"
+    "                        number of skips\n"
+    "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
+    "                        specified number of shift throws\n"
+    "   -g                find ground-state patterns only\n"
+    "   -ng               find excited-state patterns only\n"
+    "   -x <throw1 throw2 ...>\n"
+    "                     exclude listed throws (speeds search)\n"
+    "   -full             print all patterns; otherwise only patterns as long\n"
+    "                        currently-longest one found are printed\n"
+    "   -exact            print all patterns of the exact length specified\n"
+    "   -inverse          print inverse pattern also, in -super mode\n"
+    "   -noprint          suppress printing of patterns\n"
+    "   -threads <num>    run with the given number of worker threads\n"
+    "   -verbose          print worker status information\n"
+    "   -steal_alg <num>  algorithm for selecting a worker to take work from\n"
+    "   -split_alg <num>  algorithm for splitting a stolen work assignment\n"
+    "   -file <name>      use the named file for checkpointing (when jdeep is\n"
+    "                        interrupted), resuming, and final output\n"
     "\n"
     "When resuming a calculation from a checkpoint file, the other parts of the\n"
-    "input are ignored and can be omitted. For example: jdeep -file testrun\n";
+    "input are ignored and can be omitted. For example: jdeep -file testrun\n"
+    "\n"
+    "Examples:\n"
+    "   jdeep 4 7\n"
+    "   jdeep 6 10 -super 0\n";
 
   std::cout << helpString << std::endl;
 }

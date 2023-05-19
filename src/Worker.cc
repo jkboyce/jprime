@@ -1,3 +1,17 @@
+//
+// Worker.cc
+//
+// Worker thread that executes work assignments given to it by the
+// Coordinator thread.
+//
+// The overall computation is depth first search on multiple worker threads,
+// with a work stealing scheme to balance work among the threads. Each worker
+// communicates only with the coordinator thread, via a set of message types.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
 
 #include "Worker.h"
 #include "Coordinator.h"
@@ -10,12 +24,6 @@
 #include <cassert>
 #include <ctime>
 
-// Worker thread that executes work assignments given to it by the
-// Coordinator thread.
-//
-// The overall computation is depth first search on multiple worker threads,
-// with a work stealing scheme to balance work among the threads. Each worker
-// communicates only with the coordinator thread, via a set of message types.
 
 Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
       coordinator(coord), worker_id(id) {
@@ -46,8 +54,8 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   allocate_arrays();
   int ns = gen_states(state, 0, h - 1, n, h, numstates);
   assert(ns == numstates);
-  gen_matrices(config.xarray);
   find_shift_cycles();
+  gen_matrices(config.xarray);
 
   maxlength = (mode == SUPER_MODE) ? (numcycles + shiftlimit)
       : (numstates - numcycles);
@@ -494,8 +502,9 @@ void Worker::gen_patterns() {
         gen_loops_block();
         break;
       case SUPER_MODE:
-        for (int i = 0; i < (n - 1); ++i)
-          used[cyclepartner[start_state][i]] = 1;
+      /*
+        for (int i = 0; i < (cycleperiod[cyclenum[start_state]] - 1); ++i)
+          used[cyclepartner[start_state][i]] = 1;  */
         gen_loops_super();
         break;
     }
@@ -677,8 +686,8 @@ void Worker::gen_loops_super() {
       continue;
     if (to < start_state)
       continue;
-    if (throwval > 0 && throwval < h
-        && (cyclenum[from] == cyclenum[to] || used[to] != 0))
+    if (throwval > 0 && throwval < h && used[to] != 0
+        && cyclenum[to] != cyclenum[start_state])
       continue;
 
     bool valid = true;
@@ -1245,6 +1254,10 @@ void Worker::delete_arrays() {
     delete outthrowval[i];
     delete inmatrix[i];
     delete cyclepartner[i];
+    outmatrix[i] = nullptr;
+    outthrowval[i] = nullptr;
+    inmatrix[i] = nullptr;
+    cyclepartner[i] = nullptr;
   }
   delete outmatrix;
   delete outthrowval;
@@ -1258,6 +1271,18 @@ void Worker::delete_arrays() {
   delete state;
   delete cycleperiod;
   delete deadstates;
+  outmatrix = nullptr;
+  outthrowval = nullptr;
+  inmatrix = nullptr;
+  cyclepartner = nullptr;
+  pattern = nullptr;
+  used = nullptr;
+  outdegree = nullptr;
+  indegree = nullptr;
+  cyclenum = nullptr;
+  state = nullptr;
+  cycleperiod = nullptr;
+  deadstates = nullptr;
 }
 
 void Worker::die() {
@@ -1303,6 +1328,55 @@ int Worker::gen_states(unsigned long* state, int num, int pos, int left, int h,
   }
 
   return num;
+}
+
+// Generate arrays describing the shift cycles of the juggling graph.
+//
+// - Which shift cycle number a given state belongs to:
+//         cyclenum[statenum] --> cyclenum
+// - The period of a given shift cycle number:
+//         cycleperiod[cyclenum] --> period
+// - The other states on a given state's shift cycle:
+//         cyclepartner[statenum][i] --> statenum  (where i < h)
+
+void Worker::find_shift_cycles() {
+  const unsigned long lowerbits = highestbit - 1;
+  int cycleindex = 0;
+
+  for (int i = 1; i <= numstates; ++i) {
+    unsigned long statebits = state[i];
+    bool periodfound = false;
+    bool newshiftcycle = true;
+    int cycleper = h;
+
+    for (int j = 0; j < h; ++j) {
+      if (statebits & highestbit)
+        statebits = (statebits & lowerbits) << 1 | 1L;
+      else
+        statebits <<= 1;
+
+      int k = 1;
+      for (; k <= numstates; ++k) {
+        if (state[k] == statebits)
+          break;
+      }
+      assert(k <= numstates);
+
+      cyclepartner[i][j] = k;
+      if (k == i && !periodfound) {
+        cycleper = j + 1;
+        periodfound = true;
+      } else if (k < i)
+        newshiftcycle = false;
+    }
+
+    if (newshiftcycle) {
+      for (int j = 0; j < h; j++)
+        cyclenum[cyclepartner[i][j]] = cycleindex;
+      cycleperiod[cycleindex++] = cycleper;
+    }
+  }
+  numcycles = cycleindex;
 }
 
 // Generate matrices describing the structure of the juggling graph:
@@ -1424,53 +1498,4 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
       }
     }
   }
-}
-
-// Generate arrays describing the shift cycles of the juggling graph.
-//
-// - Which shift cycle number a given state belongs to:
-//         cyclenum[statenum] --> cyclenum
-// - The period of a given shift cycle number:
-//         cycleperiod[cyclenum] --> period
-// - The other states on a given state's shift cycle:
-//         cyclepartner[statenum][i] --> statenum  (where i < h)
-
-void Worker::find_shift_cycles() {
-  const unsigned long lowerbits = highestbit - 1;
-  int cycleindex = 0;
-
-  for (int i = 1; i <= numstates; ++i) {
-    unsigned long statebits = state[i];
-    bool periodfound = false;
-    bool newshiftcycle = true;
-    int cycleper = h;
-
-    for (int j = 0; j < h; ++j) {
-      if (statebits & highestbit)
-        statebits = (statebits & lowerbits) << 1 | 1L;
-      else
-        statebits <<= 1;
-
-      int k = 1;
-      for (; k <= numstates; ++k) {
-        if (state[k] == statebits)
-          break;
-      }
-      assert(k <= numstates);
-
-      cyclepartner[i][j] = k;
-      if (k == i && !periodfound) {
-        cycleper = j + 1;
-        periodfound = true;
-      } else if (k < i)
-        newshiftcycle = false;
-    }
-
-    if (newshiftcycle) {
-      for (int j = 0; j < h; j++)
-        cyclenum[cyclepartner[i][j]] = cycleindex;
-      cycleperiod[cycleindex++] = cycleper;
-    }
-  }
-  numcycles = cycleindex;
 }

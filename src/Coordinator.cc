@@ -1,3 +1,16 @@
+//
+// Coordinator.cc
+//
+// Coordinator thread that manages the overall search.
+//
+// The computation is depth first search on multiple worker threads using work
+// stealing to keep the workers busy. The business of the coordinator is to
+// interact with the workers to distribute work, and also to manage output.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
@@ -11,11 +24,6 @@
 #include <chrono>
 #include <csignal>
 
-// Coordinator thread that manages the overall search.
-//
-// The computation is depth first search on multiple worker threads using work
-// stealing to keep the workers busy. The business of the coordinator is to
-// interact with the workers to distribute work, and also to manage output.
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
       : config(a), context(b) {
@@ -43,7 +51,7 @@ void Coordinator::run() {
   }
 
   // check the inbox 10x more frequently than Workers
-  const auto nanosecs_wait = std::chrono::nanoseconds(
+  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
       static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
 
   timespec start_ts, end_ts;
@@ -87,6 +95,8 @@ void Coordinator::run() {
   for (int id = 0; id < context.num_threads; ++id) {
     delete worker[id];
     delete worker_thread[id];
+    worker[id] = nullptr;
+    worker_thread[id] = nullptr;
   }
 
   if (context.assignments.size() > 0)
@@ -305,7 +315,7 @@ void Coordinator::signal_handler(int signum) {
 }
 
 //------------------------------------------------------------------------------
-// Algorithms for deciding which worker to steal work from
+// Steal work from one of the running workers
 //------------------------------------------------------------------------------
 
 // Identify a (not idle) worker to steal work from, and send it a SPLIT_WORK

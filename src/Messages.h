@@ -1,3 +1,13 @@
+//
+// Messages.h
+//
+// Defines messages that may be sent from the worker to the coordinator and
+// vice versa.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
 
 #ifndef JDEEP_MESSAGES_H
 #define JDEEP_MESSAGES_H
@@ -5,9 +15,9 @@
 #include "WorkAssignment.h"
 
 #include <string>
-#include <list>
 
-// Messages from the coordinator to the worker
+
+// Message types from the coordinator to the worker
 
 enum messages_C2W {
   DO_WORK,
@@ -30,7 +40,8 @@ struct MessageC2W {
   int split_alg = 1;
 };
 
-// Messages from the worker to the coordinator
+
+// Message types from the worker to the coordinator
 
 enum messages_W2C {
   SEARCH_RESULT,

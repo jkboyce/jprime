@@ -1,3 +1,13 @@
+//
+// Worker.h
+//
+// Worker thread that executes work assignments given to it by the
+// Coordinator thread.
+//
+// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+//
+// This file is distributed under the MIT License.
+//
 
 #ifndef JDEEP_WORKER_H
 #define JDEEP_WORKER_H
@@ -11,17 +21,14 @@
 #include <list>
 #include <ctime>
 
+
 class Coordinator;
 
 class Worker {
  public:
-  static constexpr double secs_per_inbox_check_target = 0.001;
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
-
-  Worker(const SearchConfig& config, Coordinator* const coord, int id);
-  ~Worker();
-  void run();
+  static constexpr double secs_per_inbox_check_target = 0.001;
 
  private:
   Coordinator* const coordinator;
@@ -93,6 +100,12 @@ class Worker {
   int steps_taken = 0;
   timespec last_ts;
 
+ public:
+  Worker(const SearchConfig& config, Coordinator* const coord, int id);
+  ~Worker();
+  void run();
+
+ private:
   void message_coordinator(const MessageW2C& msg) const;
   void process_inbox_running();
   void record_elapsed_time(timespec& start);
@@ -130,8 +143,8 @@ class Worker {
   static int num_states(int n, int h);
   static int gen_states(unsigned long* state, int num, int pos, int left,
       int h, int ns);
-  void gen_matrices(const std::vector<bool>& xarray);
   void find_shift_cycles();
+  void gen_matrices(const std::vector<bool>& xarray);
 };
 
 class JdeepStopException : public std::exception {
