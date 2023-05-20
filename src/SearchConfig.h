@@ -52,6 +52,9 @@ struct SearchConfig {
   // print search metadata
   bool verboseflag = false;
 
+  // print without using +, - for h and 0
+  bool noplusminusflag = false;
+
   // for block mode
   int skiplimit = 0;
 

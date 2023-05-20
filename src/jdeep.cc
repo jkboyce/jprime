@@ -13,19 +13,19 @@
 //------------------------------------------------------------------------------
 // Version history:
 //
-// 6/98     Version 1.0
-// 7/29/98  Version 2.0 adds the ability to search for block patterns (an idea
-//          due to Johannes Waldmann), and more command line options.
-// 8/2/98   Finds patterns in dual graph, if faster.
-// 1/2/99   Version 3.0 implements a new algorithm for graph trimming. My
-//          machine now solves (3,9) in 10 seconds (vs 24 hours with V2.0)!
-// 2/14/99  Version 5.0 can find superprime (and nearly superprime) patterns.
-//          It also implements an improved algorithm for the standard mode,
-//          which uses shift cycles to speed the search.
-// 2/17/99  Version 5.1 adds -inverse option to print inverses of patterns found
-//          in -super mode.
-// 5/17/23  Version 6.0 implements parallel depth first search in C++, to run
-//          faster on modern multicore machines.
+//    06/98  Version 1.0
+// 07/29/98  Version 2.0 adds the ability to search for block patterns (an idea
+//           due to Johannes Waldmann), and more command line options.
+// 08/02/98  Finds patterns in dual graph, if faster.
+// 01/02/99  Version 3.0 implements a new algorithm for graph trimming. My
+//           machine now solves (3,9) in 10 seconds (vs 24 hours with V2.0)!
+// 02/14/99  Version 5.0 can find superprime (and nearly superprime) patterns.
+//           It also implements an improved algorithm for the standard mode,
+//           which uses shift cycles to speed the search.
+// 02/17/99  Version 5.1 adds -inverse option to print inverses of patterns
+//           found in -super mode.
+// 05/17/23  Version 6.0 implements parallel depth first search in C++, to run
+//           faster on modern multicore machines.
 //
 
 #include "SearchConfig.h"
@@ -65,6 +65,7 @@ void print_help() {
     "                     exclude listed throws (speeds search)\n"
     "   -full             print all patterns; otherwise only patterns as long\n"
     "                        currently-longest one found are printed\n"
+    "   -noplus           print without using +, - for h and 0 respectively\n"
     "   -exact            print all patterns of the exact length specified\n"
     "   -inverse          print inverse pattern also, in -super mode\n"
     "   -noprint          suppress printing of patterns\n"
@@ -80,7 +81,8 @@ void print_help() {
     "\n"
     "Examples:\n"
     "   jdeep 4 7\n"
-    "   jdeep 6 10 -super 0\n";
+    "   jdeep 5 7 15 -exact -noplus\n"
+    "   jdeep 6 10 -super 0 -g -file 6_10\n";
 
   std::cout << helpString << std::endl;
 }
@@ -133,6 +135,10 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       if (config != nullptr) {
         fullflag = true;
         config->longestflag = false;
+      }
+    } else if (!strcmp(argv[i], "-noplus")) {
+      if (config != nullptr) {
+        config->noplusminusflag = true;
       }
     } else if (!strcmp(argv[i], "-exact")) {
       if (config != nullptr) {
@@ -307,6 +313,47 @@ void save_context(const SearchContext& context) {
   myfile.close();
 }
 
+bool pattern_compare(const std::string& pat1, const std::string& pat2) {
+  if (pat2.size() == 0)
+    return false;
+  if (pat1.size() == 0)
+    return true;
+
+  int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  int pat1_end = pat1_start;
+  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
+    ++pat1_end;
+
+  int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  int pat2_end = pat2_start;
+  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
+    ++pat2_end;
+
+  // shorter patterns sort earlier
+  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
+    return true;
+  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
+    return false;
+
+  // ground state before excited state patterns
+  if (pat1[0] == ' ' && pat2[0] == '*')
+    return true;
+  if (pat1[0] == '*' && pat2[0] == ' ')
+    return false;
+
+  // ascii order, except '+' is higher than any other character
+  for (int i = pat1_start; i < pat1_end; ++i) {
+    if (pat1[i] == pat2[i])
+      continue;
+    if (pat1[i] == '+' && pat2[i] != '+')
+      return false;
+    if (pat1[i] != '+' && pat2[i] == '+')
+      return true;
+    return pat1[i] < pat2[i];
+  }
+  return false;
+}
+
 static inline void trim(std::string& s) {
   // trim left, then trim right
   s.erase(
@@ -322,6 +369,7 @@ static inline void trim(std::string& s) {
 }
 
 // return true on success
+
 bool load_context(std::string file, SearchContext& context) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
@@ -517,6 +565,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       // parse the loaded argument list (from the original invocation) to get
       // the config, plus fill in the elements of context that weren't loaded
       parse_args(context.arglist, &config, &context);
+      context.outfile = args_context.outfile;
 
       std::cout << "resuming calculation: " << context.arglist << std::endl
                 << "loaded " << context.npatterns
@@ -561,7 +610,8 @@ int main(int argc, char** argv) {
   if (context.fileoutputflag) {
     std::cout << "saving checkpoint file '" << context.outfile << "'"
               << std::endl;
-    std::sort(context.patterns.rbegin(), context.patterns.rend());
+    std::sort(context.patterns.begin(), context.patterns.end(),
+        pattern_compare);
     save_context(context);
   }
   return 0;

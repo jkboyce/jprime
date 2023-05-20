@@ -46,6 +46,7 @@ class Worker {
   bool exactflag = false;
   bool dualflag = false;
   bool verboseflag = false;
+  bool noplusminusflag = false;
   int skiplimit = 0;
   int shiftlimit = 0;
 

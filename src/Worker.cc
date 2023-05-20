@@ -37,6 +37,7 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   exactflag = config.exactflag;
   dualflag = config.dualflag;
   verboseflag = config.verboseflag;
+  noplusminusflag = config.noplusminusflag;
   mode = config.mode;
   skiplimit = config.skiplimit;
   shiftlimit = config.shiftlimit;
@@ -956,12 +957,10 @@ void Worker::report_pattern() const {
 }
 
 void Worker::print_throw(std::ostringstream& buffer, int val) const {
-  const bool plusminus = ((mode == NORMAL_MODE && longestflag) ||
-                          mode == BLOCK_MODE);
-  if (plusminus && val == 0) {
+  if (!noplusminusflag && val == 0) {
     buffer << '-';
     return;
-  } else if (plusminus && val == h) {
+  } else if (!noplusminusflag && val == h) {
     buffer << '+';
     return;
   }
@@ -1016,18 +1015,15 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
     // print shift throws
     while (numshiftthrows--) {
       if (state[current] & 1)
-        buffer << "+";
+        print_throw(buffer, h);
       else
-        buffer << "-";
+        print_throw(buffer, 0);
       current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
     }
 
     // print the block throw
-    int throwval = h - pattern[index++];
-    if (throwval < 10)
-      buffer << throwval;
-    else
-      buffer << static_cast<char>(throwval - 10 + 'a');
+    const int throwval = h - pattern[index++];
+    print_throw(buffer, throwval);
 
     unsigned long tempstate = (state[current] / 2) | (1L << (throwval - 1));
     bool errorflag = true;
@@ -1052,9 +1048,9 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
   // finish printing shift throws in first shift cycle
   while (endingshiftthrows--) {
     if (state[current] & 1)
-      buffer << "+";
+      print_throw(buffer, h);
     else
-      buffer << "-";
+      print_throw(buffer, 0);
     current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
   }
 }
@@ -1102,18 +1098,15 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
     // first print shift throws
     while (numshiftthrows--) {
       if (state[current] & (1L << (h - 1)))
-        buffer << "-";
+        print_throw(buffer, 0);
       else
-        buffer << "+";
+        print_throw(buffer, h);
       current = cyclepartner[current][0];
     }
 
     // print the block throw
     temp = pattern[index--];
-    if (temp < 10)
-      buffer << temp;
-    else
-      buffer << static_cast<char>(temp - 10 + 'a');
+    print_throw(buffer, temp);
 
     unsigned long tempstate = (state[current] * 2 + 1) ^ (1L << (h - temp));
     bool errorflag = true;
@@ -1138,9 +1131,9 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   // finish printing shift throws in first shift cycle
   while (endingshiftthrows--) {
     if (state[current] & (1L << (h - 1)))
-      buffer << "-";
+      print_throw(buffer, 0);
     else
-      buffer << "+";
+      print_throw(buffer, h);
     current = cyclepartner[current][0];
   }
 }

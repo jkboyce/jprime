@@ -343,6 +343,7 @@ void Coordinator::steal_work() {
     default:
       assert(false);
   }
+  assert(id >= 0 && id < context.num_threads);
 
   waiting_for_work_from_id = id;
   MessageC2W msg;
