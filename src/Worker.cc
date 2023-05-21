@@ -473,6 +473,18 @@ void Worker::gen_patterns() {
     if ((longestflag || exactflag) && (numstates - start_state + 1) < l)
       continue;
 
+    if (verboseflag) {
+      std::ostringstream sstr;
+      sstr << "worker " << worker_id
+           << " starting at start_state: " << start_state;
+
+      MessageW2C msg;
+      msg.type = messages_W2C::WORKER_STATUS;
+      msg.worker_id = worker_id;
+      msg.meta = sstr.str();
+      message_coordinator(msg);
+    }
+
     // reset all working variables
     pos = 0;
     from = start_state;
@@ -503,9 +515,6 @@ void Worker::gen_patterns() {
         gen_loops_block();
         break;
       case SUPER_MODE:
-      /*
-        for (int i = 0; i < (cycleperiod[cyclenum[start_state]] - 1); ++i)
-          used[cyclepartner[start_state][i]] = 1;  */
         gen_loops_super();
         break;
     }
@@ -603,7 +612,7 @@ void Worker::gen_loops_block() {
     const int oldskipcount = skipcount;
     const int oldfirstblocklength = firstblocklength;
 
-    // handle checks for block throws and skips
+    // handle checks for link throws and skips
     if (throwval > 0 && throwval < h) {
       if (firstblocklength >= 0) {
         if (blocklength != (h - 2)) {
@@ -614,7 +623,7 @@ void Worker::gen_loops_block() {
             ++skipcount;
         }
       } else {
-        // first block throw encountered
+        // first link throw encountered
         firstblocklength = pos;
       }
 
@@ -672,7 +681,7 @@ void Worker::gen_loops_block() {
 //
 // Since a superprime pattern can only visit a single state in each shift cycle,
 // this is the fastest version because so many states are excluded by each
-// throw in the pattern.
+// throw to a new shift cycle.
 
 void Worker::gen_loops_super() {
   if (exactflag && pos >= l)
@@ -685,33 +694,32 @@ void Worker::gen_loops_super() {
     const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (to < start_state)
-      continue;
-    if (throwval > 0 && throwval < h && used[to] != 0
-        && cyclenum[to] != cyclenum[start_state])
+    if (to < start_state || used[to] == 1)
       continue;
 
-    bool valid = true;
+    const bool linkthrow = (throwval != 0 && throwval != h);
+    // going to a shift cycle that's already been visited?
+    if (linkthrow && used[to] < 0)
+      continue;
+
     const int oldshiftcount = shiftcount;
-
-    // handle checks for shift throws and limits
-    if (throwval == 0 || throwval == h) {
+    // check for shift throw limits
+    if (!linkthrow) {
       if (shiftcount == shiftlimit)
-        valid = false;
+        continue;
       else
         ++shiftcount;
     }
 
+    pattern[pos] = throwval;
     if (to == start_state) {
-      if (valid) {
-        pattern[pos] = throwval;
         handle_finished_pattern();
-      }
-    } else if (valid) {
-      pattern[pos] = throwval;
+    } else {
       const int oldusedvalue = used[to];
       used[to] = 1;
-      if (throwval != 0 && throwval != h) {
+      if (linkthrow) {
+        // mark `to` shift cycle as visited; used < 0 means the state has
+        // not been visited, but its shift cycle has
         for (int j = 0; j < (h - 1); ++j) {
           if (used[cyclepartner[to][j]] < 1)
             --used[cyclepartner[to][j]];
@@ -723,7 +731,7 @@ void Worker::gen_loops_super() {
       gen_loops_super();
       from = old_from;
       --pos;
-      if (throwval != 0 && throwval != h) {
+      if (linkthrow) {
         for (int j = 0; j < (h - 1); ++j) {
           if (used[cyclepartner[to][j]] < 0)
             ++used[cyclepartner[to][j]];
@@ -735,7 +743,7 @@ void Worker::gen_loops_super() {
     // undo changes so we can backtrack
     shiftcount = oldshiftcount;
 
-    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
+    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
           && col < outdegree[from] - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
@@ -762,7 +770,7 @@ int Worker::load_one_throw() {
       return col;
   }
 
-  // diagnostic information if there are problems
+  // diagnostic information if there's a problem
   std::ostringstream buffer;
   for (int i = 0; i <= pos; ++i)
     print_throw(buffer, pattern[i]);
@@ -1021,7 +1029,7 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
       current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
     }
 
-    // print the block throw
+    // print the link throw
     const int throwval = h - pattern[index++];
     print_throw(buffer, throwval);
 
@@ -1104,7 +1112,7 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
       current = cyclepartner[current][0];
     }
 
-    // print the block throw
+    // print the link throw
     temp = pattern[index--];
     print_throw(buffer, temp);
 
@@ -1388,7 +1396,7 @@ void Worker::find_shift_cycles() {
 // outmatrix[][] == 0 indicates no connection.
 
 void Worker::gen_matrices(const std::vector<bool>& xarray) {
-  const bool allow_blockthrows_within_cycle = (mode != SUPER_MODE);
+  const bool allow_linkthrows_within_cycle = (mode != SUPER_MODE);
 
   for (int i = 1; i <= numstates; ++i) {
     int outthrownum = 0;
@@ -1431,7 +1439,7 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
             }
           }
           assert(found);
-          if (j == h || allow_blockthrows_within_cycle
+          if (j == h || allow_linkthrows_within_cycle
               || cyclenum[i] != cyclenum[k]) {
             outmatrix[i][outthrownum] = k;
             outthrowval[i][outthrownum++] = j;
@@ -1491,7 +1499,7 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
             }
           }
           assert(found);
-          if (allow_blockthrows_within_cycle
+          if (allow_linkthrows_within_cycle
               || cyclenum[i] != cyclenum[k]) {
             inmatrix[i][inthrownum++] = k;
             ++indegree[i];
