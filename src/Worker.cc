@@ -607,18 +607,18 @@ void Worker::gen_loops_block() {
     if (used[to] != 0 || to < start_state)
       continue;
 
-    bool valid = true;
+    const bool linkthrow = (throwval != 0 && throwval != h);
     const int oldblocklength = blocklength;
     const int oldskipcount = skipcount;
     const int oldfirstblocklength = firstblocklength;
 
     // handle checks for link throws and skips
-    if (throwval > 0 && throwval < h) {
+    if (linkthrow) {
       if (firstblocklength >= 0) {
         if (blocklength != (h - 2)) {
           // got a skip
           if (skipcount == skiplimit)
-            valid = false;
+            continue;
           else
             ++skipcount;
         }
@@ -631,6 +631,7 @@ void Worker::gen_loops_block() {
     } else
       ++blocklength;
 
+    bool valid = true;
     if (to == start_state) {
       if (skipcount == skiplimit
             && (blocklength + firstblocklength) != (h - 2))
@@ -641,7 +642,7 @@ void Worker::gen_loops_block() {
         handle_finished_pattern();
       }
     } else if (valid) {
-      if (throwval > 0 && throwval < h)
+      if (linkthrow)
         valid = mark_unreachable_states(to);
 
       if (valid) {
@@ -656,7 +657,7 @@ void Worker::gen_loops_block() {
         used[to] = 0;
       }
 
-      if (throwval > 0 && throwval < h)
+      if (linkthrow)
         unmark_unreachable_states(to);
     }
 
