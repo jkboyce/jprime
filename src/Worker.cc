@@ -1015,18 +1015,14 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
   }
 
   // number of shift throws printed at beginning
-  int numshiftthrows = temp - shifts;
-  int endingshiftthrows = cycleperiod[cyclenum[start]] - shifts - 2
-      - numshiftthrows;
+  int shiftthrows = temp - shifts;
+  int endshiftthrows = cycleperiod[cyclenum[start]] - shifts - 2 - shiftthrows;
   int current = start;
 
   do {
     // print shift throws
-    while (numshiftthrows--) {
-      if (state[current] & 1)
-        print_throw(buffer, h);
-      else
-        print_throw(buffer, 0);
+    while (shiftthrows--) {
+      print_throw(buffer, (state[current] & 1) ? h : 0);
       current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
     }
 
@@ -1051,15 +1047,16 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
       ++index;
       ++shifts;
     }
-    numshiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
+    shiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
   } while (index <= pos);
 
+  // correct for any shift throws at the end, which are part of the first
+  // shift cycle
+  endshiftthrows -= shifts;
+
   // finish printing shift throws in first shift cycle
-  while (endingshiftthrows--) {
-    if (state[current] & 1)
-      print_throw(buffer, h);
-    else
-      print_throw(buffer, 0);
+  while (endshiftthrows--) {
+    print_throw(buffer, (state[current] & 1) ? h : 0);
     current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
   }
 }
@@ -1099,17 +1096,14 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   }
 
   // number of shift throws printed at beginning
-  int numshiftthrows = cycleperiod[cyclenum[start]] - shifts - 2 - temp;
-  int endingshiftthrows = temp;
+  int shiftthrows = cycleperiod[cyclenum[start]] - shifts - 2 - temp;
+  int endshiftthrows = temp;
   int current = start;
 
   do {
     // first print shift throws
-    while (numshiftthrows--) {
-      if (state[current] & (1L << (h - 1)))
-        print_throw(buffer, 0);
-      else
-        print_throw(buffer, h);
+    while (shiftthrows--) {
+      print_throw(buffer, (state[current] & (1L << (h - 1))) ? 0 : h);
       current = cyclepartner[current][0];
     }
 
@@ -1134,15 +1128,16 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
       --index;
       ++shifts;
     }
-    numshiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
+    shiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
   } while (index >= 0);
 
+  // correct for any shift throws at the end, which are part of the first
+  // shift cycle
+  endshiftthrows -= shifts;
+
   // finish printing shift throws in first shift cycle
-  while (endingshiftthrows--) {
-    if (state[current] & (1L << (h - 1)))
-      print_throw(buffer, 0);
-    else
-      print_throw(buffer, h);
+  while (endshiftthrows--) {
+    print_throw(buffer, (state[current] & (1L << (h - 1))) ? 0 : h);
     current = cyclepartner[current][0];
   }
 }
