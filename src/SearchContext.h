@@ -12,8 +12,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_SEARCHCONTEXT_H
-#define JDEEP_SEARCHCONTEXT_H
+#ifndef JDEEP_SEARCHCONTEXT_H_
+#define JDEEP_SEARCHCONTEXT_H_
 
 #include "WorkAssignment.h"
 

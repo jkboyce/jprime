@@ -8,8 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_COORDINATOR_H
-#define JDEEP_COORDINATOR_H
+#ifndef JDEEP_COORDINATOR_H_
+#define JDEEP_COORDINATOR_H_
 
 #include "Messages.h"
 #include "SearchConfig.h"

@@ -9,8 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_MESSAGES_H
-#define JDEEP_MESSAGES_H
+#ifndef JDEEP_MESSAGES_H_
+#define JDEEP_MESSAGES_H_
 
 #include "WorkAssignment.h"
 
@@ -19,7 +19,7 @@
 
 // Message types from the coordinator to the worker
 
-enum messages_C2W {
+enum class messages_C2W {
   DO_WORK,
   UPDATE_METADATA,
   SPLIT_WORK,
@@ -43,7 +43,7 @@ struct MessageC2W {
 
 // Message types from the worker to the coordinator
 
-enum messages_W2C {
+enum class messages_W2C {
   SEARCH_RESULT,
   WORKER_IDLE,
   RETURN_WORK,

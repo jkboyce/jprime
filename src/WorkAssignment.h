@@ -9,8 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_WORKASSIGNMENT_H
-#define JDEEP_WORKASSIGNMENT_H
+#ifndef JDEEP_WORKASSIGNMENT_H_
+#define JDEEP_WORKASSIGNMENT_H_
 
 #include <iostream>
 #include <list>

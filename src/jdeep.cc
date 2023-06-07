@@ -81,7 +81,8 @@ void print_help() {
     "\n"
     "Examples:\n"
     "   jdeep 4 7\n"
-    "   jdeep 5 7 15 -exact -noplus\n"
+    "   jdeep 5 7 15 -noplus -exact\n"
+    "   jdeep 5 7 -noplus -full -file 5_7_full\n"
     "   jdeep 6 10 -super 0 -g -file 6_10\n";
 
   std::cout << helpString << std::endl;
@@ -97,13 +98,13 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     config->n = atoi(argv[1]);
     if (config->n < 1) {
       std::cerr << "Must have at least 1 object" << std::endl;
-      std::exit(0);
+      std::exit(EXIT_FAILURE);
     }
     config->h = atoi(argv[2]);
     if (config->h < config->n) {
       std::cerr << "Max. throw value must equal or exceed number of objects"
                 << std::endl;
-      std::exit(0);
+      std::exit(EXIT_FAILURE);
     }
 
     // excluded self-throws
@@ -147,25 +148,25 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (config->l < 2) {
           std::cerr << "Must specify a length > 1 when using -exact flag"
                     << std::endl;
-          std::exit(0);
+          std::exit(EXIT_FAILURE);
         }
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != NORMAL_MODE) {
+        if (config != nullptr && config->mode != SearchMode::NORMAL_MODE) {
           std::cerr << "Can only select one mode at a time" << std::endl;
-          std::exit(0);
+          std::exit(EXIT_FAILURE);
         }
         ++i;
         if (config != nullptr) {
-          config->mode = SUPER_MODE;
+          config->mode = SearchMode::SUPER_MODE;
           config->shiftlimit = atoi(argv[i]);
           if (config->shiftlimit == 0)
             config->xarray[0] = config->xarray[config->h] = 1;
         }
       } else {
         std::cerr << "Must provide shift limit in -super mode" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-file")) {
       if ((i + 1) < argc) {
@@ -176,7 +177,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         }
       } else {
         std::cerr << "No filename provided after -file" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-steal_alg")) {
       if ((i + 1) < argc) {
@@ -185,7 +186,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->steal_alg = atoi(argv[i]);
       } else {
         std::cerr << "No number provided after -steal_alg" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
       if ((i + 1) < argc) {
@@ -194,22 +195,22 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->split_alg = atoi(argv[i]);
       } else {
         std::cerr << "No number provided after -split_alg" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != NORMAL_MODE) {
+        if (config != nullptr && config->mode != SearchMode::NORMAL_MODE) {
           std::cerr << "Can only select one mode at a time" << std::endl;
-          std::exit(0);
+          std::exit(EXIT_FAILURE);
         }
         ++i;
         if (config != nullptr) {
-          config->mode = BLOCK_MODE;
+          config->mode = SearchMode::BLOCK_MODE;
           config->skiplimit = atoi(argv[i]);
         }
       } else {
         std::cerr << "Must provide skip limit in -block mode" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-x")) {
       ++i;
@@ -230,14 +231,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->num_threads = static_cast<int>(atoi(argv[i]));
       } else {
         std::cerr << "Missing number of threads after -threads" << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       }
     } else if (i > 2) {
       char* p;
       long temp = strtol(argv[i], &p, 10);
       if (*p || i != 3) {
         std::cerr << "unrecognized input: " << argv[i] << std::endl;
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
       }
@@ -245,13 +246,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   }
 
   // consistency checks
-  if (config != nullptr && config->invertflag && config->mode != SUPER_MODE) {
+  if (config != nullptr && config->invertflag
+        && config->mode != SearchMode::SUPER_MODE) {
     std::cerr << "-inverse flag can only be used in -super mode" << std::endl;
-    std::exit(0);
+    std::exit(EXIT_FAILURE);
   }
   if (config != nullptr && fullflag && config->exactflag) {
     std::cerr << "-full and -exact flags cannot be used together" << std::endl;
-    std::exit(0);
+    std::exit(EXIT_FAILURE);
   }
 }
 
@@ -556,7 +558,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
                 << std::endl;
 
       if (!load_context(args_context.outfile, context))
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
       if (context.assignments.size() == 0) {
         std::cout << "calculation is finished" << std::endl;
         std::exit(0);
@@ -565,6 +567,9 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       // parse the loaded argument list (from the original invocation) to get
       // the config, plus fill in the elements of context that weren't loaded
       parse_args(context.arglist, &config, &context);
+
+      // in case the user has renamed the checkpoint file since the original
+      // invocation; use current filename
       context.outfile = args_context.outfile;
 
       std::cout << "resuming calculation: " << context.arglist << std::endl
@@ -598,7 +603,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 int main(int argc, char** argv) {
   if (argc < 3) {
     print_help();
-    std::exit(0);
+    return 0;
   }
 
   SearchConfig config;

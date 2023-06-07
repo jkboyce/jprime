@@ -8,14 +8,16 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_SEARCHCONFIG_H
-#define JDEEP_SEARCHCONFIG_H
+#ifndef JDEEP_SEARCHCONFIG_H_
+#define JDEEP_SEARCHCONFIG_H_
 
 #include <vector>
 
-#define NORMAL_MODE     1
-#define BLOCK_MODE      2
-#define SUPER_MODE      3
+enum class SearchMode {
+  NORMAL_MODE,
+  BLOCK_MODE,
+  SUPER_MODE
+};
 
 
 struct SearchConfig {
@@ -29,7 +31,7 @@ struct SearchConfig {
   int l = 0;
 
   // search mode
-  int mode = NORMAL_MODE;
+  SearchMode mode = SearchMode::NORMAL_MODE;
 
   // ground state, excited state, or both
   int groundmode = 0;

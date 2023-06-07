@@ -9,8 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_WORKER_H
-#define JDEEP_WORKER_H
+#ifndef JDEEP_WORKER_H_
+#define JDEEP_WORKER_H_
 
 #include "Coordinator.h"
 #include "Messages.h"
@@ -38,7 +38,7 @@ class Worker {
   int n = 0;
   int h = 0;
   int l = 0;
-  int mode = NORMAL_MODE;
+  SearchMode mode = SearchMode::NORMAL_MODE;
   int groundmode = 0;
   bool printflag = true;
   bool invertflag = false;
@@ -109,15 +109,15 @@ class Worker {
  private:
   void message_coordinator(const MessageW2C& msg) const;
   void process_inbox_running();
-  void record_elapsed_time(timespec& start);
+  void record_elapsed_time(const timespec& start);
   void calibrate_inbox_check();
   void send_work_to_coordinator(const WorkAssignment& wa);
   void process_split_work_request(const MessageC2W& msg);
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
-  void notify_coordinator_rootpos();
-  void notify_coordinator_longest();
+  void notify_coordinator_rootpos() const;
+  void notify_coordinator_longest() const;
   WorkAssignment split_work_assignment(int split_alg);
   WorkAssignment split_work_assignment_takeall();
   WorkAssignment split_work_assignment_takehalf();
@@ -140,7 +140,6 @@ class Worker {
   std::string state_string(int statenum) const;
   void allocate_arrays();
   void delete_arrays();
-  static void die();
   static int num_states(int n, int h);
   static int gen_states(unsigned long* state, int num, int pos, int left,
       int h, int ns);

@@ -65,20 +65,8 @@ void Coordinator::run() {
     if ((workers_idle.size() == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
-
       // any worker that was running will have sent back a RETURN_WORK message
-      inbox_lock.lock();
-      while (!inbox.empty()) {
-        MessageW2C msg = inbox.front();
-        inbox.pop();
-        if (msg.type == messages_W2C::SEARCH_RESULT) {
-          process_search_result(msg);
-        } else if (msg.type == messages_W2C::RETURN_WORK) {
-          process_returned_work(msg);
-        }
-        // ignore other message types
-      }
-      inbox_lock.unlock();
+      process_inbox();
       break;
     }
 
@@ -421,18 +409,17 @@ void Coordinator::print_trailer() const {
             << ", max throw: " << config.h << std::endl;
 
   switch (config.mode) {
-    case NORMAL_MODE:
+    case SearchMode::NORMAL_MODE:
       break;
-    case BLOCK_MODE:
+    case SearchMode::BLOCK_MODE:
       std::cout << "block mode, " << config.skiplimit << " skips allowed"
                 << std::endl;
       break;
-    case SUPER_MODE:
+    case SearchMode::SUPER_MODE:
       std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
       if (config.invertflag)
-        std::cout << ", inverse output" << std::endl;
-      else
-        std::cout << std::endl;
+        std::cout << ", inverse output";
+      std::cout << std::endl;
       break;
   }
 
