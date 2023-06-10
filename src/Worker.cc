@@ -710,7 +710,7 @@ void Worker::gen_loops_super() {
 
     pattern[pos] = throwval;
     if (to == start_state) {
-        handle_finished_pattern();
+      handle_finished_pattern();
     } else {
       const int old_used = used[to];
       used[to] = 1;
