@@ -604,9 +604,9 @@ void Worker::gen_loops_block() {
       continue;
 
     const bool linkthrow = (throwval != 0 && throwval != h);
-    const int oldblocklength = blocklength;
-    const int oldskipcount = skipcount;
-    const int oldfirstblocklength = firstblocklength;
+    const int old_blocklength = blocklength;
+    const int old_skipcount = skipcount;
+    const int old_firstblocklength = firstblocklength;
 
     // handle checks for link throws and skips
     if (linkthrow) {
@@ -658,9 +658,9 @@ void Worker::gen_loops_block() {
     }
 
     // undo changes so we can backtrack
-    blocklength = oldblocklength;
-    skipcount = oldskipcount;
-    firstblocklength = oldfirstblocklength;
+    blocklength = old_blocklength;
+    skipcount = old_skipcount;
+    firstblocklength = old_firstblocklength;
 
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
           && col < outdegree[from] - 1) {
@@ -699,7 +699,7 @@ void Worker::gen_loops_super() {
     if (linkthrow && used[to] < 0)
       continue;
 
-    const int oldshiftcount = shiftcount;
+    const int old_shiftcount = shiftcount;
     // check for shift throw limits
     if (!linkthrow) {
       if (shiftcount == shiftlimit)
@@ -738,7 +738,7 @@ void Worker::gen_loops_super() {
     }
 
     // undo changes so we can backtrack
-    shiftcount = oldshiftcount;
+    shiftcount = old_shiftcount;
 
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
           && col < outdegree[from] - 1) {
