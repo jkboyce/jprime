@@ -63,6 +63,7 @@ class Worker {
   int maxindegree = 0;  // unused
   int* cyclenum;  // cycle number for state
   int* cycleperiod;  // indexed by shift cycle number
+  bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int** cyclepartner;  // for finding superprime patterns
   int numcycles = 0;  // total number of shift cycles
   unsigned long highestbit = 0L;

@@ -489,8 +489,10 @@ void Worker::gen_patterns() {
     shiftcount = 0;
     blocklength = 0;
     max_possible = maxlength;
-    for (int i = 0; i <= numstates; ++i)
+    for (int i = 0; i <= numstates; ++i) {
       used[i] = 0;
+      cycleused[i] = false;
+    }
     longest_found = 0;
     notify_coordinator_longest();
 
@@ -535,7 +537,7 @@ void Worker::gen_loops_normal() {
     const int throwval = outthrowval[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (used[to] != 0 || to < start_state)
+    if (to < start_state || used[to] != 0)
       continue;
 
     if (to == start_state) {
@@ -545,7 +547,7 @@ void Worker::gen_loops_normal() {
     }
 
     bool valid = true;
-    if (throwval > 0 && throwval < h)
+    if (throwval != 0 && throwval != h)
       valid = mark_unreachable_states(to);
 
     if (valid) {
@@ -562,14 +564,14 @@ void Worker::gen_loops_normal() {
     }
 
     // undo changes made above so we can backtrack
-    if (throwval > 0 && throwval < h)
+    if (throwval != 0 && throwval != h)
       unmark_unreachable_states(to);
 
     // see if it's time to check the inbox
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
           && col < outdegree[from] - 1) {
       // the restrictions on when we enter here are in case we get a message to
-      // hand off work to another thread; see split_work_assignment()
+      // hand off work to another worker; see split_work_assignment()
 
       // terminate the pattern at the current position in case we get a
       // STOP_WORKER message and need to unwind back to run()
@@ -600,7 +602,7 @@ void Worker::gen_loops_block() {
     const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (used[to] != 0 || to < start_state)
+    if (to < start_state || used[to] != 0)
       continue;
 
     const bool linkthrow = (throwval != 0 && throwval != h);
@@ -691,12 +693,13 @@ void Worker::gen_loops_super() {
     const int to = outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
-    if (to < start_state || used[to] == 1)
+    if (to < start_state || used[to] != 0)
       continue;
 
     const bool linkthrow = (throwval != 0 && throwval != h);
+    const int to_cycle = cyclenum[to];
     // going to a shift cycle that's already been visited?
-    if (linkthrow && used[to] < 0)
+    if (linkthrow && cycleused[to_cycle])
       continue;
 
     const int old_shiftcount = shiftcount;
@@ -712,29 +715,18 @@ void Worker::gen_loops_super() {
     if (to == start_state) {
       handle_finished_pattern();
     } else {
-      const int old_used = used[to];
       used[to] = 1;
-      if (linkthrow) {
-        // mark `to` shift cycle as visited; used < 0 means the state has
-        // not been visited, but its shift cycle has
-        for (int j = 0; j < (h - 1); ++j) {
-          if (used[cyclepartner[to][j]] < 1)
-            --used[cyclepartner[to][j]];
-        }
-      }
+      if (linkthrow)
+         cycleused[to_cycle] = true;
       ++pos;
       const int old_from = from;
       from = to;
       gen_loops_super();
       from = old_from;
       --pos;
-      if (linkthrow) {
-        for (int j = 0; j < (h - 1); ++j) {
-          if (used[cyclepartner[to][j]] < 0)
-            ++used[cyclepartner[to][j]];
-        }
-      }
-      used[to] = old_used;
+      if (linkthrow)
+        cycleused[to_cycle] = false;
+      used[to] = 0;
     }
 
     // undo changes so we can backtrack
@@ -1200,6 +1192,7 @@ void Worker::allocate_arrays() {
   cyclenum = new int[numstates + 1];
   state = new unsigned long[numstates + 1];
   cycleperiod = new int[numstates + 1];
+  cycleused = new bool[numstates + 1];
   deadstates = new int[numstates + 1];
 
   for (int i = 0; i <= numstates; ++i) {
@@ -1210,6 +1203,7 @@ void Worker::allocate_arrays() {
     cyclenum[i] = 0;
     state[i] = 0L;
     cycleperiod[i] = 0;
+    cycleused[i] = false;
     deadstates[i] = 0;
   }
 
@@ -1266,6 +1260,7 @@ void Worker::delete_arrays() {
   delete[] cyclenum;
   delete[] state;
   delete[] cycleperiod;
+  delete[] cycleused;
   delete[] deadstates;
   outmatrix = nullptr;
   outthrowval = nullptr;
@@ -1278,6 +1273,7 @@ void Worker::delete_arrays() {
   cyclenum = nullptr;
   state = nullptr;
   cycleperiod = nullptr;
+  cycleused = nullptr;
   deadstates = nullptr;
 }
 
