@@ -2,7 +2,7 @@
 // jdeep.cc
 //
 // This program finds juggling patterns in siteswap notation, in particular
-// long async siteswaps that are prime. A prime siteswap is one that has no
+// async siteswaps that are prime. A prime siteswap is one that has no
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
@@ -295,7 +295,8 @@ void save_context(const SearchContext& context) {
          << "patterns (seen)   " << context.ntotal << std::endl
          << "nodes visited     " << context.nnodes << std::endl
          << "threads           " << context.num_threads << std::endl
-         << "hardware threads  " << std::thread::hardware_concurrency() << std::endl
+         << "hardware threads  " << std::thread::hardware_concurrency()
+                                 << std::endl
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << context.secs_elapsed << std::endl
          << "seconds working   " << context.secs_working << std::endl

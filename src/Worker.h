@@ -104,6 +104,10 @@ class Worker {
 
  public:
   Worker(const SearchConfig& config, Coordinator* const coord, int id);
+  Worker(const Worker&) =delete;
+  Worker(Worker&&) =delete;
+  Worker& operator=(const Worker&) =delete;
+  Worker& operator=(Worker&&) =delete;
   ~Worker();
   void run();
 
