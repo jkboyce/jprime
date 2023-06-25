@@ -8,8 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_COORDINATOR_H_
-#define JDEEP_COORDINATOR_H_
+#ifndef JPRIME_COORDINATOR_H_
+#define JPRIME_COORDINATOR_H_
 
 #include "Messages.h"
 #include "SearchConfig.h"
@@ -64,7 +64,7 @@ class Coordinator {
   int find_stealing_target_lowestrootpos() const;
   int find_stealing_target_longestruntime() const;
   void print_pattern(const MessageW2C& msg);
-  void print_trailer() const;
+  void print_summary() const;
 };
 
 #endif

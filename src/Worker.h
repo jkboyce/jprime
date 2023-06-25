@@ -9,8 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_WORKER_H_
-#define JDEEP_WORKER_H_
+#ifndef JPRIME_WORKER_H_
+#define JPRIME_WORKER_H_
 
 #include "Coordinator.h"
 #include "Messages.h"
@@ -152,7 +152,7 @@ class Worker {
   void gen_matrices(const std::vector<bool>& xarray);
 };
 
-class JdeepStopException : public std::exception {
+class JprimeStopException : public std::exception {
 };
 
 #endif

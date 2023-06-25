@@ -117,7 +117,7 @@ void Worker::run() {
     try {
       gen_patterns();
       record_elapsed_time(start_ts);
-    } catch (const JdeepStopException& jdse) {
+    } catch (const JprimeStopException& jdse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
       record_elapsed_time(start_ts);
@@ -172,7 +172,7 @@ void Worker::process_inbox_running() {
 
   if (stopping_work) {
     // unwind back to Worker::run()
-    throw JdeepStopException();
+    throw JprimeStopException();
   }
 }
 
@@ -1485,8 +1485,7 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
             }
           }
           assert(found);
-          if (allow_linkthrows_within_cycle
-              || cyclenum[i] != cyclenum[k]) {
+          if (allow_linkthrows_within_cycle || cyclenum[i] != cyclenum[k]) {
             inmatrix[i][inthrownum++] = k;
             ++indegree[i];
           }

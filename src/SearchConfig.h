@@ -8,8 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_SEARCHCONFIG_H_
-#define JDEEP_SEARCHCONFIG_H_
+#ifndef JPRIME_SEARCHCONFIG_H_
+#define JPRIME_SEARCHCONFIG_H_
 
 #include <vector>
 

@@ -1,5 +1,5 @@
 //
-// jdeep.cc
+// jprime.cc
 //
 // This program finds juggling patterns in siteswap notation, in particular
 // async siteswaps that are prime. A prime siteswap is one that has no
@@ -39,7 +39,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jdeep version 6.0 (2023.05.17)\n"
+    "jprime version 6.0 (2023.05.17)\n"
     "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -47,7 +47,7 @@ void print_help() {
     "   http://www.juggling.org/help/siteswap/\n"
     "\n"
     "Command-line format is:\n"
-    "   jdeep <# objects> <max. throw> [<min. length>] [options]\n"
+    "   jprime <# objects> <max. throw> [<min. length>] [options]\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
@@ -69,21 +69,21 @@ void print_help() {
     "   -exact            print all patterns of the exact length specified\n"
     "   -inverse          print inverse pattern also, in -super mode\n"
     "   -noprint          suppress printing of patterns\n"
-    "   -threads <num>    run with the given number of worker threads\n"
+    "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -verbose          print worker status information\n"
     "   -steal_alg <num>  algorithm for selecting a worker to take work from\n"
     "   -split_alg <num>  algorithm for splitting a stolen work assignment\n"
-    "   -file <name>      use the named file for checkpointing (when jdeep is\n"
+    "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted), resuming, and final output\n"
     "\n"
     "When resuming a calculation from a checkpoint file, the other parts of the\n"
-    "input are ignored and can be omitted. For example: jdeep -file testrun\n"
+    "input are ignored and can be omitted. For example: jprime -file testrun\n"
     "\n"
     "Examples:\n"
-    "   jdeep 4 7\n"
-    "   jdeep 5 7 15 -noplus -exact\n"
-    "   jdeep 5 7 -noplus -full -file 5_7_full\n"
-    "   jdeep 6 10 -super 0 -g -file 6_10\n";
+    "   jprime 4 7\n"
+    "   jprime 5 7 15 -noplus -exact\n"
+    "   jprime 5 7 -noplus -full -file 5_7_full\n"
+    "   jprime 6 10 -super 0 -g -file 6_10\n";
 
   std::cout << helpString << std::endl;
 }
@@ -570,7 +570,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       parse_args(context.arglist, &config, &context);
 
       // in case the user has renamed the checkpoint file since the original
-      // invocation; use current filename
+      // invocation, use current filename
       context.outfile = args_context.outfile;
 
       std::cout << "resuming calculation: " << context.arglist << std::endl

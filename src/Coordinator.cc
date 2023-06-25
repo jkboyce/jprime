@@ -50,7 +50,7 @@ void Coordinator::run() {
     worker_longest[id] = 0;
   }
 
-  // check the inbox 10x more frequently than Workers
+  // check the inbox 10x more frequently than workers
   constexpr auto nanosecs_wait = std::chrono::nanoseconds(
       static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
 
@@ -89,7 +89,7 @@ void Coordinator::run() {
 
   if (context.assignments.size() > 0)
     std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
-  print_trailer();
+  print_summary();
 }
 
 //------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
     print_pattern(msg);
     ++context.npatterns;
   }
-  // ignore patterns shorter than current length if longestflag == true
+  // ignore patterns shorter than current length if `longestflag`==true
 
   return new_longest_pattern_from_id;
 }
@@ -404,7 +404,7 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
   context.patterns.push_back(msg.pattern);
 }
 
-void Coordinator::print_trailer() const {
+void Coordinator::print_summary() const {
   std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
             << ", max throw: " << config.h << std::endl;
 

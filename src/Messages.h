@@ -9,8 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JDEEP_MESSAGES_H_
-#define JDEEP_MESSAGES_H_
+#ifndef JPRIME_MESSAGES_H_
+#define JPRIME_MESSAGES_H_
 
 #include "WorkAssignment.h"
 
