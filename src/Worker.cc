@@ -117,7 +117,7 @@ void Worker::run() {
     try {
       gen_patterns();
       record_elapsed_time(start_ts);
-    } catch (const JprimeStopException& jdse) {
+    } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
       record_elapsed_time(start_ts);

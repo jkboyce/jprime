@@ -37,7 +37,6 @@ class Worker {
   // copied from SearchConfig during construction and do not change
   int n = 0;
   int h = 0;
-  int l = 0;
   SearchMode mode = SearchMode::NORMAL_MODE;
   int groundmode = 0;
   bool printflag = true;
@@ -61,11 +60,10 @@ class Worker {
   int** inmatrix;  // unused
   int* indegree;  // unused
   int maxindegree = 0;  // unused
+  int numcycles = 0;  // total number of shift cycles
   int* cyclenum;  // cycle number for state
   int* cycleperiod;  // indexed by shift cycle number
-  bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int** cyclepartner;  // for finding superprime patterns
-  int numcycles = 0;  // total number of shift cycles
   unsigned long highestbit = 0L;
   unsigned long allbits = 0L;
 
@@ -84,9 +82,11 @@ class Worker {
   int skipcount = 0;
   int shiftcount = 0;
   int blocklength = 0;
+  int l = 0;  // minimum length to find
   int max_possible = 0;
   int* used;
   int* deadstates;  // indexed by shift cycle number
+  bool* cycleused;  // whether cycle has been visited, in SUPER mode
 
   // status data to report to Coordinator
   unsigned long ntotal = 0L;
