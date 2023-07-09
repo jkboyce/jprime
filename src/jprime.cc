@@ -95,6 +95,12 @@ void print_help() {
 void parse_args(int argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
+    if (!strcmp(argv[1], "-analyze")) {
+      config->mode = RunMode::ANALYZE;
+      config->pattern = argv[2];
+      return;
+    }
+
     config->n = atoi(argv[1]);
     if (config->n < 1) {
       std::cerr << "Must have at least 1 object" << std::endl;
@@ -153,16 +159,16 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != SearchMode::NORMAL_MODE) {
+        if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
           std::cerr << "Can only select one mode at a time" << std::endl;
           std::exit(EXIT_FAILURE);
         }
         ++i;
         if (config != nullptr) {
-          config->mode = SearchMode::SUPER_MODE;
+          config->mode = RunMode::SUPER_SEARCH;
           config->shiftlimit = atoi(argv[i]);
           if (config->shiftlimit == 0)
-            config->xarray[0] = config->xarray[config->h] = 1;
+            config->xarray[0] = config->xarray[config->h] = true;
         }
       } else {
         std::cerr << "Must provide shift limit in -super mode" << std::endl;
@@ -199,13 +205,13 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != SearchMode::NORMAL_MODE) {
+        if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
           std::cerr << "Can only select one mode at a time" << std::endl;
           std::exit(EXIT_FAILURE);
         }
         ++i;
         if (config != nullptr) {
-          config->mode = SearchMode::BLOCK_MODE;
+          config->mode = RunMode::BLOCK_SEARCH;
           config->skiplimit = atoi(argv[i]);
         }
       } else {
@@ -217,7 +223,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       while (i < argc && argv[i][0] != '-') {
         int j = atoi(argv[i]);
         if (config != nullptr && j >= 0 && j <= config->h)
-          config->xarray[config->dualflag ? (config->h - j) : j] = 1;
+          config->xarray[config->dualflag ? (config->h - j) : j] = true;
         ++i;
       }
       --i;
@@ -247,7 +253,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
 
   // consistency checks
   if (config != nullptr && config->invertflag
-        && config->mode != SearchMode::SUPER_MODE) {
+        && config->mode != RunMode::SUPER_SEARCH) {
     std::cerr << "-inverse flag can only be used in -super mode" << std::endl;
     std::exit(EXIT_FAILURE);
   }
@@ -598,6 +604,80 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 }
 
 //------------------------------------------------------------------------------
+// Analyze a siteswap pattern
+//------------------------------------------------------------------------------
+
+// Find number of balls `n` and max height `h` for a pattern, returning true
+// if the pattern is valid and false otherwise.
+
+bool find_pattern_nh(const std::string& pat, int& n, int& h) {
+  const int l = pat.length();
+  int sum = 0;
+  int pluscount = 0;
+  int maxvalue = 0;
+
+  for (int i = 0; i < l; ++i) {
+    const char ch = pat[i];
+    int value = 0;
+
+    if (ch >= '0' && ch <= '9') {
+      value = static_cast<int>(ch - '0');
+    } else if (ch >= 'a' && ch <= 'z') {
+      value = static_cast<int>(ch - 'a') + 10;
+    } else if (ch >= 'A' && ch <= 'Z') {
+      value = static_cast<int>(ch - 'A') + 10;
+    } else if (ch == '-') {
+      value = 0;
+    } else if (ch == '+') {
+      value = 0;
+      ++pluscount;
+    } else {
+      std::cerr << "Error: Unrecognized character '" << ch << "' in pattern"
+                << std::endl;
+      return false;
+    }
+
+    sum += value;
+    maxvalue = std::max(maxvalue, value);
+  }
+
+  if (pluscount == 0) {
+    if (sum % l != 0) {
+      std::cerr << "Error: Pattern has non-integer average (sum " << sum
+                << ", length " << l << ")" << std::endl;
+      return false;
+    }
+    n = sum / l;
+    h = maxvalue;
+    return true;
+  }
+
+  // Find the smallest `h` > `maxvalue` that satisfies the equation
+  //   (pluscount * h + sum) % l == 0
+  //
+  // e.g.,  +++++--  : pluscount = 5, sum = 0, l = 7 --> h = 7
+
+  h = maxvalue + 1;
+  while (true) {
+    if ((pluscount * h + sum) % l == 0) {
+      n = (pluscount * h + sum) / l;
+      return true;
+    }
+    ++h;
+    assert(h < 100);
+  }
+}
+
+void analyze_pattern(SearchConfig& config) {
+  if (!find_pattern_nh(config.pattern, config.n, config.h))
+    std::exit(EXIT_FAILURE);
+  std::cout << "n = " << config.n << ", h = " << config.h << std::endl;
+
+  std::cout << "analyze pattern here" << std::endl;
+}
+
+
+//------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
@@ -610,6 +690,13 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
+
+  if (config.mode == RunMode::ANALYZE) {
+    analyze_pattern(config);
+    return 0;
+  }
+
+  // running a search
   Coordinator coordinator(config, context);
   coordinator.run();
 

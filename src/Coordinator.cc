@@ -89,7 +89,8 @@ void Coordinator::run() {
 
   if (context.assignments.size() > 0)
     std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
-  print_summary();
+  if (config.mode != RunMode::ANALYZE)
+    print_summary();
 }
 
 //------------------------------------------------------------------------------
@@ -409,17 +410,17 @@ void Coordinator::print_summary() const {
             << ", max throw: " << config.h << std::endl;
 
   switch (config.mode) {
-    case SearchMode::NORMAL_MODE:
-      break;
-    case SearchMode::BLOCK_MODE:
+    case RunMode::BLOCK_SEARCH:
       std::cout << "block mode, " << config.skiplimit << " skips allowed"
                 << std::endl;
       break;
-    case SearchMode::SUPER_MODE:
+    case RunMode::SUPER_SEARCH:
       std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
       if (config.invertflag)
         std::cout << ", inverse output";
       std::cout << std::endl;
+      break;
+    default:
       break;
   }
 

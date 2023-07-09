@@ -37,7 +37,7 @@ class Worker {
   // copied from SearchConfig during construction and do not change
   int n = 0;
   int h = 0;
-  SearchMode mode = SearchMode::NORMAL_MODE;
+  RunMode mode = RunMode::NORMAL_SEARCH;
   int groundmode = 0;
   bool printflag = true;
   bool invertflag = false;

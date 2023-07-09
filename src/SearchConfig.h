@@ -11,12 +11,14 @@
 #ifndef JPRIME_SEARCHCONFIG_H_
 #define JPRIME_SEARCHCONFIG_H_
 
+#include <string>
 #include <vector>
 
-enum class SearchMode {
-  NORMAL_MODE,
-  BLOCK_MODE,
-  SUPER_MODE
+enum class RunMode {
+  NORMAL_SEARCH,
+  BLOCK_SEARCH,
+  SUPER_SEARCH,
+  ANALYZE,
 };
 
 
@@ -30,8 +32,8 @@ struct SearchConfig {
   // (min) pattern length to find
   int l = 0;
 
-  // search mode
-  SearchMode mode = SearchMode::NORMAL_MODE;
+  // worker mode
+  RunMode mode = RunMode::NORMAL_SEARCH;
 
   // ground state, excited state, or both
   int groundmode = 0;
@@ -65,6 +67,9 @@ struct SearchConfig {
 
   // throw values to exclude from search
   std::vector<bool> xarray;
+
+  // pattern for analyze mode
+  std::string pattern;
 };
 
 #endif

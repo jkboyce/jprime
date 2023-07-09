@@ -58,7 +58,7 @@ Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
   find_shift_cycles();
   gen_matrices(config.xarray);
 
-  maxlength = (mode == SearchMode::SUPER_MODE) ? (numcycles + shiftlimit)
+  maxlength = (mode == RunMode::SUPER_SEARCH) ? (numcycles + shiftlimit)
       : (numstates - numcycles);
   if (l > maxlength) {
     std::cerr << "No patterns longer than " << maxlength << " are possible"
@@ -264,7 +264,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   for (int i = 0; i <= numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
-    assert(mode == SearchMode::SUPER_MODE || used[i] == 0);
+    assert(mode == RunMode::SUPER_SEARCH || used[i] == 0);
   }
 }
 
@@ -506,14 +506,17 @@ void Worker::gen_patterns() {
     }
 
     switch (mode) {
-      case SearchMode::NORMAL_MODE:
+      case RunMode::NORMAL_SEARCH:
         gen_loops_normal();
         break;
-      case SearchMode::BLOCK_MODE:
+      case RunMode::BLOCK_SEARCH:
         gen_loops_block();
         break;
-      case SearchMode::SUPER_MODE:
+      case RunMode::SUPER_SEARCH:
         gen_loops_super();
+        break;
+      default:
+        assert(false);
         break;
     }
   }
@@ -1382,7 +1385,7 @@ void Worker::find_shift_cycles() {
 // outmatrix[][] == 0 indicates no connection.
 
 void Worker::gen_matrices(const std::vector<bool>& xarray) {
-  const bool allow_linkthrows_within_cycle = (mode != SearchMode::SUPER_MODE);
+  const bool allow_linkthrows_within_cycle = (mode != RunMode::SUPER_SEARCH);
 
   for (int i = 1; i <= numstates; ++i) {
     int outthrownum = 0;
@@ -1472,7 +1475,7 @@ void Worker::gen_matrices(const std::vector<bool>& xarray) {
           assert(found);
         }
       } else {
-        if ((state[i] & (1L << (j - 1))) && (!(state[i] & (1L << (h - 1))))) {
+        if ((state[i] & (1L << (j - 1))) && !(state[i] & (1L << (h - 1)))) {
           unsigned long temp = state[i] ^ (1L << (j - 1));
           temp = (temp << 1) | 1L;
 
