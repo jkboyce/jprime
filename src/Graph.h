@@ -18,6 +18,7 @@
 class Graph {
  public:
   Graph(int n, int h, const std::vector<bool>& xa, bool ltwc);
+  Graph(int n, int h);
   ~Graph();
 
  public:
@@ -43,6 +44,7 @@ class Graph {
   unsigned long allbits = 0L;
 
  private:
+  void init();
   void allocate_arrays();
   void delete_arrays();
   static int num_states(int n, int h);

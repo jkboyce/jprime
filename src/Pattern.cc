@@ -9,6 +9,7 @@
 //
 
 #include "Pattern.h"
+#include "Graph.h"
 
 #include <iostream>
 #include <string>
@@ -94,6 +95,7 @@ bool Pattern::find_pattern_nh(const std::string& pat, int& n, int& h) {
 }
 
 void Pattern::print_analysis() {
+  // Graph graph(n, h, )
   std::cout << "n = " << n << ", h = " << h << std::endl;
   std::cout << "analyze pattern here" << std::endl;
 }

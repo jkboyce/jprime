@@ -16,6 +16,23 @@
 
 Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
     : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
+  init();
+}
+
+Graph::Graph(int n, int h)
+    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true) {
+  init();
+}
+
+Graph::~Graph() {
+  delete_arrays();
+}
+
+//------------------------------------------------------------------------------
+// Prep core data structures during construction
+//------------------------------------------------------------------------------
+
+void Graph::init() {
   numstates = num_states(n, h);
   for (int i = 0; i <= h; ++i) {
     if (!xarray[i])
@@ -32,14 +49,6 @@ Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
   find_shift_cycles();
   gen_matrices();
 }
-
-Graph::~Graph() {
-  delete_arrays();
-}
-
-//------------------------------------------------------------------------------
-// Prep core data structures during construction
-//------------------------------------------------------------------------------
 
 // Allocate all arrays used by the graph and initialize to default values.
 

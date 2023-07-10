@@ -116,7 +116,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     }
 
     // excluded self-throws
-    config->xarray.resize(config->n, false);
+    config->xarray.resize(config->h + 1, false);
 
     // defaults for using dual graph
     if (config->h > (2 * config->n)) {

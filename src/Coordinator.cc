@@ -26,7 +26,7 @@
 
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
-      : config(a), context(b) {
+    : config(a), context(b) {
   worker.reserve(context.num_threads);
   worker_thread.reserve(context.num_threads);
   worker_rootpos.reserve(context.num_threads);
