@@ -31,10 +31,12 @@
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "Coordinator.h"
+#include "Pattern.h"
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <string>
 
 
 void print_help() {
@@ -604,80 +606,6 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 }
 
 //------------------------------------------------------------------------------
-// Analyze a siteswap pattern
-//------------------------------------------------------------------------------
-
-// Find number of balls `n` and max height `h` for a pattern, returning true
-// if the pattern is valid and false otherwise.
-
-bool find_pattern_nh(const std::string& pat, int& n, int& h) {
-  const int l = pat.length();
-  int sum = 0;
-  int pluscount = 0;
-  int maxvalue = 0;
-
-  for (int i = 0; i < l; ++i) {
-    const char ch = pat[i];
-    int value = 0;
-
-    if (ch >= '0' && ch <= '9') {
-      value = static_cast<int>(ch - '0');
-    } else if (ch >= 'a' && ch <= 'z') {
-      value = static_cast<int>(ch - 'a') + 10;
-    } else if (ch >= 'A' && ch <= 'Z') {
-      value = static_cast<int>(ch - 'A') + 10;
-    } else if (ch == '-') {
-      value = 0;
-    } else if (ch == '+') {
-      value = 0;
-      ++pluscount;
-    } else {
-      std::cerr << "Error: Unrecognized character '" << ch << "' in pattern"
-                << std::endl;
-      return false;
-    }
-
-    sum += value;
-    maxvalue = std::max(maxvalue, value);
-  }
-
-  if (pluscount == 0) {
-    if (sum % l != 0) {
-      std::cerr << "Error: Pattern has non-integer average (sum " << sum
-                << ", length " << l << ")" << std::endl;
-      return false;
-    }
-    n = sum / l;
-    h = maxvalue;
-    return true;
-  }
-
-  // Find the smallest `h` > `maxvalue` that satisfies the equation
-  //   (pluscount * h + sum) % l == 0
-  //
-  // e.g.,  +++++--  : pluscount = 5, sum = 0, l = 7 --> h = 7
-
-  h = maxvalue + 1;
-  while (true) {
-    if ((pluscount * h + sum) % l == 0) {
-      n = (pluscount * h + sum) / l;
-      return true;
-    }
-    ++h;
-    assert(h < 100);
-  }
-}
-
-void analyze_pattern(SearchConfig& config) {
-  if (!find_pattern_nh(config.pattern, config.n, config.h))
-    std::exit(EXIT_FAILURE);
-  std::cout << "n = " << config.n << ", h = " << config.h << std::endl;
-
-  std::cout << "analyze pattern here" << std::endl;
-}
-
-
-//------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
@@ -692,11 +620,11 @@ int main(int argc, char** argv) {
   prepare_calculation(argc, argv, config, context);
 
   if (config.mode == RunMode::ANALYZE) {
-    analyze_pattern(config);
+    Pattern pattern(config.pattern);
+    pattern.print_analysis();
     return 0;
   }
 
-  // running a search
   Coordinator coordinator(config, context);
   coordinator.run();
 

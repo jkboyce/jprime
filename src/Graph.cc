@@ -14,8 +14,8 @@
 #include <vector>
 
 
-Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc) :
-      n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
+Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
+    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
   numstates = num_states(n, h);
   for (int i = 0; i <= h; ++i) {
     if (!xarray[i])

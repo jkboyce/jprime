@@ -26,8 +26,8 @@
 #include <ctime>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
-      config(config),
+Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id)
+    : config(config),
       coordinator(coord),
       worker_id(id),
       graph(config.n, config.h, config.xarray,

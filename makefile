@@ -1,3 +1,3 @@
 
-jprime: src/jprime.cc src/Graph.cc src/Worker.cc src/Coordinator.cc src/WorkAssignment.cc
-	g++ -o jprime src/jprime.cc src/Graph.cc src/Worker.cc src/Coordinator.cc src/WorkAssignment.cc -std=c++11 -O3 -fno-rtti
+jprime: src/jprime.cc src/Graph.cc src/Pattern.cc src/Worker.cc src/Coordinator.cc src/WorkAssignment.cc
+	g++ -o jprime src/jprime.cc src/Graph.cc src/Pattern.cc src/Worker.cc src/Coordinator.cc src/WorkAssignment.cc -std=c++11 -O3 -fno-rtti
