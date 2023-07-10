@@ -16,6 +16,7 @@
 #include "Worker.h"
 #include "Coordinator.h"
 #include "Messages.h"
+#include "Graph.h"
 
 #include <iostream>
 #include <iomanip>
@@ -26,49 +27,52 @@
 
 
 Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id) :
-      coordinator(coord), worker_id(id) {
-  n = config.n;
-  h = config.h;
-  l = config.l;
-  printflag = config.printflag;
-  invertflag = config.invertflag;
-  groundmode = config.groundmode;
-  longestflag = config.longestflag;
-  exactflag = config.exactflag;
-  dualflag = config.dualflag;
-  verboseflag = config.verboseflag;
-  noplusminusflag = config.noplusminusflag;
-  mode = config.mode;
-  skiplimit = config.skiplimit;
-  shiftlimit = config.shiftlimit;
-
-  numstates = num_states(n, h);
-  for (int i = 0; i <= h; ++i) {
-    if (!config.xarray[i])
-      ++maxoutdegree;
-  }
-  maxoutdegree = std::min(maxoutdegree, h - n + 1);
-  maxindegree = n + 1;
-  highestbit = 1L << (h - 1);
-  allbits = (1L << h) - 1;
-
-  allocate_arrays();
-  int ns = gen_states(state, 0, h - 1, n, h, numstates);
-  assert(ns == numstates);
-  find_shift_cycles();
-  gen_matrices(config.xarray);
-
-  maxlength = (mode == RunMode::SUPER_SEARCH) ? (numcycles + shiftlimit)
-      : (numstates - numcycles);
-  if (l > maxlength) {
+      config(config),
+      coordinator(coord),
+      worker_id(id),
+      graph(config.n, config.h, config.xarray,
+        (config.mode != RunMode::SUPER_SEARCH)) {
+  l_current = config.l;
+  maxlength = (config.mode == RunMode::SUPER_SEARCH)
+      ? (graph.numcycles + config.shiftlimit)
+      : (graph.numstates - graph.numcycles);
+  if (config.l > maxlength) {
     std::cerr << "No patterns longer than " << maxlength << " are possible"
               << std::endl;
     std::exit(EXIT_FAILURE);
   }
+  allocate_arrays();
 }
 
 Worker::~Worker() {
   delete_arrays();
+}
+
+// Allocate all arrays used by the worker and initialize to default values.
+
+void Worker::allocate_arrays() {
+  pattern = new int[graph.numstates + 1];
+  used = new int[graph.numstates + 1];
+  cycleused = new bool[graph.numstates + 1];
+  deadstates = new int[graph.numstates + 1];
+
+  for (int i = 0; i <= graph.numstates; ++i) {
+    pattern[i] = -1;
+    used[i] = 0;
+    cycleused[i] = false;
+    deadstates[i] = 0;
+  }
+}
+
+void Worker::delete_arrays() {
+  delete[] pattern;
+  delete[] used;
+  delete[] cycleused;
+  delete[] deadstates;
+  pattern = nullptr;
+  used = nullptr;
+  cycleused = nullptr;
+  deadstates = nullptr;
 }
 
 //------------------------------------------------------------------------------
@@ -90,7 +94,7 @@ void Worker::run() {
 
       if (msg.type == messages_C2W::DO_WORK) {
         load_work_assignment(msg.assignment);
-        l = std::max(l, msg.l_current);
+        l_current = std::max(l_current, msg.l_current);
         new_assignment = true;
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
@@ -161,7 +165,7 @@ void Worker::process_inbox_running() {
     if (msg.type == messages_C2W::DO_WORK) {
       assert(false);
     } else if (msg.type == messages_C2W::UPDATE_METADATA) {
-      l = std::max(l, msg.l_current);
+      l_current = std::max(l_current, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
       process_split_work_request(msg);
     } else if (msg.type == messages_C2W::STOP_WORKER) {
@@ -215,7 +219,7 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   msg.assignment = wa;
   msg.ntotal = ntotal;
   msg.nnodes = nnodes;
-  msg.numstates = numstates;
+  msg.numstates = graph.numstates;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
@@ -227,7 +231,7 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 void Worker::process_split_work_request(const MessageC2W& msg) {
   send_work_to_coordinator(split_work_assignment(msg.split_alg));
 
-  if (verboseflag) {
+  if (config.verboseflag) {
     std::ostringstream sstr;
     sstr << "worker " << worker_id
          << " remaining work after split:" << std::endl
@@ -247,9 +251,9 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   start_state = wa.start_state;
   end_state = wa.end_state;
   if (start_state == -1)
-    start_state = (groundmode == 2) ? 2 : 1;
+    start_state = (config.groundmode == 2) ? 2 : 1;
   if (end_state == -1)
-    end_state = (groundmode == 1) ? 1 : numstates;
+    end_state = (config.groundmode == 1) ? 1 : graph.numstates;
 
   longest_found = 0;
   root_pos = wa.root_pos;
@@ -262,9 +266,9 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
-  for (int i = 0; i <= numstates; ++i) {
+  for (int i = 0; i <= graph.numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
-    assert(mode == RunMode::SUPER_SEARCH || used[i] == 0);
+    assert(config.mode == RunMode::SUPER_SEARCH || used[i] == 0);
   }
 }
 
@@ -278,7 +282,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (int i = 0; i <= numstates; ++i) {
+  for (int i = 0; i <= graph.numstates; ++i) {
     if (pattern[i] == -1)
       break;
     wa.partial_pattern.push_back(pattern[i]);
@@ -295,7 +299,7 @@ void Worker::notify_coordinator_idle() {
   msg.worker_id = worker_id;
   msg.ntotal = ntotal;
   msg.nnodes = nnodes;
-  msg.numstates = numstates;
+  msg.numstates = graph.numstates;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
@@ -421,12 +425,12 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // states as we build the pattern
     for (int pos2 = 0; pos2 <= pos; ++pos2) {
       const int throwval = pattern[pos2];
-      for (col = 0; col < outdegree[from_state]; ++col) {
-        if (throwval == outthrowval[from_state][col])
+      for (col = 0; col < graph.outdegree[from_state]; ++col) {
+        if (throwval == graph.outthrowval[from_state][col])
           break;
       }
       // diagnostics if there's a problem
-      if (col == outdegree[from_state]) {
+      if (col == graph.outdegree[from_state]) {
         std::cerr << "pos2 = " << pos2
                   << ", from_state = " << from_state
                   << ", start_state = " << start_state
@@ -435,14 +439,14 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
                   << ", throwval = " << throwval
                   << std::endl;
       }
-      assert(col != outdegree[from_state]);
+      assert(col != graph.outdegree[from_state]);
 
-      if (pos2 > root_pos && col < outdegree[from_state] - 1) {
+      if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
         new_root_pos = pos2;
         break;
       }
 
-      from_state = outmatrix[from_state][col];
+      from_state = graph.outmatrix[from_state][col];
     }
     assert(new_root_pos != -1);
     root_pos = new_root_pos;
@@ -466,10 +470,11 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   for (; start_state <= end_state; ++start_state) {
     // check if no way to make a pattern of the target length
-    if ((longestflag || exactflag) && (numstates - start_state + 1) < l)
+    if ((config.longestflag || config.exactflag)
+          && (graph.numstates - start_state + 1) < l_current)
       continue;
 
-    if (verboseflag) {
+    if (config.verboseflag) {
       std::ostringstream sstr;
       sstr << "worker " << worker_id
            << " starting at start_state: " << start_state;
@@ -489,7 +494,7 @@ void Worker::gen_patterns() {
     shiftcount = 0;
     blocklength = 0;
     max_possible = maxlength;
-    for (int i = 0; i <= numstates; ++i) {
+    for (int i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
     }
@@ -505,7 +510,7 @@ void Worker::gen_patterns() {
         continue;
     }
 
-    switch (mode) {
+    switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         gen_loops_normal();
         break;
@@ -530,14 +535,14 @@ void Worker::gen_patterns() {
 // This version is for NORMAL mode.
 
 void Worker::gen_loops_normal() {
-  if (exactflag && pos >= l)
+  if (config.exactflag && pos >= l_current)
     return;
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < outdegree[from]; ++col) {
-    const int to = outmatrix[from][col];
-    const int throwval = outthrowval[from][col];
+  for (; col < graph.outdegree[from]; ++col) {
+    const int to = graph.outmatrix[from][col];
+    const int throwval = graph.outthrowval[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
     if (to < start_state || used[to] != 0)
@@ -550,7 +555,7 @@ void Worker::gen_loops_normal() {
     }
 
     bool valid = true;
-    if (throwval != 0 && throwval != h)
+    if (throwval != 0 && throwval != graph.h)
       valid = mark_unreachable_states(to);
 
     if (valid) {
@@ -567,12 +572,12 @@ void Worker::gen_loops_normal() {
     }
 
     // undo changes made above so we can backtrack
-    if (throwval != 0 && throwval != h)
+    if (throwval != 0 && throwval != graph.h)
       unmark_unreachable_states(to);
 
     // see if it's time to check the inbox
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < outdegree[from] - 1) {
+          && col < graph.outdegree[from] - 1) {
       // the restrictions on when we enter here are in case we get a message to
       // hand off work to another worker; see split_work_assignment()
 
@@ -595,20 +600,20 @@ void Worker::gen_loops_normal() {
 // which makes the search generally faster than NORMAL mode.
 
 void Worker::gen_loops_block() {
-  if (exactflag && pos >= l)
+  if (config.exactflag && pos >= l_current)
     return;
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < outdegree[from]; ++col) {
-    const int throwval = outthrowval[from][col];
-    const int to = outmatrix[from][col];
+  for (; col < graph.outdegree[from]; ++col) {
+    const int throwval = graph.outthrowval[from][col];
+    const int to = graph.outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
-    const bool linkthrow = (throwval != 0 && throwval != h);
+    const bool linkthrow = (throwval != 0 && throwval != graph.h);
     const int old_blocklength = blocklength;
     const int old_skipcount = skipcount;
     const int old_firstblocklength = firstblocklength;
@@ -616,9 +621,9 @@ void Worker::gen_loops_block() {
     // handle checks for link throws and skips
     if (linkthrow) {
       if (firstblocklength >= 0) {
-        if (blocklength != (h - 2)) {
+        if (blocklength != (graph.h - 2)) {
           // got a skip
-          if (skipcount == skiplimit)
+          if (skipcount == config.skiplimit)
             continue;
           else
             ++skipcount;
@@ -634,8 +639,8 @@ void Worker::gen_loops_block() {
 
     bool valid = true;
     if (to == start_state) {
-      if (skipcount == skiplimit
-            && (blocklength + firstblocklength) != (h - 2))
+      if (skipcount == config.skiplimit
+            && (blocklength + firstblocklength) != (graph.h - 2))
         valid = false;
 
       if (valid) {
@@ -668,7 +673,7 @@ void Worker::gen_loops_block() {
     firstblocklength = old_firstblocklength;
 
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < outdegree[from] - 1) {
+          && col < graph.outdegree[from] - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
@@ -686,21 +691,21 @@ void Worker::gen_loops_block() {
 // throw to a new shift cycle.
 
 void Worker::gen_loops_super() {
-  if (exactflag && pos >= l)
+  if (config.exactflag && pos >= l_current)
     return;
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < outdegree[from]; ++col) {
-    const int throwval = outthrowval[from][col];
-    const int to = outmatrix[from][col];
+  for (; col < graph.outdegree[from]; ++col) {
+    const int throwval = graph.outthrowval[from][col];
+    const int to = graph.outmatrix[from][col];
     if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
-    const bool linkthrow = (throwval != 0 && throwval != h);
-    const int to_cycle = cyclenum[to];
+    const bool linkthrow = (throwval != 0 && throwval != graph.h);
+    const int to_cycle = graph.cyclenum[to];
     // going to a shift cycle that's already been visited?
     if (linkthrow && cycleused[to_cycle])
       continue;
@@ -708,7 +713,7 @@ void Worker::gen_loops_super() {
     const int old_shiftcount = shiftcount;
     // check for shift throw limits
     if (!linkthrow) {
-      if (shiftcount == shiftlimit)
+      if (shiftcount == config.shiftlimit)
         continue;
       else
         ++shiftcount;
@@ -736,7 +741,7 @@ void Worker::gen_loops_super() {
     shiftcount = old_shiftcount;
 
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < outdegree[from] - 1) {
+          && col < graph.outdegree[from] - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
@@ -757,8 +762,8 @@ int Worker::load_one_throw() {
     return 0;
   }
 
-  for (int col = 0; col < outdegree[from]; ++col) {
-    if (outthrowval[from][col] == pattern[pos])
+  for (int col = 0; col < graph.outdegree[from]; ++col) {
+    if (graph.outthrowval[from][col] == pattern[pos])
       return col;
   }
 
@@ -770,18 +775,18 @@ int Worker::load_one_throw() {
             << "pos: " << pos << std::endl
             << "root_pos: " << root_pos << std::endl
             << "from: " << from << std::endl
-            << "state[from]: " << state[from] << std::endl
+            << "state[from]: " << graph.state[from] << std::endl
             << "start_state: " << start_state << std::endl
             << "pattern: " << buffer.str() << std::endl
             << "outthrowval[from][]: ";
-  for (int i = 0; i < maxoutdegree; ++i)
-    std::cerr << outthrowval[from][i] << ", ";
+  for (int i = 0; i < graph.maxoutdegree; ++i)
+    std::cerr << graph.outthrowval[from][i] << ", ";
   std::cerr << std::endl << "outmatrix[from][]: ";
-  for (int i = 0; i < maxoutdegree; ++i)
-    std::cerr << outmatrix[from][i] << ", ";
+  for (int i = 0; i < graph.maxoutdegree; ++i)
+    std::cerr << graph.outmatrix[from][i] << ", ";
   std::cerr << std::endl << "state[outmatrix[from][]]: ";
-  for (int i = 0; i < maxoutdegree; ++i)
-    std::cerr << state[outmatrix[from][i]] << ", ";
+  for (int i = 0; i < graph.maxoutdegree; ++i)
+    std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
   std::cerr << std::endl;
   assert(false);
 }
@@ -793,8 +798,8 @@ int Worker::load_one_throw() {
 void Worker::build_rootpos_throw_options(int rootpos_from_state,
       int start_column) {
   root_throwval_options.clear();
-  for (int col = start_column; col < outdegree[rootpos_from_state]; ++col)
-    root_throwval_options.push_back(outthrowval[rootpos_from_state][col]);
+  for (int col = start_column; col < graph.outdegree[rootpos_from_state]; ++col)
+    root_throwval_options.push_back(graph.outthrowval[rootpos_from_state][col]);
 }
 
 // Mark off `throwval` from our set of allowed throw options at position
@@ -818,7 +823,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
       found = true;
       iter = root_throwval_options.erase(iter);
 
-      if (verboseflag) {
+      if (config.verboseflag) {
         std::ostringstream buffer;
         buffer << "worker " << worker_id << " starting root_pos option: ";
         print_throw(buffer, throwval);
@@ -857,13 +862,13 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   bool valid = true;
 
   // 1. kill states downstream in `from` shift cycle that end in 'x'
-  int j = h - 2;
-  unsigned long tempstate = state[from];
-  int cnum = cyclenum[from];
+  int j = graph.h - 2;
+  unsigned long tempstate = graph.state[from];
+  int cnum = graph.cyclenum[from];
 
   do {
-    if (used[cyclepartner[from][j]]++ == 0 && deadstates[cnum]++ >= 1
-          && --max_possible < l)
+    if (used[graph.cyclepartner[from][j]]++ == 0 && deadstates[cnum]++ >= 1
+          && --max_possible < l_current)
       valid = false;
     --j;
     tempstate >>= 1;
@@ -871,16 +876,16 @@ bool inline Worker::mark_unreachable_states(int to_state) {
 
   // 2. kill states upstream in 'to' shift cycle that start with '-'
   j = 0;
-  tempstate = state[to_state];
-  cnum = cyclenum[to_state];
+  tempstate = graph.state[to_state];
+  cnum = graph.cyclenum[to_state];
 
   do {
-    if (used[cyclepartner[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
-          && --max_possible < l)
+    if (used[graph.cyclepartner[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
+          && --max_possible < l_current)
       valid = false;
     ++j;
-    tempstate = (tempstate << 1) & allbits;
-  } while ((tempstate & highestbit) == 0);
+    tempstate = (tempstate << 1) & graph.allbits;
+  } while ((tempstate & graph.highestbit) == 0);
 
   return valid;
 }
@@ -888,35 +893,35 @@ bool inline Worker::mark_unreachable_states(int to_state) {
 // Reverse the marking operation above, so we can backtrack.
 
 void inline Worker::unmark_unreachable_states(int to_state) {
-  int j = h - 2;
-  unsigned long tempstate = state[from];
-  int cnum = cyclenum[from];
+  int j = graph.h - 2;
+  unsigned long tempstate = graph.state[from];
+  int cnum = graph.cyclenum[from];
 
   do {
-    if (--used[cyclepartner[from][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[graph.cyclepartner[from][j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     --j;
     tempstate >>= 1;
   } while (tempstate & 1L);
 
   j = 0;
-  tempstate = state[to_state];
-  cnum = cyclenum[to_state];
+  tempstate = graph.state[to_state];
+  cnum = graph.cyclenum[to_state];
 
   do {
-    if (--used[cyclepartner[to_state][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[graph.cyclepartner[to_state][j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     ++j;
-    tempstate = (tempstate << 1) & allbits;
-  } while ((tempstate & highestbit) == 0);
+    tempstate = (tempstate << 1) & graph.allbits;
+  } while ((tempstate & graph.highestbit) == 0);
 }
 
 void Worker::handle_finished_pattern() {
   ++ntotal;
 
-  if ((pos + 1) >= l) {
-    if (longestflag)
-      l = pos + 1;
+  if ((pos + 1) >= l_current) {
+    if (config.longestflag)
+      l_current = pos + 1;
     report_pattern();
   }
 
@@ -936,7 +941,7 @@ void Worker::handle_finished_pattern() {
 void Worker::report_pattern() const {
   std::ostringstream buffer;
 
-  if (groundmode != 1) {
+  if (config.groundmode != 1) {
     if (start_state == 1)
       buffer << "  ";
     else
@@ -944,13 +949,14 @@ void Worker::report_pattern() const {
   }
 
   for (int i = 0; i <= pos; ++i) {
-    int throwval = (dualflag ? (h - pattern[pos - i]) : pattern[i]);
+    int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
+        : pattern[i]);
     print_throw(buffer, throwval);
   }
 
-  if (invertflag) {
+  if (config.invertflag) {
     buffer << " : ";
-    if (dualflag)
+    if (config.dualflag)
       print_inverse_dual(buffer);
     else
       print_inverse(buffer);
@@ -968,10 +974,10 @@ void Worker::report_pattern() const {
 }
 
 void Worker::print_throw(std::ostringstream& buffer, int val) const {
-  if (!noplusminusflag && val == 0) {
+  if (!config.noplusminusflag && val == 0) {
     buffer << '-';
     return;
-  } else if (!noplusminusflag && val == h) {
+  } else if (!config.noplusminusflag && val == graph.h) {
     buffer << '+';
     return;
   }
@@ -988,12 +994,12 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
 void Worker::print_inverse(std::ostringstream& buffer) const {
   // first decide on a starting state
   // state to avoid on first shift cycle:
-  int avoid = reverse_state(start_state);
+  int avoid = graph.reverse_state(start_state);
 
   // how many adjacent states to avoid also?
   int shifts = 0;
   int index = 0;
-  while (index <= pos && (pattern[index] == 0 || pattern[index] == h)) {
+  while (index <= pos && (pattern[index] == 0 || pattern[index] == graph.h)) {
     ++index;
     ++shifts;
   }
@@ -1003,39 +1009,42 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
     return;
   }
 
-  int start = numstates;
+  int start = graph.numstates;
   int temp = 0;
-  for (int i = cycleperiod[cyclenum[avoid]] - 2; i >= shifts; --i) {
-    if (cyclepartner[avoid][i] < start) {
-      start = cyclepartner[avoid][i];
+  for (int i = graph.cycleperiod[graph.cyclenum[avoid]] - 2; i >= shifts; --i) {
+    if (graph.cyclepartner[avoid][i] < start) {
+      start = graph.cyclepartner[avoid][i];
       temp = i;
     }
   }
-  if (start == numstates) {
+  if (start == graph.numstates) {
     buffer << "no inverse";
     return;
   }
 
   // number of shift throws printed at beginning
   int shiftthrows = temp - shifts;
-  int endshiftthrows = cycleperiod[cyclenum[start]] - shifts - 2 - shiftthrows;
+  int endshiftthrows = graph.cycleperiod[graph.cyclenum[start]] - shifts - 2
+      - shiftthrows;
   int current = start;
 
   do {
     // print shift throws
     while (shiftthrows--) {
-      print_throw(buffer, (state[current] & 1) ? h : 0);
-      current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
+      print_throw(buffer, (graph.state[current] & 1) ? graph.h : 0);
+      current = graph.cyclepartner[current][
+          graph.cycleperiod[graph.cyclenum[current]] - 2];
     }
 
     // print the link throw
-    const int throwval = h - pattern[index++];
+    const int throwval = graph.h - pattern[index++];
     print_throw(buffer, throwval);
 
-    unsigned long tempstate = (state[current] / 2) | (1L << (throwval - 1));
+    unsigned long tempstate = (graph.state[current] / 2)
+        | (1L << (throwval - 1));
     bool errorflag = true;
-    for (int i = 1; i <= numstates; ++i) {
-      if (state[i] == tempstate) {
+    for (int i = 1; i <= graph.numstates; ++i) {
+      if (graph.state[i] == tempstate) {
         current = i;
         errorflag = false;
         break;
@@ -1045,11 +1054,11 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
 
     // find how many shift throws in the next block
     shifts = 0;
-    while (index <= pos && (pattern[index] == 0 || pattern[index] == h)) {
+    while (index <= pos && (pattern[index] == 0 || pattern[index] == graph.h)) {
       ++index;
       ++shifts;
     }
-    shiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
+    shiftthrows = graph.cycleperiod[graph.cyclenum[current]] - shifts - 2;
   } while (index <= pos);
 
   // correct for any shift throws at the end, which are part of the first
@@ -1058,8 +1067,9 @@ void Worker::print_inverse(std::ostringstream& buffer) const {
 
   // finish printing shift throws in first shift cycle
   while (endshiftthrows--) {
-    print_throw(buffer, (state[current] & 1) ? h : 0);
-    current = cyclepartner[current][cycleperiod[cyclenum[current]] - 2];
+    print_throw(buffer, (graph.state[current] & 1) ? graph.h : 0);
+    current = graph.cyclepartner[current][
+        graph.cycleperiod[graph.cyclenum[current]] - 2];
   }
 }
 
@@ -1069,12 +1079,12 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
   // inverse was found in dual space, so we have to transform as we read it
   // first decide on a starting state
   // dual state to avoid on first shift cycle:
-  int avoid = reverse_state(start_state);
+  int avoid = graph.reverse_state(start_state);
 
   // how many adjacent states to avoid also?
   int shifts = 0;
   int index = pos;
-  while (index >= 0 && (pattern[index] == 0 || pattern[index] == h)) {
+  while (index >= 0 && (pattern[index] == 0 || pattern[index] == graph.h)) {
     --index;
     ++shifts;
   }
@@ -1084,39 +1094,43 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
     return;
   }
 
-  int start = numstates;
+  int start = graph.numstates;
   int temp = 0;
-  for (int i = 0; i <= cycleperiod[cyclenum[avoid]] - shifts - 2; ++i) {
-    if (cyclepartner[avoid][i] < start) {
-      start = cyclepartner[avoid][i];
+  for (int i = 0; i <= graph.cycleperiod[graph.cyclenum[avoid]] - shifts - 2;
+      ++i) {
+    if (graph.cyclepartner[avoid][i] < start) {
+      start = graph.cyclepartner[avoid][i];
       temp = i;
     }
   }
-  if (start == numstates) {
+  if (start == graph.numstates) {
     buffer << "no inverse";
     return;
   }
 
   // number of shift throws printed at beginning
-  int shiftthrows = cycleperiod[cyclenum[start]] - shifts - 2 - temp;
+  int shiftthrows = graph.cycleperiod[graph.cyclenum[start]] - shifts - 2
+      - temp;
   int endshiftthrows = temp;
   int current = start;
 
   do {
     // first print shift throws
     while (shiftthrows--) {
-      print_throw(buffer, (state[current] & (1L << (h - 1))) ? 0 : h);
-      current = cyclepartner[current][0];
+      print_throw(buffer, (graph.state[current] & (1L << (graph.h - 1))) ? 0
+          : graph.h);
+      current = graph.cyclepartner[current][0];
     }
 
     // print the link throw
     temp = pattern[index--];
     print_throw(buffer, temp);
 
-    unsigned long tempstate = (state[current] * 2 + 1) ^ (1L << (h - temp));
+    unsigned long tempstate = (graph.state[current] * 2 + 1)
+        ^ (1L << (graph.h - temp));
     bool errorflag = true;
-    for (int i = 1; i <= numstates; ++i) {
-      if (state[i] == tempstate) {
+    for (int i = 1; i <= graph.numstates; ++i) {
+      if (graph.state[i] == tempstate) {
         current = i;
         errorflag = false;
         break;
@@ -1126,11 +1140,11 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
 
     // how many shift throws in the next block
     shifts = 0;
-    while (index >= 0 && (pattern[index] == 0 || pattern[index] == h)) {
+    while (index >= 0 && (pattern[index] == 0 || pattern[index] == graph.h)) {
       --index;
       ++shifts;
     }
-    shiftthrows = cycleperiod[cyclenum[current]] - shifts - 2;
+    shiftthrows = graph.cycleperiod[graph.cyclenum[current]] - shifts - 2;
   } while (index >= 0);
 
   // correct for any shift throws at the end, which are part of the first
@@ -1139,361 +1153,8 @@ void Worker::print_inverse_dual(std::ostringstream& buffer) const {
 
   // finish printing shift throws in first shift cycle
   while (endshiftthrows--) {
-    print_throw(buffer, (state[current] & (1L << (h - 1))) ? 0 : h);
-    current = cyclepartner[current][0];
-  }
-}
-
-// Find the reverse of a given state, where both the input and output are
-// referenced to the state number (i.e., index in the state[] array).
-//
-// For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
-
-int Worker::reverse_state(int statenum) const {
-  unsigned long temp = 0;
-  unsigned long mask1 = 1L;
-  unsigned long mask2 = 1L << (h - 1);
-
-  while (mask2) {
-    assert(statenum >= 0 && statenum < numstates);
-    if (state[statenum] & mask2)
-      temp |= mask1;
-    mask1 <<= 1;
-    mask2 >>= 1;
-  }
-
-  for (int i = 1; i <= numstates; ++i) {
-    if (state[i] == temp)
-      return i;
-  }
-  assert(false);
-}
-
-// Return a text representation of a given state number
-
-std::string Worker::state_string(int statenum) const {
-  std::string result;
-  unsigned long value = state[statenum];
-  for (int i = 0; i < h; ++i) {
-    result += (value & 1 ? 'x' : '-');
-    value >>= 1;
-  }
-  return result;
-}
-
-//------------------------------------------------------------------------------
-// Prep core data structures during construction
-//------------------------------------------------------------------------------
-
-// Allocate all arrays used by the worker and initialize to default values.
-
-void Worker::allocate_arrays() {
-  pattern = new int[numstates + 1];
-  used = new int[numstates + 1];
-  outdegree = new int[numstates + 1];
-  indegree = new int[numstates + 1];
-  cyclenum = new int[numstates + 1];
-  state = new unsigned long[numstates + 1];
-  cycleperiod = new int[numstates + 1];
-  cycleused = new bool[numstates + 1];
-  deadstates = new int[numstates + 1];
-
-  for (int i = 0; i <= numstates; ++i) {
-    pattern[i] = -1;
-    used[i] = 0;
-    outdegree[i] = 0;
-    indegree[i] = 0;
-    cyclenum[i] = 0;
-    state[i] = 0L;
-    cycleperiod[i] = 0;
-    cycleused[i] = false;
-    deadstates[i] = 0;
-  }
-
-  outmatrix = new int*[numstates + 1];
-  outthrowval = new int*[numstates + 1];
-  inmatrix = new int*[numstates + 1];
-  cyclepartner = new int*[numstates + 1];
-
-  for (int i = 0; i <= numstates; ++i) {
-    outmatrix[i] = new int[maxoutdegree];
-    outthrowval[i] = new int[maxoutdegree];
-    inmatrix[i] = new int[maxindegree];
-    cyclepartner[i] = new int[h];
-
-    for (int j = 0; j < maxoutdegree; ++j) {
-      outmatrix[i][j] = 0;
-      outthrowval[i][j] = 0;
-    }
-    for (int j = 0; j < maxindegree; ++j)
-      inmatrix[i][j] = 0;
-    for (int j = 0; j < h; ++j)
-      cyclepartner[i][j] = 0;
-  }
-}
-
-void Worker::delete_arrays() {
-  for (int i = 0; i <= numstates; ++i) {
-    if (outmatrix) {
-      delete[] outmatrix[i];
-      outmatrix[i] = nullptr;
-    }
-    if (outthrowval) {
-      delete[] outthrowval[i];
-      outthrowval[i] = nullptr;
-    }
-    if (inmatrix) {
-      delete[] inmatrix[i];
-      inmatrix[i] = nullptr;
-    }
-    if (cyclepartner) {
-      delete[] cyclepartner[i];
-      cyclepartner[i] = nullptr;
-    }
-  }
-
-  delete[] outmatrix;
-  delete[] outthrowval;
-  delete[] inmatrix;
-  delete[] cyclepartner;
-  delete[] pattern;
-  delete[] used;
-  delete[] outdegree;
-  delete[] indegree;
-  delete[] cyclenum;
-  delete[] state;
-  delete[] cycleperiod;
-  delete[] cycleused;
-  delete[] deadstates;
-  outmatrix = nullptr;
-  outthrowval = nullptr;
-  inmatrix = nullptr;
-  cyclepartner = nullptr;
-  pattern = nullptr;
-  used = nullptr;
-  outdegree = nullptr;
-  indegree = nullptr;
-  cyclenum = nullptr;
-  state = nullptr;
-  cycleperiod = nullptr;
-  cycleused = nullptr;
-  deadstates = nullptr;
-}
-
-// Find the number of states (vertices) in the juggling graph, for a given
-// number of balls and maximum throw value. This is just (h choose n).
-
-int Worker::num_states(int n, int h) {
-  int result = 1;
-  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
-    result = (result * (h - denom + 1)) / denom;
-  return result;
-}
-
-// Generate the list of all possible states into the state[] array.
-//
-// Returns the number of states found.
-
-int Worker::gen_states(unsigned long* state, int num, int pos, int left, int h,
-      int ns) {
-  if (left > (pos + 1))
-    return num;
-
-  if (pos == 0) {
-    if (left)
-      state[num + 1] |= 1L;
-    else
-      state[num + 1] &= ~1L;
-
-    if (num < (ns - 1))
-      state[num + 2] = state[num + 1];
-    return (num + 1);
-  }
-
-  state[num + 1] &= ~(1L << pos);
-  num = gen_states(state, num, pos - 1, left, h, ns);
-  if (left > 0) {
-    state[num + 1] |= (1L << pos);
-    num = gen_states(state, num, pos - 1, left - 1, h, ns);
-  }
-
-  return num;
-}
-
-// Generate arrays describing the shift cycles of the juggling graph.
-//
-// - Which shift cycle number a given state belongs to:
-//         cyclenum[statenum] --> cyclenum
-// - The period of a given shift cycle number:
-//         cycleperiod[cyclenum] --> period
-// - The other states on a given state's shift cycle:
-//         cyclepartner[statenum][i] --> statenum  (where i < h)
-
-void Worker::find_shift_cycles() {
-  const unsigned long lowerbits = highestbit - 1;
-  int cycleindex = 0;
-
-  for (int i = 1; i <= numstates; ++i) {
-    unsigned long statebits = state[i];
-    bool periodfound = false;
-    bool newshiftcycle = true;
-    int cycleper = h;
-
-    for (int j = 0; j < h; ++j) {
-      if (statebits & highestbit)
-        statebits = (statebits & lowerbits) << 1 | 1L;
-      else
-        statebits <<= 1;
-
-      int k = 1;
-      for (; k <= numstates; ++k) {
-        if (state[k] == statebits)
-          break;
-      }
-      assert(k <= numstates);
-
-      cyclepartner[i][j] = k;
-      if (k == i && !periodfound) {
-        cycleper = j + 1;
-        periodfound = true;
-      } else if (k < i)
-        newshiftcycle = false;
-    }
-
-    if (newshiftcycle) {
-      for (int j = 0; j < h; j++)
-        cyclenum[cyclepartner[i][j]] = cycleindex;
-      cycleperiod[cycleindex++] = cycleper;
-    }
-  }
-  numcycles = cycleindex;
-}
-
-// Generate matrices describing the structure of the juggling graph:
-//
-// - Outward degree from each state (vertex) in the graph:
-//         outdegree[statenum] --> degree
-// - Outward connections from each state:
-//         outmatrix[statenum][col] --> statenum  (where col < outdegree)
-// - Throw values corresponding to outward connections from each state:
-//         outthrowval[statenum][col] --> throw
-// - Inward degree to each state in the graph:
-//         indegree[statenum] --> degree
-// - Inward connections to each state:
-//         inmatrix[statenum][col] --> statenum  (where col < indegree)
-//
-// outmatrix[][] == 0 indicates no connection.
-
-void Worker::gen_matrices(const std::vector<bool>& xarray) {
-  const bool allow_linkthrows_within_cycle = (mode != RunMode::SUPER_SEARCH);
-
-  for (int i = 1; i <= numstates; ++i) {
-    int outthrownum = 0;
-    int inthrownum = 0;
-
-    // first take care of outgoing throws
-    for (int j = h; j >= 0; --j) {
-      if (xarray[j])
-        continue;
-
-      if (j == 0) {
-        if (!(state[i] & 1L)) {
-          unsigned long temp = state[i] >> 1;
-          bool found = false;
-
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              outmatrix[i][outthrownum] = k;
-              outthrowval[i][outthrownum++] = j;
-              ++outdegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else if (state[i] & 1L) {
-        unsigned long temp = (unsigned long)1L << (j - 1);
-        unsigned long temp2 = (state[i] >> 1);
-
-        if (!(temp2 & temp)) {
-          temp |= temp2;
-
-          bool found = false;
-          int k = 1;
-          for (; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-          if (j == h || allow_linkthrows_within_cycle
-              || cyclenum[i] != cyclenum[k]) {
-            outmatrix[i][outthrownum] = k;
-            outthrowval[i][outthrownum++] = j;
-            ++outdegree[i];
-          }
-        }
-      }
-    }
-
-    // then take care of ingoing throws
-    for (int j = h; j >= 0; --j) {
-      if (xarray[j])
-        continue;
-
-      if (j == 0) {
-        if (!(state[i] & (1L << (h - 1)))) {
-          unsigned long temp = state[i] << 1;
-
-          bool found = false;
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              inmatrix[i][inthrownum++] = k;
-              ++indegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else if (j == h) {
-        if (state[i] & (1L << (h - 1))) {
-          unsigned long temp = state[i] ^ (1L << (h - 1));
-          temp = (temp << 1) | 1L;
-
-          bool found = false;
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              inmatrix[i][inthrownum++] = k;
-              ++indegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else {
-        if ((state[i] & (1L << (j - 1))) && !(state[i] & (1L << (h - 1)))) {
-          unsigned long temp = state[i] ^ (1L << (j - 1));
-          temp = (temp << 1) | 1L;
-
-          bool found = false;
-          int k = 1;
-          for (; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-          if (allow_linkthrows_within_cycle || cyclenum[i] != cyclenum[k]) {
-            inmatrix[i][inthrownum++] = k;
-            ++indegree[i];
-          }
-        }
-      }
-    }
+    print_throw(buffer, (graph.state[current] & (1L << (graph.h - 1))) ? 0
+        : graph.h);
+    current = graph.cyclepartner[current][0];
   }
 }
