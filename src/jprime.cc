@@ -24,14 +24,13 @@
 //           which uses shift cycles to speed the search.
 // 02/17/99  Version 5.1 adds -inverse option to print inverses of patterns
 //           found in -super mode.
-// 05/17/23  Version 6.0 implements parallel depth first search in C++, to run
+// 09/17/23  Version 6.0 implements parallel depth first search in C++, to run
 //           faster on modern multicore machines.
 //
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "Coordinator.h"
-#include "Pattern.h"
 
 #include <iostream>
 #include <fstream>
@@ -41,14 +40,14 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.0 (2023.05.17)\n"
+    "jprime version 6.0 (2023.09.17)\n"
     "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
     "explanation of these terms, consult the page:\n"
     "   http://www.juggling.org/help/siteswap/\n"
     "\n"
-    "Command-line format is:\n"
+    "Command line format:\n"
     "   jprime <# objects> <max. throw> [<min. length>] [options]\n"
     "\n"
     "where:\n"
@@ -76,7 +75,7 @@ void print_help() {
     "   -steal_alg <num>  algorithm for selecting a worker to take work from\n"
     "   -split_alg <num>  algorithm for splitting a stolen work assignment\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
-    "                        interrupted), resuming, and final output\n"
+    "                        interrupted via ctrl-c), resuming, and final output\n"
     "\n"
     "When resuming a calculation from a checkpoint file, the other parts of the\n"
     "input are ignored and can be omitted. For example: jprime -file testrun\n"
@@ -85,7 +84,7 @@ void print_help() {
     "   jprime 4 7\n"
     "   jprime 5 7 15 -noplus -exact\n"
     "   jprime 5 7 -noplus -full -file 5_7_full\n"
-    "   jprime 6 10 -super 0 -g -file 6_10\n";
+    "   jprime 6 10 -super 0 -g -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
 }
@@ -97,12 +96,6 @@ void print_help() {
 void parse_args(int argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
-    if (!strcmp(argv[1], "-analyze")) {
-      config->mode = RunMode::ANALYZE;
-      config->pattern = argv[2];
-      return;
-    }
-
     config->n = atoi(argv[1]);
     if (config->n < 1) {
       std::cerr << "Must have at least 1 object" << std::endl;
@@ -618,12 +611,6 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
-
-  if (config.mode == RunMode::ANALYZE) {
-    Pattern pattern(config.pattern);
-    pattern.print_analysis();
-    return 0;
-  }
 
   Coordinator coordinator(config, context);
   coordinator.run();

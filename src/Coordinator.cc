@@ -89,8 +89,7 @@ void Coordinator::run() {
 
   if (context.assignments.size() > 0)
     std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
-  if (config.mode != RunMode::ANALYZE)
-    print_summary();
+  print_summary();
 }
 
 //------------------------------------------------------------------------------

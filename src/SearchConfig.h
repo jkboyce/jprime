@@ -18,7 +18,6 @@ enum class RunMode {
   NORMAL_SEARCH,
   BLOCK_SEARCH,
   SUPER_SEARCH,
-  ANALYZE,
 };
 
 

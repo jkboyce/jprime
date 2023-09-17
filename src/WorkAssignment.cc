@@ -47,7 +47,7 @@ bool WorkAssignment::from_string(std::string str) {
 // Return a character for a given integer throw value (0 = '0', 1 = '1',
 // 10 = 'a', 11 = 'b', ...
 
-static char throw_char(int val) {
+char throw_char(int val) {
   if (val < 10)
     return static_cast<char>(val + '0');
   else
@@ -56,7 +56,7 @@ static char throw_char(int val) {
 
 // Return an integer throw value corresponding to a character
 
-static int throw_value(char ch) {
+int throw_value(char ch) {
   if (ch >= '0' && ch <= '9')
     return static_cast<int>(ch - '0');
   else if (ch >= 'a' && ch <= 'z')
