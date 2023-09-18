@@ -1,0 +1,16 @@
+version           6.0
+command line      jprime 3 27 -super 0 -file 3_27_s0 -threads 5 -verbose
+length            109
+length limit      109
+states            2925
+patterns          1
+patterns (seen)   9284547968887
+nodes visited     24380029407325
+threads           5
+hardware threads  12
+seconds elapsed   183803.0823
+seconds working   919012.3410
+seconds avail     919015.4116
+
+patterns
+  j611118111111k111191111111i1111191111111j1191111111i11111191111111j191111111d1111111i111n11111111111191111111

@@ -1,0 +1,24 @@
+version           6.0
+command line      jprime 5 13 -super 0 -g -file 5_13_s0 -threads 5 -verbose -steal_alg 3
+length            98
+length limit      99
+states            1287
+patterns          2
+patterns (seen)   2193916425851
+nodes visited     37383442022595
+threads           5
+hardware threads  12
+seconds elapsed   148695.1560
+seconds working   743475.6401
+seconds avail     743475.7790
+
+patterns
+c4b3424b12aa3131b28c2c1113c22c25291b1224bb2c123181b711a2c31b26122c82c2c112c122c2c71112c2c2ca111112
+ca52c122a13c2b12b4112bb6112c22a6222c28c2222c41348c22c142c22b26122c82c2c112c122c2c71112c2c2ca111112
+
+work assignments remaining
+  { start_state:1, end_state:1, root_pos:2, root_options:[9876], current:"cccccc31b11accc82c29c1bbc25cc15cc5c2bb3ca1ac14ca6b3ca3bc3c3ca7c" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[b987], current:"bccccc31b1b1bccc61b1bbc1bcc1b1b51bbc4c4b8b1bb1aca239b4acc5cc14b3c7c29a5" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[b876], current:"caccccc1119c19cccc611acc1bcc23bb14bcc62ac3c395c9c61bbc3bc41bc671b6c99ccc" }
+  { start_state:1, end_state:1, root_pos:0, root_options:[9], current:"acccccc112c19cccc31bcc115cc9b61a2cacc62ca1bcc1b24cc926ab2b7" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[87], current:"c9cccc711a1bccccc131b91bbcc2c428ccc17c3b2ac4bc26b92c4bc7b3ca1bc2b3b6b2bbb3c" }
