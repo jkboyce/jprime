@@ -66,9 +66,6 @@ struct SearchConfig {
 
   // throw values to exclude from search
   std::vector<bool> xarray;
-
-  // pattern for analyze mode
-  std::string pattern;
 };
 
 #endif
