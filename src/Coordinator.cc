@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 #include <csignal>
 #include <cassert>
 
@@ -63,7 +64,7 @@ void Coordinator::run() {
     steal_work();
     process_inbox();
 
-    if ((workers_idle.size() == context.num_threads
+    if (((int)workers_idle.size() == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
       // any worker that was running will have sent back a RETURN_WORK message

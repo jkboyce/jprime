@@ -267,7 +267,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(pos == 0);
 
   for (int i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
+    pattern[i] = (i < (int)wa.partial_pattern.size()) ? wa.partial_pattern[i]
+        : -1;
     assert(config.mode == RunMode::SUPER_SEARCH || used[i] == 0);
   }
 }

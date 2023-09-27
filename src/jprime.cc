@@ -33,8 +33,11 @@
 #include "Coordinator.h"
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <cstring>
 #include <string>
 
 
@@ -325,12 +328,12 @@ bool pattern_compare(const std::string& pat1, const std::string& pat2) {
 
   int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
   int pat1_end = pat1_start;
-  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
+  while (pat1_end != (int)pat1.size() && pat1[pat1_end] != ' ')
     ++pat1_end;
 
   int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
   int pat2_end = pat2_start;
-  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
+  while (pat2_end != (int)pat2.size() && pat2[pat2_end] != ' ')
     ++pat2_end;
 
   // shorter patterns sort earlier
