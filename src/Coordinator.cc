@@ -23,6 +23,7 @@
 #include <thread>
 #include <chrono>
 #include <csignal>
+#include <cassert>
 
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)

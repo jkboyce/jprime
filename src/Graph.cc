@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <vector>
+#include <cassert>
 
 
 Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
