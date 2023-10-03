@@ -77,7 +77,7 @@ std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
   for (int v : wa.root_throwval_options)
     ost << throw_char(v);
   ost << "], current:\"";
-  for (int i = 0; i < wa.partial_pattern.size(); ++i)
+  for (int i = 0; i < (int)wa.partial_pattern.size(); ++i)
     ost << throw_char(wa.partial_pattern[i]);
   ost << "\" }";
   return ost;
