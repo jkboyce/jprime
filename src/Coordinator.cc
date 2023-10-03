@@ -76,8 +76,8 @@ void Coordinator::run() {
 
   timespec_get(&end_ts, TIME_UTC);
   double runtime =
-      (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
-      (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
+      static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
+      1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
   context.secs_elapsed += runtime;
   context.secs_available += runtime * context.num_threads;
 

@@ -187,8 +187,8 @@ void Worker::record_elapsed_time(const timespec& start_ts) {
   timespec end_ts;
   timespec_get(&end_ts, TIME_UTC);
   double runtime =
-      (static_cast<double>(end_ts.tv_sec) + 1.0e-9 * end_ts.tv_nsec) -
-      (static_cast<double>(start_ts.tv_sec) + 1.0e-9 * start_ts.tv_nsec);
+      static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
+      1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
   secs_working += runtime;
 }
 
@@ -202,8 +202,8 @@ void Worker::calibrate_inbox_check() {
   timespec current_ts;
   timespec_get(&current_ts, TIME_UTC);
   double time_spent =
-      (static_cast<double>(current_ts.tv_sec) + 1.0e-9 * current_ts.tv_nsec) -
-      (static_cast<double>(last_ts.tv_sec) + 1.0e-9 * last_ts.tv_nsec);
+      static_cast<double>(current_ts.tv_sec - last_ts.tv_sec) +
+      1.0e-9 * (current_ts.tv_nsec - last_ts.tv_nsec);
   last_ts = current_ts;
   --calibrations_remaining;
 
@@ -948,22 +948,19 @@ void Worker::report_pattern() const {
       buffer << "* ";
   }
 
-  for (int i = 0; i <= pos; ++i) {
-    int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
-        : pattern[i]);
-    print_throw(buffer, throwval);
-  }
-
-  if (config.invertflag) {
-    buffer << " : ";
-    if (config.dualflag)
-      print_inverse_dual(buffer);
-    else
-      print_inverse(buffer);
-  }
+  buffer << get_pattern();
 
   if (start_state != 1)
     buffer << " *";
+
+  if (config.invertflag) {
+    const std::string inverse = get_inverse();
+    if (inverse.length() > 0) {
+      if (config.groundmode != 1 && start_state == 1)
+        buffer << "  ";
+      buffer << " : " << inverse;
+    }
+  }
 
   MessageW2C msg;
   msg.type = messages_W2C::SEARCH_RESULT;
@@ -972,6 +969,8 @@ void Worker::report_pattern() const {
   msg.length = pos + 1;
   message_coordinator(msg);
 }
+
+// Output a single throw to a string buffer.
 
 void Worker::print_throw(std::ostringstream& buffer, int val) const {
   if (!config.noplusminusflag && val == 0) {
@@ -988,173 +987,174 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
     buffer << static_cast<char>(val - 10 + 'a');
 }
 
-// Write the inverse of the current pattern to a buffer. If the inverse is not
-// well-defined, indicate this.
+// Return the current pattern as a string.
 
-void Worker::print_inverse(std::ostringstream& buffer) const {
-  // first decide on a starting state
-  // state to avoid on first shift cycle:
-  int avoid = graph.reverse_state(start_state);
+std::string Worker::get_pattern() const {
+  std::ostringstream buffer;
 
-  // how many adjacent states to avoid also?
-  int shifts = 0;
-  int index = 0;
-  while (index <= pos && (pattern[index] == 0 || pattern[index] == graph.h)) {
-    ++index;
-    ++shifts;
-  }
-
-  if (index == pos) {
-    buffer << "no inverse";
-    return;
-  }
-
-  int start = graph.numstates;
-  int temp = 0;
-  for (int i = graph.cycleperiod[graph.cyclenum[avoid]] - 2; i >= shifts; --i) {
-    if (graph.cyclepartner[avoid][i] < start) {
-      start = graph.cyclepartner[avoid][i];
-      temp = i;
-    }
-  }
-  if (start == graph.numstates) {
-    buffer << "no inverse";
-    return;
-  }
-
-  // number of shift throws printed at beginning
-  int shiftthrows = temp - shifts;
-  int endshiftthrows = graph.cycleperiod[graph.cyclenum[start]] - shifts - 2
-      - shiftthrows;
-  int current = start;
-
-  do {
-    // print shift throws
-    while (shiftthrows--) {
-      print_throw(buffer, (graph.state[current] & 1) ? graph.h : 0);
-      current = graph.cyclepartner[current][
-          graph.cycleperiod[graph.cyclenum[current]] - 2];
-    }
-
-    // print the link throw
-    const int throwval = graph.h - pattern[index++];
+  for (int i = 0; i <= pos; ++i) {
+    const int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
+        : pattern[i]);
     print_throw(buffer, throwval);
-
-    unsigned long tempstate = (graph.state[current] / 2)
-        | (1L << (throwval - 1));
-    bool errorflag = true;
-    for (int i = 1; i <= graph.numstates; ++i) {
-      if (graph.state[i] == tempstate) {
-        current = i;
-        errorflag = false;
-        break;
-      }
-    }
-    assert(!errorflag);
-
-    // find how many shift throws in the next block
-    shifts = 0;
-    while (index <= pos && (pattern[index] == 0 || pattern[index] == graph.h)) {
-      ++index;
-      ++shifts;
-    }
-    shiftthrows = graph.cycleperiod[graph.cyclenum[current]] - shifts - 2;
-  } while (index <= pos);
-
-  // correct for any shift throws at the end, which are part of the first
-  // shift cycle
-  endshiftthrows -= shifts;
-
-  // finish printing shift throws in first shift cycle
-  while (endshiftthrows--) {
-    print_throw(buffer, (graph.state[current] & 1) ? graph.h : 0);
-    current = graph.cyclepartner[current][
-        graph.cycleperiod[graph.cyclenum[current]] - 2];
   }
+
+  return buffer.str();
 }
 
-// As above, but when we're using the dual version of the juggling graph.
+// Return the inverse of the current pattern as a string. If the pattern has
+// no inverse, return an empty string.
 
-void Worker::print_inverse_dual(std::ostringstream& buffer) const {
-  // inverse was found in dual space, so we have to transform as we read it
-  // first decide on a starting state
-  // dual state to avoid on first shift cycle:
-  int avoid = graph.reverse_state(start_state);
+std::string Worker::get_inverse() const {
+  std::ostringstream buffer;
+  std::vector<int> patternstate(graph.numstates + 1);
+  std::vector<bool> stateused(graph.numstates + 1, false);
+  std::vector<bool> cycleused(graph.numstates + 1, false);
 
-  // how many adjacent states to avoid also?
-  int shifts = 0;
-  int index = pos;
-  while (index >= 0 && (pattern[index] == 0 || pattern[index] == graph.h)) {
-    --index;
-    ++shifts;
-  }
+  // step 1. build a vector of state numbers traversed by the pattern, and
+  // determine if an inverse exists.
+  //
+  // a pattern has an inverse if and only if:
+  // - it visits more than one shift cycle on the state graph, and
+  // - it never revisits a shift cycle, and
+  // - it never does a link throw (0 < t < h) within a single cycle
 
-  if (index < 0) {
-    buffer << "no inverse";
-    return;
-  }
+  int state_current = start_state;
+  int cycle_current = graph.cyclenum[start_state];
+  bool cycle_multi = false;
 
-  int start = graph.numstates;
-  int temp = 0;
-  for (int i = 0; i <= graph.cycleperiod[graph.cyclenum[avoid]] - shifts - 2;
-      ++i) {
-    if (graph.cyclepartner[avoid][i] < start) {
-      start = graph.cyclepartner[avoid][i];
-      temp = i;
-    }
-  }
-  if (start == graph.numstates) {
-    buffer << "no inverse";
-    return;
-  }
+  for (int i = 0; i <= pos; ++i) {
+    patternstate[i] = state_current;
+    stateused[state_current] = true;
 
-  // number of shift throws printed at beginning
-  int shiftthrows = graph.cycleperiod[graph.cyclenum[start]] - shifts - 2
-      - temp;
-  int endshiftthrows = temp;
-  int current = start;
-
-  do {
-    // first print shift throws
-    while (shiftthrows--) {
-      print_throw(buffer, (graph.state[current] & (1L << (graph.h - 1))) ? 0
-          : graph.h);
-      current = graph.cyclepartner[current][0];
-    }
-
-    // print the link throw
-    temp = pattern[index--];
-    print_throw(buffer, temp);
-
-    unsigned long tempstate = (graph.state[current] * 2 + 1)
-        ^ (1L << (graph.h - temp));
-    bool errorflag = true;
-    for (int i = 1; i <= graph.numstates; ++i) {
-      if (graph.state[i] == tempstate) {
-        current = i;
-        errorflag = false;
+    int state_next = -1;
+    for (int col = 0; col < graph.outdegree[state_current]; ++col) {
+      if (graph.outthrowval[state_current][col] == pattern[i]) {
+        state_next = graph.outmatrix[state_current][col];
         break;
       }
     }
-    assert(!errorflag);
+    assert(state_next > 0);
 
-    // how many shift throws in the next block
-    shifts = 0;
-    while (index >= 0 && (pattern[index] == 0 || pattern[index] == graph.h)) {
-      --index;
-      ++shifts;
+    // check if we're moving to a different shift cycle; mark a cycle as used
+    // when we transition off it
+    const int cycle_next = graph.cyclenum[state_next];
+
+    if (cycle_next != cycle_current) {
+      cycle_multi = true;
+      if (cycleused[cycle_current]) {
+        // revisited cycle number `cycle_current` --> no inverse
+        return buffer.str();
+      }
+      cycleused[cycle_current] = true;
+    } else if (pattern[i] != 0 && pattern[i] != graph.h) {
+      // link throw within a single cycle --> no inverse
+      return buffer.str();
     }
-    shiftthrows = graph.cycleperiod[graph.cyclenum[current]] - shifts - 2;
-  } while (index >= 0);
 
-  // correct for any shift throws at the end, which are part of the first
-  // shift cycle
-  endshiftthrows -= shifts;
-
-  // finish printing shift throws in first shift cycle
-  while (endshiftthrows--) {
-    print_throw(buffer, (graph.state[current] & (1L << (graph.h - 1))) ? 0
-        : graph.h);
-    current = graph.cyclepartner[current][0];
+    state_current = state_next;
+    cycle_current = cycle_next;
   }
+  patternstate[pos + 1] = start_state;
+
+  if (!cycle_multi) {
+    // never left starting shift cycle --> no inverse
+    return buffer.str();
+  }
+
+  // step 2. Find the inverse pattern
+  //
+  // iterate through the link throws in the pattern to build up a list of
+  // states and throws for the inverse
+
+  std::vector<int> inversepattern(graph.numstates + 1);
+  std::vector<int> inversestate(graph.numstates + 1);
+  int inverse_start_state = -1;
+  int inverse_pos = -1;
+
+  for (int i = 0; i <= pos; ++i) {
+    if (graph.cyclenum[patternstate[i]] == graph.cyclenum[patternstate[i + 1]])
+      continue;
+
+    if (inverse_start_state == -1) {
+      // the inverse pattern starts at the (reversed version of) the next state
+      // 'downstream' from `patternstate[i]`
+      inverse_start_state = inversestate[0] =
+          graph.reverse_state(graph.downstream_state(patternstate[i]));
+    }
+
+    ++inverse_pos;
+    const int inversethrow = graph.h - pattern[i];
+    inversepattern[inverse_pos] = inversethrow;
+    inversestate[inverse_pos + 1] =
+        graph.advance_state(inversestate[inverse_pos], inversethrow);
+
+    if (inversestate[inverse_pos + 1] < 0) {
+      std::cerr << "bad state advance: going from state "
+                << inversestate[inverse_pos] << std::endl;
+      std::cerr << "   (" << graph.state_string(inversestate[inverse_pos])
+                << ")" << std::endl;
+      std::cerr << "   using throw " << inversethrow << std::endl;
+      std::cerr << "----------------" << std::endl;
+      std::cerr << "orig. pattern = " << get_pattern() << std::endl;
+      for (int j = 0; j <= pos; ++j) {
+        std::cerr << graph.state_string(patternstate[j]) << "   "
+                 << pattern[j] << std::endl;
+      }
+      std::cerr << "   orig. pattern position = " << i << std::endl;
+      std::cerr << "----------------" << std::endl;
+      std::cerr << "inverse pattern: " << std::endl;
+      for (int j = 0; j <= inverse_pos; ++j) {
+        std::cerr << graph.state_string(inversestate[j]) << "   "
+                 << inversepattern[j] << std::endl;
+      }
+      std::exit(EXIT_FAILURE);
+    }
+    assert(inversestate[inverse_pos + 1] > 0);
+
+    // the inverse pattern advances along the shift cycle until it gets
+    // to a state that is used by the original pattern
+
+    while (true) {
+      int trial_state = graph.downstream_state(inversestate[inverse_pos + 1]);
+
+      if (stateused[graph.reverse_state(trial_state)])
+        break;
+      else {
+        ++inverse_pos;
+        inversepattern[inverse_pos] =
+            (graph.state[trial_state] & graph.highestbit) ? graph.h : 0;
+        inversestate[inverse_pos + 1] = trial_state;
+      }
+    }
+
+    if (inversestate[inverse_pos + 1] == inverse_start_state)
+      break;
+  }
+  assert(inverse_pos > 0);
+  assert(inverse_start_state > 0);
+  assert(inversestate[inverse_pos + 1] == inverse_start_state);
+
+  // step 3. Output the inverse pattern
+  //
+  // By convention we output all patterns starting with the smallest state.
+
+  int min_state = inversestate[0];
+  int min_index = 0;
+  for (int i = 1; i <= inverse_pos; ++i) {
+    if (inversestate[i] < min_state) {
+      min_state = inversestate[i];
+      min_index = i;
+    }
+  }
+  if (config.dualflag)
+    min_index = inverse_pos - min_index + 1;
+
+  for (int i = 0; i <= inverse_pos; ++i) {
+    int j = (i + min_index) % (inverse_pos + 1);
+    int throwval = (config.dualflag ?
+        (graph.h - inversepattern[inverse_pos - j]) : inversepattern[j]);
+    print_throw(buffer, throwval);
+  }
+
+  return buffer.str();
 }

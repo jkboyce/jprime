@@ -26,7 +26,8 @@
 //           found in -super mode.
 // 09/17/23  Version 6.0 implements parallel depth first search in C++, to run
 //           faster on modern multicore machines.
-//
+// 10/02/23  Version 6.1 enables -inverse option for all modes.
+
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
@@ -40,7 +41,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.0 (2023.09.17)\n"
+    "jprime version 6.1 (2023.10.02)\n"
     "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -64,11 +65,11 @@ void print_help() {
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
     "                     exclude listed throws (speeds search)\n"
-    "   -full             print all patterns; otherwise only patterns as long\n"
+    "   -all              print all patterns; otherwise only patterns as long\n"
     "                        currently-longest one found are printed\n"
     "   -noplus           print without using +, - for h and 0 respectively\n"
     "   -exact            print all patterns of the exact length specified\n"
-    "   -inverse          print inverse pattern also, in -super mode\n"
+    "   -inverse          print inverse pattern, if it exists\n"
     "   -noprint          suppress printing of patterns\n"
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -verbose          print worker status information\n"
@@ -83,7 +84,7 @@ void print_help() {
     "Examples:\n"
     "   jprime 4 7\n"
     "   jprime 5 7 15 -noplus -exact\n"
-    "   jprime 5 7 -noplus -full -file 5_7_full\n"
+    "   jprime 5 7 -noplus -all -file 5_7_all\n"
     "   jprime 6 10 -super 0 -g -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
@@ -133,7 +134,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-ng")) {
       if (config != nullptr)
         config->groundmode = 2;
-    } else if (!strcmp(argv[i], "-full")) {
+    } else if (!strcmp(argv[i], "-all")) {
       if (config != nullptr) {
         fullflag = true;
         config->longestflag = false;
@@ -247,13 +248,8 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   }
 
   // consistency checks
-  if (config != nullptr && config->invertflag
-        && config->mode != RunMode::SUPER_SEARCH) {
-    std::cerr << "-inverse flag can only be used in -super mode" << std::endl;
-    std::exit(EXIT_FAILURE);
-  }
   if (config != nullptr && fullflag && config->exactflag) {
-    std::cerr << "-full and -exact flags cannot be used together" << std::endl;
+    std::cerr << "-all and -exact flags cannot be used together" << std::endl;
     std::exit(EXIT_FAILURE);
   }
 }
@@ -287,7 +283,7 @@ void save_context(const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.0" << std::endl
+  myfile << "version           6.1" << std::endl
          << "command line      " << context.arglist << std::endl
          << "length            " << context.l_current << std::endl
          << "length limit      " << context.maxlength << std::endl
@@ -398,12 +394,12 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 1";
           break;
         }
-        val = s.substr(column_start, s.size());
+        /*val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.0") {
-          error = "file version is not 6.0";
+        if (val != "6.1") {
+          error = "file version is not 6.1";
           break;
-        }
+        }*/
         break;
       case 1:
         if (s.rfind("command", 0) != 0) {

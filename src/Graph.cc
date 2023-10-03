@@ -195,12 +195,8 @@ void Graph::find_shift_cycles() {
       else
         statebits <<= 1;
 
-      int k = 1;
-      for (; k <= numstates; ++k) {
-        if (state[k] == statebits)
-          break;
-      }
-      assert(k <= numstates);
+      int k = get_statenum(statebits);
+      assert(k > 0);
 
       cyclepartner[i][j] = k;
       if (k == i && !periodfound) {
@@ -349,29 +345,83 @@ void Graph::gen_matrices() {
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Find the reverse of a given state, where both the input and output are
+// Return the index in the `state` array that corresponds to a given state
+// (represented as a bit pattern). Returns -1 if not found.
+
+int Graph::get_statenum(unsigned long st) const {
+  for (int i = 1; i <= numstates; ++i) {
+    if (state[i] == st)
+      return i;
+  }
+  return -1;
+}
+
+// Return the state number that comes from advancing a given state by a single
+// throw. Returns -1 if the throw results in a collision.
+
+int Graph::advance_state(int statenum, int throwval) const {
+  if ((state[statenum] & 1L) != 0 && throwval == 0)
+    return -1;
+  if ((state[statenum] & 1L) == 0 && throwval != 0)
+    return -1;
+
+  unsigned long new_state = state[statenum] >> 1;
+  if (throwval > 0) {
+    unsigned long mask = 1L << (throwval - 1);
+    if (new_state & mask)
+      return -1;
+    new_state |= mask;
+  }
+
+  return get_statenum(new_state);
+}
+
+// Return the reverse of a given state, where both the input and output are
 // referenced to the state number (i.e., index in the state[] array).
 //
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
 int Graph::reverse_state(int statenum) const {
-  unsigned long temp = 0;
+  if (statenum <= 0 || statenum > numstates)
+    std::cerr << "bad statenum: " << statenum << std::endl;
+  assert(statenum > 0 && statenum <= numstates);
+
+  unsigned long new_state = 0;
   unsigned long mask1 = 1L;
-  unsigned long mask2 = 1L << (h - 1);
+  unsigned long mask2 = highestbit;
 
   while (mask2) {
-    assert(statenum >= 0 && statenum < numstates);
     if (state[statenum] & mask2)
-      temp |= mask1;
+      new_state |= mask1;
     mask1 <<= 1;
     mask2 >>= 1;
   }
 
-  for (int i = 1; i <= numstates; ++i) {
-    if (state[i] == temp)
-      return i;
+  return get_statenum(new_state);
+}
+
+// Return the next state downstream in the given state's shift cycle
+
+int Graph::downstream_state(int statenum) const {
+  unsigned long new_state = state[statenum] >> 1;
+
+  if (state[statenum] & 1L)
+    new_state |= highestbit;
+
+  return get_statenum(new_state);
+}
+
+// Return the next state upstream in the given state's shift cycle
+
+int Graph::upstream_state(int statenum) const {
+  unsigned long new_state = state[statenum] << 1;
+
+  if (new_state > allbits) {
+    new_state ^= allbits;
+    new_state |= 1L;
   }
-  assert(false);
+
+  return get_statenum(new_state);
 }
 
 // Return a text representation of a given state number

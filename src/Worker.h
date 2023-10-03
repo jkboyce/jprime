@@ -113,8 +113,8 @@ class Worker {
   void handle_finished_pattern();
   void report_pattern() const;
   void print_throw(std::ostringstream& buffer, int val) const;
-  void print_inverse(std::ostringstream& buffer) const;
-  void print_inverse_dual(std::ostringstream& buffer) const;
+  std::string get_pattern() const;
+  std::string get_inverse() const;
 };
 
 class JprimeStopException : public std::exception {

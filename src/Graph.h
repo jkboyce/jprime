@@ -54,7 +54,11 @@ class Graph {
   void gen_matrices();
 
  public:
+  int get_statenum(unsigned long st) const;
+  int advance_state(int sstatenum, int throwval) const;
   int reverse_state(int statenum) const;
+  int downstream_state(int statenum) const;
+  int upstream_state(int statenum) const;
   std::string state_string(int statenum) const;
 };
 
