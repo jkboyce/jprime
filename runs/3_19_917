@@ -1,8 +1,10 @@
-version           6.0
+version           6.1
 command line      jprime 3 19 917 -g -file 3_19_917
 length            917
 length limit      918
 states            969
+shift cycles      51
+short cycles      0
 patterns          4
 patterns (seen)   1754192726
 nodes visited     39250903459

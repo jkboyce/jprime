@@ -1,8 +1,10 @@
-version           6.0
+version           6.1
 command line      jprime 5 13 -super 0 -g -file 5_13_s0 -threads 5 -verbose -steal_alg 3
 length            98
 length limit      99
 states            1287
+shift cycles      99
+short cycles      0
 patterns          2
 patterns (seen)   2193916425851
 nodes visited     37383442022595

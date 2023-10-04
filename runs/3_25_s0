@@ -1,8 +1,10 @@
-version           6.0
+version           6.1
 command line      jprime 3 25 -super 0 -g -file 3_25_s0 -threads 5
 length            90
 length limit      92
 states            2300
+shift cycles      92
+short cycles      0
 patterns          20
 patterns (seen)   230119234235
 nodes visited     544243187664

@@ -26,7 +26,7 @@
 //           found in -super mode.
 // 09/17/23  Version 6.0 implements parallel depth first search in C++, to run
 //           faster on modern multicore machines.
-// 10/02/23  Version 6.1 enables -inverse option for all modes.
+// 10/03/23  Version 6.1 enables -inverse option for all modes.
 
 
 #include "SearchConfig.h"
@@ -44,7 +44,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.1 (2023.10.02)\n"
+    "jprime version 6.1 (2023.10.03)\n"
     "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -291,6 +291,8 @@ void save_context(const SearchContext& context) {
          << "length            " << context.l_current << std::endl
          << "length limit      " << context.maxlength << std::endl
          << "states            " << context.numstates << std::endl
+         << "shift cycles      " << context.numcycles << std::endl
+         << "short cycles      " << context.numshortcycles << std::endl
          << "patterns          " << context.npatterns << std::endl
          << "patterns (seen)   " << context.ntotal << std::endl
          << "nodes visited     " << context.nnodes << std::endl
@@ -397,12 +399,12 @@ bool load_context(std::string file, SearchContext& context) {
           error = "syntax in line 1";
           break;
         }
-        /*val = s.substr(column_start, s.size());
+        val = s.substr(column_start, s.size());
         trim(val);
         if (val != "6.1") {
           error = "file version is not 6.1";
           break;
-        }*/
+        }
         break;
       case 1:
         if (s.rfind("command", 0) != 0) {
@@ -441,52 +443,52 @@ bool load_context(std::string file, SearchContext& context) {
         context.numstates = std::stoi(val);
         break;
       case 5:
-        if (s.rfind("patterns", 0) != 0) {
+        if (s.rfind("shift cycles", 0) != 0) {
           error = "syntax in line 6";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.numcycles = std::stoi(val);
+        break;
+      case 6:
+        if (s.rfind("short cycles", 0) != 0) {
+          error = "syntax in line 7";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.numshortcycles = std::stoi(val);
+        break;
+      case 7:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 8";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.npatterns = std::stol(val);
         break;
-      case 6:
+      case 8:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 7";
+          error = "syntax in line 9";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.ntotal = std::stol(val);
         break;
-      case 7:
+      case 9:
         if (s.rfind("nodes", 0) != 0) {
-          error = "syntax in line 8";
+          error = "syntax in line 10";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.nnodes = std::stol(val);
         break;
-      case 8:
-      case 9:
-        break;
       case 10:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 11";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.secs_elapsed = std::stod(val);
-        break;
       case 11:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 12";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.secs_working = std::stod(val);
         break;
       case 12:
         if (s.rfind("seconds", 0) != 0) {
@@ -495,13 +497,31 @@ bool load_context(std::string file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.secs_available = std::stod(val);
+        context.secs_elapsed = std::stod(val);
         break;
       case 13:
+        if (s.rfind("seconds", 0) != 0) {
+          error = "syntax in line 14";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.secs_working = std::stod(val);
         break;
       case 14:
-        if (s.rfind("patterns", 0) != 0) {
+        if (s.rfind("seconds", 0) != 0) {
           error = "syntax in line 15";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.secs_available = std::stod(val);
+        break;
+      case 15:
+        break;
+      case 16:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 17";
           break;
         }
         break;
@@ -527,7 +547,7 @@ bool load_context(std::string file, SearchContext& context) {
         myfile.close();
         return false;
       }
-    } else if (linenum > 14) {
+    } else if (linenum > 16) {
       if (s.rfind("work", 0) == 0) {
         reading_assignments = true;
       } else if (val.size() > 0) {
