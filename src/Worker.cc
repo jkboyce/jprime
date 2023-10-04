@@ -220,6 +220,8 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   msg.ntotal = ntotal;
   msg.nnodes = nnodes;
   msg.numstates = graph.numstates;
+  msg.numcycles = graph.numcycles;
+  msg.numshortcycles = graph.numshortcycles;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
@@ -301,6 +303,8 @@ void Worker::notify_coordinator_idle() {
   msg.ntotal = ntotal;
   msg.nnodes = nnodes;
   msg.numstates = graph.numstates;
+  msg.numcycles = graph.numcycles;
+  msg.numshortcycles = graph.numshortcycles;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
@@ -1021,32 +1025,24 @@ std::string Worker::get_inverse() const {
 
   int state_current = start_state;
   int cycle_current = graph.cyclenum[start_state];
-  bool cycle_multi = false;
+  bool cycle_multiple = false;
 
   for (int i = 0; i <= pos; ++i) {
     patternstate[i] = state_current;
     stateused[state_current] = true;
 
-    int state_next = -1;
-    for (int col = 0; col < graph.outdegree[state_current]; ++col) {
-      if (graph.outthrowval[state_current][col] == pattern[i]) {
-        state_next = graph.outmatrix[state_current][col];
-        break;
-      }
-    }
+    const int state_next = graph.advance_state(state_current, pattern[i]);
     assert(state_next > 0);
-
-    // check if we're moving to a different shift cycle; mark a cycle as used
-    // when we transition off it
     const int cycle_next = graph.cyclenum[state_next];
 
     if (cycle_next != cycle_current) {
-      cycle_multi = true;
+      // mark a shift cycle as used only when we transition off it
       if (cycleused[cycle_current]) {
         // revisited cycle number `cycle_current` --> no inverse
         return buffer.str();
       }
       cycleused[cycle_current] = true;
+      cycle_multiple = true;
     } else if (pattern[i] != 0 && pattern[i] != graph.h) {
       // link throw within a single cycle --> no inverse
       return buffer.str();
@@ -1057,7 +1053,7 @@ std::string Worker::get_inverse() const {
   }
   patternstate[pos + 1] = start_state;
 
-  if (!cycle_multi) {
+  if (!cycle_multiple) {
     // never left starting shift cycle --> no inverse
     return buffer.str();
   }

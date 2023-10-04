@@ -63,6 +63,8 @@ struct MessageW2C {
   unsigned long ntotal = 0L;
   unsigned long nnodes = 0L;
   int numstates = 0;
+  int numcycles = 0;
+  int numshortcycles = 0;
   int maxlength = 0;
   double secs_working = 0;
 

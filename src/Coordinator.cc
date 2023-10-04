@@ -192,6 +192,8 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   context.ntotal += msg.ntotal;
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
+  context.numcycles = msg.numcycles;
+  context.numshortcycles = msg.numshortcycles;
   context.maxlength = msg.maxlength;
   context.secs_working += msg.secs_working;
   worker_rootpos[msg.worker_id] = 0;
@@ -220,6 +222,8 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   context.ntotal += msg.ntotal;
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
+  context.numcycles = msg.numcycles;
+  context.numshortcycles = msg.numshortcycles;
   context.maxlength = msg.maxlength;
   context.secs_working += msg.secs_working;
 
@@ -410,6 +414,10 @@ void Coordinator::print_summary() const {
   std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
             << ", max throw: " << config.h << std::endl;
 
+  std::cout << "graph: " << context.numstates << " states, "
+            << context.numcycles << " shift cycles, "
+            << context.numshortcycles << " short cycles" << std::endl;
+
   switch (config.mode) {
     case RunMode::BLOCK_SEARCH:
       std::cout << "block mode, " << config.skiplimit << " skips allowed"
@@ -427,12 +435,12 @@ void Coordinator::print_summary() const {
 
   if (config.longestflag) {
     std::cout << "pattern length: " << context.l_current
-              << " throws (" << context.maxlength << " maximum, "
-              << context.numstates << " states)" << std::endl;
+              << " throws (" << context.maxlength << " maximum)" << std::endl;
   }
 
-  std::cout << context.npatterns << " patterns found (" << context.ntotal
-            << " seen, " << context.nnodes << " nodes, "
+  std::cout << context.npatterns << " patterns found ("
+            << context.ntotal << " seen, "
+            << context.nnodes << " nodes, "
             << std::fixed << std::setprecision(2)
             << (static_cast<double>(context.nnodes) / context.secs_elapsed /
                 1000000)

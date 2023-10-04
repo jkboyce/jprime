@@ -32,6 +32,12 @@ struct SearchContext {
   // number of states in the juggling graph (does not change)
   int numstates = 0;
 
+  // number of shift cycles in the juggling graph
+  int numcycles = 0;
+
+  // number of short (length < h) shift cycles
+  int numshortcycles = 0;
+
   // maximum length possible for a prime pattern of the type we're searching
   // (does not change)
   int maxlength = 0;

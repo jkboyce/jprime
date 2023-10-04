@@ -210,6 +210,8 @@ void Graph::find_shift_cycles() {
       for (int j = 0; j < h; j++)
         cyclenum[cyclepartner[i][j]] = cycleindex;
       cycleperiod[cycleindex++] = cycleper;
+      if (cycleper < h)
+        ++numshortcycles;
     }
   }
   numcycles = cycleindex;

@@ -37,6 +37,7 @@ class Graph {
   int* indegree;
   int maxindegree = 0;
   int numcycles = 0;
+  int numshortcycles = 0;
   int* cyclenum;
   int* cycleperiod;
   int** cyclepartner;
