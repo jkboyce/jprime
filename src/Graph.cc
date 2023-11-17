@@ -25,6 +25,24 @@ Graph::Graph(int n, int h)
   init();
 }
 
+Graph::Graph(const Graph& g)
+    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle) {
+}
+
+Graph& Graph::operator=(const Graph& g) {
+  if (this == &g)
+    return *this;
+
+  delete_arrays();
+  n = g.n;
+  h = g.h;
+  xarray = g.xarray;
+  linkthrows_within_cycle = g.linkthrows_within_cycle;
+  init();
+
+  return *this;
+}
+
 Graph::~Graph() {
   delete_arrays();
 }

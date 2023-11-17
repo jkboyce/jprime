@@ -19,14 +19,18 @@ class Graph {
  public:
   Graph(int n, int h, const std::vector<bool>& xa, bool ltwc);
   Graph(int n, int h);
+  Graph(const Graph& g);
+  Graph(Graph&&) =delete;
+  Graph& operator=(const Graph& g);
+  Graph& operator=(Graph&&) =delete;
   ~Graph();
 
  public:
   // calculated at construction and do not change
-  const int n;
-  const int h;
-  const std::vector<bool> xarray;
-  const bool linkthrows_within_cycle;
+  int n;
+  int h;
+  std::vector<bool> xarray;
+  bool linkthrows_within_cycle;
   int numstates = 0;
   unsigned long* state;
   int** outmatrix;
