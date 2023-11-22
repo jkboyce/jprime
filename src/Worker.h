@@ -34,7 +34,7 @@ class Worker {
  private:
   // set during construction and do not change
   const SearchConfig config;
-  Coordinator* const coordinator;
+  Coordinator& coordinator;
   const int worker_id;
   const Graph graph;
   int maxlength = 0;
@@ -75,7 +75,7 @@ class Worker {
   timespec last_ts;
 
  public:
-  Worker(const SearchConfig& config, Coordinator* const coord, int id);
+  Worker(const SearchConfig& config, Coordinator& coord, int id);
   Worker(const Worker&) =delete;
   Worker(Worker&&) =delete;
   Worker& operator=(const Worker&) =delete;

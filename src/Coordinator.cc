@@ -45,7 +45,7 @@ void Coordinator::run() {
 
   // start worker threads
   for (int id = 0; id < context.num_threads; ++id) {
-    worker[id] = new Worker(config, this, id);
+    worker[id] = new Worker(config, *this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
     workers_idle.push_back(id);
     worker_rootpos[id] = 0;

@@ -26,7 +26,7 @@
 #include <ctime>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator* const coord, int id)
+Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
     : config(config),
       coordinator(coord),
       worker_id(id),
@@ -143,9 +143,9 @@ void Worker::run() {
 //------------------------------------------------------------------------------
 
 void Worker::message_coordinator(const MessageW2C& msg) const {
-  coordinator->inbox_lock.lock();
-  coordinator->inbox.push(msg);
-  coordinator->inbox_lock.unlock();
+  coordinator.inbox_lock.lock();
+  coordinator.inbox.push(msg);
+  coordinator.inbox_lock.unlock();
 }
 
 // Handle incoming messages from the coordinator that have queued while the

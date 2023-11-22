@@ -375,7 +375,7 @@ static inline void trim(std::string& s) {
 
 // return true on success
 
-bool load_context(std::string file, SearchContext& context) {
+bool load_context(const std::string& file, SearchContext& context) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
   if (!myfile || !myfile.is_open()) {
