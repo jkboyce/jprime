@@ -9,7 +9,10 @@ Because the graph for $N$ objects and maximum throw $H$ is of finite size ($H$ c
 
 # Results
 
-| $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns                        |
-|     |     |        |             |     | {complete, incomplete}          |
+| $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns {complete, incomplete} |
 | --- | --- | ------ | ----------- | --- | ------------------------------- |
 |  3  |  6  |  20    |    16       |  15 |     {6, 0}                      |
+
+# Technical details
+
+(Info about parallel DFS goes here.)
