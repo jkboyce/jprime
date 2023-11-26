@@ -40,7 +40,12 @@ Because the graph for $N$ objects and maximum throw $H$ is of finite size equal 
 |  3  |  19  |  969    |    918       |  917 |     {0, 4}                      |
 |  3  |  20  |  1140    |    1083       |  1082 |     {92, 4}                      |
 |  3  |  21  |  1330    |    1266       |  1266 |     1                      |
-|  3  |  22  |  1540    |    1470       |  1469 |     {>= 4, ?}                      |
+|  3  |  22  |  1540    |    1470       |  1469 |     {[18](https://github.com/jkboyce/jprime/blob/main/runs/3_22_s1), ?} |
+|  3  |  23  |  1771    |    1694       |  1693 |     {[56](https://github.com/jkboyce/jprime/blob/main/runs/3_23_s1), ?} |
+|  3  |  24  |  2024    |    1939       |  1938 |     {[44](https://github.com/jkboyce/jprime/blob/main/runs/3_24_s1), ?} |
+|  3  |  25  |  2300    |    2208       |  < 2208 |   {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1), ?} |
+|  3  |  26  |  2600    |    2500       |  2499 |     {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1), ?} |
+|  3  |  27  |  2925    |    2816       |  2816 |     [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0) |
 | --- | --- | ------ | ----------- | --- | ------------------------------- |
 |  4  |  5  |  5    |    5       |  5 |     1                      |
 |  4  |  6  |  15    |    12       |  12 |     1                      |
