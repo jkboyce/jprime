@@ -1,0 +1,23 @@
+version           6.1
+command line      jprime 3 6 15 -inverse -file 3_6_15
+length            15
+length limit      16
+states            20
+shift cycles      4
+short cycles      1
+patterns          6
+patterns (seen)   55
+nodes visited     206
+threads           1
+hardware threads  12
+seconds elapsed   0.0003
+seconds working   0.0001
+seconds avail     0.0003
+
+patterns
+  +35-+-+2-++-5--   : +3141
+  ++1+--55-+-+4--   : 5+112
+  ++1+--+4-+-+13-   : 5253-
+  ++1+--+4-+-+4--   : 522
+  ++2-+-+11++-5--   : 455-1
+  ++2-+-+2-++-5--   : 441
