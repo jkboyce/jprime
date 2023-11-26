@@ -9,6 +9,6 @@ Because the graph for $N$ objects and maximum throw $H$ is of finite size ($H$ c
 
 # Results
 
-| $N$ | $H$ | $L$ | $L_max$ | States | # patterns {complete, incomplete} |
+| $N$ | $H$ | $L$ | $L_{max}$ | $States$ | $Patterns$ {complete, incomplete} |
 | --- | --- | --- | ------- | ------ | --------------------------------- |
 |  3  |  6  |  15 |      16 |     20 |   {6, 0}                          |
