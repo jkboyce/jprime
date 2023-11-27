@@ -59,7 +59,7 @@ Table notes:
 |  4  |  5  |  5  |  5  |  5  |  1  |
 |  4  |  6  |  15  |  12  |  12  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/4_6_12)  |
 |  4  |  7  |  35  |  30  |  30  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/4_7_30)  |
-|  4  |  8  |  70  |  60  |  58  |  {26, 18} ??? |
+|  4  |  8  |  70  |  60  |  58  |  [{28, 16}](https://github.com/jkboyce/jprime/blob/main/runs/4_8_58)  |
 |  4  |  9  |  126  |  112  |  112  |  [5](https://github.com/jkboyce/jprime/blob/main/runs/4_9_112)  |
 |  4  |  10  |  210  |  188  |  188  |  [9](https://github.com/jkboyce/jprime/blob/main/runs/4_10_188)  |
 |  4  |  11  |  330  |  300  |  300  |  [144](https://github.com/jkboyce/jprime/blob/main/runs/4_11_300)  |
