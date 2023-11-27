@@ -9,12 +9,12 @@ Because the graph for $N$ objects and maximum throw $H$ is of finite size equal 
 
 # Results
 
-The table below summarizes everything known about the longest prime siteswap patterns.
+The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the upper bound on the length of a prime pattern, as discussed in the 1999 paper.
 
 Table notes:
 - When $L < L_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the paper linked above; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern has a superprime inverse, and vice versa.) When there are no complete patterns, the count is listed as "{Type I patterns, Type II patterns}" where Type I patterns are those having an inverse.
 - There is an isomorphism between the juggling graphs for $(N, H)$ and $(H-N, H)$. So for example $(5,11)$ and $(6,11)$ have identical results. The *duality transform* maps a siteswap in $(N,H)$ to its equivalent in $(H-N,H)$: You reverse the throws and subtract each from $H$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$.
-- The table for $N=2$ is truncated for brevity. The observed pattern appears to continue.
+- The table for $N=2$ is truncated; the observed pattern appears to continue.
 
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 | --- | --- | ------ | ------ | ------ | -------- |
@@ -68,35 +68,35 @@ Table notes:
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  5  |  6  |  6  |  6  |  6  |  1  |
-|  5  |  7  |  21  |  18  |  18  |  1  |
-|  5  |  8  |  56  |  49  |  49  |  3  |
-|  5  |  9  |  126  |  112  |  112  |  5  |
-|  5  |  10  |  252  |  226  |  225  |  {752, 86}  |
+|  5  |  7  |  21  |  18  |  18  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/5_7_18)  |
+|  5  |  8  |  56  |  49  |  49  |  [3](https://github.com/jkboyce/jprime/blob/main/runs/5_8_49)  |
+|  5  |  9  |  126  |  112  |  112  |  [5](https://github.com/jkboyce/jprime/blob/main/runs/5_9_112)  |
+|  5  |  10  |  252  |  226  |  225  |  [{752, 86}](https://github.com/jkboyce/jprime/blob/main/runs/5_10_225)  |
 |  5  |  11  |  462  |  420  |  420  |  [59346](https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  6  |  7  |  7  |  7  |  7  |  1  |
-|  6  |  8  |  28  |  24  |  24  |  1  |
-|  6  |  9  |  84  |  74  |  74  |  1  |
-|  6  |  10  |  210  |  188  |  188  |  9  |
+|  6  |  8  |  28  |  24  |  24  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/6_8_24)  |
+|  6  |  9  |  84  |  74  |  74  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/6_9_74)  |
+|  6  |  10  |  210  |  188  |  188  |  [9](https://github.com/jkboyce/jprime/blob/main/runs/6_10_s0)  |
 |  6  |  11  |  462  |  420  |  420  |  [59346](https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  7  |  8  |  8  |  8  |  8  |  1  |
-|  7  |  9  |  36  |  32  |  32  |  1  |
-|  7  |  10  |  120  |  108  |  108  |  1  |
-|  7  |  11  |  330  |  300  |  300  |  144  |
+|  7  |  9  |  36  |  32  |  32  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/7_9_32)  |
+|  7  |  10  |  120  |  108  |  108  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/7_10_s0)  |
+|  7  |  11  |  330  |  300  |  300  |  [144](https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  8  |  9  |  9  |  9  |  9  |  1  |
-|  8  |  10  |  45  |  40  |  40  |  1  |
-|  8  |  11  |  165  |  150  |  149  |  {18, 0}  |
-|  8  |  12  |  495  |  452  |  452  |  45  |
+|  8  |  10  |  45  |  40  |  40  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/8_10_40)  |
+|  8  |  11  |  165  |  150  |  149  |  [{18, 0}](https://github.com/jkboyce/jprime/blob/main/runs/8_11_149)  |
+|  8  |  12  |  495  |  452  |  452  |  [45](https://github.com/jkboyce/jprime/blob/main/runs/8_12_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
-|  9  |  10  |  10  |  10  |  10  |  1  |
-|  9  |  11  |  55  |  50  |  50  |  1  |
-|  9  |  12  |  220  |  201  |  200  |  {28, 2}  |
+|  9  |  10  |  10  |  10  |  10  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/9_10_10)  |
+|  9  |  11  |  55  |  50  |  50  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/9_11_50)  |
+|  9  |  12  |  220  |  201  |  200  |  [{28, 2}](https://github.com/jkboyce/jprime/blob/main/runs/9_12_200)  |
 |  9  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0)  |
 
 # Technical details
