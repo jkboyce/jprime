@@ -1,0 +1,18 @@
+version           6.1
+command line      jprime 7 10 -super 0 -inverse -file 7_10_s0
+length            12
+length limit      12
+states            120
+shift cycles      12
+short cycles      0
+patterns          1
+patterns (seen)   174
+nodes visited     687
+threads           1
+hardware threads  12
+seconds elapsed   0.0007
+seconds working   0.0004
+seconds avail     0.0007
+
+patterns
+  996992949963   : ++++++1+--+++++1++--++++4-+++-+++1+-+++-++1++-+++-+8-++-++++1+-++-+++6-+-+++++1+-+-++++1++-+-+++4-++++-++7--

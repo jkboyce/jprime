@@ -1,0 +1,18 @@
+version           6.1
+command line      jprime 6 8 24 -file 6_8_24
+length            24
+length limit      24
+states            28
+shift cycles      4
+short cycles      1
+patterns          1
+patterns (seen)   20
+nodes visited     74
+threads           1
+hardware threads  12
+seconds elapsed   0.0003
+seconds working   0.0001
+seconds avail     0.0003
+
+patterns
+  +++++1+-++++1++-+++1++5-
