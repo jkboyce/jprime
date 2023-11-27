@@ -44,26 +44,26 @@ Table notes:
 |  3  |  15  |  455  |  424  |  424  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_15_s0)  |
 |  3  |  16  |  560  |  525  |  524  |  [{20, 10}](https://github.com/jkboyce/jprime/blob/main/runs/3_16_524)  |
 |  3  |  17  |  680  |  640  |  639  |  [{34, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_17_639)  |
-|  3  |  18  |  816  |  770  |  769  |  {50, 7}  |
-|  3  |  19  |  969  |  918  |  917  |  {0, 4}  |
-|  3  |  20  |  1140  |  1083  |  1082  |  {92, 4}  |
+|  3  |  18  |  816  |  770  |  769  |  [{50, 7}](https://github.com/jkboyce/jprime/blob/main/runs/3_18_769)  |
+|  3  |  19  |  969  |  918  |  917  |  [{0, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_19_917)  |
+|  3  |  20  |  1140  |  1083  |  1082  |  [{92, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_20_1082)  |
 |  3  |  21  |  1330  |  1266  |  1266  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_21_s0)  |
 |  3  |  22  |  1540  |  1470  |  1469  |  {[18](https://github.com/jkboyce/jprime/blob/main/runs/3_22_s1), ?}  |
 |  3  |  23  |  1771  |  1694  |  1693  |  {[56](https://github.com/jkboyce/jprime/blob/main/runs/3_23_s1), ?}  |
 |  3  |  24  |  2024  |  1939  |  1938  |  {[44](https://github.com/jkboyce/jprime/blob/main/runs/3_24_s1), ?}  |
-|  3  |  25  |  2300  |  2208  |  < 2208  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1), ?}  |
+|  3  |  25  |  2300  |  2208  |  [< 2208](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s0)  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1), ?}  |
 |  3  |  26  |  2600  |  2500  |  2499  |  {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1), ?}  |
 |  3  |  27  |  2925  |  2816  |  2816  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  4  |  5  |  5  |  5  |  5  |  1  |
-|  4  |  6  |  15  |  12  |  12  |  1  |
-|  4  |  7  |  35  |  30  |  30  |  1  |
-|  4  |  8  |  70  |  60  |  58  |  {26, 18}  |
-|  4  |  9  |  126  |  112  |  112  |  1  |
-|  4  |  10  |  210  |  188  |  188  |  9  |
-|  4  |  11  |  330  |  300  |  300  |  144  |
-|  4  |  12  |  495  |  452  |  452  |  45  |
+|  4  |  6  |  15  |  12  |  12  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/4_6_12)  |
+|  4  |  7  |  35  |  30  |  30  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/4_7_30)  |
+|  4  |  8  |  70  |  60  |  58  |  {26, 18} ??? |
+|  4  |  9  |  126  |  112  |  112  |  [5](https://github.com/jkboyce/jprime/blob/main/runs/4_9_112)  |
+|  4  |  10  |  210  |  188  |  188  |  [9](https://github.com/jkboyce/jprime/blob/main/runs/4_10_188)  |
+|  4  |  11  |  330  |  300  |  300  |  [144](https://github.com/jkboyce/jprime/blob/main/runs/4_11_300)  |
+|  4  |  12  |  495  |  452  |  452  |  [45](https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0)  |
 |  4  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
