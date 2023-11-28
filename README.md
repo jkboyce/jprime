@@ -1,19 +1,19 @@
 # jprime
 Parallel depth first search (DFS) to find extremely long prime siteswap juggling patterns.
 
-Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, circuits that visit each state in the pattern only once.
+Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
 
-Because the graph for $N$ objects and maximum throw $H$ is of finite size equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to include results discovered since then.
+Because the graph for $N$ objects and maximum throw $H$ is of finite size equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to correct inaccuracies and include more recent findings.
 
-`jprime` searches the juggling state graph to find patterns, and it exploits the structure of the graph to speed up the search. In addition the search is done in parallel over $T$ threads, using a work-stealing scheme to balance the work across threads.
+`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. In addition the search is done in parallel over $T$ threads using a work-stealing scheme to balance work across threads.
 
 # Results
 
-The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the upper bound on the length of a prime pattern, as discussed in the 1999 paper.
+The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the length of the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the theoretical upper bound on that length, as discussed in the 1999 paper.
 
 Table notes:
-- When $L < L_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the paper linked above; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern has a superprime inverse, and vice versa.) When there are no complete patterns, the count is listed as "{Type I patterns, Type II patterns}" where Type I patterns are those having an inverse.
-- There is an isomorphism between the juggling graphs for $(N, H)$ and $(H-N, H)$. So for example $(5,11)$ and $(6,11)$ have identical results. The *duality transform* maps a siteswap in $(N,H)$ to its equivalent in $(H-N,H)$: You reverse the throws and subtract each from $H$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$.
+- When $L < L_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern has a superprime inverse, and vice versa.) When there are no complete patterns, the count is listed as "{Type I patterns, Type II patterns}" where Type I patterns are those having an inverse.
+- There is an isomorphism between the juggling graphs for $(N, H)$ and $(H-N, H)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(N,H)$ to its equivalent in $(H-N,H)$: You reverse the throws and subtract each from $H$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
 - The table for $N=2$ is truncated; the observed pattern appears to continue.
 
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
@@ -24,10 +24,6 @@ Table notes:
 |  2  |  6  |  15  |  12  |  12  |  1  |
 |  2  |  7  |  21  |  18  |  18  |  1  |
 |  2  |  8  |  28  |  24  |  24  |  1  |
-|  2  |  9  |  36  |  32  |  32  |  1  |
-|  2  |  10  |  45  |  40  |  40  |  1  |
-|  2  |  11  |  55  |  50  |  50  |  1  |
-|  2  |  12  |  66  |  60  |  60  |  1  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  3  |  4  |  4  |  4  |  4  |  1  |
