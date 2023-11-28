@@ -48,7 +48,7 @@ Table notes:
 |  3  |  19  |  969  |  918  |  917  |  [{0, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_19_917)  |
 |  3  |  20  |  1140  |  1083  |  1082  |  [{92, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_20_1082)  |
 |  3  |  21  |  1330  |  1266  |  1266  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_21_s0)  |
-|  3  |  22  |  1540  |  1470  |  1469  |  {[18](https://github.com/jkboyce/jprime/blob/main/runs/3_22_s1), ?}  |
+|  3  |  22  |  1540  |  1470  |  1469  |  [{18, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_22_1469)  |
 |  3  |  23  |  1771  |  1694  |  1693  |  {[56](https://github.com/jkboyce/jprime/blob/main/runs/3_23_s1), ?}  |
 |  3  |  24  |  2024  |  1939  |  1938  |  {[44](https://github.com/jkboyce/jprime/blob/main/runs/3_24_s1), ?}  |
 |  3  |  25  |  2300  |  2208  |  [< 2208](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s0)  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1), ?}  |
