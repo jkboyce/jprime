@@ -502,6 +502,7 @@ void Worker::gen_patterns() {
     for (int i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
+      deadstates[i] = 0;
     }
     longest_found = 0;
     notify_coordinator_longest();
@@ -517,6 +518,10 @@ void Worker::gen_patterns() {
 
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
+        for (int s = 1; s < start_state; ++s)
+          mark_forbidden_state(s);
+        if (max_possible < l_current)
+          continue;
         gen_loops_normal();
         break;
       case RunMode::BLOCK_SEARCH:
@@ -856,12 +861,51 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
   return true;
 }
 
+// Mark a state as forbidden in the current search, and update `used`,
+// `deadstates`, and `max_possible` accordingly.
+//
+// This is called when `start_state` > 1 and we know at the outset that none
+// of the lower-numbered states can be visited.
+
+void Worker::mark_forbidden_state(int s) {
+  if (used[s])
+    return;
+
+  // 0. mark state as used
+  used[s] = 1;
+  const int cnum = graph.cyclenum[s];
+  if (deadstates[cnum]++ >= 1)
+    --max_possible;
+
+  // 1. kill states downstream in shift cycle that end in 'x'
+  int j = graph.h - 2;
+  unsigned long tempstate = graph.state[s];
+
+  do {
+    if (used[graph.cyclepartner[s][j]]++ == 0 && deadstates[cnum]++ >= 1)
+      --max_possible;
+    --j;
+    tempstate >>= 1;
+  } while (tempstate & 1L);
+
+  // 2. kill states upstream in shift cycle that start with '-'
+  j = 0;
+  tempstate = graph.state[s];
+
+  do {
+    if (used[graph.cyclepartner[s][j]]++ == 0 && deadstates[cnum]++ >= 1)
+      --max_possible;
+    ++j;
+    tempstate = (tempstate << 1) & graph.allbits;
+  } while ((tempstate & graph.highestbit) == 0);
+}
+
 // Mark all of the states as used that are excluded by a throw from state
 // `from` to state `to_state`.
 //
 // Returns false if the number of newly-excluded states implies that we can't
-// finish a pattern of at least length `l` from our current position. Returns
-// true otherwise.
+// finish a pattern of at least length `l_current` from our current position.
+// Returns true otherwise.
 
 bool inline Worker::mark_unreachable_states(int to_state) {
   bool valid = true;
