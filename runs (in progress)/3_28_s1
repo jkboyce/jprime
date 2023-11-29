@@ -1,5 +1,5 @@
 version           6.1
-command line      jprime 3 28 -super 1 -g -file 3_28_s1 -threads 4 -verbose -steal_alg 3
+command line      jprime 3 28 -super 1 -g -threads 4 -verbose -file 3_28_s1
 length            116
 length limit      118
 states            3276
