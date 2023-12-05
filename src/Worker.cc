@@ -271,6 +271,9 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   for (int i = 0; i <= graph.numstates; ++i) {
     pattern[i] = (i < static_cast<int>(wa.partial_pattern.size())) ?
         wa.partial_pattern[i] : -1;
+
+    if (used[i] != 0)
+      std::cerr << "used[" << i << "] = " << used[i] << std::endl;
     assert(config.mode == RunMode::SUPER_SEARCH || used[i] == 0);
   }
 }
@@ -571,14 +574,14 @@ void Worker::gen_loops_normal() {
     if (valid) {
       // we need to go deeper
       pattern[pos] = throwval;
-      used[to] = 1;
+      ++used[to];
       ++pos;
       const int old_from = from;
       from = to;
       gen_loops_normal();
       from = old_from;
       --pos;
-      used[to] = 0;
+      --used[to];
     }
 
     // undo changes made above so we can backtrack
@@ -663,14 +666,14 @@ void Worker::gen_loops_block() {
 
       if (valid) {
         pattern[pos] = throwval;
-        used[to] = 1;
+        ++used[to];
         ++pos;
         const int old_from = from;
         from = to;
         gen_loops_block();
         from = old_from;
         --pos;
-        used[to] = 0;
+        --used[to];
       }
 
       if (linkthrow)
@@ -733,7 +736,7 @@ void Worker::gen_loops_super() {
     if (to == start_state) {
       handle_finished_pattern();
     } else {
-      used[to] = 1;
+      ++used[to];
       if (linkthrow)
          cycleused[to_cycle] = true;
       ++pos;
@@ -744,7 +747,7 @@ void Worker::gen_loops_super() {
       --pos;
       if (linkthrow)
         cycleused[to_cycle] = false;
-      used[to] = 0;
+      --used[to];
     }
 
     // undo changes so we can backtrack
