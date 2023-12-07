@@ -21,6 +21,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <vector>
 #include <sstream>
 #include <cassert>
 #include <ctime>
@@ -271,10 +272,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   for (int i = 0; i <= graph.numstates; ++i) {
     pattern[i] = (i < static_cast<int>(wa.partial_pattern.size())) ?
         wa.partial_pattern[i] : -1;
-
-    if (used[i] != 0)
-      std::cerr << "used[" << i << "] = " << used[i] << std::endl;
-    assert(config.mode == RunMode::SUPER_SEARCH || used[i] == 0);
   }
 }
 
@@ -477,10 +474,28 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
 void Worker::gen_patterns() {
   for (; start_state <= end_state; ++start_state) {
-    // check if no way to make a pattern of the target length
-    if ((config.longestflag || config.exactflag)
-          && (graph.numstates - start_state + 1) < l_current)
-      continue;
+    // reset working variables
+    pos = 0;
+    from = start_state;
+    firstblocklength = -1; // -1 signals unknown
+    skipcount = 0;
+    shiftcount = 0;
+    blocklength = 0;
+    max_possible = maxlength;
+    for (int i = 0; i <= graph.numstates; ++i) {
+      used[i] = 0;
+      cycleused[i] = false;
+      deadstates[i] = 0;
+    }
+
+    // account for unusable states and check if no way to make a pattern of the
+    // target length
+    if (config.mode != RunMode::SUPER_SEARCH) {
+      for (int i = 1; i < start_state; ++i)
+        mark_forbidden_state(i);
+      if ((config.longestflag || config.exactflag) && max_possible < l_current)
+        continue;
+    }
 
     if (config.verboseflag) {
       std::ostringstream sstr;
@@ -494,22 +509,6 @@ void Worker::gen_patterns() {
       message_coordinator(msg);
     }
 
-    // reset all working variables
-    pos = 0;
-    from = start_state;
-    firstblocklength = -1; // -1 signals unknown
-    skipcount = 0;
-    shiftcount = 0;
-    blocklength = 0;
-    max_possible = maxlength;
-    for (int i = 0; i <= graph.numstates; ++i) {
-      used[i] = 0;
-      cycleused[i] = false;
-      deadstates[i] = 0;
-    }
-    longest_found = 0;
-    notify_coordinator_longest();
-
     if (!loading_work) {
       // reset `root_pos` and throw options there
       root_pos = 0;
@@ -518,13 +517,12 @@ void Worker::gen_patterns() {
       if (root_throwval_options.size() == 0)
         continue;
     }
+    longest_found = 0;
+    notify_coordinator_longest();
 
+    std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
-        for (int s = 1; s < start_state; ++s)
-          mark_forbidden_state(s);
-        if (max_possible < l_current)
-          continue;
         gen_loops_normal();
         break;
       case RunMode::BLOCK_SEARCH:
@@ -537,6 +535,8 @@ void Worker::gen_patterns() {
         assert(false);
         break;
     }
+    std::vector<int> used_finish(used, used + graph.numstates + 1);
+    assert(used_start == used_finish);
   }
 }
 
