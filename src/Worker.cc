@@ -488,25 +488,25 @@ void Worker::gen_patterns() {
       deadstates[i] = 0;
     }
 
+    if (config.verboseflag) {
+      std::ostringstream sstr;
+      sstr << "worker " << worker_id
+           << " starting at state " << graph.state_string(start_state)
+           << " (" << start_state << ")";
+      MessageW2C msg;
+      msg.type = messages_W2C::WORKER_STATUS;
+      msg.worker_id = worker_id;
+      msg.meta = sstr.str();
+      message_coordinator(msg);
+    }
+
     // account for unusable states and check if no way to make a pattern of the
     // target length
     if (config.mode != RunMode::SUPER_SEARCH) {
       for (int i = 1; i < start_state; ++i)
         mark_forbidden_state(i);
       if ((config.longestflag || config.exactflag) && max_possible < l_current)
-        continue;
-    }
-
-    if (config.verboseflag) {
-      std::ostringstream sstr;
-      sstr << "worker " << worker_id
-           << " starting at start_state: " << start_state;
-
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = sstr.str();
-      message_coordinator(msg);
+        break;
     }
 
     if (!loading_work) {
@@ -874,33 +874,31 @@ void Worker::mark_forbidden_state(int s) {
   if (used[s])
     return;
 
-  // 0. mark state as used
   used[s] = 1;
   const int cnum = graph.cyclenum[s];
   if (deadstates[cnum]++ >= 1)
     --max_possible;
 
-  // 1. kill states downstream in shift cycle that end in 'x'
-  int j = graph.h - 2;
-  unsigned long tempstate = graph.state[s];
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id
+           << " forbidden state " << graph.state_string(s)
+           << " (" << s
+           << ") : max_possible = " << max_possible;
+    MessageW2C msg;
+    msg.type = messages_W2C::WORKER_STATUS;
+    msg.worker_id = worker_id;
+    msg.meta = buffer.str();
+    message_coordinator(msg);
+  }
 
-  do {
-    if (used[graph.cyclepartner[s][j]]++ == 0 && deadstates[cnum]++ >= 1)
-      --max_possible;
-    --j;
-    tempstate >>= 1;
-  } while (tempstate & 1L);
+  // if state starts with 'x', downcycle state is forbidden
+  if (graph.state[s] & 1L)
+    mark_forbidden_state(graph.cyclepartner[s][config.h - 2]);
 
-  // 2. kill states upstream in shift cycle that start with '-'
-  j = 0;
-  tempstate = graph.state[s];
-
-  do {
-    if (used[graph.cyclepartner[s][j]]++ == 0 && deadstates[cnum]++ >= 1)
-      --max_possible;
-    ++j;
-    tempstate = (tempstate << 1) & graph.allbits;
-  } while ((tempstate & graph.highestbit) == 0);
+  // if state ends with '-', upcycle state is forbidden
+  if ((graph.state[s] & graph.highestbit) == 0)
+    mark_forbidden_state(graph.cyclepartner[s][0]);
 }
 
 // Mark all of the states as used that are excluded by a throw from state

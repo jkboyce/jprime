@@ -196,6 +196,9 @@ int Graph::gen_states(unsigned long* state, int num, int pos, int left, int h,
 //         cycleperiod[cyclenum] --> period
 // - The other states on a given state's shift cycle:
 //         cyclepartner[statenum][i] --> statenum  (where i < h)
+//   where by convention:
+//         cyclepartner[statenum][0] = upstream_state(statenum)
+//         cyclepartner[statenum][h - 1] = statenum
 
 void Graph::find_shift_cycles() {
   const unsigned long lowerbits = highestbit - 1;
@@ -223,6 +226,7 @@ void Graph::find_shift_cycles() {
       } else if (k < i)
         newshiftcycle = false;
     }
+    assert(cyclepartner[i][h - 1] == i);
 
     if (newshiftcycle) {
       for (int j = 0; j < h; j++)
