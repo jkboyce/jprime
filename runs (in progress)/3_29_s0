@@ -5,17 +5,21 @@ length limit      126
 states            3654
 shift cycles      126
 short cycles      0
-patterns          6
-patterns (seen)   131572810541939
-nodes visited     272887217073392
+patterns          10
+patterns (seen)   143745168246129
+nodes visited     303418789324097
 threads           4
 hardware threads  12
-seconds elapsed   862985.1681
-seconds working   3451940.5569
-seconds avail     3451940.6729
+seconds elapsed   963403.9597
+seconds working   3853615.6774
+seconds avail     3853615.8399
 
 patterns
+m231711111k1111111111b1111111l131711111k111111111f11111111k1111b111111111i111b111111111j11a11111111j11111k111111111119111111
+m231711111k1111111111b1111111l15111a11111111j1111a11111111k11161111k111111111d11111111k11b111111111j11111k111111111119111111
 m3131711111k111111111f11111111k1111b111111111i111b111111111j11a11111111j11111k11111111111a111111m131711111k11111111118111111
+m3141161111k111111111f11111111k1111b111111111i111k111111111111911111m141161111k1111111111c1111111l1161111k111111111119111111
+m3151115111k111111111e11111111k111b111111111j1111k111111111111911111m141161111k1111111111c1111111l1161111k111111111119111111
 m315111a11111111j1111a11111111k11161111k111111111d11111111k11b111111111j11111k11111111111a111111m131711111k11111111118111111
 m41161111k11111111111a111111l141161111k111111111f11111111k1111b111111111i111k111111111111a11111n1141161111k11111111118111111
 m41161111k11111111111a111111l151115111k111111111e11111111k111b111111111j1111k111111111111a11111n1141161111k11111111118111111
@@ -23,7 +27,7 @@ m41161111k11111111111b111111m1141161111k111111111f11111111k1111b111111111i111k11
 m41161111k11111111111b111111m1151115111k111111111e11111111k111b111111111j1111k111111111111911111m141161111k11111111118111111
 
 work assignments remaining
-  { start_state:1, end_state:1, root_pos:4, root_options:[nm], current:"sssssslsspssssnss9sssssmsssssdsssssslsdssssnsssssslssss9sssssslsssssslsss5ss" }
-  { start_state:1, end_state:1, root_pos:3, root_options:[ro], current:"ssosssssmrsssssssasssosesssossssnssssssassssgssssssssjsssassssssssjsqrrssprrsq" }
-  { start_state:1, end_state:1, root_pos:3, root_options:[rn], current:"sspsssssslsssscsssssssssdssssnsqss8sspsssssmrrscssssnrrsssssslsqsspr" }
-  { start_state:1, end_state:1, root_pos:3, root_options:[n], current:"sssossssssssssssarsqssps7ssnssssnssssssdsssssssssbssssssss9sqrsspsspsss6sssssisssssssssshsspr" }
+  { start_state:1, end_state:1, root_pos:4, root_options:[nm], current:"ssssssksssssssssss9rsqssss8ssssshsssssssesissssssssjsserssssnssssnsssssm" }
+  { start_state:1, end_state:1, root_pos:3, root_options:[ro], current:"ssossssnsssorrsssassssjssssssgsqsssssdssssnsssssssss7sssssmrsssorsq" }
+  { start_state:1, end_state:1, root_pos:3, root_options:[rn], current:"sspsssssmssssssss9sspsqsssssss6ssssnsspssssss5sssosssosqrrssps4ssnssss" }
+  { start_state:1, end_state:1, root_pos:3, root_options:[n], current:"sssosssssssssdsspsdssssnssshsssssssssissbsspsspsssssssbssssssssss9rsspsspr" }
