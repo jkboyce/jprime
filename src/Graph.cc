@@ -75,14 +75,14 @@ void Graph::allocate_arrays() {
   outdegree = new int[numstates + 1];
   indegree = new int[numstates + 1];
   cyclenum = new int[numstates + 1];
-  state = new unsigned long[numstates + 1];
+  state = new std::uint64_t[numstates + 1];
   cycleperiod = new int[numstates + 1];
 
   for (int i = 0; i <= numstates; ++i) {
     outdegree[i] = 0;
     indegree[i] = 0;
     cyclenum[i] = 0;
-    state[i] = 0L;
+    state[i] = 0;
     cycleperiod[i] = 0;
   }
 
@@ -162,7 +162,7 @@ int Graph::num_states(int n, int h) {
 //
 // Returns the number of states found.
 
-int Graph::gen_states(unsigned long* state, int num, int pos, int left, int h,
+int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
       int ns) {
   if (left > (pos + 1))
     return num;
@@ -201,11 +201,11 @@ int Graph::gen_states(unsigned long* state, int num, int pos, int left, int h,
 //         cyclepartner[statenum][h - 1] = statenum
 
 void Graph::find_shift_cycles() {
-  const unsigned long lowerbits = highestbit - 1;
+  const std::uint64_t lowerbits = highestbit - 1;
   int cycleindex = 0;
 
   for (int i = 1; i <= numstates; ++i) {
-    unsigned long statebits = state[i];
+    std::uint64_t statebits = state[i];
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
@@ -266,7 +266,7 @@ void Graph::gen_matrices() {
 
       if (j == 0) {
         if (!(state[i] & 1L)) {
-          unsigned long temp = state[i] >> 1;
+          std::uint64_t temp = state[i] >> 1;
           bool found = false;
 
           for (int k = 1; k <= numstates; ++k) {
@@ -281,8 +281,8 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else if (state[i] & 1L) {
-        unsigned long temp = (unsigned long)1L << (j - 1);
-        unsigned long temp2 = (state[i] >> 1);
+        std::uint64_t temp = (std::uint64_t)1L << (j - 1);
+        std::uint64_t temp2 = (state[i] >> 1);
 
         if (!(temp2 & temp)) {
           temp |= temp2;
@@ -312,7 +312,7 @@ void Graph::gen_matrices() {
 
       if (j == 0) {
         if (!(state[i] & (1L << (h - 1)))) {
-          unsigned long temp = state[i] << 1;
+          std::uint64_t temp = state[i] << 1;
 
           bool found = false;
           for (int k = 1; k <= numstates; ++k) {
@@ -327,7 +327,7 @@ void Graph::gen_matrices() {
         }
       } else if (j == h) {
         if (state[i] & (1L << (h - 1))) {
-          unsigned long temp = state[i] ^ (1L << (h - 1));
+          std::uint64_t temp = state[i] ^ (1L << (h - 1));
           temp = (temp << 1) | 1L;
 
           bool found = false;
@@ -343,7 +343,7 @@ void Graph::gen_matrices() {
         }
       } else {
         if ((state[i] & (1L << (j - 1))) && !(state[i] & (1L << (h - 1)))) {
-          unsigned long temp = state[i] ^ (1L << (j - 1));
+          std::uint64_t temp = state[i] ^ (1L << (j - 1));
           temp = (temp << 1) | 1L;
 
           bool found = false;
@@ -372,7 +372,7 @@ void Graph::gen_matrices() {
 // Return the index in the `state` array that corresponds to a given state
 // (represented as a bit pattern). Returns -1 if not found.
 
-int Graph::get_statenum(unsigned long st) const {
+int Graph::get_statenum(std::uint64_t st) const {
   for (int i = 1; i <= numstates; ++i) {
     if (state[i] == st)
       return i;
@@ -389,9 +389,9 @@ int Graph::advance_state(int statenum, int throwval) const {
   if ((state[statenum] & 1L) == 0 && throwval != 0)
     return -1;
 
-  unsigned long new_state = state[statenum] >> 1;
+  std::uint64_t new_state = state[statenum] >> 1;
   if (throwval > 0) {
-    unsigned long mask = 1L << (throwval - 1);
+    std::uint64_t mask = 1L << (throwval - 1);
     if (new_state & mask)
       return -1;
     new_state |= mask;
@@ -410,9 +410,9 @@ int Graph::reverse_state(int statenum) const {
     std::cerr << "bad statenum: " << statenum << std::endl;
   assert(statenum > 0 && statenum <= numstates);
 
-  unsigned long new_state = 0;
-  unsigned long mask1 = 1L;
-  unsigned long mask2 = highestbit;
+  std::uint64_t new_state = 0;
+  std::uint64_t mask1 = 1L;
+  std::uint64_t mask2 = highestbit;
 
   while (mask2) {
     if (state[statenum] & mask2)
@@ -427,7 +427,7 @@ int Graph::reverse_state(int statenum) const {
 // Return the next state downstream in the given state's shift cycle
 
 int Graph::downstream_state(int statenum) const {
-  unsigned long new_state = state[statenum] >> 1;
+  std::uint64_t new_state = state[statenum] >> 1;
 
   if (state[statenum] & 1L)
     new_state |= highestbit;
@@ -438,7 +438,7 @@ int Graph::downstream_state(int statenum) const {
 // Return the next state upstream in the given state's shift cycle
 
 int Graph::upstream_state(int statenum) const {
-  unsigned long new_state = state[statenum] << 1;
+  std::uint64_t new_state = state[statenum] << 1;
 
   if (new_state > allbits) {
     new_state ^= allbits;
@@ -452,7 +452,7 @@ int Graph::upstream_state(int statenum) const {
 
 std::string Graph::state_string(int statenum) const {
   std::string result;
-  unsigned long value = state[statenum];
+  std::uint64_t value = state[statenum];
   for (int i = 0; i < h; ++i) {
     result += (value & 1 ? 'x' : '-');
     value >>= 1;

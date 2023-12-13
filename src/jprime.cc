@@ -242,7 +242,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       char* p;
       long temp = strtol(argv[i], &p, 10);
       if (*p || i != 3) {
-        std::cerr << "unrecognized input: " << argv[i] << std::endl;
+        std::cerr << "Unrecognized input: " << argv[i] << std::endl;
         std::exit(EXIT_FAILURE);
       } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
@@ -253,6 +253,10 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   // consistency checks
   if (config != nullptr && fullflag && config->exactflag) {
     std::cerr << "-all and -exact flags cannot be used together" << std::endl;
+    std::exit(EXIT_FAILURE);
+  }
+  if (context != nullptr && context->num_threads < 1) {
+    std::cerr << "Must have at least one worker thread" << std::endl;
     std::exit(EXIT_FAILURE);
   }
 }

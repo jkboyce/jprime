@@ -124,7 +124,7 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      std::cout << "gave work to worker " << id << ":" << std::endl
+      std::cout << "worker " << id << " given work:" << std::endl
                 << "  " << msg.assignment << std::endl;
     }
   }
@@ -346,7 +346,7 @@ void Coordinator::steal_work() {
   message_worker(msg, id);
 
   if (config.verboseflag)
-    std::cout << "requested work from worker " << id << std::endl;
+    std::cout << "worker " << id << " given work split request" << std::endl;
 }
 
 int Coordinator::find_stealing_target_longestpattern() const {

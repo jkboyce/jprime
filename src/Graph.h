@@ -32,7 +32,7 @@ class Graph {
   std::vector<bool> xarray;
   bool linkthrows_within_cycle;
   int numstates = 0;
-  unsigned long* state;
+  std::uint64_t* state;
   int** outmatrix;
   int* outdegree;
   int maxoutdegree = 0;
@@ -45,21 +45,21 @@ class Graph {
   int* cyclenum;
   int* cycleperiod;
   int** cyclepartner;
-  unsigned long highestbit = 0L;
-  unsigned long allbits = 0L;
+  std::uint64_t highestbit = 0L;
+  std::uint64_t allbits = 0L;
 
  private:
   void init();
   void allocate_arrays();
   void delete_arrays();
   static int num_states(int n, int h);
-  static int gen_states(unsigned long* state, int num, int pos, int left,
+  static int gen_states(std::uint64_t* state, int num, int pos, int left,
       int h, int ns);
   void find_shift_cycles();
   void gen_matrices();
 
  public:
-  int get_statenum(unsigned long st) const;
+  int get_statenum(std::uint64_t st) const;
   int advance_state(int sstatenum, int throwval) const;
   int reverse_state(int statenum) const;
   int downstream_state(int statenum) const;

@@ -239,7 +239,6 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
     sstr << "worker " << worker_id
          << " remaining work after split:" << std::endl
          << "  " << get_work_assignment();
-
     MessageW2C msg2;
     msg2.type = messages_W2C::WORKER_STATUS;
     msg2.worker_id = worker_id;
@@ -500,7 +499,7 @@ void Worker::gen_patterns() {
       message_coordinator(msg);
     }
 
-    // account for unusable states and check if no way to make a pattern of the
+    // account for forbidden states and check if no way to make a pattern of the
     // target length
     if (config.mode != RunMode::SUPER_SEARCH) {
       for (int i = 1; i < start_state; ++i)
@@ -838,8 +837,9 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
 
       if (config.verboseflag) {
         std::ostringstream buffer;
-        buffer << "worker " << worker_id << " starting root_pos option: ";
+        buffer << "worker " << worker_id << " starting option ";
         print_throw(buffer, throwval);
+        buffer << " at root_pos " << root_pos;
         MessageW2C msg;
         msg.type = messages_W2C::WORKER_STATUS;
         msg.worker_id = worker_id;
@@ -876,7 +876,7 @@ void Worker::mark_forbidden_state(int s) {
 
   used[s] = 1;
   const int cnum = graph.cyclenum[s];
-  if (deadstates[cnum]++ >= 1)
+  if (++deadstates[cnum] > 1)
     --max_possible;
 
   if (config.verboseflag) {
@@ -913,7 +913,7 @@ bool inline Worker::mark_unreachable_states(int to_state) {
 
   // 1. kill states downstream in `from` shift cycle that end in 'x'
   int j = graph.h - 2;
-  unsigned long tempstate = graph.state[from];
+  std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
 
   do {
@@ -944,7 +944,7 @@ bool inline Worker::mark_unreachable_states(int to_state) {
 
 void inline Worker::unmark_unreachable_states(int to_state) {
   int j = graph.h - 2;
-  unsigned long tempstate = graph.state[from];
+  std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
 
   do {
