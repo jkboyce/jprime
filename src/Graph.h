@@ -55,6 +55,7 @@ class Graph {
   static int num_states(int n, int h);
   static int gen_states(std::uint64_t* state, int num, int pos, int left,
       int h, int ns);
+  int cluster_count(std::uint64_t s);
   void find_shift_cycles();
   void gen_matrices();
 

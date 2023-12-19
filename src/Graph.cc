@@ -188,6 +188,20 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
   return num;
 }
 
+int Graph::cluster_count(std::uint64_t s) {
+  int result = 0;
+
+  for (int i = 0; i < h; ++i) {
+    if (s & (1L << i))
+      continue;
+    int j = (i + 1) % h;
+    if (s & (1L << j))
+      ++result;
+  }
+
+  return result;
+}
+
 // Generate arrays describing the shift cycles of the juggling graph.
 //
 // - Which shift cycle number a given state belongs to:
@@ -234,6 +248,9 @@ void Graph::find_shift_cycles() {
       cycleperiod[cycleindex++] = cycleper;
       if (cycleper < h)
         ++numshortcycles;
+
+      std::cout << state_string(i) << " clusters: "
+                << cluster_count(state[i]) << std::endl;
     }
   }
   numcycles = cycleindex;
