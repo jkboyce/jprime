@@ -123,6 +123,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   }
 
   bool fullflag = false;
+  bool stealalg_given = false;
 
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
@@ -187,8 +188,10 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-steal_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        if (context != nullptr)
+        if (context != nullptr) {
           context->steal_alg = atoi(argv[i]);
+          stealalg_given = true;
+        }
       } else {
         std::cerr << "No number provided after -steal_alg" << std::endl;
         std::exit(EXIT_FAILURE);
@@ -250,7 +253,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     }
   }
 
-  // consistency checks
+  // consistency checks and defaults
   if (config != nullptr && fullflag && config->exactflag) {
     std::cerr << "-all and -exact flags cannot be used together" << std::endl;
     std::exit(EXIT_FAILURE);
@@ -258,6 +261,12 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
   if (context != nullptr && context->num_threads < 1) {
     std::cerr << "Must have at least one worker thread" << std::endl;
     std::exit(EXIT_FAILURE);
+  }
+  if (config != nullptr && context != nullptr && !stealalg_given) {
+    if (config->mode != RunMode::SUPER_SEARCH && config->l == 0)
+      context->steal_alg = 1;  // steal from longest pattern found so far
+    else
+      context->steal_alg = 3;  // steal from lowest `root_pos`
   }
 }
 
