@@ -814,6 +814,20 @@ void Worker::build_rootpos_throw_options(int rootpos_from_state,
   root_throwval_options.clear();
   for (int col = start_column; col < graph.outdegree[rootpos_from_state]; ++col)
     root_throwval_options.push_back(graph.outthrowval[rootpos_from_state][col]);
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " options at root_pos " << root_pos
+           << ": [";
+    for (int v : root_throwval_options)
+      print_throw(buffer, v);
+    buffer << "]";
+    MessageW2C msg;
+    msg.type = messages_W2C::WORKER_STATUS;
+    msg.worker_id = worker_id;
+    msg.meta = buffer.str();
+    message_coordinator(msg);
+  }
 }
 
 // Mark off `throwval` from our set of allowed throw options at position
@@ -823,19 +837,39 @@ void Worker::build_rootpos_throw_options(int rootpos_from_state,
 // and generate a new set of options. As an invariant we never allow
 // `root_throwval_options` to be empty, in case we get a request to split work.
 //
-// Returns true if the value was found, false otherwise.
+// Returns true if `throwval` is an allowed choice at position `root_pos`,
+// false otherwise.
 
 bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
-  // check to see if this throwval is in our allowed list, and if so remove it
   bool found = false;
   int remaining = 0;
   std::list<int>::iterator iter = root_throwval_options.begin();
   std::list<int>::iterator end = root_throwval_options.end();
 
   while (iter != end) {
-    if (*iter == throwval) {
+    // housekeeping: has this root_pos option been pruned from the graph?
+    bool pruned = true;
+    for (int i = 0; i < graph.outdegree[from]; ++i) {
+      if (graph.outthrowval[from][i] == *iter) {
+        pruned = false;
+        break;
+      }
+    }
+
+    if (pruned && config.verboseflag) {
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id << " option ";
+      print_throw(buffer, throwval);
+      buffer << " at root_pos " << root_pos << " was pruned; removing";
+      MessageW2C msg;
+      msg.type = messages_W2C::WORKER_STATUS;
+      msg.worker_id = worker_id;
+      msg.meta = buffer.str();
+      message_coordinator(msg);
+    }
+
+    if (!pruned && *iter == throwval) {
       found = true;
-      iter = root_throwval_options.erase(iter);
 
       if (config.verboseflag) {
         std::ostringstream buffer;
@@ -848,22 +882,23 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
         msg.meta = buffer.str();
         message_coordinator(msg);
       }
+    }
+
+    if (pruned || *iter == throwval) {
+      iter = root_throwval_options.erase(iter);
     } else {
       ++iter;
       ++remaining;
     }
   }
-  if (!found && !loading_work)
-    return false;
 
   if (remaining == 0) {
-    // using our last option at this root level, go one step deeper
     ++root_pos;
     notify_coordinator_rootpos();
     build_rootpos_throw_options(to_state, 0);
   }
 
-  return true;
+  return (found || loading_work);
 }
 
 // Mark a state as forbidden in the current search, and update `used`,
