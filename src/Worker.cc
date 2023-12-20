@@ -32,7 +32,9 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       coordinator(coord),
       worker_id(id),
       graph(config.n, config.h, config.xarray,
-        (config.mode != RunMode::SUPER_SEARCH)) {
+        (config.mode != RunMode::SUPER_SEARCH),
+        (config.mode == RunMode::SUPER_SEARCH && config.shiftlimit == 0 &&
+         config.groundmode == 1)) {
   l_current = config.l;
   maxlength = (config.mode == RunMode::SUPER_SEARCH)
       ? (graph.numcycles + config.shiftlimit)

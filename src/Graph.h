@@ -17,7 +17,7 @@
 
 class Graph {
  public:
-  Graph(int n, int h, const std::vector<bool>& xa, bool ltwc);
+  Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, bool s0g);
   Graph(int n, int h);
   Graph(const Graph& g);
   Graph(Graph&&) =delete;
@@ -31,6 +31,7 @@ class Graph {
   int h;
   std::vector<bool> xarray;
   bool linkthrows_within_cycle;
+  bool super0ground;
   int numstates = 0;
   std::uint64_t* state;
   int** outmatrix;
@@ -58,6 +59,7 @@ class Graph {
   int cluster_count(std::uint64_t s);
   void find_shift_cycles();
   void gen_matrices();
+  void prune_graph();
 
  public:
   int get_statenum(std::uint64_t st) const;

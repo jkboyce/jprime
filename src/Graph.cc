@@ -15,18 +15,20 @@
 #include <cassert>
 
 
-Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
-    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
+Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, bool s0g)
+    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc),
+      super0ground(s0g) {
   init();
 }
 
 Graph::Graph(int n, int h)
-    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true) {
+    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true),
+      super0ground(false) {
   init();
 }
 
 Graph::Graph(const Graph& g)
-    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle) {
+    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle, g.super0ground) {
 }
 
 Graph& Graph::operator=(const Graph& g) {
@@ -38,6 +40,7 @@ Graph& Graph::operator=(const Graph& g) {
   h = g.h;
   xarray = g.xarray;
   linkthrows_within_cycle = g.linkthrows_within_cycle;
+  super0ground = g.super0ground;
   init();
 
   return *this;
@@ -380,6 +383,72 @@ void Graph::gen_matrices() {
       }
     }
   }
+
+  prune_graph();
+}
+
+void Graph::prune_graph() {
+  bool pruning = true;
+  // int num_unusable = 0;
+  std::vector<bool> unusable(numstates + 1, false);
+
+  if (super0ground) {
+    // optimization specific to "-super 0 -g" searches; all cycle partners of
+    // the ground state are unusable
+    for (int i = 0; i < h - 1; ++i) {
+      if (cyclepartner[1][i] == 1)
+        break;
+      outdegree[cyclepartner[1][i]] = 0;
+    }
+  }
+
+  while (pruning) {
+    pruning = false;
+
+    for (int i = 1; i <= numstates; ++i) {
+      if (unusable[i])
+        continue;
+
+      if (outdegree[i] == 0) {
+        unusable[i] = true;
+        // ++num_unusable;
+        pruning = true;
+        continue;
+      }
+
+      for (int j = 0; j < outdegree[i]; ++j) {
+        if (unusable[outmatrix[i][j]]) {
+          for (int k = j; k < outdegree[i] - 1; ++k) {
+            outmatrix[i][k] = outmatrix[i][k + 1];
+            outthrowval[i][k] = outthrowval[i][k + 1];
+          }
+          --outdegree[i];
+          --j;
+          pruning = true;
+        }
+      }
+
+      if (indegree[i] == 0) {
+        unusable[i] = true;
+        // ++num_unusable;
+        pruning = true;
+        continue;
+      }
+
+      for (int j = 0; j < indegree[i]; ++j) {
+        if (unusable[inmatrix[i][j]]) {
+          for (int k = j; k < indegree[i] - 1; ++k) {
+            inmatrix[i][k] = inmatrix[i][k + 1];
+          }
+          --indegree[i];
+          --j;
+          pruning = true;
+        }
+      }
+    }
+  }
+  // std::cout << num_unusable << " states pruned (out of "
+  //           << numstates << ")" << std::endl;
 }
 
 //------------------------------------------------------------------------------
