@@ -59,6 +59,7 @@ class Worker {
   int* used;
   bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int* deadstates;  // indexed by shift cycle number
+  int exitcyclesleft = 0;
 
   // status data to report to Coordinator
   unsigned long ntotal = 0L;

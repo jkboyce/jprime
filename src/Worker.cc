@@ -483,10 +483,13 @@ void Worker::gen_patterns() {
     shiftcount = 0;
     blocklength = 0;
     max_possible = maxlength;
+    exitcyclesleft = 0;
     for (int i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
+      if (graph.isexitcycle[i])
+        ++exitcyclesleft;
     }
 
     if (config.verboseflag) {
@@ -737,18 +740,28 @@ void Worker::gen_loops_super() {
     if (to == start_state) {
       handle_finished_pattern();
     } else {
+      const int old_exitcyclesleft = exitcyclesleft;
+      if (linkthrow) {
+        if (start_state == 1 && config.shiftlimit == 0) {
+          if (exitcyclesleft == 0)
+            continue;
+          if (graph.isexitcycle[to_cycle])
+            --exitcyclesleft;
+        }
+        cycleused[to_cycle] = true;
+      }
       ++used[to];
-      if (linkthrow)
-         cycleused[to_cycle] = true;
       ++pos;
       const int old_from = from;
       from = to;
       gen_loops_super();
       from = old_from;
       --pos;
-      if (linkthrow)
-        cycleused[to_cycle] = false;
       --used[to];
+      if (linkthrow) {
+        cycleused[to_cycle] = false;
+        exitcyclesleft = old_exitcyclesleft;
+      }
     }
 
     // undo changes so we can backtrack

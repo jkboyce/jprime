@@ -45,6 +45,7 @@ class Graph {
   int numshortcycles = 0;
   int* cyclenum;
   int* cycleperiod;
+  bool* isexitcycle;
   int** cyclepartner;
   std::uint64_t highestbit = 0L;
   std::uint64_t allbits = 0L;

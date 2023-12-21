@@ -80,6 +80,7 @@ void Graph::allocate_arrays() {
   cyclenum = new int[numstates + 1];
   state = new std::uint64_t[numstates + 1];
   cycleperiod = new int[numstates + 1];
+  isexitcycle = new bool[numstates + 1];
 
   for (int i = 0; i <= numstates; ++i) {
     outdegree[i] = 0;
@@ -87,6 +88,7 @@ void Graph::allocate_arrays() {
     cyclenum[i] = 0;
     state[i] = 0;
     cycleperiod[i] = 0;
+    isexitcycle[i] = false;
   }
 
   outmatrix = new int*[numstates + 1];
@@ -140,6 +142,7 @@ void Graph::delete_arrays() {
   delete[] cyclenum;
   delete[] state;
   delete[] cycleperiod;
+  delete[] isexitcycle;
   outmatrix = nullptr;
   outthrowval = nullptr;
   inmatrix = nullptr;
@@ -149,6 +152,7 @@ void Graph::delete_arrays() {
   cyclenum = nullptr;
   state = nullptr;
   cycleperiod = nullptr;
+  isexitcycle = nullptr;
 }
 
 // Find the number of states (vertices) in the juggling graph, for a given
@@ -189,20 +193,6 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
   }
 
   return num;
-}
-
-int Graph::cluster_count(std::uint64_t s) {
-  int result = 0;
-
-  for (int i = 0; i < h; ++i) {
-    if (s & (1L << i))
-      continue;
-    int j = (i + 1) % h;
-    if (s & (1L << j))
-      ++result;
-  }
-
-  return result;
 }
 
 // Generate arrays describing the shift cycles of the juggling graph.
@@ -248,12 +238,10 @@ void Graph::find_shift_cycles() {
     if (newshiftcycle) {
       for (int j = 0; j < h; j++)
         cyclenum[cyclepartner[i][j]] = cycleindex;
-      cycleperiod[cycleindex++] = cycleper;
+      cycleperiod[cycleindex] = cycleper;
       if (cycleper < h)
         ++numshortcycles;
-
-      std::cout << state_string(i) << " clusters: "
-                << cluster_count(state[i]) << std::endl;
+      ++cycleindex;
     }
   }
   numcycles = cycleindex;
@@ -320,6 +308,13 @@ void Graph::gen_matrices() {
             outmatrix[i][outthrownum] = k;
             outthrowval[i][outthrownum++] = j;
             ++outdegree[i];
+
+            if (k == 1 && cyclenum[i] != cyclenum[k]) {
+              std::cout << "state " << state_string(i)
+                        << " is exit state (cycle " << cyclenum[i] << ")"
+                        << std::endl;
+              isexitcycle[cyclenum[i]] = true;
+            }
           }
         }
       }
