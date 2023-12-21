@@ -561,9 +561,10 @@ void Worker::gen_loops_normal() {
 
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = graph.outmatrix[from][col];
+    const int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -600,7 +601,7 @@ void Worker::gen_loops_normal() {
 
     // see if it's time to check the inbox
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < graph.outdegree[from] - 1) {
+          && col < limit - 1) {
       // the restrictions on when we enter here are in case we get a message to
       // hand off work to another worker; see split_work_assignment()
 
@@ -629,9 +630,10 @@ void Worker::gen_loops_block() {
 
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = graph.outmatrix[from][col];
+    const int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -699,7 +701,7 @@ void Worker::gen_loops_block() {
     firstblocklength = old_firstblocklength;
 
     if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < graph.outdegree[from] - 1) {
+          && col < limit - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
@@ -723,9 +725,10 @@ void Worker::gen_loops_super() {
 
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = graph.outmatrix[from][col];
+    const int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -770,7 +773,7 @@ void Worker::gen_loops_super() {
     shiftcount = old_shiftcount;
 
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < graph.outdegree[from] - 1) {
+          && col < limit - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
@@ -789,9 +792,10 @@ void Worker::gen_loops_super0g() {
 
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = graph.outmatrix[from][col];
+    const int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -820,7 +824,7 @@ void Worker::gen_loops_super0g() {
     }
 
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < graph.outdegree[from] - 1) {
+          && col < limit - 1) {
       pattern[pos + 1] = -1;
       process_inbox_running();
       steps_taken = 0;
