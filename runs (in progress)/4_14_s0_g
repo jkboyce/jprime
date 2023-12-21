@@ -1,5 +1,5 @@
 version           6.1
-command line      jprime 4 14 -super 0 -g -threads 4 -verbose -file 4_14_s0
+command line      jprime 4 14 -super 0 -g -threads 4 -verbose -file 4_14_s0_g
 length            73
 length limit      73
 states            1001
