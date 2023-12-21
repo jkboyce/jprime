@@ -308,13 +308,8 @@ void Graph::gen_matrices() {
             outmatrix[i][outthrownum] = k;
             outthrowval[i][outthrownum++] = j;
             ++outdegree[i];
-
-            if (k == 1 && cyclenum[i] != cyclenum[k]) {
-              std::cout << "state " << state_string(i)
-                        << " is exit state (cycle " << cyclenum[i] << ")"
-                        << std::endl;
+            if (k == 1 && cyclenum[i] != cyclenum[k])
               isexitcycle[cyclenum[i]] = true;
-            }
           }
         }
       }
