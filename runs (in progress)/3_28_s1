@@ -1,4 +1,4 @@
-version           6.1
+version           6.2
 command line      jprime 3 28 -super 1 -threads 4 -verbose -file 3_28_s1
 length            116
 length limit      118

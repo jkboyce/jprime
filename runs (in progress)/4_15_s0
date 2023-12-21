@@ -1,4 +1,4 @@
-version           6.1
+version           6.2
 command line      jprime 4 15 -super 0 -inverse -threads 4 -verbose -file 4_15_s0
 length            90
 length limit      91

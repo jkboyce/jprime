@@ -27,6 +27,7 @@
 // 09/17/23  Version 6.0 implements parallel depth first search in C++, to run
 //           faster on modern multicore machines.
 // 10/03/23  Version 6.1 enables -inverse option for all modes.
+// 12/21/23  Version 6.2 adds many performance improvements.
 
 
 #include "SearchConfig.h"
@@ -44,7 +45,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.1 (2023.10.03)\n"
+    "jprime version 6.2 (2023.12.21)\n"
     "Copyright (C) 1998-2023 Jack Boyce\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -299,7 +300,7 @@ void save_context(const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.1" << std::endl
+  myfile << "version           6.2" << std::endl
          << "command line      " << context.arglist << std::endl
          << "length            " << context.l_current << std::endl
          << "length limit      " << context.maxlength << std::endl
@@ -414,8 +415,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.1") {
-          error = "file version is not 6.1";
+        if (val != "6.2") {
+          error = "file version is not 6.2";
           break;
         }
         break;
