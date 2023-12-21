@@ -106,6 +106,7 @@ class Worker {
   void gen_loops_normal();
   void gen_loops_block();
   void gen_loops_super();
+  void gen_loops_super0g();
   int load_one_throw();
   void build_rootpos_throw_options(int rootpos_from_state, int min_column);
   bool mark_off_rootpos_option(int throwval, int to_state);

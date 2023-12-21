@@ -533,7 +533,10 @@ void Worker::gen_patterns() {
         gen_loops_block();
         break;
       case RunMode::SUPER_SEARCH:
-        gen_loops_super();
+        if (config.shiftlimit == 0 && start_state == 1 && !config.exactflag)
+          gen_loops_super0g();
+        else
+          gen_loops_super();
         break;
       default:
         assert(false);
@@ -557,14 +560,17 @@ void Worker::gen_loops_normal() {
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < graph.outdegree[from]; ++col) {
+  const int limit = graph.outdegree[from];
+
+  for (; col < limit; ++col) {
     const int to = graph.outmatrix[from][col];
-    const int throwval = graph.outthrowval[from][col];
-    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
+    const int throwval = graph.outthrowval[from][col];
     if (to == start_state) {
       pattern[pos] = throwval;
       handle_finished_pattern();
@@ -622,14 +628,17 @@ void Worker::gen_loops_block() {
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < graph.outdegree[from]; ++col) {
-    const int throwval = graph.outthrowval[from][col];
+  const int limit = graph.outdegree[from];
+
+  for (; col < limit; ++col) {
     const int to = graph.outmatrix[from][col];
-    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
+    const int throwval = graph.outthrowval[from][col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
     const int old_blocklength = blocklength;
     const int old_skipcount = skipcount;
@@ -713,14 +722,17 @@ void Worker::gen_loops_super() {
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
-  for (; col < graph.outdegree[from]; ++col) {
-    const int throwval = graph.outthrowval[from][col];
+  const int limit = graph.outdegree[from];
+
+  for (; col < limit; ++col) {
     const int to = graph.outmatrix[from][col];
-    if (pos == root_pos && !mark_off_rootpos_option(throwval, to))
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
+    const int throwval = graph.outthrowval[from][col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
     const int to_cycle = graph.cyclenum[to];
     // going to a shift cycle that's already been visited?
@@ -740,16 +752,8 @@ void Worker::gen_loops_super() {
     if (to == start_state) {
       handle_finished_pattern();
     } else {
-      const int old_exitcyclesleft = exitcyclesleft;
-      if (linkthrow) {
-        if (start_state == 1 && config.shiftlimit == 0) {
-          if (exitcyclesleft == 0)
-            continue;
-          if (graph.isexitcycle[to_cycle])
-            --exitcyclesleft;
-        }
+      if (linkthrow)
         cycleused[to_cycle] = true;
-      }
       ++used[to];
       ++pos;
       const int old_from = from;
@@ -758,14 +762,62 @@ void Worker::gen_loops_super() {
       from = old_from;
       --pos;
       --used[to];
-      if (linkthrow) {
+      if (linkthrow)
         cycleused[to_cycle] = false;
-        exitcyclesleft = old_exitcyclesleft;
-      }
     }
 
     // undo changes so we can backtrack
     shiftcount = old_shiftcount;
+
+    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+          && col < graph.outdegree[from] - 1) {
+      pattern[pos + 1] = -1;
+      process_inbox_running();
+      steps_taken = 0;
+    }
+
+    if (pos < root_pos)
+      break;
+  }
+}
+
+// A specialization of gen_loops_super() for the case where `shiftthrows` == 0,
+// we're searching for ground state patterns, and `exactflag` is false.
+
+void Worker::gen_loops_super0g() {
+  ++nnodes;
+
+  int col = (loading_work ? load_one_throw() : 0);
+  const int limit = graph.outdegree[from];
+
+  for (; col < limit; ++col) {
+    const int to = graph.outmatrix[from][col];
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+      continue;
+    const int to_cycle = graph.cyclenum[to];
+    if (cycleused[to_cycle])
+      continue;
+
+    pattern[pos] = graph.outthrowval[from][col];
+    if (to == 1) {
+      handle_finished_pattern();
+    } else {
+      if (exitcyclesleft == 0)
+        continue;
+      const int old_exitcyclesleft = exitcyclesleft;
+      if (graph.isexitcycle[to_cycle])
+        --exitcyclesleft;
+      cycleused[to_cycle] = true;
+      ++pos;
+      const int old_from = from;
+      from = to;
+      gen_loops_super0g();
+      from = old_from;
+      --pos;
+      cycleused[to_cycle] = false;
+      exitcyclesleft = old_exitcyclesleft;
+    }
 
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
           && col < graph.outdegree[from] - 1) {
