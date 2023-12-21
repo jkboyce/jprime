@@ -1,0 +1,17 @@
+version           6.1
+command line      jprime 3 25 92 -super 0 -ng -file 3_25_92_s0_ng -threads 4 -verbose
+length            0
+length limit      92
+states            2300
+shift cycles      92
+short cycles      0
+patterns          0
+patterns (seen)   6581327986
+nodes visited     67435599908
+threads           4
+hardware threads  12
+seconds elapsed   159.5525
+seconds working   638.0630
+seconds avail     638.2098
+
+patterns
