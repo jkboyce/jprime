@@ -1,5 +1,5 @@
 version           6.1
-command line      jprime 3 27 -super 0 -file 3_27_s0 -threads 5 -verbose
+command line      jprime 3 27 -super 0 -g -threads 5 -verbose -file 3_27_s0_g
 length            109
 length limit      109
 states            2925

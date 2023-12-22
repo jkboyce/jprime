@@ -1,5 +1,5 @@
 version           6.1
-command line      jprime 3 23 -super 1 -g -file 3_23_s1 -threads 6
+command line      jprime 3 23 -super 1 -g -threads 6 -file 3_23_s1_g
 length            78
 length limit      78
 states            1771
