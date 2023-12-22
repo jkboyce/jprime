@@ -490,6 +490,8 @@ void Worker::gen_patterns() {
       deadstates[i] = 0;
       if (graph.isexitcycle[i])
         ++exitcyclesleft;
+      if (loading_work && pattern[i] != -1)
+        --nnodes;  // avoids double-counting nodes when loading from a save
     }
 
     if (config.verboseflag) {
@@ -585,6 +587,20 @@ void Worker::gen_loops_normal() {
     if (valid) {
       // we need to go deeper
       pattern[pos] = throwval;
+
+      // see if it's time to check the inbox
+      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+            && col < limit - 1) {
+        // the restrictions on when we enter here are in case we get a message to
+        // hand off work to another worker; see split_work_assignment()
+
+        // terminate the pattern at the current position in case we get a
+        // STOP_WORKER message and need to unwind back to run()
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
       ++used[to];
       ++pos;
       const int old_from = from;
@@ -598,19 +614,6 @@ void Worker::gen_loops_normal() {
     // undo changes made above so we can backtrack
     if (throwval != 0 && throwval != graph.h)
       unmark_unreachable_states(to);
-
-    // see if it's time to check the inbox
-    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < limit - 1) {
-      // the restrictions on when we enter here are in case we get a message to
-      // hand off work to another worker; see split_work_assignment()
-
-      // terminate the pattern at the current position in case we get a
-      // STOP_WORKER message and need to unwind back to run()
-      pattern[pos + 1] = -1;
-      process_inbox_running();
-      steps_taken = 0;
-    }
 
     // only a single allowed throw value for `pos` < `root_pos`
     if (pos < root_pos)
@@ -681,6 +684,14 @@ void Worker::gen_loops_block() {
 
       if (valid) {
         pattern[pos] = throwval;
+
+        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+              && col < limit - 1) {
+          pattern[pos + 1] = -1;
+          process_inbox_running();
+          steps_taken = 0;
+        }
+
         ++used[to];
         ++pos;
         const int old_from = from;
@@ -699,13 +710,6 @@ void Worker::gen_loops_block() {
     blocklength = old_blocklength;
     skipcount = old_skipcount;
     firstblocklength = old_firstblocklength;
-
-    if (++steps_taken >= steps_per_inbox_check && valid && pos > root_pos
-          && col < limit - 1) {
-      pattern[pos + 1] = -1;
-      process_inbox_running();
-      steps_taken = 0;
-    }
 
     if (pos < root_pos)
       break;
@@ -755,6 +759,13 @@ void Worker::gen_loops_super() {
     if (to == start_state) {
       handle_finished_pattern();
     } else {
+      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+            && col < limit - 1) {
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
       if (linkthrow)
         cycleused[to_cycle] = true;
       ++used[to];
@@ -769,15 +780,7 @@ void Worker::gen_loops_super() {
         cycleused[to_cycle] = false;
     }
 
-    // undo changes so we can backtrack
     shiftcount = old_shiftcount;
-
-    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < limit - 1) {
-      pattern[pos + 1] = -1;
-      process_inbox_running();
-      steps_taken = 0;
-    }
 
     if (pos < root_pos)
       break;
@@ -809,6 +812,14 @@ void Worker::gen_loops_super0g() {
     } else {
       if (exitcyclesleft == 0)
         continue;
+
+      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+            && col < limit - 1) {
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
       const int old_exitcyclesleft = exitcyclesleft;
       if (graph.isexitcycle[to_cycle])
         --exitcyclesleft;
@@ -821,13 +832,6 @@ void Worker::gen_loops_super0g() {
       --pos;
       cycleused[to_cycle] = false;
       exitcyclesleft = old_exitcyclesleft;
-    }
-
-    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < limit - 1) {
-      pattern[pos + 1] = -1;
-      process_inbox_running();
-      steps_taken = 0;
     }
 
     if (pos < root_pos)
