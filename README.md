@@ -61,6 +61,7 @@ Table notes:
 |  3  |  26  |  2600  |  2500  |  2499  |  {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g), ?}  |
 |  3  |  27  |  2925  |  2816  |  2816  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g)  |
 |  3  |  28  |  3276  |  3159  |  [< 3159](https://github.com/jkboyce/jprime/blob/main/runs/3_28_s0_g)  |  {?, ?}  |
+|  3  |  29  |  3654  |  3528  |  [< 3528](https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0)  |  {?, ?}  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  4  |  5  |  5  |  5  |  5  |  1  |
