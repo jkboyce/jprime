@@ -1029,9 +1029,10 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
+  int* cp = graph.cyclepartner[from];
 
   do {
-    if (used[graph.cyclepartner[from][j]]++ == 0 && deadstates[cnum]++ >= 1
+    if (used[cp[j]]++ == 0 && deadstates[cnum]++ >= 1
           && --max_possible < l_current)
       valid = false;
     --j;
@@ -1042,9 +1043,10 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   j = 0;
   tempstate = graph.state[to_state];
   cnum = graph.cyclenum[to_state];
+  cp = graph.cyclepartner[to_state];
 
   do {
-    if (used[graph.cyclepartner[to_state][j]]++ == 0 && deadstates[cnum]++ >= 1
+    if (used[cp[j]]++ == 0 && deadstates[cnum]++ >= 1
           && --max_possible < l_current)
       valid = false;
     ++j;
@@ -1060,9 +1062,10 @@ void inline Worker::unmark_unreachable_states(int to_state) {
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
+  int* cp = graph.cyclepartner[from];
 
   do {
-    if (--used[graph.cyclepartner[from][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[cp[j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     --j;
     tempstate >>= 1;
@@ -1071,9 +1074,10 @@ void inline Worker::unmark_unreachable_states(int to_state) {
   j = 0;
   tempstate = graph.state[to_state];
   cnum = graph.cyclenum[to_state];
+  cp = graph.cyclepartner[to_state];
 
   do {
-    if (--used[graph.cyclepartner[to_state][j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[cp[j]] == 0 && --deadstates[cnum] >= 1)
       ++max_possible;
     ++j;
     tempstate = (tempstate << 1) & graph.allbits;
