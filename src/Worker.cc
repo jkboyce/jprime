@@ -491,7 +491,7 @@ void Worker::gen_patterns() {
       if (graph.isexitcycle[i])
         ++exitcyclesleft;
       if (loading_work && pattern[i] != -1)
-        --nnodes;  // avoids double-counting nodes when loading from a save
+        --nnodes;  // avoid double-counting nodes when loading from a save
     }
 
     if (config.verboseflag) {
@@ -591,8 +591,8 @@ void Worker::gen_loops_normal() {
       // see if it's time to check the inbox
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
-        // the restrictions on when we enter here are in case we get a message to
-        // hand off work to another worker; see split_work_assignment()
+        // the restrictions on when we enter here are in case we get a message
+        // to hand off work to another worker; see split_work_assignment()
 
         // terminate the pattern at the current position in case we get a
         // STOP_WORKER message and need to unwind back to run()
@@ -789,6 +789,10 @@ void Worker::gen_loops_super() {
 
 // A specialization of gen_loops_super() for the case where `shiftthrows` == 0,
 // we're searching for ground state patterns, and `exactflag` is false.
+//
+// This version tracks the specific "exit cycles" that can get back to the
+// ground state with a single throw. If those exit cycles are all used and the
+// pattern isn't done, we terminate the search early.
 
 void Worker::gen_loops_super0g() {
   ++nnodes;
