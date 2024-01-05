@@ -3,9 +3,9 @@ Parallel depth first search (DFS) to find extremely long prime siteswap juggling
 
 Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
 
-Because the graph for $N$ objects and maximum throw $H$ is of finite size equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to correct inaccuracies and include more recent findings.
+Because the graph for $N$ objects and maximum throw $H$ is of finite order equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to correct inaccuracies and include more recent findings.
 
-`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. In addition the search is done in parallel using a work-stealing scheme to balance work across threads.
+`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. The search is done in parallel using a work-stealing scheme to balance the work across threads.
 
 ## Running
 
@@ -56,11 +56,11 @@ Table notes:
 |  3  |  21  |  1330  |  1266  |  1266  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_21_s0)  |
 |  3  |  22  |  1540  |  1470  |  1469  |  [{18, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_22_1469)  |
 |  3  |  23  |  1771  |  1694  |  1693  |  [{56, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_23_1693)  |
-|  3  |  24  |  2024  |  1939  |  1938  |  {[44](https://github.com/jkboyce/jprime/blob/main/runs/3_24_s1), ?}  |
-|  3  |  25  |  2300  |  2208  |  [< 2208](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s0)  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1), ?}  |
-|  3  |  26  |  2600  |  2500  |  2499  |  {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1), ?}  |
-|  3  |  27  |  2925  |  2816  |  2816  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0)  |
-|  3  |  28  |  3276  |  3159  |  [< 3159](https://github.com/jkboyce/jprime/blob/main/runs/3_28_s0)  |  {?, ?}  |
+|  3  |  24  |  2024  |  1939  |  1938  |  {[44](https://github.com/jkboyce/jprime/blob/main/runs/3_24_s1_g), ?}  |
+|  3  |  25  |  2300  |  2208  |  [< 2208](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s0)  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1_g), ?}  |
+|  3  |  26  |  2600  |  2500  |  2499  |  {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g), ?}  |
+|  3  |  27  |  2925  |  2816  |  2816  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g)  |
+|  3  |  28  |  3276  |  3159  |  [< 3159](https://github.com/jkboyce/jprime/blob/main/runs/3_28_s0_g)  |  {?, ?}  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  4  |  5  |  5  |  5  |  5  |  1  |
@@ -71,8 +71,8 @@ Table notes:
 |  4  |  10  |  210  |  188  |  188  |  [9](https://github.com/jkboyce/jprime/blob/main/runs/4_10_188)  |
 |  4  |  11  |  330  |  300  |  300  |  [144](https://github.com/jkboyce/jprime/blob/main/runs/4_11_300)  |
 |  4  |  12  |  495  |  452  |  452  |  [45](https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0)  |
-|  4  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0)  |
-|  4  |  14  |  1001  |  928  |  928  |  [>= 658](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0)  |
+|  4  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0_g)  |
+|  4  |  14  |  1001  |  928  |  928  |  [>= 2054](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  5  |  6  |  6  |  6  |  6  |  1  |
@@ -81,7 +81,7 @@ Table notes:
 |  5  |  9  |  126  |  112  |  112  |  [5](https://github.com/jkboyce/jprime/blob/main/runs/5_9_112)  |
 |  5  |  10  |  252  |  226  |  225  |  [{752, 86}](https://github.com/jkboyce/jprime/blob/main/runs/5_10_225)  |
 |  5  |  11  |  462  |  420  |  420  |  [59346](https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0)  |
-|  5  |  12  |  792  |  726  |  726  |  [>= 57391](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0)  |
+|  5  |  12  |  792  |  726  |  726  |  [>= 81870](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  6  |  7  |  7  |  7  |  7  |  1  |
@@ -95,7 +95,7 @@ Table notes:
 |  7  |  9  |  36  |  32  |  32  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/7_9_32)  |
 |  7  |  10  |  120  |  108  |  108  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/7_10_s0)  |
 |  7  |  11  |  330  |  300  |  300  |  [144](https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0)  |
-|  7  |  12  |  792  |  726  |  726  |  [>= 57391](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0)  |
+|  7  |  12  |  792  |  726  |  726  |  [>= 81870](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g)  |
 | --- | --- | ------ | ------ | ------ | -------- |
 | $N$ | $H$ | States | $L_{bound}$ | $L$ | Patterns |
 |  8  |  9  |  9  |  9  |  9  |  1  |
