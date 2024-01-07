@@ -856,17 +856,17 @@ void Worker::gen_loops_super0g() {
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
-  const int* ov = graph.outthrowval[from];
 
   for (; col < limit; ++col) {
     const int to = om[col];
-    if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
     const int to_cycle = graph.cyclenum[to];
     if (cycleused[to_cycle])
       continue;
 
-    pattern[pos] = ov[col];
+    pattern[pos] = graph.outthrowval[from][col];
     if (to == 1) {
       handle_finished_pattern();
     } else {
