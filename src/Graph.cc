@@ -69,6 +69,7 @@ void Graph::init() {
   int ns = gen_states(state, 0, h - 1, n, h, numstates);
   assert(ns == numstates);
   find_shift_cycles();
+  find_exclude_states();
   gen_matrices();
 }
 
@@ -95,12 +96,16 @@ void Graph::allocate_arrays() {
   outthrowval = new int*[numstates + 1];
   inmatrix = new int*[numstates + 1];
   cyclepartner = new int*[numstates + 1];
+  excludestates_throw = new int*[numstates + 1];
+  excludestates_catch = new int*[numstates + 1];
 
   for (int i = 0; i <= numstates; ++i) {
     outmatrix[i] = new int[maxoutdegree];
     outthrowval[i] = new int[maxoutdegree];
     inmatrix[i] = new int[maxindegree];
     cyclepartner[i] = new int[h];
+    excludestates_throw[i] = new int[h];
+    excludestates_catch[i] = new int[h];
 
     for (int j = 0; j < maxoutdegree; ++j) {
       outmatrix[i][j] = 0;
@@ -108,8 +113,11 @@ void Graph::allocate_arrays() {
     }
     for (int j = 0; j < maxindegree; ++j)
       inmatrix[i][j] = 0;
-    for (int j = 0; j < h; ++j)
+    for (int j = 0; j < h; ++j) {
       cyclepartner[i][j] = 0;
+      excludestates_throw[i][j] = 0;
+      excludestates_catch[i][j] = 0;
+    }
   }
 }
 
@@ -131,12 +139,22 @@ void Graph::delete_arrays() {
       delete[] cyclepartner[i];
       cyclepartner[i] = nullptr;
     }
+    if (excludestates_throw) {
+      delete[] excludestates_throw[i];
+      excludestates_throw[i] = nullptr;
+    }
+    if (excludestates_catch) {
+      delete[] excludestates_catch[i];
+      excludestates_catch[i] = nullptr;
+    }
   }
 
   delete[] outmatrix;
   delete[] outthrowval;
   delete[] inmatrix;
   delete[] cyclepartner;
+  delete[] excludestates_throw;
+  delete[] excludestates_catch;
   delete[] outdegree;
   delete[] indegree;
   delete[] cyclenum;
@@ -147,6 +165,8 @@ void Graph::delete_arrays() {
   outthrowval = nullptr;
   inmatrix = nullptr;
   cyclepartner = nullptr;
+  excludestates_throw = nullptr;
+  excludestates_catch = nullptr;
   outdegree = nullptr;
   indegree = nullptr;
   cyclenum = nullptr;
@@ -245,6 +265,10 @@ void Graph::find_shift_cycles() {
     }
   }
   numcycles = cycleindex;
+}
+
+void Graph::find_exclude_states() {
+
 }
 
 // Generate matrices describing the structure of the juggling graph:

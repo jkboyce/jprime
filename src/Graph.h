@@ -47,6 +47,8 @@ class Graph {
   int* cycleperiod;
   bool* isexitcycle;
   int** cyclepartner;
+  int** excludestates_throw;
+  int** excludestates_catch;
   std::uint64_t highestbit = 0L;
   std::uint64_t allbits = 0L;
 
@@ -59,6 +61,7 @@ class Graph {
       int h, int ns);
   int cluster_count(std::uint64_t s);
   void find_shift_cycles();
+  void find_exclude_states();
   void gen_matrices();
   void prune_graph();
 
