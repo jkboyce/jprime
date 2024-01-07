@@ -580,22 +580,43 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    bool valid = true;
-    if (throwval != 0 && throwval != graph.h)
-      valid = mark_unreachable_states(to);
+    if (throwval != 0 && throwval != graph.h) {
+      if (mark_unreachable_states_throw()) {
+        if (mark_unreachable_states_catch(to)) {
+          pattern[pos] = throwval;
 
-    if (valid) {
-      // we need to go deeper
+          // see if it's time to check the inbox
+          if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+                && col < limit - 1) {
+            // the restrictions on when we enter here are in case we get a message
+            // to hand off work to another worker; see split_work_assignment()
+
+            // terminate the pattern at the current position in case we get a
+            // STOP_WORKER message and need to unwind back to run()
+            pattern[pos + 1] = -1;
+            process_inbox_running();
+            steps_taken = 0;
+          }
+
+          // we need to go deeper
+          ++used[to];
+          ++pos;
+          const int old_from = from;
+          from = to;
+          gen_loops_normal();
+          from = old_from;
+          --pos;
+          --used[to];
+        }
+        // undo changes made above so we can backtrack
+        unmark_unreachable_states_catch(to);
+      }
+      unmark_unreachable_states_throw();
+    } else {
       pattern[pos] = throwval;
 
-      // see if it's time to check the inbox
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
-        // the restrictions on when we enter here are in case we get a message
-        // to hand off work to another worker; see split_work_assignment()
-
-        // terminate the pattern at the current position in case we get a
-        // STOP_WORKER message and need to unwind back to run()
         pattern[pos + 1] = -1;
         process_inbox_running();
         steps_taken = 0;
@@ -610,10 +631,6 @@ void Worker::gen_loops_normal() {
       --pos;
       --used[to];
     }
-
-    // undo changes made above so we can backtrack
-    if (throwval != 0 && throwval != graph.h)
-      unmark_unreachable_states(to);
 
     // only a single allowed throw value for `pos` < `root_pos`
     if (pos < root_pos)
@@ -679,10 +696,31 @@ void Worker::gen_loops_block() {
         handle_finished_pattern();
       }
     } else if (valid) {
-      if (linkthrow)
-        valid = mark_unreachable_states(to);
+      if (linkthrow) {
+        if (mark_unreachable_states_throw()) {
+          if (mark_unreachable_states_catch(to)) {
+            pattern[pos] = throwval;
 
-      if (valid) {
+            if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+                  && col < limit - 1) {
+              pattern[pos + 1] = -1;
+              process_inbox_running();
+              steps_taken = 0;
+            }
+
+            ++used[to];
+            ++pos;
+            const int old_from = from;
+            from = to;
+            gen_loops_block();
+            from = old_from;
+            --pos;
+            --used[to];
+          }
+          unmark_unreachable_states_catch(to);
+        }
+        unmark_unreachable_states_throw();
+      } else {
         pattern[pos] = throwval;
 
         if (++steps_taken >= steps_per_inbox_check && pos > root_pos
@@ -701,9 +739,6 @@ void Worker::gen_loops_block() {
         --pos;
         --used[to];
       }
-
-      if (linkthrow)
-        unmark_unreachable_states(to);
     }
 
     // undo changes so we can backtrack
@@ -730,57 +765,78 @@ void Worker::gen_loops_super() {
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
+  const int* ov = graph.outthrowval[from];
 
   for (; col < limit; ++col) {
     const int to = om[col];
-    if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+    if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
       continue;
     if (to < start_state || used[to] != 0)
       continue;
 
-    const int throwval = graph.outthrowval[from][col];
+    const int throwval = ov[col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
-    const int to_cycle = graph.cyclenum[to];
-    // going to a shift cycle that's already been visited?
-    if (linkthrow && cycleused[to_cycle])
-      continue;
 
-    const int old_shiftcount = shiftcount;
-    // check for shift throw limits
-    if (!linkthrow) {
+    if (linkthrow) {
+      // going to a shift cycle that's already been visited?
+      const int to_cycle = graph.cyclenum[to];
+      if (cycleused[to_cycle])
+        continue;
+
+      pattern[pos] = throwval;
+      if (to == start_state) {
+        handle_finished_pattern();
+      } else {
+        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+              && col < limit - 1) {
+          pattern[pos + 1] = -1;
+          process_inbox_running();
+          steps_taken = 0;
+        }
+
+        cycleused[to_cycle] = true;
+        ++used[to];
+        ++pos;
+        const int old_from = from;
+        from = to;
+        gen_loops_super();
+        from = old_from;
+        --pos;
+        --used[to];
+        cycleused[to_cycle] = false;
+      }
+    } else {
+      const int old_shiftcount = shiftcount;
+
+      // check for shift throw limits
       if (shiftcount == config.shiftlimit)
         continue;
       else
         ++shiftcount;
-    }
 
-    pattern[pos] = throwval;
-    if (to == start_state) {
-      handle_finished_pattern();
-    } else {
-      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-            && col < limit - 1) {
-        pattern[pos + 1] = -1;
-        process_inbox_running();
-        steps_taken = 0;
+      pattern[pos] = throwval;
+      if (to == start_state) {
+        handle_finished_pattern();
+      } else {
+        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+              && col < limit - 1) {
+          pattern[pos + 1] = -1;
+          process_inbox_running();
+          steps_taken = 0;
+        }
+
+        ++used[to];
+        ++pos;
+        const int old_from = from;
+        from = to;
+        gen_loops_super();
+        from = old_from;
+        --pos;
+        --used[to];
       }
 
-      if (linkthrow)
-        cycleused[to_cycle] = true;
-      ++used[to];
-      ++pos;
-      const int old_from = from;
-      from = to;
-      gen_loops_super();
-      from = old_from;
-      --pos;
-      --used[to];
-      if (linkthrow)
-        cycleused[to_cycle] = false;
+      shiftcount = old_shiftcount;
     }
-
-    shiftcount = old_shiftcount;
 
     if (pos < root_pos)
       break;
@@ -800,17 +856,17 @@ void Worker::gen_loops_super0g() {
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
+  const int* ov = graph.outthrowval[from];
 
   for (; col < limit; ++col) {
     const int to = om[col];
-    if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+    if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
       continue;
     const int to_cycle = graph.cyclenum[to];
     if (cycleused[to_cycle])
       continue;
 
-    pattern[pos] = graph.outthrowval[from][col];
+    pattern[pos] = ov[col];
     if (to == 1) {
       handle_finished_pattern();
     } else {
@@ -1022,10 +1078,10 @@ void Worker::mark_forbidden_state(int s) {
 // finish a pattern of at least length `l_current` from our current position.
 // Returns true otherwise.
 
-bool inline Worker::mark_unreachable_states(int to_state) {
+bool inline Worker::mark_unreachable_states_throw() {
   bool valid = true;
 
-  // 1. kill states downstream in `from` shift cycle that end in 'x'
+  // kill states downstream in `from` shift cycle that end in 'x'
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
@@ -1039,11 +1095,17 @@ bool inline Worker::mark_unreachable_states(int to_state) {
     tempstate >>= 1;
   } while (tempstate & 1L);
 
-  // 2. kill states upstream in 'to' shift cycle that start with '-'
-  j = 0;
-  tempstate = graph.state[to_state];
-  cnum = graph.cyclenum[to_state];
-  cp = graph.cyclepartner[to_state];
+  return valid;
+}
+
+bool inline Worker::mark_unreachable_states_catch(int to_state) {
+  bool valid = true;
+
+  // kill states upstream in 'to' shift cycle that start with '-'
+  int j = 0;
+  std::uint64_t tempstate = graph.state[to_state];
+  int cnum = graph.cyclenum[to_state];
+  int* cp = graph.cyclepartner[to_state];
 
   do {
     if (used[cp[j]]++ == 0 && deadstates[cnum]++ >= 1
@@ -1056,9 +1118,9 @@ bool inline Worker::mark_unreachable_states(int to_state) {
   return valid;
 }
 
-// Reverse the marking operation above, so we can backtrack.
+// Reverse the marking operations above, so we can backtrack.
 
-void inline Worker::unmark_unreachable_states(int to_state) {
+void inline Worker::unmark_unreachable_states_throw() {
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
@@ -1070,11 +1132,13 @@ void inline Worker::unmark_unreachable_states(int to_state) {
     --j;
     tempstate >>= 1;
   } while (tempstate & 1L);
+}
 
-  j = 0;
-  tempstate = graph.state[to_state];
-  cnum = graph.cyclenum[to_state];
-  cp = graph.cyclepartner[to_state];
+void inline Worker::unmark_unreachable_states_catch(int to_state) {
+  int j = 0;
+  std::uint64_t tempstate = graph.state[to_state];
+  int cnum = graph.cyclenum[to_state];
+  int* cp = graph.cyclepartner[to_state];
 
   do {
     if (--used[cp[j]] == 0 && --deadstates[cnum] >= 1)

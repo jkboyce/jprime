@@ -111,8 +111,10 @@ class Worker {
   void build_rootpos_throw_options(int rootpos_from_state, int min_column);
   bool mark_off_rootpos_option(int throwval, int to_state);
   void mark_forbidden_state(int s);
-  bool mark_unreachable_states(int to_state);
-  void unmark_unreachable_states(int to_state);
+  bool mark_unreachable_states_throw();
+  bool mark_unreachable_states_catch(int to_state);
+  void unmark_unreachable_states_throw();
+  void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
   void report_pattern() const;
   void print_throw(std::ostringstream& buffer, int val) const;
