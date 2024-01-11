@@ -1078,7 +1078,7 @@ void Worker::mark_forbidden_state(int s) {
 // finish a pattern of at least length `l_current` from our current position.
 // Returns true otherwise.
 
-bool inline Worker::mark_unreachable_states_throw() {
+inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
 
   // kill states downstream in `from` shift cycle that end in 'x'
@@ -1098,7 +1098,7 @@ bool inline Worker::mark_unreachable_states_throw() {
   return valid;
 }
 
-bool inline Worker::mark_unreachable_states_catch(int to_state) {
+inline bool Worker::mark_unreachable_states_catch(int to_state) {
   bool valid = true;
 
   // kill states upstream in 'to' shift cycle that start with '-'
@@ -1120,7 +1120,7 @@ bool inline Worker::mark_unreachable_states_catch(int to_state) {
 
 // Reverse the marking operations above, so we can backtrack.
 
-void inline Worker::unmark_unreachable_states_throw() {
+inline void Worker::unmark_unreachable_states_throw() {
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
@@ -1134,7 +1134,7 @@ void inline Worker::unmark_unreachable_states_throw() {
   } while (tempstate & 1L);
 }
 
-void inline Worker::unmark_unreachable_states_catch(int to_state) {
+inline void Worker::unmark_unreachable_states_catch(int to_state) {
   int j = 0;
   std::uint64_t tempstate = graph.state[to_state];
   int cnum = graph.cyclenum[to_state];
@@ -1148,7 +1148,7 @@ void inline Worker::unmark_unreachable_states_catch(int to_state) {
   } while ((tempstate & graph.highestbit) == 0);
 }
 
-void Worker::handle_finished_pattern() {
+inline void Worker::handle_finished_pattern() {
   ++ntotal;
 
   if ((pos + 1) >= l_current) {
