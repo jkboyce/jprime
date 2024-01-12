@@ -225,7 +225,11 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       ++i;
       while (i < argc && argv[i][0] != '-') {
         int j = atoi(argv[i]);
-        if (config != nullptr && j >= 0 && j <= config->h)
+        if (config != nullptr && j == config->h) {
+          std::cerr << "Cannot exclude max. throw value with -x" << std::endl;
+          std::exit(EXIT_FAILURE);
+        }
+        if (config != nullptr && j >= 0 && j < config->h)
           config->xarray[config->dualflag ? (config->h - j) : j] = true;
         ++i;
       }

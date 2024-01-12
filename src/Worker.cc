@@ -570,7 +570,9 @@ void Worker::gen_loops_normal() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = graph.outthrowval[from][col];
@@ -580,7 +582,8 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    if (throwval != 0 && throwval != graph.h) {
+    if (col > 0) {
+      // in this case: 0 < throwval < h (i.e. it's a link throw)
       if (mark_unreachable_states_throw()) {
         if (mark_unreachable_states_catch(to)) {
           pattern[pos] = throwval;
@@ -657,11 +660,13 @@ void Worker::gen_loops_block() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = graph.outthrowval[from][col];
-    const bool linkthrow = (throwval != 0 && throwval != graph.h);
+    const bool linkthrow = (col > 0);
     const int old_blocklength = blocklength;
     const int old_skipcount = skipcount;
     const int old_firstblocklength = firstblocklength;
@@ -771,11 +776,13 @@ void Worker::gen_loops_super() {
     const int to = om[col];
     if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = ov[col];
-    const bool linkthrow = (throwval != 0 && throwval != graph.h);
+    const bool linkthrow = (col > 0);
 
     if (linkthrow) {
       // going to a shift cycle that's already been visited?

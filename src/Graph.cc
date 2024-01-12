@@ -408,6 +408,7 @@ void Graph::prune_graph() {
 
       for (int j = 0; j < outdegree[i]; ++j) {
         if (unusable[outmatrix[i][j]]) {
+          assert(j > 0);  // confirm not pruning the shift throw at col = 0
           for (int k = j; k < outdegree[i] - 1; ++k) {
             outmatrix[i][k] = outmatrix[i][k + 1];
             outthrowval[i][k] = outthrowval[i][k + 1];
