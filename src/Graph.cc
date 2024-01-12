@@ -408,7 +408,17 @@ void Graph::prune_graph() {
 
       for (int j = 0; j < outdegree[i]; ++j) {
         if (unusable[outmatrix[i][j]]) {
-          assert(j > 0);  // confirm not pruning the shift throw at col = 0
+          // Confirm that we aren't pruning shift throws and violating certain
+          // assumptions in the process.
+          //
+          // In particular, note that all of the Worker::gen_loops_xxx()
+          // functions except for Worker::gen_loops_super0g() assume there is a
+          // shift throw (0 or h) at col == 0.
+          //
+          // If `super0ground` == true then we will always be using
+          // Worker::gen_loops_super0g() so we can prune in that case.
+          assert(j > 0 || super0ground);
+
           for (int k = j; k < outdegree[i] - 1; ++k) {
             outmatrix[i][k] = outmatrix[i][k + 1];
             outthrowval[i][k] = outthrowval[i][k + 1];

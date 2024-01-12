@@ -781,7 +781,6 @@ void Worker::gen_loops_super() {
     if (used[to] != 0)
       continue;
 
-    const int throwval = ov[col];
     const bool linkthrow = (col > 0);
 
     if (linkthrow) {
@@ -790,7 +789,7 @@ void Worker::gen_loops_super() {
       if (cycleused[to_cycle])
         continue;
 
-      pattern[pos] = throwval;
+      pattern[pos] = ov[col];
       if (to == start_state) {
         handle_finished_pattern();
       } else {
@@ -813,15 +812,11 @@ void Worker::gen_loops_super() {
         cycleused[to_cycle] = false;
       }
     } else {
-      const int old_shiftcount = shiftcount;
-
       // check for shift throw limits
       if (shiftcount == config.shiftlimit)
         continue;
-      else
-        ++shiftcount;
 
-      pattern[pos] = throwval;
+      pattern[pos] = ov[col];
       if (to == start_state) {
         handle_finished_pattern();
       } else {
@@ -832,6 +827,7 @@ void Worker::gen_loops_super() {
           steps_taken = 0;
         }
 
+        ++shiftcount;
         ++used[to];
         ++pos;
         const int old_from = from;
@@ -840,9 +836,8 @@ void Worker::gen_loops_super() {
         from = old_from;
         --pos;
         --used[to];
+        --shiftcount;
       }
-
-      shiftcount = old_shiftcount;
     }
 
     if (pos < root_pos)
