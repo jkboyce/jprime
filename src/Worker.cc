@@ -526,6 +526,15 @@ void Worker::gen_patterns() {
     longest_found = 0;
     notify_coordinator_longest();
 
+    if (config.mode != RunMode::SUPER_SEARCH) {
+      // verify that we didn't prune the shift throw at column 0, which is
+      // assumed in some of the gen_loops_xxx() methods below
+      for (int i = 1; i <= graph.numstates; ++i) {
+        assert(graph.outthrowval[i][0] == 0 ||
+            graph.outthrowval[i][0] == graph.h);
+      }
+    }
+
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
@@ -781,7 +790,8 @@ void Worker::gen_loops_super() {
     if (used[to] != 0)
       continue;
 
-    const bool linkthrow = (col > 0);
+    const int throwval = ov[col];
+    const bool linkthrow = (throwval != 0 && throwval != graph.h);
 
     if (linkthrow) {
       // going to a shift cycle that's already been visited?
@@ -789,7 +799,7 @@ void Worker::gen_loops_super() {
       if (cycleused[to_cycle])
         continue;
 
-      pattern[pos] = ov[col];
+      pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
       } else {
@@ -816,7 +826,7 @@ void Worker::gen_loops_super() {
       if (shiftcount == config.shiftlimit)
         continue;
 
-      pattern[pos] = ov[col];
+      pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
       } else {
