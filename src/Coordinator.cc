@@ -52,17 +52,16 @@ void Coordinator::run() {
     worker_longest[id] = 0;
   }
 
-  // check the inbox 10x more frequently than workers
-  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
-      static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
-
   timespec start_ts, end_ts;
   timespec_get(&start_ts, TIME_UTC);
+  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
+      static_cast<long>(nanosecs_per_inbox_check));
 
   while (true) {
     give_assignments();
     steal_work();
     process_inbox();
+    print_stats();
 
     if ((static_cast<int>(workers_idle.size()) == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
@@ -146,6 +145,8 @@ void Coordinator::process_inbox() {
       process_worker_idle(msg);
     } else if (msg.type == messages_W2C::RETURN_WORK) {
       process_returned_work(msg);
+    } else if (msg.type == messages_W2C::RETURN_STATS) {
+      process_returned_stats(msg);
     } else if (msg.type == messages_W2C::WORKER_STATUS) {
       process_worker_status(msg);
     } else {
@@ -185,17 +186,10 @@ bool Coordinator::is_worker_idle(const int id) const {
 }
 
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
+  collect_stats(msg);
+
   remove_from_run_order(msg.worker_id);
   workers_idle.push_back(msg.worker_id);
-
-  // collect statistics reported by the worker
-  context.ntotal += msg.ntotal;
-  context.nnodes += msg.nnodes;
-  context.numstates = msg.numstates;
-  context.numcycles = msg.numcycles;
-  context.numshortcycles = msg.numshortcycles;
-  context.maxlength = msg.maxlength;
-  context.secs_working += msg.secs_working;
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
@@ -211,6 +205,8 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 }
 
 void Coordinator::process_returned_work(const MessageW2C& msg) {
+  collect_stats(msg);
+
   if (msg.worker_id == waiting_for_work_from_id)
     waiting_for_work_from_id = -1;
   context.assignments.push_back(msg.assignment);
@@ -219,18 +215,113 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   remove_from_run_order(msg.worker_id);
   workers_run_order.push_back(msg.worker_id);
 
+  if (config.verboseflag) {
+    std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
+              << "  " << msg.assignment << std::endl;
+  }
+}
+
+bool doubles_are_close(double a, double b) {
+  double epsilon = 1e-3;
+  return (b > a - epsilon && b < a + epsilon);
+}
+
+void Coordinator::process_returned_stats(const MessageW2C& msg) {
+  collect_stats(msg);
+  if (++stats_received < context.num_threads)
+    return;
+
+  int mode = 0;
+  int max = 0;
+  unsigned long modeval = 0L;
+
+  for (int i = 0; i < count.size(); ++i) {
+    if (count[i] > modeval) {
+      mode = i;
+      modeval = count[i];
+    }
+    if (count[i] > 0)
+      max = i;
+  }
+
+  double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
+  double sy = 0, sxy = 0, sx2y = 0;
+  int xstart = std::max<int>(max - 10, mode);
+
+  for (int i = xstart; i < count.size(); ++i) {
+    if (count[i] < 5)
+      continue;
+
+    const double x = static_cast<double>(i);
+    const double y = log(static_cast<double>(count[i]));
+    s1 += 1;
+    sx += x;
+    sx2 += x * x;
+    sx3 += x * x * x;
+    sx4 += x * x * x * x;
+    sy += y;
+    sxy += x * y;
+    sx2y += x * x * y;
+  }
+
+  // Solve this 3x3 linear system for A, B, C, the coefficients in the
+  // parabola of best fit y = Ax^2 + Bx + C:
+  //
+  // | sx4  sx3  sx2  | | A |   | sx2y |
+  // | sx3  sx2  sx   | | B | = | sxy  |
+  // | sx2  sx   s1   | | C |   | sy   |
+
+  // Find matrix inverse
+  double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
+      sx2 * (sx3 * sx - sx2 * sx2);
+  double M11 = (sx2 * s1 - sx * sx) / det;
+  double M12 = (sx2 * sx - sx3 * s1) / det;
+  double M13 = (sx3 * sx - sx2 * sx2) / det;
+  double M21 = M12;
+  double M22 = (sx4 * s1 - sx2 * sx2) / det;
+  double M23 = (sx2 * sx3 - sx4 * sx) / det;
+  double M31 = M13;
+  double M32 = M23;
+  double M33 = (sx4 * sx2 - sx3 * sx3) / det;
+
+  assert(doubles_are_close(M11 * sx4 + M12 * sx3 + M13 * sx2, 1));
+  assert(doubles_are_close(M11 * sx3 + M12 * sx2 + M13 * sx, 0));
+  assert(doubles_are_close(M11 * sx2 + M12 * sx + M13 * s1, 0));
+  assert(doubles_are_close(M21 * sx4 + M22 * sx3 + M23 * sx2, 0));
+  assert(doubles_are_close(M21 * sx3 + M22 * sx2 + M23 * sx, 1));
+  assert(doubles_are_close(M21 * sx2 + M22 * sx + M23 * s1, 0));
+  assert(doubles_are_close(M31 * sx4 + M32 * sx3 + M33 * sx2, 0));
+  assert(doubles_are_close(M31 * sx3 + M32 * sx2 + M33 * sx, 0));
+  assert(doubles_are_close(M31 * sx2 + M32 * sx + M33 * s1, 1));
+
+  double A = M11 * sx2y + M12 * sxy + M13 * sy;
+  double B = M21 * sx2y + M22 * sxy + M23 * sy;
+  double C = M31 * sx2y + M32 * sxy + M33 * sy;
+
+  // evaluate the expected number of patterns found at x = maxlength
+  double x = static_cast<double>(context.maxlength);
+  double lny = A * x * x + B * x + C;
+  double completion = exp(lny);
+
+  std::cout << "patterns: " << context.ntotal
+            << " (mode " << mode
+            << ", max " << max
+            << ", lim " << context.maxlength << ")"
+            << " completion " << completion << std::endl;
+}
+
+void Coordinator::collect_stats(const MessageW2C& msg) {
   context.ntotal += msg.ntotal;
+  if (count.size() != msg.count.size())
+    count.assign(msg.count.size(), 0L);
+  for (int i = 0; i < msg.count.size(); ++i)
+    count[i] += msg.count[i];
   context.nnodes += msg.nnodes;
   context.numstates = msg.numstates;
   context.numcycles = msg.numcycles;
   context.numshortcycles = msg.numshortcycles;
   context.maxlength = msg.maxlength;
   context.secs_working += msg.secs_working;
-
-  if (config.verboseflag) {
-    std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
-              << "  " << msg.assignment << std::endl;
-  }
 }
 
 void Coordinator::process_worker_status(const MessageW2C& msg) {
@@ -298,6 +389,20 @@ void Coordinator::stop_workers() const {
     if (config.verboseflag)
       std::cout << "worker " << id << " asked to stop" << std::endl;
     worker_thread[id]->join();
+  }
+}
+
+void Coordinator::print_stats() {
+  const int counts_until_print = waits_per_second * 60;
+  if (++stats_counter < counts_until_print)
+    return;
+
+  stats_counter = 0;
+  stats_received = 0;
+  for (int id = 0; id < context.num_threads; ++id) {
+    MessageC2W msg;
+    msg.type = messages_C2W::SEND_STATS;
+    message_worker(msg, id);
   }
 }
 
@@ -460,4 +565,10 @@ void Coordinator::print_summary() const {
               << " %)";
   }
   std::cout << std::endl;
+
+  std::cout << std::endl << "FROM COORDINATOR:" << std::endl;
+
+  for (int i = 1; i <= context.maxlength; ++i) {
+    std::cout << i << ", " << count[i] << std::endl;
+  }
 }

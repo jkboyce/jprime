@@ -34,7 +34,8 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       graph(config.n, config.h, config.xarray,
         (config.mode != RunMode::SUPER_SEARCH),
         (config.mode == RunMode::SUPER_SEARCH && config.shiftlimit == 0 &&
-         config.groundmode == 1)) {
+         config.groundmode == 1)),
+      count(graph.numstates, 0L) {
   l_current = config.l;
   maxlength = (config.mode == RunMode::SUPER_SEARCH)
       ? (graph.numcycles + config.shiftlimit)
@@ -104,6 +105,8 @@ void Worker::run() {
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
         // leave in the inbox for when we get work
         inbox.push(msg);
+      } else if (msg.type == messages_C2W::SEND_STATS) {
+        process_send_stats_request();
       } else if (msg.type == messages_C2W::STOP_WORKER) {
         stop_worker = true;
       } else
@@ -145,10 +148,18 @@ void Worker::run() {
 // Handle interactions with the Coordinator thread
 //------------------------------------------------------------------------------
 
-void Worker::message_coordinator(const MessageW2C& msg) const {
+void Worker::message_coordinator(MessageW2C& msg) const {
+  msg.worker_id = worker_id;
   coordinator.inbox_lock.lock();
   coordinator.inbox.push(msg);
   coordinator.inbox_lock.unlock();
+}
+
+void Worker::message_coordinator_status(const std::string& str) const {
+  MessageW2C msg;
+  msg.type = messages_W2C::WORKER_STATUS;
+  msg.meta = str;
+  message_coordinator(msg);
 }
 
 // Handle incoming messages from the coordinator that have queued while the
@@ -171,6 +182,8 @@ void Worker::process_inbox_running() {
       l_current = std::max(l_current, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
       process_split_work_request(msg);
+    } else if (msg.type == messages_C2W::SEND_STATS) {
+      process_send_stats_request();
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -215,12 +228,36 @@ void Worker::calibrate_inbox_check() {
       secs_per_inbox_check_target / time_spent);
 }
 
+void Worker::process_split_work_request(const MessageC2W& msg) {
+  send_work_to_coordinator(split_work_assignment(msg.split_alg));
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id
+           << " remaining work after split:" << std::endl
+           << "  " << get_work_assignment();
+    message_coordinator_status(buffer.str());
+  }
+}
+
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_WORK;
-  msg.worker_id = worker_id;
   msg.assignment = wa;
+  add_stats_to_message(msg);
+  message_coordinator(msg);
+}
+
+void Worker::process_send_stats_request() {
+  MessageW2C msg;
+  msg.type = messages_W2C::RETURN_STATS;
+  add_stats_to_message(msg);
+  message_coordinator(msg);
+}
+
+void Worker::add_stats_to_message(MessageW2C& msg) {
   msg.ntotal = ntotal;
+  msg.count = count;
   msg.nnodes = nnodes;
   msg.numstates = graph.numstates;
   msg.numcycles = graph.numcycles;
@@ -228,25 +265,9 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
+  count.assign(count.size(), 0L);
   nnodes = 0;
   secs_working = 0;
-  message_coordinator(msg);
-}
-
-void Worker::process_split_work_request(const MessageC2W& msg) {
-  send_work_to_coordinator(split_work_assignment(msg.split_alg));
-
-  if (config.verboseflag) {
-    std::ostringstream sstr;
-    sstr << "worker " << worker_id
-         << " remaining work after split:" << std::endl
-         << "  " << get_work_assignment();
-    MessageW2C msg2;
-    msg2.type = messages_W2C::WORKER_STATUS;
-    msg2.worker_id = worker_id;
-    msg2.meta = sstr.str();
-    message_coordinator(msg2);
-  }
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
@@ -300,17 +321,7 @@ WorkAssignment Worker::get_work_assignment() const {
 void Worker::notify_coordinator_idle() {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_IDLE;
-  msg.worker_id = worker_id;
-  msg.ntotal = ntotal;
-  msg.nnodes = nnodes;
-  msg.numstates = graph.numstates;
-  msg.numcycles = graph.numcycles;
-  msg.numshortcycles = graph.numshortcycles;
-  msg.maxlength = maxlength;
-  msg.secs_working = secs_working;
-  ntotal = 0;
-  nnodes = 0;
-  secs_working = 0;
+  add_stats_to_message(msg);
   message_coordinator(msg);
 }
 
@@ -321,7 +332,6 @@ void Worker::notify_coordinator_idle() {
 void Worker::notify_coordinator_rootpos() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_STATUS;
-  msg.worker_id = worker_id;
   msg.root_pos = root_pos;
   message_coordinator(msg);
 }
@@ -329,7 +339,6 @@ void Worker::notify_coordinator_rootpos() const {
 void Worker::notify_coordinator_longest() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_STATUS;
-  msg.worker_id = worker_id;
   msg.longest_found = longest_found;
   message_coordinator(msg);
 }
@@ -495,15 +504,11 @@ void Worker::gen_patterns() {
     }
 
     if (config.verboseflag) {
-      std::ostringstream sstr;
-      sstr << "worker " << worker_id
-           << " starting at state " << graph.state_string(start_state)
-           << " (" << start_state << ")";
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = sstr.str();
-      message_coordinator(msg);
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id
+             << " starting at state " << graph.state_string(start_state)
+             << " (" << start_state << ")";
+      message_coordinator_status(buffer.str());
     }
 
     // account for forbidden states and check if no way to make a pattern of the
@@ -967,11 +972,7 @@ void Worker::build_rootpos_throw_options(int rootpos_from_state,
     for (int v : root_throwval_options)
       print_throw(buffer, v);
     buffer << "]";
-    MessageW2C msg;
-    msg.type = messages_W2C::WORKER_STATUS;
-    msg.worker_id = worker_id;
-    msg.meta = buffer.str();
-    message_coordinator(msg);
+    message_coordinator_status(buffer.str());
   }
 }
 
@@ -1006,11 +1007,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
       buffer << "worker " << worker_id << " option ";
       print_throw(buffer, throwval);
       buffer << " at root_pos " << root_pos << " was pruned; removing";
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = buffer.str();
-      message_coordinator(msg);
+      message_coordinator_status(buffer.str());
     }
 
     if (!pruned && *iter == throwval) {
@@ -1021,11 +1018,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
         buffer << "worker " << worker_id << " starting option ";
         print_throw(buffer, throwval);
         buffer << " at root_pos " << root_pos;
-        MessageW2C msg;
-        msg.type = messages_W2C::WORKER_STATUS;
-        msg.worker_id = worker_id;
-        msg.meta = buffer.str();
-        message_coordinator(msg);
+        message_coordinator_status(buffer.str());
       }
     }
 
@@ -1067,11 +1060,7 @@ void Worker::mark_forbidden_state(int s) {
            << " forbidden state " << graph.state_string(s)
            << " (" << s
            << ") : max_possible = " << max_possible;
-    MessageW2C msg;
-    msg.type = messages_W2C::WORKER_STATUS;
-    msg.worker_id = worker_id;
-    msg.meta = buffer.str();
-    message_coordinator(msg);
+    message_coordinator_status(buffer.str());
   }
 
   // if state starts with 'x', downcycle state is forbidden
@@ -1162,6 +1151,7 @@ inline void Worker::unmark_unreachable_states_catch(int to_state) {
 
 inline void Worker::handle_finished_pattern() {
   ++ntotal;
+  ++count[pos + 1];
 
   if ((pos + 1) >= l_current) {
     if (config.longestflag)
@@ -1208,7 +1198,6 @@ void Worker::report_pattern() const {
 
   MessageW2C msg;
   msg.type = messages_W2C::SEARCH_RESULT;
-  msg.worker_id = worker_id;
   msg.pattern = buffer.str();
   msg.length = pos + 1;
   message_coordinator(msg);

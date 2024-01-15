@@ -14,6 +14,7 @@
 
 #include "WorkAssignment.h"
 
+#include <vector>
 #include <string>
 
 
@@ -23,6 +24,7 @@ enum class messages_C2W {
   DO_WORK,
   UPDATE_METADATA,
   SPLIT_WORK,
+  SEND_STATS,
   STOP_WORKER,
 };
 
@@ -47,6 +49,7 @@ enum class messages_W2C {
   SEARCH_RESULT,
   WORKER_IDLE,
   RETURN_WORK,
+  RETURN_STATS,
   WORKER_STATUS,
 };
 
@@ -59,8 +62,9 @@ struct MessageW2C {
   std::string pattern;
   int length = 0;
 
-  // for types WORKER_IDLE and RETURN_WORK
+  // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
   unsigned long ntotal = 0L;
+  std::vector<unsigned long> count;
   unsigned long nnodes = 0L;
   int numstates = 0;
   int numcycles = 0;
