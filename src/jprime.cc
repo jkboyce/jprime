@@ -98,7 +98,7 @@ void print_help() {
 // Parsing command line arguments
 //------------------------------------------------------------------------------
 
-void parse_args(int argc, char** argv, SearchConfig* const config,
+void parse_args(size_t argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
     config->n = atoi(argv[1]);
@@ -284,9 +284,9 @@ void parse_args(std::string str, SearchConfig* const config,
   while (std::getline(ss, s, ' '))
     args.push_back(s);
 
-  const int argc = args.size();
+  const size_t argc = args.size();
   char** argv = new char*[argc];
-  for (int i = 0; i < argc; ++i)
+  for (size_t i = 0; i < argc; ++i)
     argv[i] = &(args[i][0]);
 
   parse_args(argc, argv, config, context);

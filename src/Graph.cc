@@ -62,8 +62,8 @@ void Graph::init() {
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   maxindegree = n + 1;
-  highestbit = 1L << (h - 1);
-  allbits = (1L << h) - 1;
+  highestbit = static_cast<uint64_t>(1) << (h - 1);
+  allbits = (static_cast<uint64_t>(1) << h) - 1;
 
   allocate_arrays();
   int ns = gen_states(state, 0, h - 1, n, h, numstates);
@@ -188,7 +188,7 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
   state[num + 1] &= ~(1L << pos);
   num = gen_states(state, num, pos - 1, left, h, ns);
   if (left > 0) {
-    state[num + 1] |= (1L << pos);
+    state[num + 1] |= (static_cast<uint64_t>(1) << pos);
     num = gen_states(state, num, pos - 1, left - 1, h, ns);
   }
 
@@ -289,7 +289,7 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else if (state[i] & 1L) {
-        std::uint64_t temp = (std::uint64_t)1L << (j - 1);
+        std::uint64_t temp = static_cast<std::uint64_t>(1) << (j - 1);
         std::uint64_t temp2 = (state[i] >> 1);
 
         if (!(temp2 & temp)) {
@@ -321,7 +321,7 @@ void Graph::gen_matrices() {
         continue;
 
       if (j == 0) {
-        if (!(state[i] & (1L << (h - 1)))) {
+        if (!(state[i] & (static_cast<uint64_t>(1) << (h - 1)))) {
           std::uint64_t temp = state[i] << 1;
 
           bool found = false;
@@ -336,8 +336,8 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else if (j == h) {
-        if (state[i] & (1L << (h - 1))) {
-          std::uint64_t temp = state[i] ^ (1L << (h - 1));
+        if (state[i] & (static_cast<uint64_t>(1) << (h - 1))) {
+          std::uint64_t temp = state[i] ^ (static_cast<uint64_t>(1) << (h - 1));
           temp = (temp << 1) | 1L;
 
           bool found = false;
@@ -352,8 +352,9 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else {
-        if ((state[i] & (1L << (j - 1))) && !(state[i] & (1L << (h - 1)))) {
-          std::uint64_t temp = state[i] ^ (1L << (j - 1));
+        if ((state[i] & (static_cast<uint64_t>(1) << (j - 1))) &&
+            !(state[i] & (static_cast<uint64_t>(1) << (h - 1)))) {
+          std::uint64_t temp = state[i] ^ (static_cast<uint64_t>(1) << (j - 1));
           temp = (temp << 1) | 1L;
 
           bool found = false;
@@ -467,7 +468,7 @@ int Graph::advance_state(int statenum, int throwval) const {
 
   std::uint64_t new_state = state[statenum] >> 1;
   if (throwval > 0) {
-    std::uint64_t mask = 1L << (throwval - 1);
+    std::uint64_t mask = static_cast<uint64_t>(1) << (throwval - 1);
     if (new_state & mask)
       return -1;
     new_state |= mask;

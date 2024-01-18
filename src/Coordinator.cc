@@ -57,7 +57,7 @@ void Coordinator::run() {
       static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
 
   timespec start_ts, end_ts;
-  timespec_get(&start_ts, TIME_UTC);
+  (void)timespec_get(&start_ts, TIME_UTC);
 
   while (true) {
     give_assignments();
@@ -75,7 +75,7 @@ void Coordinator::run() {
     std::this_thread::sleep_for(nanosecs_wait);
   }
 
-  timespec_get(&end_ts, TIME_UTC);
+  (void)timespec_get(&end_ts, TIME_UTC);
   double runtime =
       static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
       1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
@@ -373,6 +373,7 @@ int Coordinator::find_stealing_target_lowestid() const {
     return id;
   }
   assert(false);
+  return 0;
 }
 
 int Coordinator::find_stealing_target_lowestrootpos() const {

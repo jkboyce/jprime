@@ -28,7 +28,7 @@ enum class messages_C2W {
 
 struct MessageC2W {
   // for all message types
-  messages_C2W type;
+  messages_C2W type = messages_C2W::STOP_WORKER;
 
   // for type DO_WORK
   WorkAssignment assignment;
@@ -52,8 +52,8 @@ enum class messages_W2C {
 
 struct MessageW2C {
   // for all message types
-  messages_W2C type;
-  int worker_id;
+  messages_W2C type = messages_W2C::WORKER_IDLE;
+  int worker_id = 0;
 
   // for type SEARCH_RESULT
   std::string pattern;

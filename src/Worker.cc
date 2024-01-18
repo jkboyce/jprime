@@ -118,7 +118,7 @@ void Worker::run() {
 
     // get timestamp so we can report working time to coordinator
     timespec start_ts;
-    timespec_get(&start_ts, TIME_UTC);
+    (void)timespec_get(&start_ts, TIME_UTC);
 
     // complete the new work assignment
     try {
@@ -127,6 +127,7 @@ void Worker::run() {
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
+      (void)jpse;
       record_elapsed_time(start_ts);
       send_work_to_coordinator(get_work_assignment());
       break;
@@ -188,7 +189,7 @@ void Worker::process_inbox_running() {
 
 void Worker::record_elapsed_time(const timespec& start_ts) {
   timespec end_ts;
-  timespec_get(&end_ts, TIME_UTC);
+  (void)timespec_get(&end_ts, TIME_UTC);
   double runtime =
       static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
       1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
@@ -197,13 +198,13 @@ void Worker::record_elapsed_time(const timespec& start_ts) {
 
 void Worker::calibrate_inbox_check() {
   if (calibrations_remaining == calibrations_initial) {
-    timespec_get(&last_ts, TIME_UTC);
+    (void)timespec_get(&last_ts, TIME_UTC);
     --calibrations_remaining;
     return;
   }
 
   timespec current_ts;
-  timespec_get(&current_ts, TIME_UTC);
+  (void)timespec_get(&current_ts, TIME_UTC);
   double time_spent =
       static_cast<double>(current_ts.tv_sec - last_ts.tv_sec) +
       1.0e-9 * (current_ts.tv_nsec - last_ts.tv_nsec);
@@ -353,6 +354,7 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
       break;
     default:
       assert(false);
+      return split_work_assignment_takeall();
   }
 }
 
@@ -948,6 +950,7 @@ int Worker::load_one_throw() {
     std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
   std::cerr << std::endl;
   assert(false);
+  return 0;
 }
 
 // Determine the set of throw options available at position `root_pos` in
