@@ -90,7 +90,7 @@ void Coordinator::run() {
   }
 
   if (context.assignments.size() > 0)
-    std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
+    std::cout << "\nPARTIAL RESULTS:\n";
   print_summary();
 }
 
@@ -124,7 +124,7 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      std::cout << "worker " << id << " given work:" << std::endl
+      std::cout << "worker " << id << " given work:\n"
                 << "  " << msg.assignment << std::endl;
     }
   }
@@ -228,7 +228,7 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   context.secs_working += msg.secs_working;
 
   if (config.verboseflag) {
-    std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
+    std::cout << "worker " << msg.worker_id << " returned work:\n"
               << "  " << msg.assignment << std::endl;
   }
 }
@@ -413,22 +413,21 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 
 void Coordinator::print_summary() const {
   std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
-            << ", max throw: " << config.h << std::endl;
+            << ", max throw: " << config.h << '\n';
 
   std::cout << "graph: " << context.numstates << " states, "
             << context.numcycles << " shift cycles, "
-            << context.numshortcycles << " short cycles" << std::endl;
+            << context.numshortcycles << " short cycles\n";
 
   switch (config.mode) {
     case RunMode::BLOCK_SEARCH:
-      std::cout << "block mode, " << config.skiplimit << " skips allowed"
-                << std::endl;
+      std::cout << "block mode, " << config.skiplimit << " skips allowed\n";
       break;
     case RunMode::SUPER_SEARCH:
       std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
       if (config.invertflag)
         std::cout << ", inverse output";
-      std::cout << std::endl;
+      std::cout << '\n';
       break;
     default:
       break;
@@ -436,7 +435,7 @@ void Coordinator::print_summary() const {
 
   if (config.longestflag) {
     std::cout << "pattern length: " << context.l_current
-              << " throws (" << context.maxlength << " maximum)" << std::endl;
+              << " throws (" << context.maxlength << " maximum)\n";
   }
 
   std::cout << context.npatterns << " patterns found ("
@@ -445,12 +444,12 @@ void Coordinator::print_summary() const {
             << std::fixed << std::setprecision(2)
             << (static_cast<double>(context.nnodes) / context.secs_elapsed /
                 1000000)
-            << "M nodes/sec)" << std::endl;
+            << "M nodes/sec)\n";
 
   if (config.groundmode == 1)
-    std::cout << "ground state search" << std::endl;
+    std::cout << "ground state search\n";
   if (config.groundmode == 2)
-    std::cout << "excited state search" << std::endl;
+    std::cout << "excited state search\n";
 
   std::cout << "running time = "
             << std::fixed << std::setprecision(4)

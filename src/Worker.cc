@@ -40,8 +40,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       ? (graph.numcycles + config.shiftlimit)
       : (graph.numstates - graph.numcycles);
   if (config.l > maxlength) {
-    std::cerr << "No patterns longer than " << maxlength << " are possible"
-              << std::endl;
+    std::cerr << "No patterns longer than " << maxlength << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
   allocate_arrays();
@@ -239,8 +238,7 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
 
   if (config.verboseflag) {
     std::ostringstream sstr;
-    sstr << "worker " << worker_id
-         << " remaining work after split:" << std::endl
+    sstr << "worker " << worker_id << " remaining work after split:\n"
          << "  " << get_work_assignment();
     MessageW2C msg2;
     msg2.type = messages_W2C::WORKER_STATUS;
@@ -445,7 +443,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
                   << ", root_pos = " << root_pos
                   << ", col = " << col
                   << ", throwval = " << throwval
-                  << std::endl;
+                  << '\n';
       }
       assert(col != graph.outdegree[from_state]);
 
@@ -932,23 +930,23 @@ int Worker::load_one_throw() {
   std::ostringstream buffer;
   for (int i = 0; i <= pos; ++i)
     print_throw(buffer, pattern[i]);
-  std::cerr << "worker: " << worker_id << std::endl
-            << "pos: " << pos << std::endl
-            << "root_pos: " << root_pos << std::endl
-            << "from: " << from << std::endl
-            << "state[from]: " << graph.state[from] << std::endl
-            << "start_state: " << start_state << std::endl
-            << "pattern: " << buffer.str() << std::endl
+  std::cerr << "worker: " << worker_id << '\n'
+            << "pos: " << pos << '\n'
+            << "root_pos: " << root_pos << '\n'
+            << "from: " << from << '\n'
+            << "state[from]: " << graph.state[from] << '\n'
+            << "start_state: " << start_state << '\n'
+            << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outthrowval[from][i] << ", ";
-  std::cerr << std::endl << "outmatrix[from][]: ";
+  std::cerr << "\noutmatrix[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outmatrix[from][i] << ", ";
-  std::cerr << std::endl << "state[outmatrix[from][]]: ";
+  std::cerr << "\nstate[outmatrix[from][]]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
-  std::cerr << std::endl;
+  std::cerr << '\n';
   assert(false);
   return 0;
 }
@@ -1329,22 +1327,22 @@ std::string Worker::get_inverse() const {
 
     if (inversestate[inverse_pos + 1] < 0) {
       std::cerr << "bad state advance: going from state "
-                << inversestate[inverse_pos] << std::endl;
+                << inversestate[inverse_pos] << '\n';
       std::cerr << "   (" << graph.state_string(inversestate[inverse_pos])
-                << ")" << std::endl;
-      std::cerr << "   using throw " << inversethrow << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "orig. pattern = " << get_pattern() << std::endl;
+                << ")\n";
+      std::cerr << "   using throw " << inversethrow << '\n';
+      std::cerr << "----------------" << '\n';
+      std::cerr << "orig. pattern = " << get_pattern() << '\n';
       for (int j = 0; j <= pos; ++j) {
         std::cerr << graph.state_string(patternstate[j]) << "   "
-                 << pattern[j] << std::endl;
+                 << pattern[j] << '\n';
       }
-      std::cerr << "   orig. pattern position = " << i << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "inverse pattern: " << std::endl;
+      std::cerr << "   orig. pattern position = " << i << '\n';
+      std::cerr << "----------------\n";
+      std::cerr << "inverse pattern:\n";
       for (int j = 0; j <= inverse_pos; ++j) {
         std::cerr << graph.state_string(inversestate[j]) << "   "
-                 << inversepattern[j] << std::endl;
+                 << inversepattern[j] << '\n';
       }
       std::exit(EXIT_FAILURE);
     }
