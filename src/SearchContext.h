@@ -7,7 +7,7 @@
 // Only the Coordinator thread has access to this data structure; the Workers
 // report all changes to the coordinator via messages.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

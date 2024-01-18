@@ -6,7 +6,7 @@
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -46,7 +46,7 @@
 void print_help() {
   const std::string helpString =
     "jprime version 6.2 (2023.12.21)\n"
-    "Copyright (C) 1998-2023 Jack Boyce\n"
+    "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
     "explanation of these terms, consult the page:\n"
@@ -89,7 +89,7 @@ void print_help() {
     "   jprime 4 7\n"
     "   jprime 5 7 15 -noplus -exact\n"
     "   jprime 5 7 -noplus -all -file 5_7_all\n"
-    "   jprime 6 10 -super 0 -g -file 6_10_s0\n";
+    "   jprime 6 10 -super 0 -inverse -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
 }
@@ -103,13 +103,12 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
   if (config != nullptr) {
     config->n = atoi(argv[1]);
     if (config->n < 1) {
-      std::cerr << "Must have at least 1 object" << std::endl;
+      std::cerr << "Must have at least 1 object\n";
       std::exit(EXIT_FAILURE);
     }
     config->h = atoi(argv[2]);
     if (config->h < config->n) {
-      std::cerr << "Max. throw value must equal or exceed number of objects"
-                << std::endl;
+      std::cerr << "Max. throw value must equal or exceed number of objects\n";
       std::exit(EXIT_FAILURE);
     }
 

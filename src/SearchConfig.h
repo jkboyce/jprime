@@ -3,7 +3,7 @@
 //
 // Defines items that are constant during the duration of the search
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

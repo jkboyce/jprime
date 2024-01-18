@@ -7,7 +7,7 @@
 // stealing to keep the workers busy. The business of the coordinator is to
 // interact with the workers to distribute work, and also to manage output.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

@@ -4,7 +4,7 @@
 // Worker thread that executes work assignments given to it by the
 // Coordinator thread.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
