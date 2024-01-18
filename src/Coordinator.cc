@@ -52,10 +52,12 @@ void Coordinator::run() {
     worker_longest[id] = 0;
   }
 
+  // check the inbox 10x more frequently than workers
+  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
+      static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
+
   timespec start_ts, end_ts;
   (void)timespec_get(&start_ts, TIME_UTC);
-  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
-      static_cast<long>(nanosecs_per_inbox_check));
 
   while (true) {
     give_assignments();
