@@ -8,7 +8,7 @@
 // with a work stealing scheme to balance work among the threads. Each worker
 // communicates only with the coordinator thread, via a set of message types.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -41,8 +41,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       ? (graph.numcycles + config.shiftlimit)
       : (graph.numstates - graph.numcycles);
   if (config.l > maxlength) {
-    std::cerr << "No patterns longer than " << maxlength << " are possible"
-              << std::endl;
+    std::cerr << "No patterns longer than " << maxlength << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
   allocate_arrays();
@@ -60,7 +59,7 @@ void Worker::allocate_arrays() {
   cycleused = new bool[graph.numstates + 1];
   deadstates = new int[graph.numstates + 1];
 
-  for (int i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     pattern[i] = -1;
     used[i] = 0;
     cycleused[i] = false;
@@ -121,7 +120,7 @@ void Worker::run() {
 
     // get timestamp so we can report working time to coordinator
     timespec start_ts;
-    timespec_get(&start_ts, TIME_UTC);
+    (void)timespec_get(&start_ts, TIME_UTC);
 
     // complete the new work assignment
     try {
@@ -130,6 +129,7 @@ void Worker::run() {
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
+      (void)jpse;
       record_elapsed_time(start_ts);
       send_work_to_coordinator(get_work_assignment());
       break;
@@ -201,7 +201,7 @@ void Worker::process_inbox_running() {
 
 void Worker::record_elapsed_time(const timespec& start_ts) {
   timespec end_ts;
-  timespec_get(&end_ts, TIME_UTC);
+  (void)timespec_get(&end_ts, TIME_UTC);
   double runtime =
       static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
       1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
@@ -210,13 +210,13 @@ void Worker::record_elapsed_time(const timespec& start_ts) {
 
 void Worker::calibrate_inbox_check() {
   if (calibrations_remaining == calibrations_initial) {
-    timespec_get(&last_ts, TIME_UTC);
+    (void)timespec_get(&last_ts, TIME_UTC);
     --calibrations_remaining;
     return;
   }
 
   timespec current_ts;
-  timespec_get(&current_ts, TIME_UTC);
+  (void)timespec_get(&current_ts, TIME_UTC);
   double time_spent =
       static_cast<double>(current_ts.tv_sec - last_ts.tv_sec) +
       1.0e-9 * (current_ts.tv_nsec - last_ts.tv_nsec);
@@ -233,8 +233,7 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
 
   if (config.verboseflag) {
     std::ostringstream buffer;
-    buffer << "worker " << worker_id
-           << " remaining work after split:" << std::endl
+    buffer << "worker " << worker_id << " remaining work after split:\n"
            << "  " << get_work_assignment();
     message_coordinator_status(buffer.str());
   }
@@ -265,7 +264,7 @@ void Worker::add_stats_to_message(MessageW2C& msg) {
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
   ntotal = 0;
-  count.assign(count.size(), 0L);
+  count.assign(count.size(), 0);
   nnodes = 0;
   secs_working = 0;
 }
@@ -291,9 +290,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
-  for (int i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < static_cast<int>(wa.partial_pattern.size())) ?
-        wa.partial_pattern[i] : -1;
+  for (size_t i = 0; i <= graph.numstates; ++i) {
+    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
   }
 }
 
@@ -307,7 +305,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (int i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     if (pattern[i] == -1)
       break;
     wa.partial_pattern.push_back(pattern[i]);
@@ -362,6 +360,7 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
       break;
     default:
       assert(false);
+      return split_work_assignment_takeall();
   }
 }
 
@@ -381,7 +380,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   wa.start_state = start_state;
   wa.end_state = start_state;
   wa.root_pos = root_pos;
-  for (int i = 0; i < root_pos; ++i)
+  for (size_t i = 0; i < root_pos; ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
@@ -438,7 +437,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (int pos2 = 0; pos2 <= pos; ++pos2) {
+    for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
       const int throwval = pattern[pos2];
       for (col = 0; col < graph.outdegree[from_state]; ++col) {
         if (throwval == graph.outthrowval[from_state][col])
@@ -452,7 +451,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
                   << ", root_pos = " << root_pos
                   << ", col = " << col
                   << ", throwval = " << throwval
-                  << std::endl;
+                  << '\n';
       }
       assert(col != graph.outdegree[from_state]);
 
@@ -493,7 +492,7 @@ void Worker::gen_patterns() {
     blocklength = 0;
     max_possible = maxlength;
     exitcyclesleft = 0;
-    for (int i = 0; i <= graph.numstates; ++i) {
+    for (size_t i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
@@ -534,7 +533,7 @@ void Worker::gen_patterns() {
     if (config.mode != RunMode::SUPER_SEARCH) {
       // verify that we didn't prune the shift throw at column 0, which is
       // assumed in some of the gen_loops_xxx() methods below
-      for (int i = 1; i <= graph.numstates; ++i) {
+      for (size_t i = 1; i <= graph.numstates; ++i) {
         assert(graph.outthrowval[i][0] == 0 ||
             graph.outthrowval[i][0] == graph.h);
       }
@@ -935,24 +934,25 @@ int Worker::load_one_throw() {
   std::ostringstream buffer;
   for (int i = 0; i <= pos; ++i)
     print_throw(buffer, pattern[i]);
-  std::cerr << "worker: " << worker_id << std::endl
-            << "pos: " << pos << std::endl
-            << "root_pos: " << root_pos << std::endl
-            << "from: " << from << std::endl
-            << "state[from]: " << graph.state[from] << std::endl
-            << "start_state: " << start_state << std::endl
-            << "pattern: " << buffer.str() << std::endl
+  std::cerr << "worker: " << worker_id << '\n'
+            << "pos: " << pos << '\n'
+            << "root_pos: " << root_pos << '\n'
+            << "from: " << from << '\n'
+            << "state[from]: " << graph.state[from] << '\n'
+            << "start_state: " << start_state << '\n'
+            << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outthrowval[from][i] << ", ";
-  std::cerr << std::endl << "outmatrix[from][]: ";
+  std::cerr << "\noutmatrix[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outmatrix[from][i] << ", ";
-  std::cerr << std::endl << "state[outmatrix[from][]]: ";
+  std::cerr << "\nstate[outmatrix[from][]]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
-  std::cerr << std::endl;
+  std::cerr << '\n';
   assert(false);
+  return 0;
 }
 
 // Determine the set of throw options available at position `root_pos` in
@@ -1315,22 +1315,22 @@ std::string Worker::get_inverse() const {
 
     if (inversestate[inverse_pos + 1] < 0) {
       std::cerr << "bad state advance: going from state "
-                << inversestate[inverse_pos] << std::endl;
+                << inversestate[inverse_pos] << '\n';
       std::cerr << "   (" << graph.state_string(inversestate[inverse_pos])
-                << ")" << std::endl;
-      std::cerr << "   using throw " << inversethrow << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "orig. pattern = " << get_pattern() << std::endl;
+                << ")\n";
+      std::cerr << "   using throw " << inversethrow << '\n';
+      std::cerr << "----------------" << '\n';
+      std::cerr << "orig. pattern = " << get_pattern() << '\n';
       for (int j = 0; j <= pos; ++j) {
         std::cerr << graph.state_string(patternstate[j]) << "   "
-                 << pattern[j] << std::endl;
+                 << pattern[j] << '\n';
       }
-      std::cerr << "   orig. pattern position = " << i << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "inverse pattern: " << std::endl;
+      std::cerr << "   orig. pattern position = " << i << '\n';
+      std::cerr << "----------------\n";
+      std::cerr << "inverse pattern:\n";
       for (int j = 0; j <= inverse_pos; ++j) {
         std::cerr << graph.state_string(inversestate[j]) << "   "
-                 << inversepattern[j] << std::endl;
+                 << inversepattern[j] << '\n';
       }
       std::exit(EXIT_FAILURE);
     }

@@ -3,7 +3,7 @@
 //
 // Data structures related to the juggling graph for N objects, max throw H.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -13,6 +13,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 
 
 class Graph {
@@ -47,8 +48,8 @@ class Graph {
   int* cycleperiod;
   bool* isexitcycle;
   int** cyclepartner;
-  std::uint64_t highestbit = 0L;
-  std::uint64_t allbits = 0L;
+  std::uint64_t highestbit = 0;
+  std::uint64_t allbits = 0;
 
  private:
   void init();

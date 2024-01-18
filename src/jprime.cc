@@ -6,7 +6,7 @@
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -46,7 +46,7 @@
 void print_help() {
   const std::string helpString =
     "jprime version 6.2 (2023.12.21)\n"
-    "Copyright (C) 1998-2023 Jack Boyce\n"
+    "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
     "explanation of these terms, consult the page:\n"
@@ -89,7 +89,7 @@ void print_help() {
     "   jprime 4 7\n"
     "   jprime 5 7 15 -noplus -exact\n"
     "   jprime 5 7 -noplus -all -file 5_7_all\n"
-    "   jprime 6 10 -super 0 -g -file 6_10_s0\n";
+    "   jprime 6 10 -super 0 -inverse -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
 }
@@ -98,18 +98,17 @@ void print_help() {
 // Parsing command line arguments
 //------------------------------------------------------------------------------
 
-void parse_args(int argc, char** argv, SearchConfig* const config,
+void parse_args(size_t argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
     config->n = atoi(argv[1]);
     if (config->n < 1) {
-      std::cerr << "Must have at least 1 object" << std::endl;
+      std::cerr << "Must have at least 1 object\n";
       std::exit(EXIT_FAILURE);
     }
     config->h = atoi(argv[2]);
     if (config->h < config->n) {
-      std::cerr << "Max. throw value must equal or exceed number of objects"
-                << std::endl;
+      std::cerr << "Max. throw value must equal or exceed number of objects\n";
       std::exit(EXIT_FAILURE);
     }
 
@@ -153,15 +152,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         config->exactflag = true;
         config->longestflag = false;
         if (config->l < 2) {
-          std::cerr << "Must specify a length > 1 when using -exact flag"
-                    << std::endl;
+          std::cerr << "Must specify a length > 1 when using -exact flag\n";
           std::exit(EXIT_FAILURE);
         }
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time\n";
           std::exit(EXIT_FAILURE);
         }
         ++i;
@@ -172,7 +170,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
             config->xarray[0] = config->xarray[config->h] = true;
         }
       } else {
-        std::cerr << "Must provide shift limit in -super mode" << std::endl;
+        std::cerr << "Must provide shift limit in -super mode\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-file")) {
@@ -183,7 +181,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->outfile = std::string(argv[i]);
         }
       } else {
-        std::cerr << "No filename provided after -file" << std::endl;
+        std::cerr << "No filename provided after -file\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-steal_alg")) {
@@ -194,7 +192,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           stealalg_given = true;
         }
       } else {
-        std::cerr << "No number provided after -steal_alg" << std::endl;
+        std::cerr << "No number provided after -steal_alg\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
@@ -203,13 +201,13 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->split_alg = atoi(argv[i]);
       } else {
-        std::cerr << "No number provided after -split_alg" << std::endl;
+        std::cerr << "No number provided after -split_alg\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time\n";
           std::exit(EXIT_FAILURE);
         }
         ++i;
@@ -218,7 +216,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           config->skiplimit = atoi(argv[i]);
         }
       } else {
-        std::cerr << "Must provide skip limit in -block mode" << std::endl;
+        std::cerr << "Must provide skip limit in -block mode\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-x")) {
@@ -226,7 +224,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
       while (i < argc && argv[i][0] != '-') {
         int j = atoi(argv[i]);
         if (config != nullptr && j == config->h) {
-          std::cerr << "Cannot exclude max. throw value with -x" << std::endl;
+          std::cerr << "Cannot exclude max. throw value with -x\n";
           std::exit(EXIT_FAILURE);
         }
         if (config != nullptr && j >= 0 && j < config->h)
@@ -243,14 +241,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->num_threads = static_cast<int>(atoi(argv[i]));
       } else {
-        std::cerr << "Missing number of threads after -threads" << std::endl;
+        std::cerr << "Missing number of threads after -threads\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (i > 2) {
       char* p;
       long temp = strtol(argv[i], &p, 10);
       if (*p || i != 3) {
-        std::cerr << "Unrecognized input: " << argv[i] << std::endl;
+        std::cerr << "Unrecognized input: " << argv[i] << '\n';
         std::exit(EXIT_FAILURE);
       } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
@@ -260,11 +258,11 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
 
   // consistency checks and defaults
   if (config != nullptr && fullflag && config->exactflag) {
-    std::cerr << "-all and -exact flags cannot be used together" << std::endl;
+    std::cerr << "-all and -exact flags cannot be used together\n";
     std::exit(EXIT_FAILURE);
   }
   if (context != nullptr && context->num_threads < 1) {
-    std::cerr << "Must have at least one worker thread" << std::endl;
+    std::cerr << "Must have at least one worker thread\n";
     std::exit(EXIT_FAILURE);
   }
   if (config != nullptr && context != nullptr && !stealalg_given) {
@@ -284,9 +282,9 @@ void parse_args(std::string str, SearchConfig* const config,
   while (std::getline(ss, s, ' '))
     args.push_back(s);
 
-  const int argc = args.size();
+  const size_t argc = args.size();
   char** argv = new char*[argc];
-  for (int i = 0; i < argc; ++i)
+  for (size_t i = 0; i < argc; ++i)
     argv[i] = &(args[i][0]);
 
   parse_args(argc, argv, config, context);
@@ -304,31 +302,31 @@ void save_context(const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.2" << std::endl
-         << "command line      " << context.arglist << std::endl
-         << "length            " << context.l_current << std::endl
-         << "length limit      " << context.maxlength << std::endl
-         << "states            " << context.numstates << std::endl
-         << "shift cycles      " << context.numcycles << std::endl
-         << "short cycles      " << context.numshortcycles << std::endl
-         << "patterns          " << context.npatterns << std::endl
-         << "patterns (seen)   " << context.ntotal << std::endl
-         << "nodes visited     " << context.nnodes << std::endl
-         << "threads           " << context.num_threads << std::endl
+  myfile << "version           6.2\n"
+         << "command line      " << context.arglist << '\n'
+         << "length            " << context.l_current << '\n'
+         << "length limit      " << context.maxlength << '\n'
+         << "states            " << context.numstates << '\n'
+         << "shift cycles      " << context.numcycles << '\n'
+         << "short cycles      " << context.numshortcycles << '\n'
+         << "patterns          " << context.npatterns << '\n'
+         << "patterns (seen)   " << context.ntotal << '\n'
+         << "nodes visited     " << context.nnodes << '\n'
+         << "threads           " << context.num_threads << '\n'
          << "hardware threads  " << std::thread::hardware_concurrency()
-                                 << std::endl
+                                 << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
-                                 << context.secs_elapsed << std::endl
-         << "seconds working   " << context.secs_working << std::endl
-         << "seconds avail     " << context.secs_available << std::endl
+                                 << context.secs_elapsed << '\n'
+         << "seconds working   " << context.secs_working << '\n'
+         << "seconds avail     " << context.secs_available << '\n'
          << std::endl;
 
-  myfile << "patterns" << std::endl;
+  myfile << "patterns\n";
   for (const std::string& str : context.patterns)
-    myfile << str << std::endl;
+    myfile << str << '\n';
 
   if (context.assignments.size() > 0) {
-    myfile << std::endl << "work assignments remaining" << std::endl;
+    myfile << "\nwork assignments remaining\n";
     for (const WorkAssignment& wa : context.assignments)
       myfile << "  " << wa << std::endl;
   }
@@ -397,7 +395,7 @@ bool load_context(const std::string& file, SearchContext& context) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
   if (!myfile || !myfile.is_open()) {
-    std::cerr << "error reading file: could not open" << std::endl;
+    std::cerr << "error reading file: could not open\n";
     return false;
   }
 
@@ -546,7 +544,7 @@ bool load_context(const std::string& file, SearchContext& context) {
     }
 
     if (error.size() > 0) {
-      std::cerr << "error reading file: " << error << std::endl;
+      std::cerr << "error reading file: " << error << '\n';
       myfile.close();
       return false;
     }
@@ -561,7 +559,7 @@ bool load_context(const std::string& file, SearchContext& context) {
         context.assignments.push_back(wa);
       } else {
         std::cerr << "error reading work assignment in line " << (linenum + 1)
-                  << std::endl;
+                  << '\n';
         myfile.close();
         return false;
       }
@@ -593,8 +591,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     std::ifstream myfile(args_context.outfile);
     if (myfile.good()) {
       // file exists; try resuming calculation
-      std::cout << "reading checkpoint file '" << args_context.outfile << "'"
-                << std::endl;
+      std::cout << "reading checkpoint file '" << args_context.outfile << "'\n";
 
       if (!load_context(args_context.outfile, context))
         std::exit(EXIT_FAILURE);
@@ -611,7 +608,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       // invocation, use current filename
       context.outfile = args_context.outfile;
 
-      std::cout << "resuming calculation: " << context.arglist << std::endl
+      std::cout << "resuming calculation: " << context.arglist << '\n'
                 << "loaded " << context.npatterns
                 << " patterns (length " << context.l_current
                 << ") and " << context.assignments.size()

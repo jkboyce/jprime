@@ -4,7 +4,7 @@
 // Defines messages that may be sent from the worker to the coordinator and
 // vice versa.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -16,11 +16,13 @@
 
 #include <vector>
 #include <string>
+#include <cstdint>
 
 
 // Message types from the coordinator to the worker
 
 enum class messages_C2W {
+  NONE,
   DO_WORK,
   UPDATE_METADATA,
   SPLIT_WORK,
@@ -30,7 +32,7 @@ enum class messages_C2W {
 
 struct MessageC2W {
   // for all message types
-  messages_C2W type;
+  messages_C2W type = messages_C2W::NONE;
 
   // for type DO_WORK
   WorkAssignment assignment;
@@ -46,6 +48,7 @@ struct MessageC2W {
 // Message types from the worker to the coordinator
 
 enum class messages_W2C {
+  NONE,
   SEARCH_RESULT,
   WORKER_IDLE,
   RETURN_WORK,
@@ -55,17 +58,17 @@ enum class messages_W2C {
 
 struct MessageW2C {
   // for all message types
-  messages_W2C type;
-  int worker_id;
+  messages_W2C type = messages_W2C::NONE;
+  int worker_id = 0;
 
   // for type SEARCH_RESULT
   std::string pattern;
   int length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
-  unsigned long ntotal = 0L;
-  std::vector<unsigned long> count;
-  unsigned long nnodes = 0L;
+  std::uint64_t ntotal = 0;
+  std::vector<std::uint64_t> count;
+  std::uint64_t nnodes = 0;
   int numstates = 0;
   int numcycles = 0;
   int numshortcycles = 0;

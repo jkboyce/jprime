@@ -7,7 +7,7 @@
 // stealing to keep the workers busy. The business of the coordinator is to
 // interact with the workers to distribute work, and also to manage output.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -53,7 +53,7 @@ void Coordinator::run() {
   }
 
   timespec start_ts, end_ts;
-  timespec_get(&start_ts, TIME_UTC);
+  (void)timespec_get(&start_ts, TIME_UTC);
   constexpr auto nanosecs_wait = std::chrono::nanoseconds(
       static_cast<long>(nanosecs_per_inbox_check));
 
@@ -74,7 +74,7 @@ void Coordinator::run() {
     std::this_thread::sleep_for(nanosecs_wait);
   }
 
-  timespec_get(&end_ts, TIME_UTC);
+  (void)timespec_get(&end_ts, TIME_UTC);
   double runtime =
       static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
       1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
@@ -89,7 +89,7 @@ void Coordinator::run() {
   }
 
   if (context.assignments.size() > 0)
-    std::cout << std::endl << "PARTIAL RESULTS:" << std::endl;
+    std::cout << "\nPARTIAL RESULTS:\n";
   print_summary();
 }
 
@@ -123,7 +123,7 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      std::cout << "worker " << id << " given work:" << std::endl
+      std::cout << "worker " << id << " given work:\n"
                 << "  " << msg.assignment << std::endl;
     }
   }
@@ -478,6 +478,7 @@ int Coordinator::find_stealing_target_lowestid() const {
     return id;
   }
   assert(false);
+  return 0;
 }
 
 int Coordinator::find_stealing_target_lowestrootpos() const {
@@ -517,22 +518,21 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 
 void Coordinator::print_summary() const {
   std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
-            << ", max throw: " << config.h << std::endl;
+            << ", max throw: " << config.h << '\n';
 
   std::cout << "graph: " << context.numstates << " states, "
             << context.numcycles << " shift cycles, "
-            << context.numshortcycles << " short cycles" << std::endl;
+            << context.numshortcycles << " short cycles\n";
 
   switch (config.mode) {
     case RunMode::BLOCK_SEARCH:
-      std::cout << "block mode, " << config.skiplimit << " skips allowed"
-                << std::endl;
+      std::cout << "block mode, " << config.skiplimit << " skips allowed\n";
       break;
     case RunMode::SUPER_SEARCH:
       std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
       if (config.invertflag)
         std::cout << ", inverse output";
-      std::cout << std::endl;
+      std::cout << '\n';
       break;
     default:
       break;
@@ -540,7 +540,7 @@ void Coordinator::print_summary() const {
 
   if (config.longestflag) {
     std::cout << "pattern length: " << context.l_current
-              << " throws (" << context.maxlength << " maximum)" << std::endl;
+              << " throws (" << context.maxlength << " maximum)\n";
   }
 
   std::cout << context.npatterns << " patterns found ("
@@ -549,12 +549,12 @@ void Coordinator::print_summary() const {
             << std::fixed << std::setprecision(2)
             << (static_cast<double>(context.nnodes) / context.secs_elapsed /
                 1000000)
-            << "M nodes/sec)" << std::endl;
+            << "M nodes/sec)\n";
 
   if (config.groundmode == 1)
-    std::cout << "ground state search" << std::endl;
+    std::cout << "ground state search\n";
   if (config.groundmode == 2)
-    std::cout << "excited state search" << std::endl;
+    std::cout << "excited state search\n";
 
   std::cout << "running time = "
             << std::fixed << std::setprecision(4)
