@@ -15,6 +15,7 @@
 #include "WorkAssignment.h"
 
 #include <string>
+#include <cstdint>
 
 
 // Message types from the coordinator to the worker

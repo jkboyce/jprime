@@ -21,6 +21,7 @@
 #include <mutex>
 #include <list>
 #include <ctime>
+#include <cstdint>
 
 
 class Coordinator;

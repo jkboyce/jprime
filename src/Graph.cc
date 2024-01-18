@@ -62,8 +62,8 @@ void Graph::init() {
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   maxindegree = n + 1;
-  highestbit = static_cast<uint64_t>(1) << (h - 1);
-  allbits = (static_cast<uint64_t>(1) << h) - 1;
+  highestbit = static_cast<std::uint64_t>(1) << (h - 1);
+  allbits = (static_cast<std::uint64_t>(1) << h) - 1;
 
   allocate_arrays();
   int ns = gen_states(state, 0, h - 1, n, h, numstates);
@@ -82,7 +82,7 @@ void Graph::allocate_arrays() {
   cycleperiod = new int[numstates + 1];
   isexitcycle = new bool[numstates + 1];
 
-  for (int i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     outdegree[i] = 0;
     indegree[i] = 0;
     cyclenum[i] = 0;
@@ -96,25 +96,25 @@ void Graph::allocate_arrays() {
   inmatrix = new int*[numstates + 1];
   cyclepartner = new int*[numstates + 1];
 
-  for (int i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     outmatrix[i] = new int[maxoutdegree];
     outthrowval[i] = new int[maxoutdegree];
     inmatrix[i] = new int[maxindegree];
     cyclepartner[i] = new int[h];
 
-    for (int j = 0; j < maxoutdegree; ++j) {
+    for (size_t j = 0; j < maxoutdegree; ++j) {
       outmatrix[i][j] = 0;
       outthrowval[i][j] = 0;
     }
-    for (int j = 0; j < maxindegree; ++j)
+    for (size_t j = 0; j < maxindegree; ++j)
       inmatrix[i][j] = 0;
-    for (int j = 0; j < h; ++j)
+    for (size_t j = 0; j < h; ++j)
       cyclepartner[i][j] = 0;
   }
 }
 
 void Graph::delete_arrays() {
-  for (int i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     if (outmatrix) {
       delete[] outmatrix[i];
       outmatrix[i] = nullptr;
@@ -176,9 +176,9 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
 
   if (pos == 0) {
     if (left)
-      state[num + 1] |= 1L;
+      state[num + 1] |= static_cast<std::uint64_t>(1);
     else
-      state[num + 1] &= ~1L;
+      state[num + 1] &= ~static_cast<std::uint64_t>(1);
 
     if (num < (ns - 1))
       state[num + 2] = state[num + 1];
@@ -188,7 +188,7 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
   state[num + 1] &= ~(1L << pos);
   num = gen_states(state, num, pos - 1, left, h, ns);
   if (left > 0) {
-    state[num + 1] |= (static_cast<uint64_t>(1) << pos);
+    state[num + 1] |= (static_cast<std::uint64_t>(1) << pos);
     num = gen_states(state, num, pos - 1, left - 1, h, ns);
   }
 
@@ -211,15 +211,16 @@ void Graph::find_shift_cycles() {
   const std::uint64_t lowerbits = highestbit - 1;
   int cycleindex = 0;
 
-  for (int i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     std::uint64_t statebits = state[i];
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
 
-    for (int j = 0; j < h; ++j) {
+    for (size_t j = 0; j < h; ++j) {
       if (statebits & highestbit)
-        statebits = (statebits & lowerbits) << 1 | 1L;
+        statebits = (statebits & lowerbits) << 1 |
+            static_cast<std::uint64_t>(1);
       else
         statebits <<= 1;
 
@@ -236,7 +237,7 @@ void Graph::find_shift_cycles() {
     assert(cyclepartner[i][h - 1] == i);
 
     if (newshiftcycle) {
-      for (int j = 0; j < h; j++)
+      for (size_t j = 0; j < h; j++)
         cyclenum[cyclepartner[i][j]] = cycleindex;
       cycleperiod[cycleindex] = cycleper;
       if (cycleper < h)
@@ -321,7 +322,7 @@ void Graph::gen_matrices() {
         continue;
 
       if (j == 0) {
-        if (!(state[i] & (static_cast<uint64_t>(1) << (h - 1)))) {
+        if (!(state[i] & (static_cast<std::uint64_t>(1) << (h - 1)))) {
           std::uint64_t temp = state[i] << 1;
 
           bool found = false;
@@ -336,8 +337,9 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else if (j == h) {
-        if (state[i] & (static_cast<uint64_t>(1) << (h - 1))) {
-          std::uint64_t temp = state[i] ^ (static_cast<uint64_t>(1) << (h - 1));
+        if (state[i] & (static_cast<std::uint64_t>(1) << (h - 1))) {
+          std::uint64_t temp = state[i] ^
+              (static_cast<std::uint64_t>(1) << (h - 1));
           temp = (temp << 1) | 1L;
 
           bool found = false;
@@ -352,10 +354,11 @@ void Graph::gen_matrices() {
           assert(found);
         }
       } else {
-        if ((state[i] & (static_cast<uint64_t>(1) << (j - 1))) &&
-            !(state[i] & (static_cast<uint64_t>(1) << (h - 1)))) {
-          std::uint64_t temp = state[i] ^ (static_cast<uint64_t>(1) << (j - 1));
-          temp = (temp << 1) | 1L;
+        if ((state[i] & (static_cast<std::uint64_t>(1) << (j - 1))) &&
+            !(state[i] & (static_cast<std::uint64_t>(1) << (h - 1)))) {
+          std::uint64_t temp = state[i] ^
+              (static_cast<std::uint64_t>(1) << (j - 1));
+          temp = (temp << 1) | static_cast<std::uint64_t>(1);
 
           bool found = false;
           int k = 1;
@@ -468,7 +471,7 @@ int Graph::advance_state(int statenum, int throwval) const {
 
   std::uint64_t new_state = state[statenum] >> 1;
   if (throwval > 0) {
-    std::uint64_t mask = static_cast<uint64_t>(1) << (throwval - 1);
+    std::uint64_t mask = static_cast<std::uint64_t>(1) << (throwval - 1);
     if (new_state & mask)
       return -1;
     new_state |= mask;

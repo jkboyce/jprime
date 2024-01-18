@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <cstdint>
 
 
 struct SearchContext {
