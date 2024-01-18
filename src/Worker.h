@@ -67,7 +67,7 @@ class Worker {
   std::uint64_t nnodes = 0;
   int longest_found = 0;
   double secs_working = 0;
-  std::vector<unsigned long> count;
+  std::vector<std::uint64_t> count;
 
   // for managing the frequency to check the inbox while running
   static constexpr int steps_per_inbox_check_initial = 50000;
