@@ -62,8 +62,8 @@ struct MessageW2C {
   int length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK
-  unsigned long ntotal = 0L;
-  unsigned long nnodes = 0L;
+  std::uint64_t ntotal = 0;
+  std::uint64_t nnodes = 0;
   int numstates = 0;
   int numcycles = 0;
   int numshortcycles = 0;

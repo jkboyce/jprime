@@ -44,13 +44,13 @@ struct SearchContext {
 
   // number of patterns found, either in total or (if `longestflag`==true) at
   // the current value of `l_current`
-  unsigned long npatterns = 0L;
+  std::uint64_t npatterns = 0;
 
   // total number of valid patterns seen
-  unsigned long ntotal = 0L;
+  std::uint64_t ntotal = 0;
 
   // total number of nodes visited in the search tree
-  unsigned long nnodes = 0L;
+  std::uint64_t nnodes = 0;
 
   // wall clock time elapsed
   double secs_elapsed = 0;

@@ -62,8 +62,8 @@ class Worker {
   int exitcyclesleft = 0;
 
   // status data to report to Coordinator
-  unsigned long ntotal = 0L;
-  unsigned long nnodes = 0L;
+  std::uint64_t ntotal = 0;
+  std::uint64_t nnodes = 0;
   int longest_found = 0;
   double secs_working = 0;
 

@@ -47,8 +47,8 @@ class Graph {
   int* cycleperiod;
   bool* isexitcycle;
   int** cyclepartner;
-  std::uint64_t highestbit = 0L;
-  std::uint64_t allbits = 0L;
+  std::uint64_t highestbit = 0;
+  std::uint64_t allbits = 0;
 
  private:
   void init();
