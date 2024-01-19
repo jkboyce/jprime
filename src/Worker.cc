@@ -101,8 +101,7 @@ void Worker::run() {
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
-        // leave in the inbox for when we get work
-        inbox.push(msg);
+        // ignore in idle state
       } else if (msg.type == messages_C2W::STOP_WORKER) {
         stop_worker = true;
       } else
@@ -234,16 +233,26 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 }
 
 void Worker::process_split_work_request(const MessageC2W& msg) {
-  send_work_to_coordinator(split_work_assignment(msg.split_alg));
-
   if (config.verboseflag) {
-    std::ostringstream sstr;
-    sstr << "worker " << worker_id << " remaining work after split:\n"
-         << "  " << get_work_assignment();
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " splitting work...";
     MessageW2C msg2;
     msg2.type = messages_W2C::WORKER_STATUS;
     msg2.worker_id = worker_id;
-    msg2.meta = sstr.str();
+    msg2.meta = buffer.str();
+    message_coordinator(msg2);
+  }
+
+  send_work_to_coordinator(split_work_assignment(msg.split_alg));
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " remaining work after split:\n"
+           << "  " << get_work_assignment();
+    MessageW2C msg2;
+    msg2.type = messages_W2C::WORKER_STATUS;
+    msg2.worker_id = worker_id;
+    msg2.meta = buffer.str();
     message_coordinator(msg2);
   }
 }
@@ -494,14 +503,14 @@ void Worker::gen_patterns() {
     }
 
     if (config.verboseflag) {
-      std::ostringstream sstr;
-      sstr << "worker " << worker_id
-           << " starting at state " << graph.state_string(start_state)
-           << " (" << start_state << ")";
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id
+             << " starting at state " << graph.state_string(start_state)
+             << " (" << start_state << ")";
       MessageW2C msg;
       msg.type = messages_W2C::WORKER_STATUS;
       msg.worker_id = worker_id;
-      msg.meta = sstr.str();
+      msg.meta = buffer.str();
       message_coordinator(msg);
     }
 
@@ -511,6 +520,8 @@ void Worker::gen_patterns() {
       for (int i = 1; i < start_state; ++i)
         mark_forbidden_state(i);
       if ((config.longestflag || config.exactflag) && max_possible < l_current)
+        break;
+      if (max_possible == 0)
         break;
     }
 

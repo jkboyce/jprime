@@ -18,6 +18,7 @@
 #include <queue>
 #include <mutex>
 #include <list>
+#include <set>
 #include <vector>
 #include <thread>
 
@@ -34,11 +35,11 @@ class Coordinator {
   SearchContext& context;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
-  std::list<int> workers_idle;
+  std::set<int> workers_idle;
+  std::set<int> workers_splitting;
   std::list<int> workers_run_order;
   std::vector<int> worker_rootpos;
   std::vector<int> worker_longest;
-  int waiting_for_work_from_id = -1;
   static bool stopping;
 
  public:
@@ -51,6 +52,7 @@ class Coordinator {
   void process_inbox();
   int process_search_result(const MessageW2C& msg);
   bool is_worker_idle(const int id) const;
+  bool is_worker_splitting(const int id) const;
   void process_worker_idle(const MessageW2C& msg);
   void process_returned_work(const MessageW2C& msg);
   void process_worker_status(const MessageW2C& msg);
