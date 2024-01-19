@@ -102,8 +102,7 @@ void Worker::run() {
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
-        // leave in the inbox for when we get work
-        inbox.push(msg);
+        // ignore in idle state
       } else if (msg.type == messages_C2W::SEND_STATS) {
         process_send_stats_request();
       } else if (msg.type == messages_C2W::STOP_WORKER) {
@@ -229,6 +228,12 @@ void Worker::calibrate_inbox_check() {
 }
 
 void Worker::process_split_work_request(const MessageC2W& msg) {
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " splitting work...";
+    message_coordinator_status(buffer.str());
+  }
+
   send_work_to_coordinator(split_work_assignment(msg.split_alg));
 
   if (config.verboseflag) {
@@ -512,12 +517,28 @@ void Worker::gen_patterns() {
 
     // account for forbidden states and check if no way to make a pattern of the
     // target length
-    if (config.mode != RunMode::SUPER_SEARCH) {
-      for (int i = 1; i < start_state; ++i)
-        mark_forbidden_state(i);
-      if ((config.longestflag || config.exactflag) && max_possible < l_current)
-        break;
+    for (int i = 1; i < start_state; ++i)
+      mark_forbidden_state(i);
+    if (config.verboseflag) {
+      int forbidden = 0;
+      for (int i = 1; i <= graph.numstates; ++i) {
+        if (used[i])
+          ++forbidden;
+      }
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id
+             << " forbid " << forbidden << " of " << graph.numstates
+             << " states, max_possible = " << max_possible;
+      MessageW2C msg;
+      msg.type = messages_W2C::WORKER_STATUS;
+      msg.worker_id = worker_id;
+      msg.meta = buffer.str();
+      message_coordinator(msg);
     }
+    if ((config.longestflag || config.exactflag) && max_possible < l_current)
+      break;
+    if (max_possible == 0)
+      break;
 
     if (!loading_work) {
       // reset `root_pos` and throw options there
@@ -1051,9 +1072,19 @@ void Worker::mark_forbidden_state(int s) {
 
   used[s] = 1;
   const int cnum = graph.cyclenum[s];
-  if (++deadstates[cnum] > 1)
-    --max_possible;
+  ++deadstates[cnum];
 
+  if (config.mode == RunMode::SUPER_SEARCH) {
+    if (deadstates[cnum] == graph.cycleperiod[cnum]) {
+      --max_possible;
+    }
+  } else {
+    if (deadstates[cnum] > 1) {
+      --max_possible;
+    }
+  }
+
+  /*
   if (config.verboseflag) {
     std::ostringstream buffer;
     buffer << "worker " << worker_id
@@ -1062,6 +1093,7 @@ void Worker::mark_forbidden_state(int s) {
            << ") : max_possible = " << max_possible;
     message_coordinator_status(buffer.str());
   }
+  */
 
   // if state starts with 'x', downcycle state is forbidden
   if (graph.state[s] & 1L)

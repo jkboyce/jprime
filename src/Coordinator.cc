@@ -47,7 +47,7 @@ void Coordinator::run() {
   for (int id = 0; id < context.num_threads; ++id) {
     worker[id] = new Worker(config, *this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
-    workers_idle.push_back(id);
+    workers_idle.insert(id);
     worker_rootpos[id] = 0;
     worker_longest[id] = 0;
   }
@@ -110,8 +110,9 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
 
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
-    int id = workers_idle.front();
-    workers_idle.pop_front();
+    auto it = workers_idle.begin();
+    int id = *it;
+    workers_idle.erase(it);
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
 
@@ -125,7 +126,8 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      std::cout << "worker " << id << " given work:\n"
+      std::cout << "worker " << id << " given work ("
+                << workers_idle.size() << " idle):\n"
                 << "  " << msg.assignment << std::endl;
     }
   }
@@ -183,35 +185,40 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
 }
 
 bool Coordinator::is_worker_idle(const int id) const {
-  return std::find(workers_idle.begin(), workers_idle.end(), id)
-      != workers_idle.end();
+  return (workers_idle.count(id) != 0);
+}
+
+bool Coordinator::is_worker_splitting(const int id) const {
+  return (workers_splitting.count(id) != 0);
 }
 
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
-  collect_stats(msg);
-
   remove_from_run_order(msg.worker_id);
-  workers_idle.push_back(msg.worker_id);
+  workers_idle.insert(msg.worker_id);
+
+  collect_stats(msg);
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
-  // If worker went idle before it could return a work assignment, the
-  // SPLIT_WORK message will be held in the worker's inbox until it becomes
-  // active again. In any case we don't want to block on it because that may
-  // deadlock the program.
-  if (msg.worker_id == waiting_for_work_from_id)
-    waiting_for_work_from_id = -1;
+  if (config.verboseflag) {
+    std::cout << "worker " << msg.worker_id << " went idle ("
+              << workers_idle.size() << " idle)";
+    if (workers_splitting.count(msg.worker_id) > 0) {
+      std::cout << ", removed from splitting queue ("
+                << (workers_splitting.size() - 1) << " splitting)";
+    }
+    std::cout << std::endl;
+  }
 
-  if (config.verboseflag)
-    std::cout << "worker " << msg.worker_id << " went idle" << std::endl;
+  // If we have a SPLIT_WORK request out for the worker, it will be ignored.
+  // Remove it from the list of workers we're expecting to return work.
+  workers_splitting.erase(msg.worker_id);
 }
 
 void Coordinator::process_returned_work(const MessageW2C& msg) {
-  collect_stats(msg);
-
-  if (msg.worker_id == waiting_for_work_from_id)
-    waiting_for_work_from_id = -1;
+  workers_splitting.erase(msg.worker_id);
   context.assignments.push_back(msg.assignment);
+  collect_stats(msg);
 
   // put splittee at the back of the run order list
   remove_from_run_order(msg.worker_id);
@@ -424,36 +431,50 @@ void Coordinator::signal_handler(int signum) {
 // implement several approaches.
 
 void Coordinator::steal_work() {
-  if (waiting_for_work_from_id != -1 || workers_idle.size() == 0)
-    return;
+  bool sent_split_request = false;
 
-  int id = 0;
-  switch (context.steal_alg) {
-    case 1:
-      id = find_stealing_target_longestpattern();
+  while (workers_idle.size() > workers_splitting.size()) {
+    // when all of the workers are either idle or queued for splitting, there
+    // are no active workers to take work from
+    if (workers_idle.size() + workers_splitting.size() == context.num_threads) {
+      if (config.verboseflag && sent_split_request) {
+        std::cout << "could not steal work (" << workers_idle.size()
+                  << " idle)" << std::endl;
+      }
       break;
-    case 2:
-      id = find_stealing_target_lowestid();
-      break;
-    case 3:
-      id = find_stealing_target_lowestrootpos();
-      break;
-    case 4:
-      id = find_stealing_target_longestruntime();
-      break;
-    default:
-      assert(false);
+    }
+
+    int id = 0;
+    switch (context.steal_alg) {
+      case 1:
+        id = find_stealing_target_longestpattern();
+        break;
+      case 2:
+        id = find_stealing_target_lowestid();
+        break;
+      case 3:
+        id = find_stealing_target_lowestrootpos();
+        break;
+      case 4:
+        id = find_stealing_target_longestruntime();
+        break;
+      default:
+        assert(false);
+    }
+    assert(id >= 0 && id < context.num_threads);
+
+    MessageC2W msg;
+    msg.type = messages_C2W::SPLIT_WORK;
+    msg.split_alg = context.split_alg;
+    message_worker(msg, id);
+    workers_splitting.insert(id);
+    sent_split_request = true;
+
+    if (config.verboseflag) {
+      std::cout << "worker " << id << " given work split request ("
+                << workers_splitting.size() << " splitting)" << std::endl;
+    }
   }
-  assert(id >= 0 && id < context.num_threads);
-
-  waiting_for_work_from_id = id;
-  MessageC2W msg;
-  msg.type = messages_C2W::SPLIT_WORK;
-  msg.split_alg = context.split_alg;
-  message_worker(msg, id);
-
-  if (config.verboseflag)
-    std::cout << "worker " << id << " given work split request" << std::endl;
 }
 
 int Coordinator::find_stealing_target_longestpattern() const {
@@ -461,7 +482,7 @@ int Coordinator::find_stealing_target_longestpattern() const {
   int id_max = -1;
   int longest_max = -1;
   for (int id = 0; id < context.num_threads; ++id) {
-    if (is_worker_idle(id))
+    if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
     if (longest_max < worker_longest[id]) {
       longest_max = worker_rootpos[id];
@@ -475,7 +496,7 @@ int Coordinator::find_stealing_target_longestpattern() const {
 int Coordinator::find_stealing_target_lowestid() const {
   // strategy: take work from lowest-id worker that's busy
   for (int id = 0; id < context.num_threads; ++id) {
-    if (is_worker_idle(id))
+    if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
     return id;
   }
@@ -488,7 +509,7 @@ int Coordinator::find_stealing_target_lowestrootpos() const {
   int id_min = -1;
   int root_pos_min = -1;
   for (int id = 0; id < context.num_threads; ++id) {
-    if (is_worker_idle(id))
+    if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
     if (root_pos_min == -1 || root_pos_min > worker_rootpos[id]) {
       root_pos_min = worker_rootpos[id];

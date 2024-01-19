@@ -313,13 +313,12 @@ void save_context(const SearchContext& context) {
          << "patterns (seen)   " << context.ntotal << '\n'
          << "nodes visited     " << context.nnodes << '\n'
          << "threads           " << context.num_threads << '\n'
-         << "hardware threads  " << std::thread::hardware_concurrency()
-                                 << '\n'
+         << "hardware threads  " << std::thread::hardware_concurrency() << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << context.secs_elapsed << '\n'
          << "seconds working   " << context.secs_working << '\n'
          << "seconds avail     " << context.secs_available << '\n'
-         << std::endl;
+         << '\n';
 
   myfile << "patterns\n";
   for (const std::string& str : context.patterns)
