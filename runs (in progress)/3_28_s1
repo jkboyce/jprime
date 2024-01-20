@@ -6,13 +6,13 @@ states            3276
 shift cycles      117
 short cycles      0
 patterns          27
-patterns (seen)   210549471436028
-nodes visited     508481345475182
+patterns (seen)   235316979644300
+nodes visited     581590625257480
 threads           4
 hardware threads  12
-seconds elapsed   1500245.5334
-seconds working   6000981.8111
-seconds avail     6000982.1338
+seconds elapsed   1682788.5752
+seconds working   6731153.9335
+seconds avail     6731154.3004
 
 patterns
   k511161111f11111111j1111k1111111111116111o-225111611118111111l1161111k11111111111c111111l11161111k1111111111b11111112
@@ -44,7 +44,7 @@ patterns
   o224115111j111111111111511m-51115111j1111111111c111111l1115111j11111111111a11111m1151115111j111111111i111111181111112
 
 work assignments remaining
-  { start_state:2, end_state:3276, root_pos:0, root_options:[qo], current:"rrrskrrjqrrrrrrrerrrrrlqrrorr6rrorrrrrrkrrrrrr7rprprrrrrrrrr6rprrrnr" }
-  { start_state:1, end_state:1, root_pos:1, root_options:[po], current:"rrsqrrjrrrrfrrrrrrrrrrbrrrrrlr8rrrnrrrrrrkqrprprrr5rrrrmrrrrrlrrrnrr5rrrrmrrrrrrrrr9rrr" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[o], current:"soprrrrrlrrrrdrrrrmrrrrmrrorrr5rrorrrrrrrrrrr8rrrrmrprpr4rrrnrrrrrrrrrhrrrn" }
-  { start_state:1, end_state:1, root_pos:1, root_options:[qo], current:"qrrrrrrirrrrrrrrrarrrrrrrr8rrrrmrrr9rrrrrrrfrrrrrrrjrpqs6rrrlqrrrrrrkrprr9rrrrrrrjr" }
+  { start_state:2, end_state:3276, root_pos:1, root_options:[pn], current:"rrrrrrrrrfrrrrrbrrrrrrrrrrarrrrbrrrrrrrrdrrorrrbrrrrrrrrirroqqqqqqs3prrrrmrrrrrrcrrrrrrrrrr" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[po], current:"rrsqmrrrrrrrjrrr9rrorrhrrrrrlrrrrrrrjqrpr5rrrrkrrrrrrrrrcrrorprrr" }
+  { start_state:2, end_state:2, root_pos:0, root_options:[o], current:"qrrrrrshrorrrrdrrrrrrkrrorrorrr5rrorrrrrlrrrrrrr6rprrrnrpqrrrnqrp" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[qo], current:"qrrrrrrirrhrsqrmrrorrrrmrrrr6rrrnrrrrmqrrr8rprrrnrpqrrrrmrrrnqq" }
