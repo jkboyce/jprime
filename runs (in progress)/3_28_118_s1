@@ -1,0 +1,23 @@
+version           6.2
+command line      jprime 3 28 118 -super 1 -threads 4 -verbose -file 3_28_118_s1
+length            0
+length limit      118
+states            3276
+shift cycles      117
+short cycles      0
+patterns          0
+patterns (seen)   239573250764036
+nodes visited     595284512281234
+threads           4
+hardware threads  12
+seconds elapsed   1717299.6972
+seconds working   6869198.3990
+seconds avail     6869198.7884
+
+patterns
+
+work assignments remaining
+  { start_state:1, end_state:1, root_pos:1, root_options:[o], current:"rpsqrrrrrrrrrrbqrpr9rrrnrrorrrrdrrrrmrrrrrraqrrorrrcrrrrrrrrrrgrpr" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[ron], current:"rrsqmrrrrmrrrrrrrr7rrrrrrbrrrrrrkrbrrrlrrrrrrrrrdrrrrmrrorr6rprrrrrrkrrrrrrr7rrrrmrrrnrroq" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[o], current:"qqsqrrrrrrrrdqrrrrrr8rrrgrrrrrrrrrdrrorrrrr8rpqrrrrdrrrrrrrriqrprpqrp" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[pn], current:"qrrrrrriqrrrnrrrrrrrrr5rrorrbrprrrrrrrrdrprrorprprrrs4prrrrrrrrirprro" }
