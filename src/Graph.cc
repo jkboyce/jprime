@@ -229,7 +229,7 @@ void Graph::find_shift_cycles() {
 
       cyclepartner[i][j] = k;
       if (k == i && !periodfound) {
-        cycleper = j + 1;
+        cycleper = static_cast<int>(j + 1);
         periodfound = true;
       } else if (k < i)
         newshiftcycle = false;

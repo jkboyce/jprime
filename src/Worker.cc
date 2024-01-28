@@ -461,7 +461,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       assert(col != graph.outdegree[from_state]);
 
       if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
-        new_root_pos = pos2;
+        new_root_pos = static_cast<int>(pos2);
         break;
       }
 
