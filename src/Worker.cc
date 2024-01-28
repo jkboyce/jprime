@@ -34,8 +34,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       graph(config.n, config.h, config.xarray,
         (config.mode != RunMode::SUPER_SEARCH),
         (config.mode == RunMode::SUPER_SEARCH && config.shiftlimit == 0 &&
-         config.groundmode == 1)),
-      count(graph.numstates, 0L) {
+         config.groundmode == 1)) {
   l_current = config.l;
   maxlength = (config.mode == RunMode::SUPER_SEARCH)
       ? (graph.numcycles + config.shiftlimit)
@@ -44,6 +43,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
     std::cerr << "No patterns longer than " << maxlength << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
+  count.resize(maxlength + 1, 0);
   allocate_arrays();
 }
 
@@ -248,18 +248,18 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_WORK;
   msg.assignment = wa;
-  add_stats_to_message(msg);
+  add_data_to_message(msg);
   message_coordinator(msg);
 }
 
 void Worker::process_send_stats_request() {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_STATS;
-  add_stats_to_message(msg);
+  add_data_to_message(msg);
   message_coordinator(msg);
 }
 
-void Worker::add_stats_to_message(MessageW2C& msg) {
+void Worker::add_data_to_message(MessageW2C& msg) {
   msg.ntotal = ntotal;
   msg.count = count;
   msg.nnodes = nnodes;
@@ -268,6 +268,7 @@ void Worker::add_stats_to_message(MessageW2C& msg) {
   msg.numshortcycles = graph.numshortcycles;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
+
   ntotal = 0;
   count.assign(count.size(), 0);
   nnodes = 0;
@@ -284,7 +285,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   if (end_state == -1)
     end_state = (config.groundmode == 1) ? 1 : graph.numstates;
 
-  longest_found = 0;
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
   if (wa.start_state == -1 || wa.end_state == -1) {
@@ -324,7 +324,7 @@ WorkAssignment Worker::get_work_assignment() const {
 void Worker::notify_coordinator_idle() {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_IDLE;
-  add_stats_to_message(msg);
+  add_data_to_message(msg);
   message_coordinator(msg);
 }
 
@@ -529,11 +529,7 @@ void Worker::gen_patterns() {
       buffer << "worker " << worker_id
              << " forbid " << forbidden << " of " << graph.numstates
              << " states, max_possible = " << max_possible;
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = buffer.str();
-      message_coordinator(msg);
+      message_coordinator_status(buffer.str());
     }
     if ((config.longestflag || config.exactflag) && max_possible < l_current)
       break;

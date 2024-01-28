@@ -47,8 +47,11 @@ struct SearchContext {
   // the current value of `l_current`
   std::uint64_t npatterns = 0;
 
-  // total number of valid patterns seen
+  // total number of patterns seen
   std::uint64_t ntotal = 0;
+
+  // number of patterns seen at each length
+  std::vector<std::uint64_t> count;
 
   // total number of nodes visited in the search tree
   std::uint64_t nnodes = 0;

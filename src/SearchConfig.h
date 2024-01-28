@@ -58,6 +58,9 @@ struct SearchConfig {
   // print without using +, - for h and 0
   bool noplusminusflag = false;
 
+  // keep a record of patterns seen at each length
+  bool countsflag = false;
+
   // for block mode
   int skiplimit = 0;
 

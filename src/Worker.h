@@ -97,7 +97,7 @@ class Worker {
   void process_split_work_request(const MessageC2W& msg);
   void send_work_to_coordinator(const WorkAssignment& wa);
   void process_send_stats_request();
-  void add_stats_to_message(MessageW2C& msg);
+  void add_data_to_message(MessageW2C& msg);
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();

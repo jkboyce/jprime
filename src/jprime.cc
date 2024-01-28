@@ -28,6 +28,7 @@
 //           faster on modern multicore machines.
 // 10/03/23  Version 6.1 enables -inverse option for all modes.
 // 12/21/23  Version 6.2 adds many performance improvements.
+// 01/28/24  Version 6.3 adds pattern counting by length.
 
 
 #include "SearchConfig.h"
@@ -45,7 +46,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.2 (2023.12.21)\n"
+    "jprime version 6.3 (2024.01.28)\n"
     "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -53,32 +54,31 @@ void print_help() {
     "   http://www.juggling.org/help/siteswap/\n"
     "\n"
     "Command line format:\n"
-    "   jprime <# objects> <max. throw> [<min. length>] [options]\n"
+    "   jprime <# objects> <max. throw> [<length>] [options]\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
     "   <max. throw>      = largest allowed throw value\n"
-    "   <min. length>     = shortest patterns to find (optional, speeds search)\n"
+    "   <length>          = shortest patterns to find (optional, speeds search)\n"
     "\n"
     "Recognized options:\n"
-    "   -block <skips>    find patterns in block form, allowing the specified\n"
-    "                        number of skips\n"
     "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
     "                        specified number of shift throws\n"
+    "   -block <skips>    find patterns in block form, allowing the specified\n"
+    "                        number of skips\n"
     "   -g                find ground-state patterns only\n"
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
-    "                     exclude listed throws (speeds search)\n"
-    "   -all              print all patterns; otherwise only patterns as long\n"
-    "                        currently-longest one found are printed\n"
-    "   -noplus           print without using +, - for h and 0 respectively\n"
-    "   -exact            print all patterns of the exact length specified\n"
-    "   -inverse          print inverse pattern, if it exists\n"
+    "                     exclude listed throw values\n"
+    "   -all              find all patterns; otherwise search for the longest\n"
+    "                        patterns only\n"
+    "   -exact            find only patterns of the exact length specified\n"
     "   -noprint          suppress printing of patterns\n"
-    "   -threads <num>    run with the given number of worker threads (default 1)\n"
+    "   -inverse          print inverse pattern, if it exists\n"
+    "   -noplus           print without using +, - for h and 0 respectively\n"
+    "   -counts           print number of patterns found at each length\n"
     "   -verbose          print worker status information\n"
-    "   -steal_alg <num>  algorithm for selecting a worker to take work from\n"
-    "   -split_alg <num>  algorithm for splitting a stolen work assignment\n"
+    "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted via ctrl-c), resuming, and final output\n"
     "\n"
@@ -235,6 +235,9 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-verbose")) {
       if (config != nullptr)
         config->verboseflag = true;
+    } else if (!strcmp(argv[i], "-counts")) {
+      if (config != nullptr)
+        config->countsflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
       if ((i + 1) < argc) {
         ++i;
@@ -256,7 +259,15 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     }
   }
 
-  // consistency checks and defaults
+  // defaults
+  if (config != nullptr && context != nullptr && !stealalg_given) {
+    if (config->mode != RunMode::SUPER_SEARCH && config->l == 0)
+      context->steal_alg = 1;  // steal from longest pattern found so far
+    else
+      context->steal_alg = 3;  // steal from lowest `root_pos`
+  }
+
+  // consistency checks
   if (config != nullptr && fullflag && config->exactflag) {
     std::cerr << "-all and -exact flags cannot be used together\n";
     std::exit(EXIT_FAILURE);
@@ -264,12 +275,6 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
   if (context != nullptr && context->num_threads < 1) {
     std::cerr << "Must have at least one worker thread\n";
     std::exit(EXIT_FAILURE);
-  }
-  if (config != nullptr && context != nullptr && !stealalg_given) {
-    if (config->mode != RunMode::SUPER_SEARCH && config->l == 0)
-      context->steal_alg = 1;  // steal from longest pattern found so far
-    else
-      context->steal_alg = 3;  // steal from lowest `root_pos`
   }
 }
 
@@ -302,7 +307,7 @@ void save_context(const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.2\n"
+  myfile << "version           6.3\n"
          << "command line      " << context.arglist << '\n'
          << "length            " << context.l_current << '\n'
          << "length limit      " << context.maxlength << '\n'
@@ -317,17 +322,20 @@ void save_context(const SearchContext& context) {
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << context.secs_elapsed << '\n'
          << "seconds working   " << context.secs_working << '\n'
-         << "seconds avail     " << context.secs_available << '\n'
-         << '\n';
+         << "seconds avail     " << context.secs_available << '\n';
 
-  myfile << "patterns\n";
+  myfile << "\npatterns\n";
   for (const std::string& str : context.patterns)
     myfile << str << '\n';
+
+  myfile << "\ncounts\n";
+  for (int i = 1; i <= context.maxlength; ++i)
+    myfile << i << ", " << context.count[i] << '\n';
 
   if (context.assignments.size() > 0) {
     myfile << "\nwork assignments remaining\n";
     for (const WorkAssignment& wa : context.assignments)
-      myfile << "  " << wa << std::endl;
+      myfile << "  " << wa << '\n';
   }
 
   myfile.close();
@@ -400,7 +408,7 @@ bool load_context(const std::string& file, SearchContext& context) {
 
   std::string s;
   int linenum = 0;
-  bool reading_assignments = false;
+  int section = 1;
   const int column_start = 17;
 
   while (myfile) {
@@ -416,8 +424,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.2") {
-          error = "file version is not 6.2";
+        if (val != "6.2" && val != "6.3") {
+          error = "file version is below 6.2";
           break;
         }
         break;
@@ -447,6 +455,7 @@ bool load_context(const std::string& file, SearchContext& context) {
         val = s.substr(column_start, s.size());
         trim(val);
         context.maxlength = std::stoi(val);
+        context.count.resize(context.maxlength + 1, 0);
         break;
       case 4:
         if (s.rfind("states", 0) != 0) {
@@ -539,6 +548,7 @@ bool load_context(const std::string& file, SearchContext& context) {
           error = "syntax in line 17";
           break;
         }
+        section = 2;
         break;
     }
 
@@ -548,25 +558,44 @@ bool load_context(const std::string& file, SearchContext& context) {
       return false;
     }
 
+    if (linenum < 17) {
+      ++linenum;
+      continue;
+    }
+
     val = s;
     trim(val);
-    if (reading_assignments) {
+
+    if (val.size() == 0) {
+      // ignore empty lines
+    } else if (s.rfind("count", 0) == 0) {
+      section = 3;
+    } else if (s.rfind("work", 0) == 0) {
+      section = 4;
+    } else if (section == 2) {
+      context.patterns.push_back(s);
+    } else if (section == 3) {
+      // read counts
+      size_t commapos = s.find(",");
+      if (commapos == std::string::npos) {
+        std::cerr << "error reading count in line " << (linenum + 1) << '\n';
+        myfile.close();
+        return false;
+      }
+      std::string field1 = s.substr(0, commapos);
+      std::string field2 = s.substr(commapos + 1, s.size());
+      int i = std::stoi(field1);
+      context.count[i] = static_cast<std::uint64_t>(std::stoull(field2));
+    } else if (section == 4) {
+      // read work assignments
       WorkAssignment wa;
-      if (val.size() == 0) {
-        // ignore empty line
-      } else if (wa.from_string(val)) {
+      if (wa.from_string(val)) {
         context.assignments.push_back(wa);
       } else {
         std::cerr << "error reading work assignment in line " << (linenum + 1)
                   << '\n';
         myfile.close();
         return false;
-      }
-    } else if (linenum > 16) {
-      if (s.rfind("work", 0) == 0) {
-        reading_assignments = true;
-      } else if (val.size() > 0) {
-        context.patterns.push_back(s);
       }
     }
 

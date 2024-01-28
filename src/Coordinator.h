@@ -40,7 +40,6 @@ class Coordinator {
   std::vector<int> worker_rootpos;
   std::vector<int> worker_longest;
   static bool stopping;
-  std::vector<unsigned long> count;
 
   static constexpr double nanosecs_per_inbox_check = 100000000 *
       Worker::secs_per_inbox_check_target;
@@ -58,23 +57,24 @@ class Coordinator {
   void give_assignments();
   void process_inbox();
   int process_search_result(const MessageW2C& msg);
-  bool is_worker_idle(const int id) const;
-  bool is_worker_splitting(const int id) const;
   void process_worker_idle(const MessageW2C& msg);
   void process_returned_work(const MessageW2C& msg);
   void process_returned_stats(const MessageW2C& msg);
-  void collect_stats(const MessageW2C& msg);
   void process_worker_status(const MessageW2C& msg);
-  void remove_from_run_order(const int id);
-  void notify_metadata(int skip_id) const;
-  void stop_workers() const;
-  void print_stats();
-  static void signal_handler(int signum);
+  void collect_stats();
   void steal_work();
   int find_stealing_target_longestpattern() const;
   int find_stealing_target_lowestid() const;
   int find_stealing_target_lowestrootpos() const;
   int find_stealing_target_longestruntime() const;
+  bool is_worker_idle(const int id) const;
+  bool is_worker_splitting(const int id) const;
+  void record_data_from_message(const MessageW2C& msg);
+  void remove_from_run_order(const int id);
+  void notify_metadata(int skip_id) const;
+  void stop_workers() const;
+  double expected_patterns_at_maxlength();
+  static void signal_handler(int signum);
   void print_pattern(const MessageW2C& msg);
   void print_summary() const;
 };

@@ -63,7 +63,7 @@ void Coordinator::run() {
     give_assignments();
     steal_work();
     process_inbox();
-    print_stats();
+    collect_stats();
 
     if ((static_cast<int>(workers_idle.size()) == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
@@ -184,19 +184,10 @@ int Coordinator::process_search_result(const MessageW2C& msg) {
   return new_longest_pattern_from_id;
 }
 
-bool Coordinator::is_worker_idle(const int id) const {
-  return (workers_idle.count(id) != 0);
-}
-
-bool Coordinator::is_worker_splitting(const int id) const {
-  return (workers_splitting.count(id) != 0);
-}
-
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
   remove_from_run_order(msg.worker_id);
   workers_idle.insert(msg.worker_id);
-
-  collect_stats(msg);
+  record_data_from_message(msg);
   worker_rootpos[msg.worker_id] = 0;
   worker_longest[msg.worker_id] = 0;
 
@@ -218,7 +209,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 void Coordinator::process_returned_work(const MessageW2C& msg) {
   workers_splitting.erase(msg.worker_id);
   context.assignments.push_back(msg.assignment);
-  collect_stats(msg);
+  record_data_from_message(msg);
 
   // put splittee at the back of the run order list
   remove_from_run_order(msg.worker_id);
@@ -230,107 +221,29 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   }
 }
 
-bool doubles_are_close(double a, double b) {
-  double epsilon = 1e-3;
-  return (b > a - epsilon && b < a + epsilon);
-}
-
 void Coordinator::process_returned_stats(const MessageW2C& msg) {
-  collect_stats(msg);
+  record_data_from_message(msg);
   if (++stats_received < context.num_threads)
     return;
 
-  int mode = 0;
+  /*
   int max = 0;
-  unsigned long modeval = 0L;
+  std::uint64_t averagesum = 0;
+  std::uint64_t n = 0;
 
-  for (int i = 0; i < count.size(); ++i) {
-    if (count[i] > modeval) {
-      mode = i;
-      modeval = count[i];
-    }
-    if (count[i] > 0)
+  for (int i = 0; i < context.count.size(); ++i) {
+    if (context.count[i] > 0)
       max = i;
+    averagesum += i * context.count[i];
+    n += context.count[i];
   }
-
-  double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
-  double sy = 0, sxy = 0, sx2y = 0;
-  int xstart = std::max<int>(max - 10, mode);
-
-  for (int i = xstart; i < count.size(); ++i) {
-    if (count[i] < 5)
-      continue;
-
-    const double x = static_cast<double>(i);
-    const double y = log(static_cast<double>(count[i]));
-    s1 += 1;
-    sx += x;
-    sx2 += x * x;
-    sx3 += x * x * x;
-    sx4 += x * x * x * x;
-    sy += y;
-    sxy += x * y;
-    sx2y += x * x * y;
-  }
-
-  // Solve this 3x3 linear system for A, B, C, the coefficients in the
-  // parabola of best fit y = Ax^2 + Bx + C:
-  //
-  // | sx4  sx3  sx2  | | A |   | sx2y |
-  // | sx3  sx2  sx   | | B | = | sxy  |
-  // | sx2  sx   s1   | | C |   | sy   |
-
-  // Find matrix inverse
-  double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
-      sx2 * (sx3 * sx - sx2 * sx2);
-  double M11 = (sx2 * s1 - sx * sx) / det;
-  double M12 = (sx2 * sx - sx3 * s1) / det;
-  double M13 = (sx3 * sx - sx2 * sx2) / det;
-  double M21 = M12;
-  double M22 = (sx4 * s1 - sx2 * sx2) / det;
-  double M23 = (sx2 * sx3 - sx4 * sx) / det;
-  double M31 = M13;
-  double M32 = M23;
-  double M33 = (sx4 * sx2 - sx3 * sx3) / det;
-
-  assert(doubles_are_close(M11 * sx4 + M12 * sx3 + M13 * sx2, 1));
-  assert(doubles_are_close(M11 * sx3 + M12 * sx2 + M13 * sx, 0));
-  assert(doubles_are_close(M11 * sx2 + M12 * sx + M13 * s1, 0));
-  assert(doubles_are_close(M21 * sx4 + M22 * sx3 + M23 * sx2, 0));
-  assert(doubles_are_close(M21 * sx3 + M22 * sx2 + M23 * sx, 1));
-  assert(doubles_are_close(M21 * sx2 + M22 * sx + M23 * s1, 0));
-  assert(doubles_are_close(M31 * sx4 + M32 * sx3 + M33 * sx2, 0));
-  assert(doubles_are_close(M31 * sx3 + M32 * sx2 + M33 * sx, 0));
-  assert(doubles_are_close(M31 * sx2 + M32 * sx + M33 * s1, 1));
-
-  double A = M11 * sx2y + M12 * sxy + M13 * sy;
-  double B = M21 * sx2y + M22 * sxy + M23 * sy;
-  double C = M31 * sx2y + M32 * sxy + M33 * sy;
-
-  // evaluate the expected number of patterns found at x = maxlength
-  double x = static_cast<double>(context.maxlength);
-  double lny = A * x * x + B * x + C;
-  double completion = exp(lny);
+  double average = static_cast<double>(averagesum) / static_cast<double>(n);
 
   std::cout << "patterns: " << context.ntotal
-            << " (mode " << mode
+            << " (avg " << average
             << ", max " << max
-            << ", lim " << context.maxlength << ")"
-            << " completion " << completion << std::endl;
-}
-
-void Coordinator::collect_stats(const MessageW2C& msg) {
-  context.ntotal += msg.ntotal;
-  if (count.size() != msg.count.size())
-    count.assign(msg.count.size(), 0L);
-  for (int i = 0; i < msg.count.size(); ++i)
-    count[i] += msg.count[i];
-  context.nnodes += msg.nnodes;
-  context.numstates = msg.numstates;
-  context.numcycles = msg.numcycles;
-  context.numshortcycles = msg.numshortcycles;
-  context.maxlength = msg.maxlength;
-  context.secs_working += msg.secs_working;
+            << ")" << std::endl;
+  */
 }
 
 void Coordinator::process_worker_status(const MessageW2C& msg) {
@@ -356,53 +269,8 @@ void Coordinator::process_worker_status(const MessageW2C& msg) {
   }
 }
 
-void Coordinator::remove_from_run_order(const int id) {
-  // remove worker from workers_run_order
-  std::list<int>::iterator iter = workers_run_order.begin();
-  std::list<int>::iterator end = workers_run_order.end();
-  bool found = false;
-
-  while (iter != end) {
-    if (*iter == id) {
-      found = true;
-      iter = workers_run_order.erase(iter);
-    } else
-      ++iter;
-  }
-  assert(found);
-}
-
-void Coordinator::notify_metadata(int skip_id) const {
-  for (int id = 0; id < context.num_threads; ++id) {
-    if (id == skip_id || is_worker_idle(id))
-      continue;
-
-    MessageC2W msg;
-    msg.type = messages_C2W::UPDATE_METADATA;
-    msg.l_current = context.l_current;
-    message_worker(msg, id);
-
-    if (config.verboseflag) {
-      std::cout << "worker " << id << " notified of new length "
-                << context.l_current << std::endl;
-    }
-  }
-}
-
-void Coordinator::stop_workers() const {
-  for (int id = 0; id < context.num_threads; ++id) {
-    MessageC2W msg;
-    msg.type = messages_C2W::STOP_WORKER;
-    message_worker(msg, id);
-
-    if (config.verboseflag)
-      std::cout << "worker " << id << " asked to stop" << std::endl;
-    worker_thread[id]->join();
-  }
-}
-
-void Coordinator::print_stats() {
-  const int counts_until_print = waits_per_second * 60;
+void Coordinator::collect_stats() {
+  const int counts_until_print = waits_per_second * 1;
   if (++stats_counter < counts_until_print)
     return;
 
@@ -413,13 +281,6 @@ void Coordinator::print_stats() {
     msg.type = messages_C2W::SEND_STATS;
     message_worker(msg, id);
   }
-}
-
-// static variable for indicating the user has interrupted execution
-bool Coordinator::stopping = false;
-
-void Coordinator::signal_handler(int signum) {
-  stopping = true;
 }
 
 //------------------------------------------------------------------------------
@@ -526,6 +387,172 @@ int Coordinator::find_stealing_target_longestruntime() const {
 }
 
 //------------------------------------------------------------------------------
+// Helper functions
+//------------------------------------------------------------------------------
+
+bool Coordinator::is_worker_idle(const int id) const {
+  return (workers_idle.count(id) != 0);
+}
+
+bool Coordinator::is_worker_splitting(const int id) const {
+  return (workers_splitting.count(id) != 0);
+}
+
+void Coordinator::record_data_from_message(const MessageW2C& msg) {
+  context.ntotal += msg.ntotal;
+  context.nnodes += msg.nnodes;
+  context.numstates = msg.numstates;
+  context.numcycles = msg.numcycles;
+  context.numshortcycles = msg.numshortcycles;
+  context.maxlength = msg.maxlength;
+  context.secs_working += msg.secs_working;
+
+  assert(msg.count.size() == context.maxlength + 1);
+  assert(context.count.size() <= msg.count.size());
+  context.count.resize(msg.count.size(), 0);
+  for (int i = 1; i < msg.count.size(); ++i)
+    context.count[i] += msg.count[i];
+}
+
+void Coordinator::remove_from_run_order(const int id) {
+  // remove worker from workers_run_order
+  std::list<int>::iterator iter = workers_run_order.begin();
+  std::list<int>::iterator end = workers_run_order.end();
+  bool found = false;
+
+  while (iter != end) {
+    if (*iter == id) {
+      found = true;
+      iter = workers_run_order.erase(iter);
+    } else
+      ++iter;
+  }
+  assert(found);
+}
+
+void Coordinator::notify_metadata(int skip_id) const {
+  for (int id = 0; id < context.num_threads; ++id) {
+    if (id == skip_id || is_worker_idle(id))
+      continue;
+
+    MessageC2W msg;
+    msg.type = messages_C2W::UPDATE_METADATA;
+    msg.l_current = context.l_current;
+    message_worker(msg, id);
+
+    if (config.verboseflag) {
+      std::cout << "worker " << id << " notified of new length "
+                << context.l_current << std::endl;
+    }
+  }
+}
+
+void Coordinator::stop_workers() const {
+  for (int id = 0; id < context.num_threads; ++id) {
+    MessageC2W msg;
+    msg.type = messages_C2W::STOP_WORKER;
+    message_worker(msg, id);
+
+    if (config.verboseflag)
+      std::cout << "worker " << id << " asked to stop" << std::endl;
+    worker_thread[id]->join();
+  }
+}
+
+// Use the distribution of patterns found so far to extrapolate the
+// expected number of patterns at length `maxlength`. This may be a useful
+// signal of the degree of completion in the search.
+//
+// The distribution of patterns by length is observed to closely follow a
+// Gaussian (bell) shape, so we fit to this shape.
+
+double Coordinator::expected_patterns_at_maxlength() {
+  int mode = 0;
+  int max = 0;
+  std::uint64_t modeval = 0;
+
+  for (int i = 0; i < context.count.size(); ++i) {
+    if (context.count[i] > modeval) {
+      mode = i;
+      modeval = context.count[i];
+    }
+    if (context.count[i] > 0)
+      max = i;
+  }
+
+  // fit a parabola to the log of pattern count
+  double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
+  double sy = 0, sxy = 0, sx2y = 0;
+  int xstart = std::max<int>(max - 10, mode);
+
+  for (int i = xstart; i < context.count.size(); ++i) {
+    if (context.count[i] < 5)
+      continue;
+
+    const double x = static_cast<double>(i);
+    const double y = log(static_cast<double>(context.count[i]));
+    s1 += 1;
+    sx += x;
+    sx2 += x * x;
+    sx3 += x * x * x;
+    sx4 += x * x * x * x;
+    sy += y;
+    sxy += x * y;
+    sx2y += x * x * y;
+  }
+
+  // Solve this 3x3 linear system for A, B, C, the coefficients in the
+  // parabola of best fit y = Ax^2 + Bx + C:
+  //
+  // | sx4  sx3  sx2  | | A |   | sx2y |
+  // | sx3  sx2  sx   | | B | = | sxy  |
+  // | sx2  sx   s1   | | C |   | sy   |
+
+  // Find matrix inverse
+  double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
+      sx2 * (sx3 * sx - sx2 * sx2);
+  double M11 = (sx2 * s1 - sx * sx) / det;
+  double M12 = (sx2 * sx - sx3 * s1) / det;
+  double M13 = (sx3 * sx - sx2 * sx2) / det;
+  double M21 = M12;
+  double M22 = (sx4 * s1 - sx2 * sx2) / det;
+  double M23 = (sx2 * sx3 - sx4 * sx) / det;
+  double M31 = M13;
+  double M32 = M23;
+  double M33 = (sx4 * sx2 - sx3 * sx3) / det;
+
+  auto is_close = [](double a, double b) {
+    double epsilon = 1e-3;
+    return (b > a - epsilon && b < a + epsilon);
+  };
+  assert(is_close(M11 * sx4 + M12 * sx3 + M13 * sx2, 1));
+  assert(is_close(M11 * sx3 + M12 * sx2 + M13 * sx, 0));
+  assert(is_close(M11 * sx2 + M12 * sx + M13 * s1, 0));
+  assert(is_close(M21 * sx4 + M22 * sx3 + M23 * sx2, 0));
+  assert(is_close(M21 * sx3 + M22 * sx2 + M23 * sx, 1));
+  assert(is_close(M21 * sx2 + M22 * sx + M23 * s1, 0));
+  assert(is_close(M31 * sx4 + M32 * sx3 + M33 * sx2, 0));
+  assert(is_close(M31 * sx3 + M32 * sx2 + M33 * sx, 0));
+  assert(is_close(M31 * sx2 + M32 * sx + M33 * s1, 1));
+
+  double A = M11 * sx2y + M12 * sxy + M13 * sy;
+  double B = M21 * sx2y + M22 * sxy + M23 * sy;
+  double C = M31 * sx2y + M32 * sxy + M33 * sy;
+
+  // evaluate the expected number of patterns found at x = maxlength
+  double x = static_cast<double>(context.maxlength);
+  double lny = A * x * x + B * x + C;
+  return exp(lny);
+}
+
+// static variable for indicating the user has interrupted execution
+bool Coordinator::stopping = false;
+
+void Coordinator::signal_handler(int signum) {
+  stopping = true;
+}
+
+//------------------------------------------------------------------------------
 // Handle output
 //------------------------------------------------------------------------------
 
@@ -589,9 +616,10 @@ void Coordinator::print_summary() const {
   }
   std::cout << std::endl;
 
-  std::cout << std::endl << "FROM COORDINATOR:" << std::endl;
+  if (config.countsflag) {
+    std::cout << "\nPattern count by length:\n";
 
-  for (int i = 1; i <= context.maxlength; ++i) {
-    std::cout << i << ", " << count[i] << std::endl;
+    for (int i = 1; i <= context.maxlength; ++i)
+      std::cout << i << ", " << context.count[i] << std::endl;
   }
 }
