@@ -20,8 +20,10 @@
 
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <thread>
 #include <chrono>
+#include <ctime>
 #include <algorithm>
 #include <csignal>
 #include <cassert>
@@ -33,6 +35,10 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
   worker_thread.reserve(context.num_threads);
   worker_rootpos.reserve(context.num_threads);
   worker_longest.reserve(context.num_threads);
+  worker_status.reserve(context.num_threads);
+  worker_start_state.reserve(context.num_threads);
+  worker_columns_start.reserve(context.num_threads);
+  worker_columns_last.reserve(context.num_threads);
 }
 
 //------------------------------------------------------------------------------
@@ -60,10 +66,10 @@ void Coordinator::run() {
   (void)timespec_get(&start_ts, TIME_UTC);
 
   while (true) {
+    collect_stats();
     give_assignments();
     steal_work();
     process_inbox();
-    collect_stats();
 
     if ((static_cast<int>(workers_idle.size()) == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
@@ -90,6 +96,8 @@ void Coordinator::run() {
     worker_thread[id] = nullptr;
   }
 
+  if (config.verboseflag)
+    erase_status_output();
   if (context.assignments.size() > 0)
     std::cout << "\nPARTIAL RESULTS:\n";
   print_summary();
@@ -103,6 +111,19 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
   worker[worker_id]->inbox_lock.lock();
   worker[worker_id]->inbox.push(msg);
   worker[worker_id]->inbox_lock.unlock();
+}
+
+void Coordinator::collect_stats() {
+  if (--stats_counter > 0)
+    return;
+
+  stats_counter = waits_per_status;
+  stats_received = 0;
+  for (int id = 0; id < context.num_threads; ++id) {
+    MessageC2W msg;
+    msg.type = messages_C2W::SEND_STATS;
+    message_worker(msg, id);
+  }
 }
 
 // Give assignments to idle workers, while there are available assignments and
@@ -123,12 +144,16 @@ void Coordinator::give_assignments() {
     workers_run_order.push_back(id);
     worker_rootpos[id] = wa.root_pos;
     worker_longest[id] = 0;
+    worker_columns_start[id].resize(0);
+    worker_columns_last[id].resize(0);
     message_worker(msg, id);
 
     if (config.verboseflag) {
+      erase_status_output();
       std::cout << "worker " << id << " given work ("
                 << workers_idle.size() << " idle):\n"
                 << "  " << msg.assignment << std::endl;
+      print_status_output();
     }
   }
 }
@@ -192,6 +217,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   worker_longest[msg.worker_id] = 0;
 
   if (config.verboseflag) {
+    erase_status_output();
     std::cout << "worker " << msg.worker_id << " went idle ("
               << workers_idle.size() << " idle)";
     if (workers_splitting.count(msg.worker_id) > 0) {
@@ -199,6 +225,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
                 << (workers_splitting.size() - 1) << " splitting)";
     }
     std::cout << std::endl;
+    print_status_output();
   }
 
   // If we have a SPLIT_WORK request out for the worker, it will be ignored.
@@ -216,71 +243,46 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   workers_run_order.push_back(msg.worker_id);
 
   if (config.verboseflag) {
+    erase_status_output();
     std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
               << "  " << msg.assignment << std::endl;
+    print_status_output();
   }
 }
 
 void Coordinator::process_returned_stats(const MessageW2C& msg) {
   record_data_from_message(msg);
-  if (++stats_received < context.num_threads)
+  if (!config.verboseflag)
     return;
 
-  /*
-  int max = 0;
-  std::uint64_t averagesum = 0;
-  std::uint64_t n = 0;
+  worker_status[msg.worker_id] = make_worker_status(msg);
 
-  for (int i = 0; i < context.count.size(); ++i) {
-    if (context.count[i] > 0)
-      max = i;
-    averagesum += i * context.count[i];
-    n += context.count[i];
+  if (++stats_received == context.num_threads) {
+    erase_status_output();
+    print_status_output();
   }
-  double average = static_cast<double>(averagesum) / static_cast<double>(n);
-
-  std::cout << "patterns: " << context.ntotal
-            << " (avg " << average
-            << ", max " << max
-            << ")" << std::endl;
-  */
 }
 
 void Coordinator::process_worker_status(const MessageW2C& msg) {
-  if (msg.meta.size() > 0 && config.verboseflag)
-      std::cout << msg.meta << std::endl;
+  if (msg.meta.size() > 0 && config.verboseflag) {
+    erase_status_output();
+    std::cout << msg.meta << '\n';
+    print_status_output();
+  }
 
   if (msg.root_pos >= 0) {
     worker_rootpos[msg.worker_id] = msg.root_pos;
 
     if (config.verboseflag) {
+      erase_status_output();
       std::cout << "worker " << msg.worker_id
-                << " new root_pos: " << msg.root_pos << std::endl;
+                << " new root_pos: " << msg.root_pos << '\n';
+      print_status_output();
     }
   }
 
-  if (msg.longest_found >= 0) {
+  if (msg.longest_found >= 0)
     worker_longest[msg.worker_id] = msg.longest_found;
-
-    if (config.verboseflag) {
-      std::cout << "worker " << msg.worker_id
-                << " new longest_found: " << msg.longest_found << std::endl;
-    }
-  }
-}
-
-void Coordinator::collect_stats() {
-  const int counts_until_print = waits_per_second * 1;
-  if (++stats_counter < counts_until_print)
-    return;
-
-  stats_counter = 0;
-  stats_received = 0;
-  for (int id = 0; id < context.num_threads; ++id) {
-    MessageC2W msg;
-    msg.type = messages_C2W::SEND_STATS;
-    message_worker(msg, id);
-  }
 }
 
 //------------------------------------------------------------------------------
@@ -299,8 +301,10 @@ void Coordinator::steal_work() {
     // are no active workers to take work from
     if (workers_idle.size() + workers_splitting.size() == context.num_threads) {
       if (config.verboseflag && sent_split_request) {
+        erase_status_output();
         std::cout << "could not steal work (" << workers_idle.size()
                   << " idle)" << std::endl;
+        print_status_output();
       }
       break;
     }
@@ -332,8 +336,10 @@ void Coordinator::steal_work() {
     sent_split_request = true;
 
     if (config.verboseflag) {
+      erase_status_output();
       std::cout << "worker " << id << " given work split request ("
                 << workers_splitting.size() << " splitting)" << std::endl;
+      print_status_output();
     }
   }
 }
@@ -430,7 +436,9 @@ void Coordinator::remove_from_run_order(const int id) {
   assert(found);
 }
 
-void Coordinator::notify_metadata(int skip_id) const {
+void Coordinator::notify_metadata(int skip_id) {
+  if (config.verboseflag)
+    erase_status_output();
   for (int id = 0; id < context.num_threads; ++id) {
     if (id == skip_id || is_worker_idle(id))
       continue;
@@ -445,9 +453,13 @@ void Coordinator::notify_metadata(int skip_id) const {
                 << context.l_current << std::endl;
     }
   }
+  if (config.verboseflag)
+    print_status_output();
 }
 
-void Coordinator::stop_workers() const {
+void Coordinator::stop_workers() {
+  if (config.verboseflag)
+    erase_status_output();
   for (int id = 0; id < context.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::STOP_WORKER;
@@ -457,11 +469,13 @@ void Coordinator::stop_workers() const {
       std::cout << "worker " << id << " asked to stop" << std::endl;
     worker_thread[id]->join();
   }
+  if (config.verboseflag)
+    print_status_output();
 }
 
-// Use the distribution of patterns found so far to extrapolate the
-// expected number of patterns at length `maxlength`. This may be a useful
-// signal of the degree of completion in the search.
+// Use the distribution of patterns found so far to extrapolate the expected
+// number of patterns at length `maxlength`. This may be a useful signal of the
+// degree of search completion.
 //
 // The distribution of patterns by length is observed to closely follow a
 // Gaussian (bell) shape, so we fit to this shape.
@@ -557,6 +571,8 @@ void Coordinator::signal_handler(int signum) {
 //------------------------------------------------------------------------------
 
 void Coordinator::print_pattern(const MessageW2C& msg) {
+  if (config.verboseflag)
+    erase_status_output();
   if (config.printflag) {
     if (config.verboseflag)
       std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
@@ -564,6 +580,8 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
       std::cout << msg.pattern << std::endl;
   }
   context.patterns.push_back(msg.pattern);
+  if (config.verboseflag)
+    print_status_output();
 }
 
 void Coordinator::print_summary() const {
@@ -622,4 +640,131 @@ void Coordinator::print_summary() const {
     for (int i = 1; i <= context.maxlength; ++i)
       std::cout << i << ", " << context.count[i] << std::endl;
   }
+}
+
+void Coordinator::erase_status_output() const {
+  if (!stats_printed)
+    return;
+  for (int i = 0; i < context.num_threads + 1; ++i) {
+    std::cout << '\x1B' << "[1A"
+              << '\x1B' << "[2K";
+  }
+}
+
+void Coordinator::print_status_output() {
+  auto now = std::chrono::system_clock::now();
+  std::time_t now_timet = std::chrono::system_clock::to_time_t(now);
+  std::string now_str = std::ctime(&now_timet);
+  std::cout << "Status on " << now_str;
+
+  for (int i = 0; i < context.num_threads; ++i)
+    std::cout << worker_status[i] << std::endl;
+
+  stats_printed = true;
+}
+
+std::string Coordinator::make_worker_status(const MessageW2C& msg) {
+  if (!msg.running)
+    return "    idle";
+
+  std::ostringstream buffer;
+  const int id = msg.worker_id;
+  const std::vector<int>& cols = msg.worker_columns;
+
+  buffer << std::setw(3) << std::min(worker_rootpos[id], 999) << ' ';
+
+  const bool nonsuper = (config.mode != RunMode::SUPER_SEARCH);
+  const bool super1 = (config.mode == RunMode::SUPER_SEARCH &&
+      config.shiftlimit > 0);
+  const int width = std::min(context.maxlength, 70);
+  int printed = 0;
+  bool have_highlighted_start = false;
+  bool highlight_start = false;
+  bool have_highlighted_last = false;
+  bool highlight_last = false;
+
+  int skipped = context.maxlength - width;
+  for (int i = 0; i < context.num_threads; ++i)
+    skipped = std::min(skipped, worker_rootpos[i]);
+
+  for (int i = skipped; i < cols.size(); ++i) {
+    if (!highlight_start && !have_highlighted_start &&
+        i < worker_columns_start[id].size() &&
+        cols[i] != worker_columns_start[id][i]) {
+      highlight_start = have_highlighted_start = true;
+    }
+    if (!highlight_last && !have_highlighted_last &&
+        i < worker_columns_last[id].size() &&
+        cols[i] != worker_columns_last[id][i]) {
+      highlight_last = have_highlighted_last = true;
+    }
+
+    char ch = '\0';
+
+    if (nonsuper) {
+      if (i < worker_rootpos[id]) {
+        ch = '*';
+      } else if (i >= cols.size()) {
+        ch = '.';
+      } else if (cols[i] == 0) {
+        // skip
+      } else {
+        ch = '0' + cols[i];
+      }
+    } else if (super1) {
+      if (i < worker_rootpos[id]) {
+        ch = '*';
+      } else if (i >= cols.size()) {
+        ch = '.';
+      } else if (cols[i] == 0) {
+        ch = '0';
+      } else if (cols[i] == 1) {
+        ch = '.';
+      } else {
+        ch = '0' + cols[i];
+      }
+    } else {
+      if (i < worker_rootpos[id]) {
+        ch = '*';
+      } else if (i >= cols.size()) {
+        ch = '.';
+      } else if (cols[i] == 0) {
+        ch = '.';
+      } else {
+        ch = '0' + cols[i];
+      }
+    }
+
+    if (ch != '\0') {
+      if (highlight_start || highlight_last) {
+        buffer << '\x1B' << "[7m" << ch << '\x1B' << "[27m";
+        if (highlight_start)
+          highlight_start = false;
+        if (highlight_last)
+          highlight_last = false;
+      } else {
+        buffer << ch;
+      }
+      ++printed;
+    }
+
+    if (printed >= width)
+      break;
+  }
+
+  while (printed < width) {
+    buffer << ' ';
+    ++printed;
+  }
+
+  buffer << std::setw(5) << worker_longest[id];
+
+  worker_columns_last[id] = msg.worker_columns;
+  if (worker_columns_start[id].size() == 0 ||
+      worker_start_state[id] != msg.start_state) {
+    worker_columns_start[id] = msg.worker_columns;
+    worker_start_state[id] = msg.start_state;
+  }
+
+  return buffer.str();
 }

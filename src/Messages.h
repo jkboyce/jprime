@@ -78,6 +78,11 @@ struct MessageW2C {
   // for type RETURN_WORK
   WorkAssignment assignment;
 
+  // for type RETURN_STATS
+  bool running = false;
+  int start_state = 0;
+  std::vector<int> worker_columns;
+
   // for type WORKER_STATUS
   std::string meta;
   int root_pos = -1;

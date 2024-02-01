@@ -21,6 +21,7 @@
 #include <list>
 #include <set>
 #include <vector>
+#include <string>
 #include <thread>
 
 
@@ -39,14 +40,21 @@ class Coordinator {
   std::list<int> workers_run_order;
   std::vector<int> worker_rootpos;
   std::vector<int> worker_longest;
+  std::vector<std::string> worker_status;
   static bool stopping;
 
   static constexpr double nanosecs_per_inbox_check = 100000000 *
       Worker::secs_per_inbox_check_target;
-  static constexpr int waits_per_second = static_cast<int>(1e9 /
-      nanosecs_per_inbox_check);
+
+  static constexpr double secs_per_status = 1;
+  static constexpr int waits_per_status = static_cast<int>(1e9 *
+      secs_per_status / nanosecs_per_inbox_check);
   int stats_counter = 0;
   int stats_received = 0;
+  bool stats_printed = false;
+  std::vector<int> worker_start_state;
+  std::vector<std::vector<int>> worker_columns_start;
+  std::vector<std::vector<int>> worker_columns_last;
 
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
@@ -71,12 +79,15 @@ class Coordinator {
   bool is_worker_splitting(const int id) const;
   void record_data_from_message(const MessageW2C& msg);
   void remove_from_run_order(const int id);
-  void notify_metadata(int skip_id) const;
-  void stop_workers() const;
+  void notify_metadata(int skip_id);
+  void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);
   void print_pattern(const MessageW2C& msg);
   void print_summary() const;
+  void erase_status_output() const;
+  void print_status_output();
+  std::string make_worker_status(const MessageW2C& msg);
 };
 
 #endif

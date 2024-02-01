@@ -256,6 +256,25 @@ void Worker::process_send_stats_request() {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_STATS;
   add_data_to_message(msg);
+  msg.running = running;
+
+  if (running) {
+    // include a snapshot of the current state of the search
+    msg.start_state = start_state;
+    msg.worker_columns.resize(pos + 1);
+
+    int tempfrom = start_state;
+    for (int i = 0; i <= pos; ++i) {
+      for (int col = 0; col < graph.outdegree[tempfrom]; ++col) {
+        if (graph.outthrowval[tempfrom][col] == pattern[i]) {
+          msg.worker_columns[i] = col;
+          tempfrom = graph.outmatrix[tempfrom][col];
+          break;
+        }
+      }
+    }
+  }
+
   message_coordinator(msg);
 }
 
@@ -326,6 +345,7 @@ void Worker::notify_coordinator_idle() {
   msg.type = messages_W2C::WORKER_IDLE;
   add_data_to_message(msg);
   message_coordinator(msg);
+  running = false;
 }
 
 // Notify the coordinator of certain changes in the status of the search. The
@@ -487,6 +507,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 // it starts with, which ensures each pattern is generated exactly once.
 
 void Worker::gen_patterns() {
+  running = true;
+
   for (; start_state <= end_state; ++start_state) {
     // reset working variables
     pos = 0;

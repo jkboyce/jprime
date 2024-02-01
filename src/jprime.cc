@@ -28,7 +28,8 @@
 //           faster on modern multicore machines.
 // 10/03/23  Version 6.1 enables -inverse option for all modes.
 // 12/21/23  Version 6.2 adds many performance improvements.
-// 01/28/24  Version 6.3 adds pattern counting by length.
+// 01/28/24  Version 6.3 adds pattern counting by length, and search status
+//           display in -verbose mode.
 
 
 #include "SearchConfig.h"
