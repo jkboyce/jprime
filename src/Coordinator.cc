@@ -736,12 +736,12 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     }
 
     if (ch != '\0') {
-      if (highlight_start || highlight_last) {
+      if (highlight_start) {
         buffer << '\x1B' << "[7m" << ch << '\x1B' << "[27m";
-        if (highlight_start)
-          highlight_start = false;
-        if (highlight_last)
-          highlight_last = false;
+        highlight_start = highlight_last = false;
+      } else if (highlight_last) {
+        buffer << '\x1B' << "[1m" << ch << '\x1B' << "[22m";
+        highlight_last = false;
       } else {
         buffer << ch;
       }
