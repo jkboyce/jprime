@@ -20,7 +20,7 @@
 #include <queue>
 #include <mutex>
 #include <list>
-#include <ctime>
+#include <chrono>
 #include <cstdint>
 
 
@@ -76,7 +76,7 @@ class Worker {
   static constexpr int calibrations_initial = 10;
   int calibrations_remaining = calibrations_initial;
   int steps_taken = 0;
-  timespec last_ts;
+  std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
   Worker(const SearchConfig& config, Coordinator& coord, int id);
@@ -93,7 +93,8 @@ class Worker {
   void message_coordinator(MessageW2C& msg) const;
   void message_coordinator_status(const std::string& str) const;
   void process_inbox_running();
-  void record_elapsed_time(const timespec& start);
+  void record_elapsed_time(const
+    std::chrono::time_point<std::chrono::high_resolution_clock>& start);
   void calibrate_inbox_check();
   void process_split_work_request(const MessageC2W& msg);
   void send_work_to_coordinator(const WorkAssignment& wa);

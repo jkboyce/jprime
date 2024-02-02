@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <chrono>
 #include <cassert>
-#include <ctime>
 
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
@@ -118,18 +118,17 @@ void Worker::run() {
       continue;
 
     // get timestamp so we can report working time to coordinator
-    timespec start_ts;
-    (void)timespec_get(&start_ts, TIME_UTC);
+    const auto start = std::chrono::high_resolution_clock::now();
 
     // complete the new work assignment
     try {
       gen_patterns();
-      record_elapsed_time(start_ts);
+      record_elapsed_time(start);
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
       (void)jpse;
-      record_elapsed_time(start_ts);
+      record_elapsed_time(start);
       send_work_to_coordinator(get_work_assignment());
       break;
     }
@@ -198,27 +197,24 @@ void Worker::process_inbox_running() {
 // Get a finishing timestamp and record elapsed-time statistics to report to
 // the coordinator later on.
 
-void Worker::record_elapsed_time(const timespec& start_ts) {
-  timespec end_ts;
-  (void)timespec_get(&end_ts, TIME_UTC);
-  double runtime =
-      static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
-      1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
+void Worker::record_elapsed_time(const
+    std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
+  const auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end - start;
+  double runtime = diff.count();
   secs_working += runtime;
 }
 
 void Worker::calibrate_inbox_check() {
   if (calibrations_remaining == calibrations_initial) {
-    (void)timespec_get(&last_ts, TIME_UTC);
+    last_ts = std::chrono::high_resolution_clock::now();
     --calibrations_remaining;
     return;
   }
 
-  timespec current_ts;
-  (void)timespec_get(&current_ts, TIME_UTC);
-  double time_spent =
-      static_cast<double>(current_ts.tv_sec - last_ts.tv_sec) +
-      1.0e-9 * (current_ts.tv_nsec - last_ts.tv_nsec);
+  const auto current_ts = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = current_ts - last_ts;
+  double time_spent = diff.count();
   last_ts = current_ts;
   --calibrations_remaining;
 

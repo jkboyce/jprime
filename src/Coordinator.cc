@@ -23,7 +23,6 @@
 #include <sstream>
 #include <thread>
 #include <chrono>
-#include <ctime>
 #include <algorithm>
 #include <csignal>
 #include <cassert>
@@ -62,8 +61,7 @@ void Coordinator::run() {
   constexpr auto nanosecs_wait = std::chrono::nanoseconds(
       static_cast<long>(100000000 * Worker::secs_per_inbox_check_target));
 
-  timespec start_ts, end_ts;
-  (void)timespec_get(&start_ts, TIME_UTC);
+  const auto start = std::chrono::high_resolution_clock::now();
 
   while (true) {
     collect_stats();
@@ -82,10 +80,9 @@ void Coordinator::run() {
     std::this_thread::sleep_for(nanosecs_wait);
   }
 
-  (void)timespec_get(&end_ts, TIME_UTC);
-  double runtime =
-      static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
-      1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
+  const auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end - start;
+  double runtime = diff.count();
   context.secs_elapsed += runtime;
   context.secs_available += runtime * context.num_threads;
 
