@@ -702,8 +702,6 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (nonsuper) {
       if (i < worker_rootpos[id]) {
         ch = '*';
-      } else if (i >= cols.size()) {
-        ch = '.';
       } else if (cols[i] == 0) {
         // skip
       } else {
@@ -712,20 +710,16 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     } else if (super1) {
       if (i < worker_rootpos[id]) {
         ch = '*';
-      } else if (i >= cols.size()) {
-        ch = '.';
       } else if (cols[i] == 0) {
         ch = '0';
       } else if (cols[i] == 1) {
-        ch = '.';
+        ch = '1';
       } else {
         ch = '0' + cols[i];
       }
     } else {
       if (i < worker_rootpos[id]) {
         ch = '*';
-      } else if (i >= cols.size()) {
-        ch = '.';
       } else if (cols[i] == 0) {
         ch = '.';
       } else {
