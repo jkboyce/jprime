@@ -674,12 +674,13 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   const bool nonsuper = (config.mode != RunMode::SUPER_SEARCH);
   const bool super1 = (config.mode == RunMode::SUPER_SEARCH &&
       config.shiftlimit > 0);
-  const int width = std::min(context.maxlength, 70);
+  const int width = std::min(context.maxlength, 66);
   int printed = 0;
   bool have_highlighted_start = false;
   bool highlight_start = false;
   bool have_highlighted_last = false;
   bool highlight_last = false;
+  int rootpos_distance = 999;
 
   int skipped = context.maxlength - width;
   for (int i = 0; i < context.num_threads; ++i)
@@ -690,6 +691,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
         i < worker_columns_start[id].size() &&
         cols[i] != worker_columns_start[id][i]) {
       highlight_start = have_highlighted_start = true;
+      rootpos_distance = i - worker_rootpos[id];
     }
     if (!highlight_last && !have_highlighted_last &&
         i < worker_columns_last[id].size() &&
@@ -749,6 +751,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     ++printed;
   }
 
+  buffer << std::setw(4) << rootpos_distance;
   buffer << std::setw(5) << worker_longest[id];
 
   worker_columns_last[id] = msg.worker_columns;
