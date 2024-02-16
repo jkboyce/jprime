@@ -1129,16 +1129,14 @@ inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
 
   // kill states downstream in `from` shift cycle that end in 'x'
-  int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
-  int cnum = graph.cyclenum[from];
-  int* cp = graph.cyclepartner[from];
+  int* const ds = deadstates + graph.cyclenum[from];
+  int* cp = graph.cyclepartner[from] + graph.h - 2;
 
   do {
-    if (used[cp[j]]++ == 0 && deadstates[cnum]++ >= 1
-          && --max_possible < l_current)
+    if (++used[*cp] == 1 && ++*ds > 1 && --max_possible < l_current)
       valid = false;
-    --j;
+    --cp;
     tempstate >>= 1;
   } while (tempstate & 1L);
 
@@ -1149,16 +1147,14 @@ inline bool Worker::mark_unreachable_states_catch(int to_state) {
   bool valid = true;
 
   // kill states upstream in 'to' shift cycle that start with '-'
-  int j = 0;
   std::uint64_t tempstate = graph.state[to_state];
-  int cnum = graph.cyclenum[to_state];
+  int* const ds = deadstates + graph.cyclenum[to_state];
   int* cp = graph.cyclepartner[to_state];
 
   do {
-    if (used[cp[j]]++ == 0 && deadstates[cnum]++ >= 1
-          && --max_possible < l_current)
+    if (++used[*cp] == 1 && ++*ds > 1 && --max_possible < l_current)
       valid = false;
-    ++j;
+    ++cp;
     tempstate = (tempstate << 1) & graph.allbits;
   } while ((tempstate & graph.highestbit) == 0);
 
@@ -1168,29 +1164,27 @@ inline bool Worker::mark_unreachable_states_catch(int to_state) {
 // Reverse the marking operations above, so we can backtrack.
 
 inline void Worker::unmark_unreachable_states_throw() {
-  int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
-  int cnum = graph.cyclenum[from];
-  int* cp = graph.cyclepartner[from];
+  int* const ds = deadstates + graph.cyclenum[from];
+  int* cp = graph.cyclepartner[from] + graph.h - 2;
 
   do {
-    if (--used[cp[j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[*cp] == 0 && --*ds > 0)
       ++max_possible;
-    --j;
+    --cp;
     tempstate >>= 1;
   } while (tempstate & 1L);
 }
 
 inline void Worker::unmark_unreachable_states_catch(int to_state) {
-  int j = 0;
   std::uint64_t tempstate = graph.state[to_state];
-  int cnum = graph.cyclenum[to_state];
+  int* const ds = deadstates + graph.cyclenum[to_state];
   int* cp = graph.cyclepartner[to_state];
 
   do {
-    if (--used[cp[j]] == 0 && --deadstates[cnum] >= 1)
+    if (--used[*cp] == 0 && --*ds > 0)
       ++max_possible;
-    ++j;
+    ++cp;
     tempstate = (tempstate << 1) & graph.allbits;
   } while ((tempstate & graph.highestbit) == 0);
 }
