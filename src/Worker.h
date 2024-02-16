@@ -4,7 +4,7 @@
 // Worker thread that executes work assignments given to it by the
 // Coordinator thread.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -12,7 +12,7 @@
 #ifndef JPRIME_WORKER_H_
 #define JPRIME_WORKER_H_
 
-#include "Coordinator.h"
+//#include "Coordinator.h"
 #include "Messages.h"
 #include "SearchConfig.h"
 #include "Graph.h"
@@ -20,7 +20,8 @@
 #include <queue>
 #include <mutex>
 #include <list>
-#include <ctime>
+#include <chrono>
+#include <cstdint>
 
 
 class Coordinator;
@@ -62,10 +63,12 @@ class Worker {
   int exitcyclesleft = 0;
 
   // status data to report to Coordinator
-  unsigned long ntotal = 0L;
-  unsigned long nnodes = 0L;
+  std::uint64_t ntotal = 0;
+  std::uint64_t nnodes = 0;
   int longest_found = 0;
   double secs_working = 0;
+  std::vector<std::uint64_t> count;
+  bool running = false;
 
   // for managing the frequency to check the inbox while running
   static constexpr int steps_per_inbox_check_initial = 50000;
@@ -73,7 +76,7 @@ class Worker {
   static constexpr int calibrations_initial = 10;
   int calibrations_remaining = calibrations_initial;
   int steps_taken = 0;
-  timespec last_ts;
+  std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
   Worker(const SearchConfig& config, Coordinator& coord, int id);
@@ -87,12 +90,16 @@ class Worker {
  private:
   void allocate_arrays();
   void delete_arrays();
-  void message_coordinator(const MessageW2C& msg) const;
+  void message_coordinator(MessageW2C& msg) const;
+  void message_coordinator_status(const std::string& str) const;
   void process_inbox_running();
-  void record_elapsed_time(const timespec& start);
+  void record_elapsed_time(const
+    std::chrono::time_point<std::chrono::high_resolution_clock>& start);
   void calibrate_inbox_check();
-  void send_work_to_coordinator(const WorkAssignment& wa);
   void process_split_work_request(const MessageC2W& msg);
+  void send_work_to_coordinator(const WorkAssignment& wa);
+  void process_send_stats_request();
+  void add_data_to_message(MessageW2C& msg);
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();

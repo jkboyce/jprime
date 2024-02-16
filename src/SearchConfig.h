@@ -3,7 +3,7 @@
 //
 // Defines items that are constant during the duration of the search
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -57,6 +57,9 @@ struct SearchConfig {
 
   // print without using +, - for h and 0
   bool noplusminusflag = false;
+
+  // keep a record of patterns seen at each length
+  bool countsflag = false;
 
   // for block mode
   int skiplimit = 0;

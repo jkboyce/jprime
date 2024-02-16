@@ -6,7 +6,7 @@
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -28,6 +28,8 @@
 //           faster on modern multicore machines.
 // 10/03/23  Version 6.1 enables -inverse option for all modes.
 // 12/21/23  Version 6.2 adds many performance improvements.
+// 01/28/24  Version 6.3 adds pattern counting by length, and search status
+//           display in -verbose mode.
 
 
 #include "SearchConfig.h"
@@ -45,40 +47,39 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.2 (2023.12.21)\n"
-    "Copyright (C) 1998-2023 Jack Boyce\n"
+    "jprime version 6.3 (2024.01.28)\n"
+    "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
     "explanation of these terms, consult the page:\n"
     "   http://www.juggling.org/help/siteswap/\n"
     "\n"
     "Command line format:\n"
-    "   jprime <# objects> <max. throw> [<min. length>] [options]\n"
+    "   jprime <# objects> <max. throw> [<length>] [options]\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
     "   <max. throw>      = largest allowed throw value\n"
-    "   <min. length>     = shortest patterns to find (optional, speeds search)\n"
+    "   <length>          = shortest patterns to find (optional, speeds search)\n"
     "\n"
     "Recognized options:\n"
-    "   -block <skips>    find patterns in block form, allowing the specified\n"
-    "                        number of skips\n"
     "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
     "                        specified number of shift throws\n"
+    "   -block <skips>    find patterns in block form, allowing the specified\n"
+    "                        number of skips\n"
     "   -g                find ground-state patterns only\n"
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
-    "                     exclude listed throws (speeds search)\n"
-    "   -all              print all patterns; otherwise only patterns as long\n"
-    "                        currently-longest one found are printed\n"
-    "   -noplus           print without using +, - for h and 0 respectively\n"
-    "   -exact            print all patterns of the exact length specified\n"
-    "   -inverse          print inverse pattern, if it exists\n"
+    "                     exclude listed throw values\n"
+    "   -all              find all patterns; otherwise search for the longest\n"
+    "                        patterns only\n"
+    "   -exact            find only patterns of the exact length specified\n"
     "   -noprint          suppress printing of patterns\n"
-    "   -threads <num>    run with the given number of worker threads (default 1)\n"
+    "   -inverse          print inverse pattern, if it exists\n"
+    "   -noplus           print without using +, - for h and 0 respectively\n"
+    "   -counts           print number of patterns found at each length\n"
     "   -verbose          print worker status information\n"
-    "   -steal_alg <num>  algorithm for selecting a worker to take work from\n"
-    "   -split_alg <num>  algorithm for splitting a stolen work assignment\n"
+    "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted via ctrl-c), resuming, and final output\n"
     "\n"
@@ -89,7 +90,7 @@ void print_help() {
     "   jprime 4 7\n"
     "   jprime 5 7 15 -noplus -exact\n"
     "   jprime 5 7 -noplus -all -file 5_7_all\n"
-    "   jprime 6 10 -super 0 -g -file 6_10_s0\n";
+    "   jprime 6 10 -super 0 -inverse -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
 }
@@ -98,18 +99,17 @@ void print_help() {
 // Parsing command line arguments
 //------------------------------------------------------------------------------
 
-void parse_args(int argc, char** argv, SearchConfig* const config,
+void parse_args(size_t argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
   if (config != nullptr) {
     config->n = atoi(argv[1]);
     if (config->n < 1) {
-      std::cerr << "Must have at least 1 object" << std::endl;
+      std::cerr << "Must have at least 1 object\n";
       std::exit(EXIT_FAILURE);
     }
     config->h = atoi(argv[2]);
     if (config->h < config->n) {
-      std::cerr << "Max. throw value must equal or exceed number of objects"
-                << std::endl;
+      std::cerr << "Max. throw value must equal or exceed number of objects\n";
       std::exit(EXIT_FAILURE);
     }
 
@@ -153,15 +153,14 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         config->exactflag = true;
         config->longestflag = false;
         if (config->l < 2) {
-          std::cerr << "Must specify a length > 1 when using -exact flag"
-                    << std::endl;
+          std::cerr << "Must specify a length > 1 when using -exact flag\n";
           std::exit(EXIT_FAILURE);
         }
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time\n";
           std::exit(EXIT_FAILURE);
         }
         ++i;
@@ -172,7 +171,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
             config->xarray[0] = config->xarray[config->h] = true;
         }
       } else {
-        std::cerr << "Must provide shift limit in -super mode" << std::endl;
+        std::cerr << "Must provide shift limit in -super mode\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-file")) {
@@ -183,7 +182,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           context->outfile = std::string(argv[i]);
         }
       } else {
-        std::cerr << "No filename provided after -file" << std::endl;
+        std::cerr << "No filename provided after -file\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-steal_alg")) {
@@ -194,7 +193,7 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           stealalg_given = true;
         }
       } else {
-        std::cerr << "No number provided after -steal_alg" << std::endl;
+        std::cerr << "No number provided after -steal_alg\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
@@ -203,13 +202,13 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
         if (context != nullptr)
           context->split_alg = atoi(argv[i]);
       } else {
-        std::cerr << "No number provided after -split_alg" << std::endl;
+        std::cerr << "No number provided after -split_alg\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-block")) {
       if ((i + 1) < argc) {
         if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time" << std::endl;
+          std::cerr << "Can only select one mode at a time\n";
           std::exit(EXIT_FAILURE);
         }
         ++i;
@@ -218,14 +217,18 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
           config->skiplimit = atoi(argv[i]);
         }
       } else {
-        std::cerr << "Must provide skip limit in -block mode" << std::endl;
+        std::cerr << "Must provide skip limit in -block mode\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-x")) {
       ++i;
       while (i < argc && argv[i][0] != '-') {
         int j = atoi(argv[i]);
-        if (config != nullptr && j >= 0 && j <= config->h)
+        if (config != nullptr && j == config->h) {
+          std::cerr << "Cannot exclude max. throw value with -x\n";
+          std::exit(EXIT_FAILURE);
+        }
+        if (config != nullptr && j >= 0 && j < config->h)
           config->xarray[config->dualflag ? (config->h - j) : j] = true;
         ++i;
       }
@@ -233,20 +236,23 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-verbose")) {
       if (config != nullptr)
         config->verboseflag = true;
+    } else if (!strcmp(argv[i], "-counts")) {
+      if (config != nullptr)
+        config->countsflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
       if ((i + 1) < argc) {
         ++i;
         if (context != nullptr)
           context->num_threads = static_cast<int>(atoi(argv[i]));
       } else {
-        std::cerr << "Missing number of threads after -threads" << std::endl;
+        std::cerr << "Missing number of threads after -threads\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (i > 2) {
       char* p;
       long temp = strtol(argv[i], &p, 10);
       if (*p || i != 3) {
-        std::cerr << "Unrecognized input: " << argv[i] << std::endl;
+        std::cerr << "Unrecognized input: " << argv[i] << '\n';
         std::exit(EXIT_FAILURE);
       } else if (config != nullptr) {
         config->l = static_cast<int>(temp);
@@ -254,20 +260,22 @@ void parse_args(int argc, char** argv, SearchConfig* const config,
     }
   }
 
-  // consistency checks and defaults
-  if (config != nullptr && fullflag && config->exactflag) {
-    std::cerr << "-all and -exact flags cannot be used together" << std::endl;
-    std::exit(EXIT_FAILURE);
-  }
-  if (context != nullptr && context->num_threads < 1) {
-    std::cerr << "Must have at least one worker thread" << std::endl;
-    std::exit(EXIT_FAILURE);
-  }
+  // defaults
   if (config != nullptr && context != nullptr && !stealalg_given) {
     if (config->mode != RunMode::SUPER_SEARCH && config->l == 0)
       context->steal_alg = 1;  // steal from longest pattern found so far
     else
       context->steal_alg = 3;  // steal from lowest `root_pos`
+  }
+
+  // consistency checks
+  if (config != nullptr && fullflag && config->exactflag) {
+    std::cerr << "-all and -exact flags cannot be used together\n";
+    std::exit(EXIT_FAILURE);
+  }
+  if (context != nullptr && context->num_threads < 1) {
+    std::cerr << "Must have at least one worker thread\n";
+    std::exit(EXIT_FAILURE);
   }
 }
 
@@ -280,9 +288,9 @@ void parse_args(std::string str, SearchConfig* const config,
   while (std::getline(ss, s, ' '))
     args.push_back(s);
 
-  const int argc = args.size();
+  const size_t argc = args.size();
   char** argv = new char*[argc];
-  for (int i = 0; i < argc; ++i)
+  for (size_t i = 0; i < argc; ++i)
     argv[i] = &(args[i][0]);
 
   parse_args(argc, argv, config, context);
@@ -300,33 +308,35 @@ void save_context(const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.2" << std::endl
-         << "command line      " << context.arglist << std::endl
-         << "length            " << context.l_current << std::endl
-         << "length limit      " << context.maxlength << std::endl
-         << "states            " << context.numstates << std::endl
-         << "shift cycles      " << context.numcycles << std::endl
-         << "short cycles      " << context.numshortcycles << std::endl
-         << "patterns          " << context.npatterns << std::endl
-         << "patterns (seen)   " << context.ntotal << std::endl
-         << "nodes visited     " << context.nnodes << std::endl
-         << "threads           " << context.num_threads << std::endl
-         << "hardware threads  " << std::thread::hardware_concurrency()
-                                 << std::endl
+  myfile << "version           6.3\n"
+         << "command line      " << context.arglist << '\n'
+         << "length            " << context.l_current << '\n'
+         << "length limit      " << context.maxlength << '\n'
+         << "states            " << context.numstates << '\n'
+         << "shift cycles      " << context.numcycles << '\n'
+         << "short cycles      " << context.numshortcycles << '\n'
+         << "patterns          " << context.npatterns << '\n'
+         << "patterns (seen)   " << context.ntotal << '\n'
+         << "nodes visited     " << context.nnodes << '\n'
+         << "threads           " << context.num_threads << '\n'
+         << "hardware threads  " << std::thread::hardware_concurrency() << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
-                                 << context.secs_elapsed << std::endl
-         << "seconds working   " << context.secs_working << std::endl
-         << "seconds avail     " << context.secs_available << std::endl
-         << std::endl;
+                                 << context.secs_elapsed << '\n'
+         << "seconds working   " << context.secs_working << '\n'
+         << "seconds avail     " << context.secs_available << '\n';
 
-  myfile << "patterns" << std::endl;
+  myfile << "\npatterns\n";
   for (const std::string& str : context.patterns)
-    myfile << str << std::endl;
+    myfile << str << '\n';
+
+  myfile << "\ncounts\n";
+  for (int i = 1; i <= context.maxlength; ++i)
+    myfile << i << ", " << context.count[i] << '\n';
 
   if (context.assignments.size() > 0) {
-    myfile << std::endl << "work assignments remaining" << std::endl;
+    myfile << "\nwork assignments remaining\n";
     for (const WorkAssignment& wa : context.assignments)
-      myfile << "  " << wa << std::endl;
+      myfile << "  " << wa << '\n';
   }
 
   myfile.close();
@@ -393,13 +403,13 @@ bool load_context(const std::string& file, SearchContext& context) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
   if (!myfile || !myfile.is_open()) {
-    std::cerr << "error reading file: could not open" << std::endl;
+    std::cerr << "error reading file: could not open\n";
     return false;
   }
 
   std::string s;
   int linenum = 0;
-  bool reading_assignments = false;
+  int section = 1;
   const int column_start = 17;
 
   while (myfile) {
@@ -415,8 +425,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.2") {
-          error = "file version is not 6.2";
+        if (val != "6.2" && val != "6.3") {
+          error = "file version is below 6.2";
           break;
         }
         break;
@@ -446,6 +456,7 @@ bool load_context(const std::string& file, SearchContext& context) {
         val = s.substr(column_start, s.size());
         trim(val);
         context.maxlength = std::stoi(val);
+        context.count.resize(context.maxlength + 1, 0);
         break;
       case 4:
         if (s.rfind("states", 0) != 0) {
@@ -538,34 +549,54 @@ bool load_context(const std::string& file, SearchContext& context) {
           error = "syntax in line 17";
           break;
         }
+        section = 2;
         break;
     }
 
     if (error.size() > 0) {
-      std::cerr << "error reading file: " << error << std::endl;
+      std::cerr << "error reading file: " << error << '\n';
       myfile.close();
       return false;
     }
 
+    if (linenum < 17) {
+      ++linenum;
+      continue;
+    }
+
     val = s;
     trim(val);
-    if (reading_assignments) {
-      WorkAssignment wa;
-      if (val.size() == 0) {
-        // ignore empty line
-      } else if (wa.from_string(val)) {
-        context.assignments.push_back(wa);
-      } else {
-        std::cerr << "error reading work assignment in line " << (linenum + 1)
-                  << std::endl;
+
+    if (val.size() == 0) {
+      // ignore empty lines
+    } else if (s.rfind("count", 0) == 0) {
+      section = 3;
+    } else if (s.rfind("work", 0) == 0) {
+      section = 4;
+    } else if (section == 2) {
+      context.patterns.push_back(s);
+    } else if (section == 3) {
+      // read counts
+      size_t commapos = s.find(",");
+      if (commapos == std::string::npos) {
+        std::cerr << "error reading count in line " << (linenum + 1) << '\n';
         myfile.close();
         return false;
       }
-    } else if (linenum > 16) {
-      if (s.rfind("work", 0) == 0) {
-        reading_assignments = true;
-      } else if (val.size() > 0) {
-        context.patterns.push_back(s);
+      std::string field1 = s.substr(0, commapos);
+      std::string field2 = s.substr(commapos + 1, s.size());
+      int i = std::stoi(field1);
+      context.count[i] = static_cast<std::uint64_t>(std::stoull(field2));
+    } else if (section == 4) {
+      // read work assignments
+      WorkAssignment wa;
+      if (wa.from_string(val)) {
+        context.assignments.push_back(wa);
+      } else {
+        std::cerr << "error reading work assignment in line " << (linenum + 1)
+                  << '\n';
+        myfile.close();
+        return false;
       }
     }
 
@@ -589,8 +620,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     std::ifstream myfile(args_context.outfile);
     if (myfile.good()) {
       // file exists; try resuming calculation
-      std::cout << "reading checkpoint file '" << args_context.outfile << "'"
-                << std::endl;
+      std::cout << "reading checkpoint file '" << args_context.outfile << "'\n";
 
       if (!load_context(args_context.outfile, context))
         std::exit(EXIT_FAILURE);
@@ -607,7 +637,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       // invocation, use current filename
       context.outfile = args_context.outfile;
 
-      std::cout << "resuming calculation: " << context.arglist << std::endl
+      std::cout << "resuming calculation: " << context.arglist << '\n'
                 << "loaded " << context.npatterns
                 << " patterns (length " << context.l_current
                 << ") and " << context.assignments.size()

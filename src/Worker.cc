@@ -8,7 +8,7 @@
 // with a work stealing scheme to balance work among the threads. Each worker
 // communicates only with the coordinator thread, via a set of message types.
 //
-// Copyright (C) 1998-2023 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <chrono>
 #include <cassert>
-#include <ctime>
 
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
@@ -40,10 +40,10 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       ? (graph.numcycles + config.shiftlimit)
       : (graph.numstates - graph.numcycles);
   if (config.l > maxlength) {
-    std::cerr << "No patterns longer than " << maxlength << " are possible"
-              << std::endl;
+    std::cerr << "No patterns longer than " << maxlength << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
+  count.resize(maxlength + 1, 0);
   allocate_arrays();
 }
 
@@ -59,7 +59,7 @@ void Worker::allocate_arrays() {
   cycleused = new bool[graph.numstates + 1];
   deadstates = new int[graph.numstates + 1];
 
-  for (int i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     pattern[i] = -1;
     used[i] = 0;
     cycleused[i] = false;
@@ -102,8 +102,9 @@ void Worker::run() {
       } else if (msg.type == messages_C2W::UPDATE_METADATA) {
         // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
-        // leave in the inbox for when we get work
-        inbox.push(msg);
+        // ignore in idle state
+      } else if (msg.type == messages_C2W::SEND_STATS) {
+        process_send_stats_request();
       } else if (msg.type == messages_C2W::STOP_WORKER) {
         stop_worker = true;
       } else
@@ -117,17 +118,17 @@ void Worker::run() {
       continue;
 
     // get timestamp so we can report working time to coordinator
-    timespec start_ts;
-    timespec_get(&start_ts, TIME_UTC);
+    const auto start = std::chrono::high_resolution_clock::now();
 
     // complete the new work assignment
     try {
       gen_patterns();
-      record_elapsed_time(start_ts);
+      record_elapsed_time(start);
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
-      record_elapsed_time(start_ts);
+      (void)jpse;
+      record_elapsed_time(start);
       send_work_to_coordinator(get_work_assignment());
       break;
     }
@@ -145,10 +146,18 @@ void Worker::run() {
 // Handle interactions with the Coordinator thread
 //------------------------------------------------------------------------------
 
-void Worker::message_coordinator(const MessageW2C& msg) const {
+void Worker::message_coordinator(MessageW2C& msg) const {
+  msg.worker_id = worker_id;
   coordinator.inbox_lock.lock();
   coordinator.inbox.push(msg);
   coordinator.inbox_lock.unlock();
+}
+
+void Worker::message_coordinator_status(const std::string& str) const {
+  MessageW2C msg;
+  msg.type = messages_W2C::WORKER_STATUS;
+  msg.meta = str;
+  message_coordinator(msg);
 }
 
 // Handle incoming messages from the coordinator that have queued while the
@@ -171,6 +180,8 @@ void Worker::process_inbox_running() {
       l_current = std::max(l_current, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
       process_split_work_request(msg);
+    } else if (msg.type == messages_C2W::SEND_STATS) {
+      process_send_stats_request();
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -186,27 +197,24 @@ void Worker::process_inbox_running() {
 // Get a finishing timestamp and record elapsed-time statistics to report to
 // the coordinator later on.
 
-void Worker::record_elapsed_time(const timespec& start_ts) {
-  timespec end_ts;
-  timespec_get(&end_ts, TIME_UTC);
-  double runtime =
-      static_cast<double>(end_ts.tv_sec - start_ts.tv_sec) +
-      1.0e-9 * (end_ts.tv_nsec - start_ts.tv_nsec);
+void Worker::record_elapsed_time(const
+    std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
+  const auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end - start;
+  double runtime = diff.count();
   secs_working += runtime;
 }
 
 void Worker::calibrate_inbox_check() {
   if (calibrations_remaining == calibrations_initial) {
-    timespec_get(&last_ts, TIME_UTC);
+    last_ts = std::chrono::high_resolution_clock::now();
     --calibrations_remaining;
     return;
   }
 
-  timespec current_ts;
-  timespec_get(&current_ts, TIME_UTC);
-  double time_spent =
-      static_cast<double>(current_ts.tv_sec - last_ts.tv_sec) +
-      1.0e-9 * (current_ts.tv_nsec - last_ts.tv_nsec);
+  const auto current_ts = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = current_ts - last_ts;
+  double time_spent = diff.count();
   last_ts = current_ts;
   --calibrations_remaining;
 
@@ -215,38 +223,71 @@ void Worker::calibrate_inbox_check() {
       secs_per_inbox_check_target / time_spent);
 }
 
+void Worker::process_split_work_request(const MessageC2W& msg) {
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " splitting work...";
+    message_coordinator_status(buffer.str());
+  }
+
+  send_work_to_coordinator(split_work_assignment(msg.split_alg));
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " remaining work after split:\n"
+           << "  " << get_work_assignment();
+    message_coordinator_status(buffer.str());
+  }
+}
+
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_WORK;
-  msg.worker_id = worker_id;
   msg.assignment = wa;
+  add_data_to_message(msg);
+  message_coordinator(msg);
+}
+
+void Worker::process_send_stats_request() {
+  MessageW2C msg;
+  msg.type = messages_W2C::RETURN_STATS;
+  add_data_to_message(msg);
+  msg.running = running;
+
+  if (running) {
+    // include a snapshot of the current state of the search
+    msg.start_state = start_state;
+    msg.worker_columns.resize(pos + 1);
+
+    int tempfrom = start_state;
+    for (int i = 0; i <= pos; ++i) {
+      for (int col = 0; col < graph.outdegree[tempfrom]; ++col) {
+        if (graph.outthrowval[tempfrom][col] == pattern[i]) {
+          msg.worker_columns[i] = col;
+          tempfrom = graph.outmatrix[tempfrom][col];
+          break;
+        }
+      }
+    }
+  }
+
+  message_coordinator(msg);
+}
+
+void Worker::add_data_to_message(MessageW2C& msg) {
   msg.ntotal = ntotal;
+  msg.count = count;
   msg.nnodes = nnodes;
   msg.numstates = graph.numstates;
   msg.numcycles = graph.numcycles;
   msg.numshortcycles = graph.numshortcycles;
   msg.maxlength = maxlength;
   msg.secs_working = secs_working;
+
   ntotal = 0;
+  count.assign(count.size(), 0);
   nnodes = 0;
   secs_working = 0;
-  message_coordinator(msg);
-}
-
-void Worker::process_split_work_request(const MessageC2W& msg) {
-  send_work_to_coordinator(split_work_assignment(msg.split_alg));
-
-  if (config.verboseflag) {
-    std::ostringstream sstr;
-    sstr << "worker " << worker_id
-         << " remaining work after split:" << std::endl
-         << "  " << get_work_assignment();
-    MessageW2C msg2;
-    msg2.type = messages_W2C::WORKER_STATUS;
-    msg2.worker_id = worker_id;
-    msg2.meta = sstr.str();
-    message_coordinator(msg2);
-  }
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
@@ -259,7 +300,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   if (end_state == -1)
     end_state = (config.groundmode == 1) ? 1 : graph.numstates;
 
-  longest_found = 0;
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
   if (wa.start_state == -1 || wa.end_state == -1) {
@@ -270,9 +310,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(root_throwval_options.size() > 0);
   assert(pos == 0);
 
-  for (int i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < static_cast<int>(wa.partial_pattern.size())) ?
-        wa.partial_pattern[i] : -1;
+  for (size_t i = 0; i <= graph.numstates; ++i) {
+    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
   }
 }
 
@@ -286,7 +325,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (int i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     if (pattern[i] == -1)
       break;
     wa.partial_pattern.push_back(pattern[i]);
@@ -300,18 +339,9 @@ WorkAssignment Worker::get_work_assignment() const {
 void Worker::notify_coordinator_idle() {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_IDLE;
-  msg.worker_id = worker_id;
-  msg.ntotal = ntotal;
-  msg.nnodes = nnodes;
-  msg.numstates = graph.numstates;
-  msg.numcycles = graph.numcycles;
-  msg.numshortcycles = graph.numshortcycles;
-  msg.maxlength = maxlength;
-  msg.secs_working = secs_working;
-  ntotal = 0;
-  nnodes = 0;
-  secs_working = 0;
+  add_data_to_message(msg);
   message_coordinator(msg);
+  running = false;
 }
 
 // Notify the coordinator of certain changes in the status of the search. The
@@ -321,7 +351,6 @@ void Worker::notify_coordinator_idle() {
 void Worker::notify_coordinator_rootpos() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_STATUS;
-  msg.worker_id = worker_id;
   msg.root_pos = root_pos;
   message_coordinator(msg);
 }
@@ -329,7 +358,6 @@ void Worker::notify_coordinator_rootpos() const {
 void Worker::notify_coordinator_longest() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_STATUS;
-  msg.worker_id = worker_id;
   msg.longest_found = longest_found;
   message_coordinator(msg);
 }
@@ -353,6 +381,7 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
       break;
     default:
       assert(false);
+      return split_work_assignment_takeall();
   }
 }
 
@@ -372,7 +401,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   wa.start_state = start_state;
   wa.end_state = start_state;
   wa.root_pos = root_pos;
-  for (int i = 0; i < root_pos; ++i)
+  for (size_t i = 0; i < root_pos; ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
@@ -429,7 +458,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (int pos2 = 0; pos2 <= pos; ++pos2) {
+    for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
       const int throwval = pattern[pos2];
       for (col = 0; col < graph.outdegree[from_state]; ++col) {
         if (throwval == graph.outthrowval[from_state][col])
@@ -443,12 +472,12 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
                   << ", root_pos = " << root_pos
                   << ", col = " << col
                   << ", throwval = " << throwval
-                  << std::endl;
+                  << '\n';
       }
       assert(col != graph.outdegree[from_state]);
 
       if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
-        new_root_pos = pos2;
+        new_root_pos = static_cast<int>(pos2);
         break;
       }
 
@@ -474,6 +503,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 // it starts with, which ensures each pattern is generated exactly once.
 
 void Worker::gen_patterns() {
+  running = true;
+
   for (; start_state <= end_state; ++start_state) {
     // reset working variables
     pos = 0;
@@ -484,7 +515,7 @@ void Worker::gen_patterns() {
     blocklength = 0;
     max_possible = maxlength;
     exitcyclesleft = 0;
-    for (int i = 0; i <= graph.numstates; ++i) {
+    for (size_t i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
@@ -495,25 +526,33 @@ void Worker::gen_patterns() {
     }
 
     if (config.verboseflag) {
-      std::ostringstream sstr;
-      sstr << "worker " << worker_id
-           << " starting at state " << graph.state_string(start_state)
-           << " (" << start_state << ")";
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = sstr.str();
-      message_coordinator(msg);
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id
+             << " starting at state " << graph.state_string(start_state)
+             << " (" << start_state << ")";
+      message_coordinator_status(buffer.str());
     }
 
     // account for forbidden states and check if no way to make a pattern of the
     // target length
-    if (config.mode != RunMode::SUPER_SEARCH) {
-      for (int i = 1; i < start_state; ++i)
-        mark_forbidden_state(i);
-      if ((config.longestflag || config.exactflag) && max_possible < l_current)
-        break;
+    for (int i = 1; i < start_state; ++i)
+      mark_forbidden_state(i);
+    if (config.verboseflag) {
+      int forbidden = 0;
+      for (int i = 1; i <= graph.numstates; ++i) {
+        if (used[i])
+          ++forbidden;
+      }
+      std::ostringstream buffer;
+      buffer << "worker " << worker_id
+             << " forbid " << forbidden << " of " << graph.numstates
+             << " states, max_possible = " << max_possible;
+      message_coordinator_status(buffer.str());
     }
+    if ((config.longestflag || config.exactflag) && max_possible < l_current)
+      break;
+    if (max_possible == 0)
+      break;
 
     if (!loading_work) {
       // reset `root_pos` and throw options there
@@ -525,6 +564,15 @@ void Worker::gen_patterns() {
     }
     longest_found = 0;
     notify_coordinator_longest();
+
+    if (config.mode != RunMode::SUPER_SEARCH) {
+      // verify that we didn't prune the shift throw at column 0, which is
+      // assumed in some of the gen_loops_xxx() methods below
+      for (size_t i = 1; i <= graph.numstates; ++i) {
+        assert(graph.outthrowval[i][0] == 0 ||
+            graph.outthrowval[i][0] == graph.h);
+      }
+    }
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
@@ -570,7 +618,9 @@ void Worker::gen_loops_normal() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = graph.outthrowval[from][col];
@@ -580,7 +630,8 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    if (throwval != 0 && throwval != graph.h) {
+    if (col > 0) {
+      // in this case: 0 < throwval < h (i.e. it's a link throw)
       if (mark_unreachable_states_throw()) {
         if (mark_unreachable_states_catch(to)) {
           pattern[pos] = throwval;
@@ -657,11 +708,13 @@ void Worker::gen_loops_block() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = graph.outthrowval[from][col];
-    const bool linkthrow = (throwval != 0 && throwval != graph.h);
+    const bool linkthrow = (col > 0);
     const int old_blocklength = blocklength;
     const int old_skipcount = skipcount;
     const int old_firstblocklength = firstblocklength;
@@ -771,7 +824,9 @@ void Worker::gen_loops_super() {
     const int to = om[col];
     if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
       continue;
-    if (to < start_state || used[to] != 0)
+    if (to < start_state)
+      continue;
+    if (used[to] != 0)
       continue;
 
     const int throwval = ov[col];
@@ -806,13 +861,9 @@ void Worker::gen_loops_super() {
         cycleused[to_cycle] = false;
       }
     } else {
-      const int old_shiftcount = shiftcount;
-
       // check for shift throw limits
       if (shiftcount == config.shiftlimit)
         continue;
-      else
-        ++shiftcount;
 
       pattern[pos] = throwval;
       if (to == start_state) {
@@ -825,6 +876,7 @@ void Worker::gen_loops_super() {
           steps_taken = 0;
         }
 
+        ++shiftcount;
         ++used[to];
         ++pos;
         const int old_from = from;
@@ -833,9 +885,8 @@ void Worker::gen_loops_super() {
         from = old_from;
         --pos;
         --used[to];
+        --shiftcount;
       }
-
-      shiftcount = old_shiftcount;
     }
 
     if (pos < root_pos)
@@ -918,24 +969,25 @@ int Worker::load_one_throw() {
   std::ostringstream buffer;
   for (int i = 0; i <= pos; ++i)
     print_throw(buffer, pattern[i]);
-  std::cerr << "worker: " << worker_id << std::endl
-            << "pos: " << pos << std::endl
-            << "root_pos: " << root_pos << std::endl
-            << "from: " << from << std::endl
-            << "state[from]: " << graph.state[from] << std::endl
-            << "start_state: " << start_state << std::endl
-            << "pattern: " << buffer.str() << std::endl
+  std::cerr << "worker: " << worker_id << '\n'
+            << "pos: " << pos << '\n'
+            << "root_pos: " << root_pos << '\n'
+            << "from: " << from << '\n'
+            << "state[from]: " << graph.state[from] << '\n'
+            << "start_state: " << start_state << '\n'
+            << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outthrowval[from][i] << ", ";
-  std::cerr << std::endl << "outmatrix[from][]: ";
+  std::cerr << "\noutmatrix[from][]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outmatrix[from][i] << ", ";
-  std::cerr << std::endl << "state[outmatrix[from][]]: ";
+  std::cerr << "\nstate[outmatrix[from][]]: ";
   for (int i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
-  std::cerr << std::endl;
+  std::cerr << '\n';
   assert(false);
+  return 0;
 }
 
 // Determine the set of throw options available at position `root_pos` in
@@ -955,11 +1007,7 @@ void Worker::build_rootpos_throw_options(int rootpos_from_state,
     for (int v : root_throwval_options)
       print_throw(buffer, v);
     buffer << "]";
-    MessageW2C msg;
-    msg.type = messages_W2C::WORKER_STATUS;
-    msg.worker_id = worker_id;
-    msg.meta = buffer.str();
-    message_coordinator(msg);
+    message_coordinator_status(buffer.str());
   }
 }
 
@@ -994,11 +1042,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
       buffer << "worker " << worker_id << " option ";
       print_throw(buffer, throwval);
       buffer << " at root_pos " << root_pos << " was pruned; removing";
-      MessageW2C msg;
-      msg.type = messages_W2C::WORKER_STATUS;
-      msg.worker_id = worker_id;
-      msg.meta = buffer.str();
-      message_coordinator(msg);
+      message_coordinator_status(buffer.str());
     }
 
     if (!pruned && *iter == throwval) {
@@ -1009,11 +1053,7 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
         buffer << "worker " << worker_id << " starting option ";
         print_throw(buffer, throwval);
         buffer << " at root_pos " << root_pos;
-        MessageW2C msg;
-        msg.type = messages_W2C::WORKER_STATUS;
-        msg.worker_id = worker_id;
-        msg.meta = buffer.str();
-        message_coordinator(msg);
+        message_coordinator_status(buffer.str());
       }
     }
 
@@ -1046,21 +1086,28 @@ void Worker::mark_forbidden_state(int s) {
 
   used[s] = 1;
   const int cnum = graph.cyclenum[s];
-  if (++deadstates[cnum] > 1)
-    --max_possible;
+  ++deadstates[cnum];
 
+  if (config.mode == RunMode::SUPER_SEARCH) {
+    if (deadstates[cnum] == graph.cycleperiod[cnum]) {
+      --max_possible;
+    }
+  } else {
+    if (deadstates[cnum] > 1) {
+      --max_possible;
+    }
+  }
+
+  /*
   if (config.verboseflag) {
     std::ostringstream buffer;
     buffer << "worker " << worker_id
            << " forbidden state " << graph.state_string(s)
            << " (" << s
            << ") : max_possible = " << max_possible;
-    MessageW2C msg;
-    msg.type = messages_W2C::WORKER_STATUS;
-    msg.worker_id = worker_id;
-    msg.meta = buffer.str();
-    message_coordinator(msg);
+    message_coordinator_status(buffer.str());
   }
+  */
 
   // if state starts with 'x', downcycle state is forbidden
   if (graph.state[s] & 1L)
@@ -1078,7 +1125,7 @@ void Worker::mark_forbidden_state(int s) {
 // finish a pattern of at least length `l_current` from our current position.
 // Returns true otherwise.
 
-bool inline Worker::mark_unreachable_states_throw() {
+inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
 
   // kill states downstream in `from` shift cycle that end in 'x'
@@ -1098,7 +1145,7 @@ bool inline Worker::mark_unreachable_states_throw() {
   return valid;
 }
 
-bool inline Worker::mark_unreachable_states_catch(int to_state) {
+inline bool Worker::mark_unreachable_states_catch(int to_state) {
   bool valid = true;
 
   // kill states upstream in 'to' shift cycle that start with '-'
@@ -1120,7 +1167,7 @@ bool inline Worker::mark_unreachable_states_catch(int to_state) {
 
 // Reverse the marking operations above, so we can backtrack.
 
-void inline Worker::unmark_unreachable_states_throw() {
+inline void Worker::unmark_unreachable_states_throw() {
   int j = graph.h - 2;
   std::uint64_t tempstate = graph.state[from];
   int cnum = graph.cyclenum[from];
@@ -1134,7 +1181,7 @@ void inline Worker::unmark_unreachable_states_throw() {
   } while (tempstate & 1L);
 }
 
-void inline Worker::unmark_unreachable_states_catch(int to_state) {
+inline void Worker::unmark_unreachable_states_catch(int to_state) {
   int j = 0;
   std::uint64_t tempstate = graph.state[to_state];
   int cnum = graph.cyclenum[to_state];
@@ -1148,8 +1195,9 @@ void inline Worker::unmark_unreachable_states_catch(int to_state) {
   } while ((tempstate & graph.highestbit) == 0);
 }
 
-void Worker::handle_finished_pattern() {
+inline void Worker::handle_finished_pattern() {
   ++ntotal;
+  ++count[pos + 1];
 
   if ((pos + 1) >= l_current) {
     if (config.longestflag)
@@ -1196,7 +1244,6 @@ void Worker::report_pattern() const {
 
   MessageW2C msg;
   msg.type = messages_W2C::SEARCH_RESULT;
-  msg.worker_id = worker_id;
   msg.pattern = buffer.str();
   msg.length = pos + 1;
   message_coordinator(msg);
@@ -1314,22 +1361,22 @@ std::string Worker::get_inverse() const {
 
     if (inversestate[inverse_pos + 1] < 0) {
       std::cerr << "bad state advance: going from state "
-                << inversestate[inverse_pos] << std::endl;
+                << inversestate[inverse_pos] << '\n';
       std::cerr << "   (" << graph.state_string(inversestate[inverse_pos])
-                << ")" << std::endl;
-      std::cerr << "   using throw " << inversethrow << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "orig. pattern = " << get_pattern() << std::endl;
+                << ")\n";
+      std::cerr << "   using throw " << inversethrow << '\n';
+      std::cerr << "----------------" << '\n';
+      std::cerr << "orig. pattern = " << get_pattern() << '\n';
       for (int j = 0; j <= pos; ++j) {
         std::cerr << graph.state_string(patternstate[j]) << "   "
-                 << pattern[j] << std::endl;
+                 << pattern[j] << '\n';
       }
-      std::cerr << "   orig. pattern position = " << i << std::endl;
-      std::cerr << "----------------" << std::endl;
-      std::cerr << "inverse pattern: " << std::endl;
+      std::cerr << "   orig. pattern position = " << i << '\n';
+      std::cerr << "----------------\n";
+      std::cerr << "inverse pattern:\n";
       for (int j = 0; j <= inverse_pos; ++j) {
         std::cerr << graph.state_string(inversestate[j]) << "   "
-                 << inversepattern[j] << std::endl;
+                 << inversepattern[j] << '\n';
       }
       std::exit(EXIT_FAILURE);
     }
