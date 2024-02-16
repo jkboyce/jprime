@@ -268,8 +268,35 @@ void Graph::find_shift_cycles() {
   numcycles = cycleindex;
 }
 
-void Graph::find_exclude_states() {
+// Generate arrays that are used for marking excluded states during NORMAL
+// mode search.
 
+void Graph::find_exclude_states() {
+  for (size_t i = 1; i <= numstates; ++i) {
+    // Find states that are excluded by a link throw from state `i`. These are
+    // the states downstream in i's shift cycle that end in 'x'.
+
+    std::uint64_t tempstate = state[i];
+    int j = h - 2;
+    int k = 0;
+    do {
+      excludestates_throw[i][k++] = cyclepartner[i][j--];
+      tempstate >>= 1;
+    } while (tempstate & 1L);
+    excludestates_throw[i][k] = 0;
+
+    // Find states that are excluded by a link throw into state `i`. These are
+    // the states upstream in i's shift cycle that start with '-'.
+
+    tempstate = state[i];
+    j = 0;
+    k = 0;
+    do {
+      excludestates_catch[i][k++] = cyclepartner[i][j++];
+      tempstate = (tempstate << 1) & allbits;
+    } while ((tempstate & highestbit) == 0);
+    excludestates_catch[i][k] = 0;
+  }
 }
 
 // Generate matrices describing the structure of the juggling graph:
