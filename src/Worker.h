@@ -110,6 +110,7 @@ class Worker {
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
+  void set_active_states();
   void gen_loops_normal();
   void gen_loops_block();
   void gen_loops_super();

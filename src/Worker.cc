@@ -511,7 +511,6 @@ void Worker::gen_patterns() {
     skipcount = 0;
     shiftcount = 0;
     blocklength = 0;
-    max_possible = maxlength;
     exitcyclesleft = 0;
     for (size_t i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
@@ -523,9 +522,7 @@ void Worker::gen_patterns() {
 
     // build the graph and initialize `deadstates`, `max_possible`, and
     // `exitcyclesleft`
-    for (size_t i = 0; i <= graph.numstates; ++i) {
-      graph.state_active[i] = (i >= start_state);
-    }
+    set_active_states();
     graph.build_graph();
     if (!graph.state_active[start_state])
       continue;
@@ -588,6 +585,33 @@ void Worker::gen_patterns() {
     }
     std::vector<int> used_finish(used, used + graph.numstates + 1);
     assert(used_start == used_finish);
+  }
+}
+
+// Set which states are active for the upcoming search.
+//
+// Note that Graph::build_graph() may deactivate additional states based on
+// reachability.
+
+void Worker::set_active_states() {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
+    graph.state_active[i] = (i >= start_state);
+  }
+
+  if (config.mode == RunMode::SUPER_SEARCH) {
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      // number of consecutive '-'s at the start of the state, plus number of
+      // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
+      int start0s = 0;
+      while (start0s < graph.h && graph.state[i].slot[start0s] == 0)
+        ++start0s;
+      int end1s = 0;
+      while (end1s < graph.h && graph.state[i].slot[graph.h - end1s - 1] != 0)
+        ++end1s;
+      if (start0s + end1s > config.shiftlimit) {
+        graph.state_active[i] = false;
+      }
+    }
   }
 }
 
@@ -1322,7 +1346,7 @@ std::string Worker::get_inverse() const {
       else {
         ++inverse_pos;
         inversepattern[inverse_pos] =
-            graph.state[trial_state].state[graph.h - 1] ? graph.h : 0;
+            graph.state[trial_state].slot[graph.h - 1] ? graph.h : 0;
         inversestate[inverse_pos + 1] = trial_state;
       }
     }

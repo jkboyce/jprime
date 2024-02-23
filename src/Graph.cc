@@ -277,7 +277,7 @@ void Graph::find_exclude_states() {
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state[i].downstream();
     int j = 0;
-    while (s.state[s.h - 1] != 0 && j < h) {
+    while (s.slot[s.h - 1] != 0 && j < h) {
       excludestates_throw[i][j++] = get_statenum(s);
       s = s.downstream();
     }
@@ -287,7 +287,7 @@ void Graph::find_exclude_states() {
     // the states upstream in i's shift cycle that start with '-'.
     s = state[i].upstream();
     j = 0;
-    while (s.state[0] == 0 && j < h) {
+    while (s.slot[0] == 0 && j < h) {
       excludestates_catch[i][j++] = get_statenum(s);
       s = s.upstream();
     }
@@ -423,9 +423,9 @@ int Graph::get_statenum(const State& s) const {
 int Graph::advance_state(int statenum, int throwval) const {
   if (throwval < 0 || throwval > state[statenum].h)
     return -1;
-  if (throwval > 0 && state[statenum].state[0] == 0)
+  if (throwval > 0 && state[statenum].slot[0] == 0)
     return -1;
-  if (throwval < state[statenum].h && state[statenum].state[throwval] != 0)
+  if (throwval < state[statenum].h && state[statenum].slot[throwval] != 0)
     return -1;
 
   return get_statenum(state[statenum].advance_with_throw(throwval));

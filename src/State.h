@@ -24,7 +24,7 @@ class State {
  public:
   int n;  // number of objects
   int h;  // max throw height
-  std::vector<int> state;  // 0 or 1
+  std::vector<int> slot;  // 0 or 1
 
   State advance_with_throw(int throwval) const;
   State downstream() const;
