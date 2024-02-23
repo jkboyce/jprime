@@ -11,24 +11,23 @@
 #include "Graph.h"
 
 #include <iostream>
+#include <algorithm>
 #include <vector>
 #include <cassert>
 
 
-Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, bool s0g)
-    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc),
-      super0ground(s0g) {
+Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
+    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
 
 Graph::Graph(int n, int h)
-    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true),
-      super0ground(false) {
+    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true) {
   init();
 }
 
 Graph::Graph(const Graph& g)
-    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle, g.super0ground) {
+    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle) {
 }
 
 Graph& Graph::operator=(const Graph& g) {
@@ -40,7 +39,6 @@ Graph& Graph::operator=(const Graph& g) {
   h = g.h;
   xarray = g.xarray;
   linkthrows_within_cycle = g.linkthrows_within_cycle;
-  super0ground = g.super0ground;
   init();
 
   return *this;
@@ -61,49 +59,43 @@ void Graph::init() {
       ++maxoutdegree;
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
-  maxindegree = n + 1;
-  highestbit = static_cast<std::uint64_t>(1) << (h - 1);
-  allbits = (static_cast<std::uint64_t>(1) << h) - 1;
-
   allocate_arrays();
-  int ns = gen_states(state, 0, h - 1, n, h, numstates);
+
+  state.push_back({n, h});  // index 0 in state vector is unused
+  state.push_back({n, h});
+  int ns = gen_states(0, h - 1, n);
+  state.pop_back();
   assert(ns == numstates);
+  assert(state.size() == numstates + 1);
+
   find_shift_cycles();
-  find_exclude_states();
-  gen_matrices();
+  state_active = std::vector<bool>(numstates + 1, true);
+  build_graph();
 }
 
 // Allocate all arrays used by the graph and initialize to default values.
 
 void Graph::allocate_arrays() {
   outdegree = new int[numstates + 1];
-  indegree = new int[numstates + 1];
   cyclenum = new int[numstates + 1];
-  state = new std::uint64_t[numstates + 1];
   cycleperiod = new int[numstates + 1];
   isexitcycle = new bool[numstates + 1];
 
   for (size_t i = 0; i <= numstates; ++i) {
     outdegree[i] = 0;
-    indegree[i] = 0;
     cyclenum[i] = 0;
-    state[i] = 0;
     cycleperiod[i] = 0;
     isexitcycle[i] = false;
   }
 
   outmatrix = new int*[numstates + 1];
   outthrowval = new int*[numstates + 1];
-  inmatrix = new int*[numstates + 1];
-  cyclepartner = new int*[numstates + 1];
   excludestates_throw = new int*[numstates + 1];
   excludestates_catch = new int*[numstates + 1];
 
   for (size_t i = 0; i <= numstates; ++i) {
     outmatrix[i] = new int[maxoutdegree];
     outthrowval[i] = new int[maxoutdegree];
-    inmatrix[i] = new int[maxindegree];
-    cyclepartner[i] = new int[h];
     excludestates_throw[i] = new int[h];
     excludestates_catch[i] = new int[h];
 
@@ -111,10 +103,7 @@ void Graph::allocate_arrays() {
       outmatrix[i][j] = 0;
       outthrowval[i][j] = 0;
     }
-    for (size_t j = 0; j < maxindegree; ++j)
-      inmatrix[i][j] = 0;
     for (size_t j = 0; j < h; ++j) {
-      cyclepartner[i][j] = 0;
       excludestates_throw[i][j] = 0;
       excludestates_catch[i][j] = 0;
     }
@@ -131,14 +120,6 @@ void Graph::delete_arrays() {
       delete[] outthrowval[i];
       outthrowval[i] = nullptr;
     }
-    if (inmatrix) {
-      delete[] inmatrix[i];
-      inmatrix[i] = nullptr;
-    }
-    if (cyclepartner) {
-      delete[] cyclepartner[i];
-      cyclepartner[i] = nullptr;
-    }
     if (excludestates_throw) {
       delete[] excludestates_throw[i];
       excludestates_throw[i] = nullptr;
@@ -151,26 +132,18 @@ void Graph::delete_arrays() {
 
   delete[] outmatrix;
   delete[] outthrowval;
-  delete[] inmatrix;
-  delete[] cyclepartner;
   delete[] excludestates_throw;
   delete[] excludestates_catch;
   delete[] outdegree;
-  delete[] indegree;
   delete[] cyclenum;
-  delete[] state;
   delete[] cycleperiod;
   delete[] isexitcycle;
   outmatrix = nullptr;
   outthrowval = nullptr;
-  inmatrix = nullptr;
-  cyclepartner = nullptr;
   excludestates_throw = nullptr;
   excludestates_catch = nullptr;
   outdegree = nullptr;
-  indegree = nullptr;
   cyclenum = nullptr;
-  state = nullptr;
   cycleperiod = nullptr;
   isexitcycle = nullptr;
 }
@@ -189,27 +162,24 @@ int Graph::num_states(int n, int h) {
 //
 // Returns the number of states found.
 
-int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
-      int ns) {
+int Graph::gen_states(int num, int pos, int left) {
   if (left > (pos + 1))
     return num;
 
   if (pos == 0) {
-    if (left)
-      state[num + 1] |= static_cast<std::uint64_t>(1);
-    else
-      state[num + 1] &= ~static_cast<std::uint64_t>(1);
-
-    if (num < (ns - 1))
-      state[num + 2] = state[num + 1];
+    state[num + 1][0] = left;
+    state.push_back(state[num + 1]);
     return (num + 1);
   }
 
-  state[num + 1] &= ~(1L << pos);
-  num = gen_states(state, num, pos - 1, left, h, ns);
+  // try a '-' at position `pos`
+  state[num + 1][pos] = 0;
+  num = gen_states(num, pos - 1, left);
+
+  // then try a 'x' at position `pos`
   if (left > 0) {
-    state[num + 1] |= (static_cast<std::uint64_t>(1) << pos);
-    num = gen_states(state, num, pos - 1, left - 1, h, ns);
+    state[num + 1][pos] = 1;
+    num = gen_states(num, pos - 1, left - 1);
   }
 
   return num;
@@ -221,44 +191,34 @@ int Graph::gen_states(std::uint64_t* state, int num, int pos, int left, int h,
 //         cyclenum[statenum] --> cyclenum
 // - The period of a given shift cycle number:
 //         cycleperiod[cyclenum] --> period
-// - The other states on a given state's shift cycle:
-//         cyclepartner[statenum][i] --> statenum  (where i < h)
-//   where by convention:
-//         cyclepartner[statenum][0] = upstream_state(statenum)
-//         cyclepartner[statenum][h - 1] = statenum
 
 void Graph::find_shift_cycles() {
-  const std::uint64_t lowerbits = highestbit - 1;
   int cycleindex = 0;
+  std::vector<int> cyclestates(h);
 
   for (size_t i = 1; i <= numstates; ++i) {
-    std::uint64_t statebits = state[i];
+    State s = state[i];
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
 
     for (size_t j = 0; j < h; ++j) {
-      if (statebits & highestbit)
-        statebits = (statebits & lowerbits) << 1 |
-            static_cast<std::uint64_t>(1);
-      else
-        statebits <<= 1;
-
-      int k = get_statenum(statebits);
+      s = s.upstream();
+      int k = get_statenum(s);
       assert(k > 0);
 
-      cyclepartner[i][j] = k;
+      cyclestates[j] = k;
       if (k == i && !periodfound) {
         cycleper = static_cast<int>(j + 1);
         periodfound = true;
       } else if (k < i)
         newshiftcycle = false;
     }
-    assert(cyclepartner[i][h - 1] == i);
+    assert(cyclestates[h - 1] == i);
 
     if (newshiftcycle) {
       for (size_t j = 0; j < h; j++)
-        cyclenum[cyclepartner[i][j]] = cycleindex;
+        cyclenum[cyclestates[j]] = cycleindex;
       cycleperiod[cycleindex] = cycleper;
       if (cycleper < h)
         ++numshortcycles;
@@ -266,37 +226,6 @@ void Graph::find_shift_cycles() {
     }
   }
   numcycles = cycleindex;
-}
-
-// Generate arrays that are used for marking excluded states during NORMAL
-// mode search.
-
-void Graph::find_exclude_states() {
-  for (size_t i = 1; i <= numstates; ++i) {
-    // Find states that are excluded by a link throw from state `i`. These are
-    // the states downstream in i's shift cycle that end in 'x'.
-
-    std::uint64_t tempstate = state[i];
-    int j = h - 2;
-    int k = 0;
-    do {
-      excludestates_throw[i][k++] = cyclepartner[i][j--];
-      tempstate >>= 1;
-    } while (tempstate & 1L);
-    excludestates_throw[i][k] = 0;
-
-    // Find states that are excluded by a link throw into state `i`. These are
-    // the states upstream in i's shift cycle that start with '-'.
-
-    tempstate = state[i];
-    j = 0;
-    k = 0;
-    do {
-      excludestates_catch[i][k++] = cyclepartner[i][j++];
-      tempstate = (tempstate << 1) & allbits;
-    } while ((tempstate & highestbit) == 0);
-    excludestates_catch[i][k] = 0;
-  }
 }
 
 // Generate matrices describing the structure of the juggling graph:
@@ -307,205 +236,182 @@ void Graph::find_exclude_states() {
 //         outmatrix[statenum][col] --> statenum  (where col < outdegree)
 // - Throw values corresponding to outward connections from each state:
 //         outthrowval[statenum][col] --> throw
-// - Inward degree to each state in the graph:
-//         indegree[statenum] --> degree
-// - Inward connections to each state:
-//         inmatrix[statenum][col] --> statenum  (where col < indegree)
 //
 // outmatrix[][] == 0 indicates no connection.
 
 void Graph::gen_matrices() {
-  for (int i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
+    outdegree[i] = 0;
+    if (!state_active[i])
+      continue;
+
     int outthrownum = 0;
-    int inthrownum = 0;
 
-    // first take care of outgoing throws
-    for (int j = h; j >= 0; --j) {
-      if (xarray[j])
+    for (int throwval = h; throwval >= 0; --throwval) {
+      if (xarray[throwval])
         continue;
 
-      if (j == 0) {
-        if (!(state[i] & 1L)) {
-          std::uint64_t temp = state[i] >> 1;
-          bool found = false;
-
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              outmatrix[i][outthrownum] = k;
-              outthrowval[i][outthrownum++] = j;
-              ++outdegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else if (state[i] & 1L) {
-        std::uint64_t temp = static_cast<std::uint64_t>(1) << (j - 1);
-        std::uint64_t temp2 = (state[i] >> 1);
-
-        if (!(temp2 & temp)) {
-          temp |= temp2;
-
-          bool found = false;
-          int k = 1;
-          for (; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-          if (j == h || linkthrows_within_cycle || cyclenum[i] != cyclenum[k]) {
-            outmatrix[i][outthrownum] = k;
-            outthrowval[i][outthrownum++] = j;
-            ++outdegree[i];
-            if (k == 1 && cyclenum[i] != cyclenum[k])
-              isexitcycle[cyclenum[i]] = true;
-          }
-        }
-      }
-    }
-
-    // then take care of ingoing throws
-    for (int j = h; j >= 0; --j) {
-      if (xarray[j])
+      int k = advance_state(i, throwval);
+      if (k <= 0)
+        continue;
+      if (!state_active[k])
+        continue;
+      if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
+          cyclenum[i] == cyclenum[k])
         continue;
 
-      if (j == 0) {
-        if (!(state[i] & (static_cast<std::uint64_t>(1) << (h - 1)))) {
-          std::uint64_t temp = state[i] << 1;
-
-          bool found = false;
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              inmatrix[i][inthrownum++] = k;
-              ++indegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else if (j == h) {
-        if (state[i] & (static_cast<std::uint64_t>(1) << (h - 1))) {
-          std::uint64_t temp = state[i] ^
-              (static_cast<std::uint64_t>(1) << (h - 1));
-          temp = (temp << 1) | 1L;
-
-          bool found = false;
-          for (int k = 1; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              inmatrix[i][inthrownum++] = k;
-              ++indegree[i];
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-        }
-      } else {
-        if ((state[i] & (static_cast<std::uint64_t>(1) << (j - 1))) &&
-            !(state[i] & (static_cast<std::uint64_t>(1) << (h - 1)))) {
-          std::uint64_t temp = state[i] ^
-              (static_cast<std::uint64_t>(1) << (j - 1));
-          temp = (temp << 1) | static_cast<std::uint64_t>(1);
-
-          bool found = false;
-          int k = 1;
-          for (; k <= numstates; ++k) {
-            if (state[k] == temp) {
-              found = true;
-              break;
-            }
-          }
-          assert(found);
-          if (linkthrows_within_cycle || cyclenum[i] != cyclenum[k]) {
-            inmatrix[i][inthrownum++] = k;
-            ++indegree[i];
-          }
-        }
-      }
+      outmatrix[i][outthrownum] = k;
+      outthrowval[i][outthrownum] = throwval;
+      ++outthrownum;
+      ++outdegree[i];
     }
   }
-
-  prune_graph();
 }
 
-void Graph::prune_graph() {
-  bool pruning = true;
-  // int num_unusable = 0;
-  std::vector<bool> unusable(numstates + 1, false);
+// Generate arrays that are used for marking excluded states during NORMAL
+// mode search.
 
-  if (super0ground) {
-    // optimization specific to "-super 0 -g" searches; all cycle partners of
-    // the ground state are unusable
-    for (int i = 0; i < h - 1; ++i) {
-      if (cyclepartner[1][i] == 1)
-        break;
-      outdegree[cyclepartner[1][i]] = 0;
+void Graph::find_exclude_states() {
+  for (size_t i = 1; i <= numstates; ++i) {
+    // Find states that are excluded by a link throw from state `i`. These are
+    // the states downstream in i's shift cycle that end in 'x'.
+    State s = state[i].downstream();
+    int j = 0;
+    while (s.state[s.h - 1] != 0 && j < h) {
+      excludestates_throw[i][j++] = get_statenum(s);
+      s = s.downstream();
+    }
+    excludestates_throw[i][j] = 0;
+
+    // Find states that are excluded by a link throw into state `i`. These are
+    // the states upstream in i's shift cycle that start with '-'.
+    s = state[i].upstream();
+    j = 0;
+    while (s.state[0] == 0 && j < h) {
+      excludestates_catch[i][j++] = get_statenum(s);
+      s = s.upstream();
+    }
+    excludestates_catch[i][j] = 0;
+  }
+}
+
+// Fill in array `isexitcycle` that indicates which shift cycles can exit
+// directly to the start state.
+
+void Graph::find_exit_cycles() {
+  int lowest_active_state = 0;
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (!state_active[i])
+      continue;
+    if (lowest_active_state == 0) {
+      lowest_active_state = i;
+      continue;
+    }
+
+    for (int j = 0; j < outdegree[i]; ++j) {
+      if (outmatrix[i][j] == lowest_active_state)
+        isexitcycle[cyclenum[i]] = true;
     }
   }
+}
 
-  while (pruning) {
-    pruning = false;
+// Build the core data structures used during pattern search. This takes into
+// account whether states are active; transitions in and out of inactive states
+// are pruned from the graph.
 
-    for (int i = 1; i <= numstates; ++i) {
-      if (unusable[i])
+void Graph::build_graph() {
+  while (true) {
+    gen_matrices();
+
+    // deactivate any states with 0 outdegree or indegree
+    std::vector<int> indegree(numstates + 1, 0);
+    bool changed = false;
+
+    for (size_t i = 1; i <= numstates; ++i) {
+      if (!state_active[i])
         continue;
-
       if (outdegree[i] == 0) {
-        unusable[i] = true;
-        // ++num_unusable;
-        pruning = true;
+        state_active[i] = false;
+        changed = true;
         continue;
       }
 
       for (int j = 0; j < outdegree[i]; ++j) {
-        if (unusable[outmatrix[i][j]]) {
-          for (int k = j; k < outdegree[i] - 1; ++k) {
-            outmatrix[i][k] = outmatrix[i][k + 1];
-            outthrowval[i][k] = outthrowval[i][k + 1];
-          }
-          --outdegree[i];
-          --j;
-          pruning = true;
-        }
-      }
-
-      if (indegree[i] == 0) {
-        unusable[i] = true;
-        // ++num_unusable;
-        pruning = true;
-        continue;
-      }
-
-      for (int j = 0; j < indegree[i]; ++j) {
-        if (unusable[inmatrix[i][j]]) {
-          for (int k = j; k < indegree[i] - 1; ++k) {
-            inmatrix[i][k] = inmatrix[i][k + 1];
-          }
-          --indegree[i];
-          --j;
-          pruning = true;
-        }
+        ++indegree[outmatrix[i][j]];
       }
     }
+
+    for (size_t i = 1; i <= numstates; ++i) {
+      if (!state_active[i])
+        continue;
+      if (indegree[i] == 0) {
+        state_active[i] = false;
+        changed = true;
+      }
+    }
+
+    if (!changed)
+      break;
   }
-  // std::cout << num_unusable << " states pruned (out of "
-  //           << numstates << ")" << std::endl;
+
+  find_exclude_states();
+  find_exit_cycles();
+}
+
+// Calculate an upper bound on the length of prime patterns in the graph.
+
+int Graph::prime_length_bound() const {
+  // when there is more than one shift cycle, a prime pattern has to miss at
+  // least one state in each shift cycle it visits
+
+  int result = 0;
+  std::vector<bool> all_active(numcycles, true);
+  std::vector<bool> any_active(numcycles, false);
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (state_active[i]) {
+      ++result;
+      any_active[cyclenum[i]] = true;
+    } else {
+      all_active[cyclenum[i]] = false;
+    }
+  }
+
+  int cycles_active = std::count(any_active.begin(), any_active.end(), true);
+  if (cycles_active > 1) {
+    for (size_t i = 0; i < numcycles; ++i) {
+      if (any_active[i] && all_active[i])
+        --result;
+    }
+  }
+  return result;
+}
+
+// Calculate an upper bound on the length of superprime patterns in the graph.
+
+int Graph::superprime_length_bound() const {
+  std::vector<bool> any_active(numcycles, false);
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (state_active[i]) {
+      any_active[cyclenum[i]] = true;
+    }
+  }
+
+  return std::count(any_active.begin(), any_active.end(), true);
 }
 
 //------------------------------------------------------------------------------
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Return the index in the `state` array that corresponds to a given state
-// (represented as a bit pattern). Returns -1 if not found.
+// Return the index in the `state` array that corresponds to a given state.
+// Returns -1 if not found.
 
-int Graph::get_statenum(std::uint64_t st) const {
+int Graph::get_statenum(const State& s) const {
   for (int i = 1; i <= numstates; ++i) {
-    if (state[i] == st)
+    if (state[i] == s)
       return i;
   }
   return -1;
@@ -515,20 +421,14 @@ int Graph::get_statenum(std::uint64_t st) const {
 // throw. Returns -1 if the throw results in a collision.
 
 int Graph::advance_state(int statenum, int throwval) const {
-  if ((state[statenum] & 1L) != 0 && throwval == 0)
+  if (throwval < 0 || throwval > state[statenum].h)
     return -1;
-  if ((state[statenum] & 1L) == 0 && throwval != 0)
+  if (throwval > 0 && state[statenum].state[0] == 0)
+    return -1;
+  if (throwval < state[statenum].h && state[statenum].state[throwval] != 0)
     return -1;
 
-  std::uint64_t new_state = state[statenum] >> 1;
-  if (throwval > 0) {
-    std::uint64_t mask = static_cast<std::uint64_t>(1) << (throwval - 1);
-    if (new_state & mask)
-      return -1;
-    new_state |= mask;
-  }
-
-  return get_statenum(new_state);
+  return get_statenum(state[statenum].advance_with_throw(throwval));
 }
 
 // Return the reverse of a given state, where both the input and output are
@@ -537,56 +437,23 @@ int Graph::advance_state(int statenum, int throwval) const {
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
 int Graph::reverse_state(int statenum) const {
-  if (statenum <= 0 || statenum > numstates)
-    std::cerr << "bad statenum: " << statenum << std::endl;
-  assert(statenum > 0 && statenum <= numstates);
-
-  std::uint64_t new_state = 0;
-  std::uint64_t mask1 = 1L;
-  std::uint64_t mask2 = highestbit;
-
-  while (mask2) {
-    if (state[statenum] & mask2)
-      new_state |= mask1;
-    mask1 <<= 1;
-    mask2 >>= 1;
-  }
-
-  return get_statenum(new_state);
+  return get_statenum(state[statenum].reverse());
 }
 
 // Return the next state downstream in the given state's shift cycle
 
 int Graph::downstream_state(int statenum) const {
-  std::uint64_t new_state = state[statenum] >> 1;
-
-  if (state[statenum] & 1L)
-    new_state |= highestbit;
-
-  return get_statenum(new_state);
+  return get_statenum(state[statenum].downstream());
 }
 
 // Return the next state upstream in the given state's shift cycle
 
 int Graph::upstream_state(int statenum) const {
-  std::uint64_t new_state = state[statenum] << 1;
-
-  if (new_state > allbits) {
-    new_state ^= allbits;
-    new_state |= 1L;
-  }
-
-  return get_statenum(new_state);
+  return get_statenum(state[statenum].upstream());
 }
 
 // Return a text representation of a given state number
 
 std::string Graph::state_string(int statenum) const {
-  std::string result;
-  std::uint64_t value = state[statenum];
-  for (int i = 0; i < h; ++i) {
-    result += (value & 1 ? 'x' : '-');
-    value >>= 1;
-  }
-  return result;
+  return state[statenum].to_string();
 }

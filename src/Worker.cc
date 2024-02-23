@@ -32,13 +32,11 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       coordinator(coord),
       worker_id(id),
       graph(config.n, config.h, config.xarray,
-        (config.mode != RunMode::SUPER_SEARCH),
-        (config.mode == RunMode::SUPER_SEARCH && config.shiftlimit == 0 &&
-         config.groundmode == 1)) {
+        config.mode != RunMode::SUPER_SEARCH) {
   l_current = config.l;
   maxlength = (config.mode == RunMode::SUPER_SEARCH)
-      ? (graph.numcycles + config.shiftlimit)
-      : (graph.numstates - graph.numcycles);
+      ? graph.superprime_length_bound() + config.shiftlimit
+      : graph.prime_length_bound();
   if (config.l > maxlength) {
     std::cerr << "No patterns longer than " << maxlength << " are possible\n";
     std::exit(EXIT_FAILURE);
@@ -519,33 +517,37 @@ void Worker::gen_patterns() {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
-      if (graph.isexitcycle[i])
-        ++exitcyclesleft;
       if (loading_work && pattern[i] != -1)
         --nnodes;  // avoid double-counting nodes when loading from a save
     }
 
+    // build the graph and initialize `deadstates`, `max_possible`, and
+    // `exitcyclesleft`
+    for (size_t i = 0; i <= graph.numstates; ++i) {
+      graph.state_active[i] = (i >= start_state);
+    }
+    graph.build_graph();
+    if (!graph.state_active[start_state])
+      continue;
+    for (size_t i = 0; i <= graph.numstates; ++i) {
+      if (i > 0 && !graph.state_active[i])
+        ++deadstates[graph.cyclenum[i]];
+      if (graph.isexitcycle[i])
+        ++exitcyclesleft;
+    }
+    max_possible = (config.mode == RunMode::SUPER_SEARCH)
+        ? graph.superprime_length_bound() + config.shiftlimit
+        : graph.prime_length_bound();
+
     if (config.verboseflag) {
+      int inactive = std::count(graph.state_active.begin() + 1,
+          graph.state_active.end(), false);
       std::ostringstream buffer;
       buffer << "worker " << worker_id
              << " starting at state " << graph.state_string(start_state)
-             << " (" << start_state << ")";
-      message_coordinator_status(buffer.str());
-    }
-
-    // account for forbidden states and check if no way to make a pattern of the
-    // target length
-    for (int i = 1; i < start_state; ++i)
-      mark_forbidden_state(i);
-    if (config.verboseflag) {
-      int forbidden = 0;
-      for (int i = 1; i <= graph.numstates; ++i) {
-        if (used[i])
-          ++forbidden;
-      }
-      std::ostringstream buffer;
+             << " (" << start_state << ")\n";
       buffer << "worker " << worker_id
-             << " forbid " << forbidden << " of " << graph.numstates
+             << " deactivated " << inactive << " of " << graph.numstates
              << " states, max_possible = " << max_possible;
       message_coordinator_status(buffer.str());
     }
@@ -554,8 +556,9 @@ void Worker::gen_patterns() {
     if (max_possible == 0)
       break;
 
+    // when loading work, `root_pos` and `root_throwval_options` are given by
+    // the work assignment, otherwise initialize here
     if (!loading_work) {
-      // reset `root_pos` and throw options there
       root_pos = 0;
       notify_coordinator_rootpos();
       build_rootpos_throw_options(start_state, 0);
@@ -564,15 +567,6 @@ void Worker::gen_patterns() {
     }
     longest_found = 0;
     notify_coordinator_longest();
-
-    if (config.mode != RunMode::SUPER_SEARCH) {
-      // verify that we didn't prune the shift throw at column 0, which is
-      // assumed in some of the gen_loops_xxx() methods below
-      for (size_t i = 1; i <= graph.numstates; ++i) {
-        assert(graph.outthrowval[i][0] == 0 ||
-            graph.outthrowval[i][0] == graph.h);
-      }
-    }
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
@@ -583,8 +577,8 @@ void Worker::gen_patterns() {
         gen_loops_block();
         break;
       case RunMode::SUPER_SEARCH:
-        if (config.shiftlimit == 0 && start_state == 1 && !config.exactflag)
-          gen_loops_super0g();
+        if (config.shiftlimit == 0 && !config.exactflag)
+          gen_loops_super0();
         else
           gen_loops_super();
         break;
@@ -618,8 +612,6 @@ void Worker::gen_loops_normal() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    if (to < start_state)
-      continue;
     if (used[to] != 0)
       continue;
 
@@ -630,8 +622,8 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    if (col > 0) {
-      // in this case: 0 < throwval < h (i.e. it's a link throw)
+    if (throwval != 0 && throwval != graph.h) {
+      // link throws make certain nearby states unreachable
       if (mark_unreachable_states_throw()) {
         if (mark_unreachable_states_catch(to)) {
           pattern[pos] = throwval;
@@ -714,7 +706,7 @@ void Worker::gen_loops_block() {
       continue;
 
     const int throwval = graph.outthrowval[from][col];
-    const bool linkthrow = (col > 0);
+    const bool linkthrow = (throwval > 0 && throwval < graph.h);
     const int old_blocklength = blocklength;
     const int old_skipcount = skipcount;
     const int old_firstblocklength = firstblocklength;
@@ -894,14 +886,14 @@ void Worker::gen_loops_super() {
   }
 }
 
-// A specialization of gen_loops_super() for the case where `shiftthrows` == 0,
-// we're searching for ground state patterns, and `exactflag` is false.
+// A specialization of gen_loops_super() for the case where `shiftthrows` == 0
+// and `exactflag` is false.
 //
 // This version tracks the specific "exit cycles" that can get back to the
-// ground state with a single throw. If those exit cycles are all used and the
+// start state with a single throw. If those exit cycles are all used and the
 // pattern isn't done, we terminate the search early.
 
-void Worker::gen_loops_super0g() {
+void Worker::gen_loops_super0() {
   ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
@@ -918,7 +910,7 @@ void Worker::gen_loops_super0g() {
       continue;
 
     pattern[pos] = graph.outthrowval[from][col];
-    if (to == 1) {
+    if (to == start_state) {
       handle_finished_pattern();
     } else {
       if (exitcyclesleft == 0)
@@ -938,7 +930,7 @@ void Worker::gen_loops_super0g() {
       ++pos;
       const int old_from = from;
       from = to;
-      gen_loops_super0g();
+      gen_loops_super0();
       from = old_from;
       --pos;
       cycleused[to_cycle] = false;
@@ -1072,50 +1064,6 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
   }
 
   return (found || loading_work);
-}
-
-// Mark a state as forbidden in the current search, and update `used`,
-// `deadstates`, and `max_possible` accordingly.
-//
-// This is called when `start_state` > 1 and we know at the outset that none
-// of the lower-numbered states can be visited.
-
-void Worker::mark_forbidden_state(int s) {
-  if (used[s])
-    return;
-
-  used[s] = 1;
-  const int cnum = graph.cyclenum[s];
-  ++deadstates[cnum];
-
-  if (config.mode == RunMode::SUPER_SEARCH) {
-    if (deadstates[cnum] == graph.cycleperiod[cnum]) {
-      --max_possible;
-    }
-  } else {
-    if (deadstates[cnum] > 1) {
-      --max_possible;
-    }
-  }
-
-  /*
-  if (config.verboseflag) {
-    std::ostringstream buffer;
-    buffer << "worker " << worker_id
-           << " forbidden state " << graph.state_string(s)
-           << " (" << s
-           << ") : max_possible = " << max_possible;
-    message_coordinator_status(buffer.str());
-  }
-  */
-
-  // if state starts with 'x', downcycle state is forbidden
-  if (graph.state[s] & 1L)
-    mark_forbidden_state(graph.cyclepartner[s][config.h - 2]);
-
-  // if state ends with '-', upcycle state is forbidden
-  if ((graph.state[s] & graph.highestbit) == 0)
-    mark_forbidden_state(graph.cyclepartner[s][0]);
 }
 
 // Mark all of the states as used that are excluded by a throw from state
@@ -1374,7 +1322,7 @@ std::string Worker::get_inverse() const {
       else {
         ++inverse_pos;
         inversepattern[inverse_pos] =
-            (graph.state[trial_state] & graph.highestbit) ? graph.h : 0;
+            graph.state[trial_state].state[graph.h - 1] ? graph.h : 0;
         inversestate[inverse_pos + 1] = trial_state;
       }
     }

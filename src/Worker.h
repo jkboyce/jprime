@@ -37,7 +37,7 @@ class Worker {
   const SearchConfig config;
   Coordinator& coordinator;
   const int worker_id;
-  const Graph graph;
+  Graph graph;
   int maxlength = 0;
 
   // for loading and sharing work assignments
@@ -113,11 +113,10 @@ class Worker {
   void gen_loops_normal();
   void gen_loops_block();
   void gen_loops_super();
-  void gen_loops_super0g();
+  void gen_loops_super0();
   int load_one_throw();
   void build_rootpos_throw_options(int rootpos_from_state, int min_column);
   bool mark_off_rootpos_option(int throwval, int to_state);
-  void mark_forbidden_state(int s);
   bool mark_unreachable_states_throw();
   bool mark_unreachable_states_catch(int to_state);
   void unmark_unreachable_states_throw();
