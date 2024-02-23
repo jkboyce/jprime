@@ -51,6 +51,9 @@ void Coordinator::run() {
 
   // start worker threads
   for (int id = 0; id < context.num_threads; ++id) {
+    if (config.verboseflag) {
+      std::cout << "worker " << id << " starting..." << std::endl;
+    }
     worker[id] = new Worker(config, *this, id);
     worker_thread[id] = new std::thread(&Worker::run, worker[id]);
     workers_idle.insert(id);
