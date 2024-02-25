@@ -37,8 +37,8 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
   worker_longest.reserve(context.num_threads);
   worker_status.reserve(context.num_threads);
   worker_start_state.reserve(context.num_threads);
-  worker_columns_start.reserve(context.num_threads);
-  worker_columns_last.reserve(context.num_threads);
+  worker_optionsleft_start.reserve(context.num_threads);
+  worker_optionsleft_last.reserve(context.num_threads);
 }
 
 //------------------------------------------------------------------------------
@@ -145,8 +145,8 @@ void Coordinator::give_assignments() {
     workers_run_order.push_back(id);
     worker_rootpos[id] = wa.root_pos;
     worker_longest[id] = 0;
-    worker_columns_start[id].resize(0);
-    worker_columns_last[id].resize(0);
+    worker_optionsleft_start[id].resize(0);
+    worker_optionsleft_last[id].resize(0);
     message_worker(msg, id);
 
     if (config.verboseflag) {
@@ -670,13 +670,11 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
   std::ostringstream buffer;
   const int id = msg.worker_id;
-  const std::vector<int>& cols = msg.worker_columns;
+  const std::vector<int>& options = msg.worker_optionsleft;
 
   buffer << std::setw(3) << std::min(worker_rootpos[id], 999) << ' ';
 
-  const bool nonsuper = (config.mode != RunMode::SUPER_SEARCH);
-  const bool super1 = (config.mode == RunMode::SUPER_SEARCH &&
-      config.shiftlimit > 0);
+  const bool super = (config.mode == RunMode::SUPER_SEARCH);
   const int width = std::min(context.maxlength, 66);
   int printed = 0;
   bool have_highlighted_start = false;
@@ -689,46 +687,38 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   for (int i = 0; i < context.num_threads; ++i)
     skipped = std::min(skipped, worker_rootpos[i]);
 
-  for (int i = skipped; i < cols.size(); ++i) {
+  for (int i = skipped; i < options.size(); ++i) {
     if (!highlight_start && !have_highlighted_start &&
-        i < worker_columns_start[id].size() &&
-        cols[i] != worker_columns_start[id][i]) {
+        i < worker_optionsleft_start[id].size() &&
+        options[i] != worker_optionsleft_start[id][i]) {
       highlight_start = have_highlighted_start = true;
       rootpos_distance = i - worker_rootpos[id];
     }
     if (!highlight_last && !have_highlighted_last &&
-        i < worker_columns_last[id].size() &&
-        cols[i] != worker_columns_last[id][i]) {
+        i < worker_optionsleft_last[id].size() &&
+        options[i] != worker_optionsleft_last[id][i]) {
       highlight_last = have_highlighted_last = true;
     }
 
     char ch = '\0';
 
-    if (nonsuper) {
+    if (super) {
       if (i < worker_rootpos[id]) {
         ch = '*';
-      } else if (cols[i] == 0) {
-        // skip
       } else {
-        ch = '0' + cols[i];
-      }
-    } else if (super1) {
-      if (i < worker_rootpos[id]) {
-        ch = '*';
-      } else if (cols[i] == 0) {
-        ch = '0';
-      } else if (cols[i] == 1) {
-        ch = '1';
-      } else {
-        ch = '0' + cols[i];
+        ch = '0' + options[i];
       }
     } else {
       if (i < worker_rootpos[id]) {
         ch = '*';
-      } else if (cols[i] == 0) {
-        ch = '.';
+      } else if (i == worker_rootpos[id]) {
+        ch = '0' + options[i];
+      } else if (msg.worker_throw[i] == 0) {
+        // skip
+      } else if (msg.worker_throw[i] == config.h) {
+        // skip
       } else {
-        ch = '0' + cols[i];
+        ch = '0' + options[i];
       }
     }
 
@@ -754,13 +744,13 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     ++printed;
   }
 
-  buffer << std::setw(4) << rootpos_distance;
+  buffer << std::setw(4) << std::max(0, rootpos_distance);
   buffer << std::setw(5) << worker_longest[id];
 
-  worker_columns_last[id] = msg.worker_columns;
-  if (worker_columns_start[id].size() == 0 ||
+  worker_optionsleft_last[id] = msg.worker_optionsleft;
+  if (worker_optionsleft_start[id].size() == 0 ||
       worker_start_state[id] != msg.start_state) {
-    worker_columns_start[id] = msg.worker_columns;
+    worker_optionsleft_start[id] = msg.worker_optionsleft;
     worker_start_state[id] = msg.start_state;
   }
 

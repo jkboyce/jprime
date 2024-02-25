@@ -81,7 +81,8 @@ struct MessageW2C {
   // for type RETURN_STATS
   bool running = false;
   int start_state = 0;
-  std::vector<int> worker_columns;
+  std::vector<int> worker_throw;
+  std::vector<int> worker_optionsleft;
 
   // for type WORKER_STATUS
   std::string meta;

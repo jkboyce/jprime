@@ -255,13 +255,21 @@ void Worker::process_send_stats_request() {
   if (running) {
     // include a snapshot of the current state of the search
     msg.start_state = start_state;
-    msg.worker_columns.resize(pos + 1);
+    msg.worker_throw.resize(pos + 1);
+    msg.worker_optionsleft.resize(pos + 1);
 
     int tempfrom = start_state;
     for (int i = 0; i <= pos; ++i) {
+      msg.worker_throw[i] = pattern[i];
+
       for (int col = 0; col < graph.outdegree[tempfrom]; ++col) {
         if (graph.outthrowval[tempfrom][col] == pattern[i]) {
-          msg.worker_columns[i] = col;
+          if (i < root_pos)
+            msg.worker_optionsleft[i] = 0;
+          else if (i == root_pos)
+            msg.worker_optionsleft[i] = root_throwval_options.size();
+          else
+            msg.worker_optionsleft[i] = graph.outdegree[tempfrom] - col - 1;
           tempfrom = graph.outmatrix[tempfrom][col];
           break;
         }

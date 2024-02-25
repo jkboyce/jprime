@@ -53,8 +53,8 @@ class Coordinator {
   int stats_received = 0;
   bool stats_printed = false;
   std::vector<int> worker_start_state;
-  std::vector<std::vector<int>> worker_columns_start;
-  std::vector<std::vector<int>> worker_columns_last;
+  std::vector<std::vector<int>> worker_optionsleft_start;
+  std::vector<std::vector<int>> worker_optionsleft_last;
 
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
