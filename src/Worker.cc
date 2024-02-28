@@ -56,12 +56,14 @@ void Worker::allocate_arrays() {
   used = new int[graph.numstates + 1];
   cycleused = new bool[graph.numstates + 1];
   deadstates = new int[graph.numstates + 1];
+  beat = new SearchState[graph.numstates + 1];
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
     pattern[i] = -1;
     used[i] = 0;
     cycleused[i] = false;
     deadstates[i] = 0;
+    beat[i] = {};
   }
 }
 
@@ -70,10 +72,12 @@ void Worker::delete_arrays() {
   delete[] used;
   delete[] cycleused;
   delete[] deadstates;
+  delete[] beat;
   pattern = nullptr;
   used = nullptr;
   cycleused = nullptr;
   deadstates = nullptr;
+  beat = nullptr;
 }
 
 //------------------------------------------------------------------------------
@@ -568,7 +572,7 @@ void Worker::gen_patterns() {
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
-        gen_loops_normal();
+        gen_loops_normal2();
         break;
       case RunMode::BLOCK_SEARCH:
         gen_loops_block();
@@ -704,6 +708,300 @@ void Worker::gen_loops_normal() {
       break;
   }
 }
+
+/*
+struct SearchState {
+  int col;
+  int col_limit;
+  int throwval;
+  int from_state;
+  int to_state;
+  int* excludes_throw;
+  int* deadstates_throw;
+  int* excludes_catch;
+  int* deadstates_catch;
+  int to_cycle;
+  int shifts_remaining;
+  int skips_remaining;
+};
+*/
+
+void Worker::gen_loops_normal2() {
+  // initialize beats array
+  if (loading_work) {
+    beat[0].col = 0;
+    beat[0].col_limit = graph.outdegree[start_state];
+    beat[0].from_state = start_state;
+    beat[0].to_state = 0;
+    beat[0].outmatrix = graph.outmatrix[start_state];
+    beat[0].excludes_throw = nullptr;
+    beat[0].excludes_catch = nullptr;
+  } else {
+    beat[0].col = 0;
+    beat[0].col_limit = graph.outdegree[start_state];
+    beat[0].from_state = start_state;
+    beat[0].to_state = 0;
+    beat[0].outmatrix = graph.outmatrix[start_state];
+    beat[0].excludes_throw = nullptr;
+    beat[0].excludes_catch = nullptr;
+  }
+
+  // main loop
+  while (pos >= 0) {
+    SearchState& ss = beat[pos];
+
+    // nonzero values of `excludes_throw`, `excludes_catch`, and `to_state`
+    // mean we need to do some cleanup
+
+    if (ss.excludes_throw) {
+      int* const ds = ss.deadstates_throw;
+      int* es = ss.excludes_throw;
+      int statenum = 0;
+      while ((statenum = *es++)) {
+        assert(*ds >= 0);
+        if (--used[statenum] == 0 && --*ds > 0)
+          ++max_possible;
+      }
+      ss.excludes_throw = nullptr;
+    }
+    if (ss.excludes_catch) {
+      int* const ds = ss.deadstates_catch;
+      int* es = ss.excludes_catch;
+      int statenum = 0;
+      while ((statenum = *es++)) {
+        if (--used[statenum] == 0 && --*ds > 0)
+          ++max_possible;
+      }
+      ss.excludes_catch = nullptr;
+    }
+    if (ss.to_state != 0) {
+      used[ss.to_state] = 0;
+      ss.to_state = 0;
+    }
+
+    next_column:
+    if (ss.col == ss.col_limit) {
+      --pos;
+      ++beat[pos].col;
+      ++nnodes;
+      continue;
+    }
+
+    const int to_state = ss.outmatrix[ss.col];
+
+    if (used[to_state] || to_state < start_state) {
+      ++ss.col;
+      goto next_column;
+    }
+
+    if (to_state == start_state) {
+      handle_finished_pattern();
+      ++ss.col;
+      goto next_column;
+    }
+
+    const int throwval = graph.outthrowval[ss.from_state][ss.col];
+
+    if (throwval != 0 && throwval != graph.h) {
+      // account for states excluded by link throw
+      bool valid1 = true;
+      int* const ds = deadstates + graph.cyclenum[ss.from_state];
+      int* es = graph.excludestates_throw[ss.from_state];
+      int statenum = 0;
+      ss.excludes_throw = es;  // save to clean up later
+      ss.deadstates_throw = ds;
+
+      while ((statenum = *es++)) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+          valid1 = false;
+      }
+
+      if (valid1) {
+        // account for states excluded by link catch
+        bool valid2 = true;
+        int* const ds = deadstates + graph.cyclenum[to_state];
+        int* es = graph.excludestates_catch[to_state];
+        ss.excludes_catch = es;
+        ss.deadstates_catch = ds;
+
+        while ((statenum = *es++)) {
+          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+            valid2 = false;
+        }
+
+        if (valid2) {
+          // advance to next beat
+          used[to_state] = 1;
+          ss.to_state = to_state;
+          ++pos;
+          SearchState& nss = beat[pos];
+          nss.col = 0;
+          nss.col_limit = graph.outdegree[to_state];
+          nss.from_state = to_state;
+          nss.to_state = 0;
+          nss.outmatrix = graph.outmatrix[to_state];
+          nss.excludes_throw = nullptr;
+          nss.excludes_catch = nullptr;
+          continue;
+        }
+      }
+
+      // couldn't advance to next beat, so go to next column in this one
+      ++ss.col;
+      continue;
+    } else {
+      // advance to next beat
+      used[to_state] = 1;
+      ss.to_state = to_state;
+      // ss.throwval = throwval;
+      ++pos;
+      SearchState& nss = beat[pos];
+      nss.col = 0;
+      nss.col_limit = graph.outdegree[to_state];
+      nss.from_state = to_state;
+      nss.to_state = 0;
+      nss.outmatrix = graph.outmatrix[to_state];
+      nss.excludes_throw = nullptr;
+      nss.excludes_catch = nullptr;
+      continue;
+    }
+  }
+}
+
+  /*
+  if (config.exactflag && pos >= l_current)
+    return;
+  ++nnodes;
+
+  int col = (loading_work ? load_one_throw() : 0);
+  const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
+
+  for (; col < limit; ++col) {
+    const int to = om[col];
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+      continue;
+    if (used[to] != 0)
+      continue;
+
+    const int throwval = graph.outthrowval[from][col];
+    if (to == start_state) {
+      pattern[pos] = throwval;
+      handle_finished_pattern();
+      continue;
+    }
+
+    if (throwval != 0 && throwval != graph.h) {
+      // link throws make certain nearby states unreachable
+      if (mark_unreachable_states_throw()) {
+        if (mark_unreachable_states_catch(to)) {
+          pattern[pos] = throwval;
+
+          // see if it's time to check the inbox
+          if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+                && col < limit - 1) {
+            // the restrictions on when we enter here are in case we get a message
+            // to hand off work to another worker; see split_work_assignment()
+
+            // terminate the pattern at the current position in case we get a
+            // STOP_WORKER message and need to unwind back to run()
+            pattern[pos + 1] = -1;
+            process_inbox_running();
+            steps_taken = 0;
+          }
+
+          // we need to go deeper
+          ++used[to];
+          ++pos;
+          const int old_from = from;
+          from = to;
+          gen_loops_normal();
+          from = old_from;
+          --pos;
+          --used[to];
+        }
+        // undo changes made above so we can backtrack
+        unmark_unreachable_states_catch(to);
+      }
+      unmark_unreachable_states_throw();
+    } else {
+      pattern[pos] = throwval;
+
+      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+            && col < limit - 1) {
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
+      ++used[to];
+      ++pos;
+      const int old_from = from;
+      from = to;
+      gen_loops_normal();
+      from = old_from;
+      --pos;
+      --used[to];
+    }
+
+    // only a single allowed throw value for `pos` < `root_pos`
+    if (pos < root_pos)
+      break;
+  }
+}
+
+inline bool Worker::mark_unreachable_states_throw() {
+  bool valid = true;
+  int* const ds = deadstates + graph.cyclenum[from];
+  int* es = graph.excludestates_throw[from];
+  int statenum = 0;
+
+  while ((statenum = *es++)) {
+    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+      valid = false;
+  }
+  return valid;
+}
+
+inline bool Worker::mark_unreachable_states_catch(int to_state) {
+  bool valid = true;
+  int* const ds = deadstates + graph.cyclenum[to_state];
+  int* es = graph.excludestates_catch[to_state];
+  int statenum = 0;
+
+  while ((statenum = *es++)) {
+    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+      valid = false;
+  }
+
+  return valid;
+}
+
+// Reverse the marking operations above, so we can backtrack.
+
+inline void Worker::unmark_unreachable_states_throw() {
+  int* const ds = deadstates + graph.cyclenum[from];
+  int* es = graph.excludestates_throw[from];
+  int statenum = 0;
+
+  while ((statenum = *es++)) {
+    if (--used[statenum] == 0 && --*ds > 0)
+      ++max_possible;
+  }
+}
+
+inline void Worker::unmark_unreachable_states_catch(int to_state) {
+  int* const ds = deadstates + graph.cyclenum[to_state];
+  int* es = graph.excludestates_catch[to_state];
+  int statenum = 0;
+
+  while ((statenum = *es++)) {
+    if (--used[statenum] == 0 && --*ds > 0)
+      ++max_possible;
+  }
+}
+*/
 
 // As above, but for BLOCK mode.
 //
@@ -1155,6 +1453,12 @@ inline void Worker::handle_finished_pattern() {
   if ((pos + 1) >= l_current) {
     if (config.longestflag)
       l_current = pos + 1;
+    if (config.mode == RunMode::NORMAL_SEARCH) {
+      for (size_t i = 0; i <= pos; ++i) {
+        pattern[i] = graph.outthrowval[beat[i].from_state][beat[i].col];
+      }
+      pattern[pos + 1] = -1;
+    }
     report_pattern();
   }
 

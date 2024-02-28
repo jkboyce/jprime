@@ -12,10 +12,10 @@
 #ifndef JPRIME_WORKER_H_
 #define JPRIME_WORKER_H_
 
-//#include "Coordinator.h"
 #include "Messages.h"
 #include "SearchConfig.h"
 #include "Graph.h"
+#include "SearchState.h"
 
 #include <queue>
 #include <mutex>
@@ -61,6 +61,7 @@ class Worker {
   bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int* deadstates;  // indexed by shift cycle number
   int exitcyclesleft = 0;
+  SearchState *beat;
 
   // status data to report to Coordinator
   std::uint64_t ntotal = 0;
@@ -112,6 +113,7 @@ class Worker {
   void gen_patterns();
   void set_active_states();
   void gen_loops_normal();
+  void gen_loops_normal2();
   void gen_loops_block();
   void gen_loops_super();
   void gen_loops_super0();
