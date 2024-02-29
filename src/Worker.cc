@@ -750,20 +750,6 @@ void Worker::gen_loops_normal2() {
   while (pos >= 0) {
     SearchState& ss = beat[pos];
 
-    // nonzero values of `excludes_throw`, `excludes_catch`, and `to_state`
-    // mean we need to do some cleanup
-
-    if (ss.excludes_throw) {
-      int* const ds = ss.deadstates_throw;
-      int* es = ss.excludes_throw;
-      int statenum = 0;
-      while ((statenum = *es++)) {
-        assert(*ds >= 0);
-        if (--used[statenum] == 0 && --*ds > 0)
-          ++max_possible;
-      }
-      ss.excludes_throw = nullptr;
-    }
     if (ss.excludes_catch) {
       int* const ds = ss.deadstates_catch;
       int* es = ss.excludes_catch;
@@ -780,7 +766,20 @@ void Worker::gen_loops_normal2() {
     }
 
     next_column:
+
     if (ss.col == ss.col_limit) {
+      if (ss.excludes_throw) {
+        int* const ds = ss.deadstates_throw;
+        int* es = ss.excludes_throw;
+        int statenum = 0;
+        while ((statenum = *es++)) {
+          assert(*ds >= 0);
+          if (--used[statenum] == 0 && --*ds > 0)
+            ++max_possible;
+        }
+        ss.excludes_throw = nullptr;
+      }
+
       --pos;
       ++beat[pos].col;
       ++nnodes;
@@ -803,47 +802,65 @@ void Worker::gen_loops_normal2() {
     const int throwval = graph.outthrowval[ss.from_state][ss.col];
 
     if (throwval != 0 && throwval != graph.h) {
-      // account for states excluded by link throw
-      bool valid1 = true;
-      int* const ds = deadstates + graph.cyclenum[ss.from_state];
-      int* es = graph.excludestates_throw[ss.from_state];
-      int statenum = 0;
-      ss.excludes_throw = es;  // save to clean up later
-      ss.deadstates_throw = ds;
-
-      while ((statenum = *es++)) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
-          valid1 = false;
-      }
-
-      if (valid1) {
-        // account for states excluded by link catch
-        bool valid2 = true;
-        int* const ds = deadstates + graph.cyclenum[to_state];
-        int* es = graph.excludestates_catch[to_state];
-        ss.excludes_catch = es;
-        ss.deadstates_catch = ds;
+      if (ss.excludes_throw == nullptr) {
+        // mark states excluded by link throw
+        bool valid1 = true;
+        int* const ds = deadstates + graph.cyclenum[ss.from_state];
+        int* es = graph.excludestates_throw[ss.from_state];
+        int statenum = 0;
+        ss.excludes_throw = es;  // save to clean up later
+        ss.deadstates_throw = ds;
 
         while ((statenum = *es++)) {
           if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
-            valid2 = false;
+            valid1 = false;
         }
 
-        if (valid2) {
-          // advance to next beat
-          used[to_state] = 1;
-          ss.to_state = to_state;
-          ++pos;
-          SearchState& nss = beat[pos];
-          nss.col = 0;
-          nss.col_limit = graph.outdegree[to_state];
-          nss.from_state = to_state;
-          nss.to_state = 0;
-          nss.outmatrix = graph.outmatrix[to_state];
-          nss.excludes_throw = nullptr;
-          nss.excludes_catch = nullptr;
+        if (!valid1) {
+          // undo marking operation above...
+          es = ss.excludes_throw;
+          while ((statenum = *es++)) {
+            assert(*ds >= 0);
+            if (--used[statenum] == 0 && --*ds > 0)
+              ++max_possible;
+          }
+          ss.excludes_throw = nullptr;
+
+          // ...and bail to previous beat
+          --pos;
+          ++beat[pos].col;
+          ++nnodes;
           continue;
         }
+      }
+
+      // account for states excluded by link catch
+      bool valid2 = true;
+      int* const ds = deadstates + graph.cyclenum[to_state];
+      int* es = graph.excludestates_catch[to_state];
+      int statenum = 0;
+      ss.excludes_catch = es;
+      ss.deadstates_catch = ds;
+
+      while ((statenum = *es++)) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+          valid2 = false;
+      }
+
+      if (valid2) {
+        // advance to next beat
+        used[to_state] = 1;
+        ss.to_state = to_state;
+        ++pos;
+        SearchState& nss = beat[pos];
+        nss.col = 0;
+        nss.col_limit = graph.outdegree[to_state];
+        nss.from_state = to_state;
+        nss.to_state = 0;
+        nss.outmatrix = graph.outmatrix[to_state];
+        nss.excludes_throw = nullptr;
+        nss.excludes_catch = nullptr;
+        continue;
       }
 
       // couldn't advance to next beat, so go to next column in this one
