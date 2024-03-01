@@ -16,7 +16,6 @@
 struct SearchState {
   int col = 0;
   int col_limit = 0;
-  // int throwval = 0;
   int from_state = 0;
   int to_state = 0;
   int* outmatrix = nullptr;
@@ -24,9 +23,9 @@ struct SearchState {
   int* deadstates_throw = nullptr;
   int* excludes_catch = nullptr;
   int* deadstates_catch = nullptr;
-  int to_cycle = 0;
-  int shifts_remaining = 0;
-  int skips_remaining = 0;
+  // int to_cycle = 0;
+  // int shifts_remaining = 0;
+  // int skips_remaining = 0;
 };
 
 #endif
