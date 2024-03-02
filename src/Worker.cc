@@ -736,6 +736,7 @@ void Worker::gen_loops_block() {
     return;
   ++nnodes;
 
+  bool did_mark_for_throw = false;
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -775,51 +776,26 @@ void Worker::gen_loops_block() {
     } else
       ++blocklength;
 
-    bool valid = true;
     if (to == start_state) {
-      if (skipcount == config.skiplimit
-            && (blocklength + firstblocklength) != (graph.h - 2))
-        valid = false;
-
-      if (valid) {
+      if (skipcount != config.skiplimit
+            || (blocklength + firstblocklength) == (graph.h - 2)) {
         pattern[pos] = throwval;
         handle_finished_pattern();
       }
-    } else if (valid) {
-      if (linkthrow) {
-        if (mark_unreachable_states_throw()) {
-          if (mark_unreachable_states_catch(to)) {
-            pattern[pos] = throwval;
-
-            if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-                  && col < limit - 1) {
-              pattern[pos + 1] = -1;
-              process_inbox_running();
-              steps_taken = 0;
-            }
-
-            ++used[to];
-            ++pos;
-            const int old_from = from;
-            from = to;
-            gen_loops_block();
-            from = old_from;
-            --pos;
-            --used[to];
-          }
-          unmark_unreachable_states_catch(to);
+    } else if (linkthrow) {
+      if (!did_mark_for_throw) {
+        if (!mark_unreachable_states_throw()) {
+          unmark_unreachable_states_throw();
+          blocklength = old_blocklength;
+          skipcount = old_skipcount;
+          firstblocklength = old_firstblocklength;
+          return;
         }
-        unmark_unreachable_states_throw();
-      } else {
+        did_mark_for_throw = true;
+      }
+
+      if (mark_unreachable_states_catch(to)) {
         pattern[pos] = throwval;
-
-        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-              && col < limit - 1) {
-          pattern[pos + 1] = -1;
-          process_inbox_running();
-          steps_taken = 0;
-        }
-
         ++used[to];
         ++pos;
         const int old_from = from;
@@ -829,6 +805,25 @@ void Worker::gen_loops_block() {
         --pos;
         --used[to];
       }
+      unmark_unreachable_states_catch(to);
+    } else {
+      pattern[pos] = throwval;
+
+      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+            && col < limit - 1) {
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
+      ++used[to];
+      ++pos;
+      const int old_from = from;
+      from = to;
+      gen_loops_block();
+      from = old_from;
+      --pos;
+      --used[to];
     }
 
     // undo changes so we can backtrack
@@ -838,6 +833,10 @@ void Worker::gen_loops_block() {
 
     if (pos < root_pos)
       break;
+  }
+
+  if (did_mark_for_throw) {
+    unmark_unreachable_states_throw();
   }
 }
 
@@ -906,13 +905,6 @@ void Worker::gen_loops_super() {
       if (to == start_state) {
         handle_finished_pattern();
       } else {
-        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-              && col < limit - 1) {
-          pattern[pos + 1] = -1;
-          process_inbox_running();
-          steps_taken = 0;
-        }
-
         ++shiftcount;
         ++used[to];
         ++pos;
