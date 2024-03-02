@@ -152,8 +152,8 @@ void Coordinator::give_assignments() {
     if (config.verboseflag) {
       erase_status_output();
       std::cout << "worker " << id << " given work ("
-                << workers_idle.size() << " idle):\n"
-                << "  " << msg.assignment << std::endl;
+                << workers_idle.size() << " idle):\n "
+                << msg.assignment << std::endl;
       print_status_output();
     }
   }
@@ -245,8 +245,8 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
 
   if (config.verboseflag) {
     erase_status_output();
-    std::cout << "worker " << msg.worker_id << " returned work:" << std::endl
-              << "  " << msg.assignment << std::endl;
+    std::cout << "worker " << msg.worker_id << " returned work:\n "
+              << msg.assignment << std::endl;
     print_status_output();
   }
 }
@@ -572,17 +572,16 @@ void Coordinator::signal_handler(int signum) {
 //------------------------------------------------------------------------------
 
 void Coordinator::print_pattern(const MessageW2C& msg) {
-  if (config.verboseflag)
-    erase_status_output();
   if (config.printflag) {
-    if (config.verboseflag)
+    if (config.verboseflag) {
+      erase_status_output();
       std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
-    else
+      print_status_output();
+    } else {
       std::cout << msg.pattern << std::endl;
+    }
   }
   context.patterns.push_back(msg.pattern);
-  if (config.verboseflag)
-    print_status_output();
 }
 
 void Coordinator::print_summary() const {
