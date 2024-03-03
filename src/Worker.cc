@@ -1197,7 +1197,7 @@ void Worker::gen_loops_normal_iterative() {
   }
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
-  // provide a guard since beat[0]->col is modified at the end of the search.
+  // provide a guard since beat[0].col is modified at the end of the search.
   SearchState* ss = &beat[pos + 1];
 
   while (pos >= 0) {
@@ -1228,7 +1228,6 @@ void Worker::gen_loops_normal_iterative() {
           if (--used[statenum] == 0 && --*ds > 0)
             ++max_possible;
         }
-        ss->excludes_throw = nullptr;
       }
 
       --pos;
@@ -1273,7 +1272,6 @@ void Worker::gen_loops_normal_iterative() {
             if (--used[statenum] == 0 && --*ds > 0)
               ++max_possible;
           }
-          ss->excludes_throw = nullptr;
 
           --pos;
           --ss;
