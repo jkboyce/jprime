@@ -12,10 +12,10 @@
 #ifndef JPRIME_WORKER_H_
 #define JPRIME_WORKER_H_
 
-//#include "Coordinator.h"
 #include "Messages.h"
 #include "SearchConfig.h"
 #include "Graph.h"
+#include "SearchState.h"
 
 #include <queue>
 #include <mutex>
@@ -56,11 +56,13 @@ class Worker {
   int blocklength = 0;
   int l_current = 0;  // minimum length to find
   int max_possible = 0;
+  int exitcyclesleft = 0;
+  SearchState *beat;  // workspace for search
   int* pattern;
   int* used;
   bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int* deadstates;  // indexed by shift cycle number
-  int exitcyclesleft = 0;
+  int** deadstates_bystate;  // indexed by state number
 
   // status data to report to Coordinator
   std::uint64_t ntotal = 0;
@@ -123,6 +125,12 @@ class Worker {
   void unmark_unreachable_states_throw();
   void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
+  void gen_loops_normal_iterative();
+  bool iterative_init_workspace();
+  void iterative_calc_rootpos_and_options();
+  bool iterative_can_split();
+  void iterative_update_after_split();
+  void iterative_handle_finished_pattern();
   void report_pattern() const;
   void print_throw(std::ostringstream& buffer, int val) const;
   std::string get_pattern() const;
