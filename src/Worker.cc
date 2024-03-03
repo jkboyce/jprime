@@ -835,9 +835,8 @@ void Worker::gen_loops_block() {
       break;
   }
 
-  if (did_mark_for_throw) {
+  if (did_mark_for_throw)
     unmark_unreachable_states_throw();
-  }
 }
 
 // As above, but for SUPER mode.
@@ -1189,6 +1188,9 @@ inline void Worker::handle_finished_pattern() {
 
 void Worker::gen_loops_normal_iterative() {
   if (!iterative_init_workspace()) {
+    // initialization fails when we're loading a work assignment that is no
+    // longer valid, e.g. `l_current` has increased since the work was taken
+    // from another worker
     for (size_t i = 1; i <= graph.numstates; ++i)
       used[i] = 0;
     return;
