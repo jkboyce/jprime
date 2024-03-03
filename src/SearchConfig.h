@@ -52,8 +52,11 @@ struct SearchConfig {
   // find patterns in dual graph
   bool dualflag = false;
 
-  // print search metadata
+  // print worker diagnostic information
   bool verboseflag = false;
+
+  // print live search status
+  bool statusflag = false;
 
   // print without using +, - for h and 0
   bool noplusminusflag = false;

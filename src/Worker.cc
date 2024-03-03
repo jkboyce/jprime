@@ -305,6 +305,7 @@ void Worker::add_data_to_message(MessageW2C& msg) {
 }
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
+  assert(!running);
   loading_work = true;
 
   start_state = wa.start_state;
@@ -323,7 +324,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
   assert(root_throwval_options.size() > 0);
   if (pos != 0) {
-    std::cerr << "worker " << worker_id
+    std::cerr << "\nworker " << worker_id
               << ", pos: " << pos << '\n';
   }
   assert(pos == 0);
@@ -607,7 +608,9 @@ void Worker::gen_patterns() {
     }
     std::vector<int> used_finish(used, used + graph.numstates + 1);
     assert(used_start == used_finish);
+    assert(pos == 0);
   }
+  assert(pos == 0);
 }
 
 // Set which states are active for the upcoming search.
@@ -1393,6 +1396,16 @@ bool Worker::iterative_init_workspace() {
       if (graph.outthrowval[ss.from_state][ss.col] == pattern[i])
         break;
     }
+    if (ss.col == ss.col_limit) {
+      std::cerr << "error loading work assignment:\n"
+                << "start_state: " << start_state
+                << " (" << graph.state[start_state] << ")\n"
+                << "pos: " << pos << '\n'
+                << "pattern: ";
+      for (size_t j = 0; pattern[j] != -1; ++j)
+        std::cerr << throw_char(pattern[j]);
+      std::cerr << '\n';
+    }
     assert(ss.col < ss.col_limit);
     if (pos < root_pos)
       ss.col_limit = ss.col + 1;
@@ -1410,8 +1423,10 @@ bool Worker::iterative_init_workspace() {
       ss.deadstates_throw = ds;
 
       for (int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current) {
+          pos = 0;
           return false;
+        }
       }
 
       // mark unreachable states due to link catch
@@ -1421,8 +1436,10 @@ bool Worker::iterative_init_workspace() {
       ss.deadstates_catch = ds;
 
       for (int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current) {
+          pos = 0;
           return false;
+        }
       }
     }
 

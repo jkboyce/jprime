@@ -97,8 +97,7 @@ void Coordinator::run() {
     worker_thread[id] = nullptr;
   }
 
-  if (config.verboseflag)
-    erase_status_output();
+  erase_status_output();
   if (context.assignments.size() > 0)
     std::cout << "\nPARTIAL RESULTS:\n";
   print_summary();
@@ -115,7 +114,7 @@ void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
 }
 
 void Coordinator::collect_stats() {
-  if (--stats_counter > 0)
+  if (!config.statusflag || --stats_counter > 0)
     return;
 
   stats_counter = waits_per_status;
@@ -253,7 +252,7 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
 
 void Coordinator::process_returned_stats(const MessageW2C& msg) {
   record_data_from_message(msg);
-  if (!config.verboseflag)
+  if (!config.statusflag)
     return;
 
   worker_status[msg.worker_id] = make_worker_status(msg);
@@ -573,13 +572,13 @@ void Coordinator::signal_handler(int signum) {
 
 void Coordinator::print_pattern(const MessageW2C& msg) {
   if (config.printflag) {
+    erase_status_output();
     if (config.verboseflag) {
-      erase_status_output();
       std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
-      print_status_output();
     } else {
       std::cout << msg.pattern << std::endl;
     }
+    print_status_output();
   }
   context.patterns.push_back(msg.pattern);
 }
@@ -643,7 +642,7 @@ void Coordinator::print_summary() const {
 }
 
 void Coordinator::erase_status_output() const {
-  if (!stats_printed)
+  if (!config.statusflag || !stats_printed)
     return;
   for (int i = 0; i < context.num_threads + 1; ++i) {
     std::cout << '\x1B' << "[1A"
@@ -652,11 +651,13 @@ void Coordinator::erase_status_output() const {
 }
 
 void Coordinator::print_status_output() {
+  if (!config.statusflag)
+    return;
+
   auto now = std::chrono::system_clock::now();
   std::time_t now_timet = std::chrono::system_clock::to_time_t(now);
   std::string now_str = std::ctime(&now_timet);
   std::cout << "Status on " << now_str;
-
   for (int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status[i] << std::endl;
 
