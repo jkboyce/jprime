@@ -65,8 +65,6 @@ void print_help() {
     "Recognized options:\n"
     "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
     "                        specified number of shift throws\n"
-    "   -block <skips>    find patterns in block form, allowing the specified\n"
-    "                        number of skips\n"
     "   -g                find ground-state patterns only\n"
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
@@ -204,21 +202,6 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
           context->split_alg = atoi(argv[i]);
       } else {
         std::cerr << "No number provided after -split_alg\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (!strcmp(argv[i], "-block")) {
-      if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time\n";
-          std::exit(EXIT_FAILURE);
-        }
-        ++i;
-        if (config != nullptr) {
-          config->mode = RunMode::BLOCK_SEARCH;
-          config->skiplimit = atoi(argv[i]);
-        }
-      } else {
-        std::cerr << "Must provide skip limit in -block mode\n";
         std::exit(EXIT_FAILURE);
       }
     } else if (!strcmp(argv[i], "-x")) {

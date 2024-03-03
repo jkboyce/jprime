@@ -16,7 +16,6 @@
 
 enum class RunMode {
   NORMAL_SEARCH,
-  BLOCK_SEARCH,
   SUPER_SEARCH,
 };
 
@@ -63,9 +62,6 @@ struct SearchConfig {
 
   // keep a record of patterns seen at each length
   bool countsflag = false;
-
-  // for block mode
-  int skiplimit = 0;
 
   // for super mode
   int shiftlimit = 0;

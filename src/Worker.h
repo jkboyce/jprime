@@ -50,10 +50,7 @@ class Worker {
   // working variables for search
   int pos = 0;
   int from = 1;
-  int firstblocklength = -1;
-  int skipcount = 0;
   int shiftcount = 0;
-  int blocklength = 0;
   int l_current = 0;  // minimum length to find
   int max_possible = 0;
   int exitcyclesleft = 0;
@@ -114,7 +111,6 @@ class Worker {
   void gen_patterns();
   void set_active_states();
   void gen_loops_normal();
-  void gen_loops_block();
   void gen_loops_super();
   void gen_loops_super0();
   int load_one_throw();

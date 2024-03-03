@@ -528,10 +528,7 @@ void Worker::gen_patterns() {
     // reset working variables
     pos = 0;
     from = start_state;
-    firstblocklength = -1; // -1 signals unknown
-    skipcount = 0;
     shiftcount = 0;
-    blocklength = 0;
     exitcyclesleft = 0;
     for (size_t i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
@@ -592,9 +589,6 @@ void Worker::gen_patterns() {
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         gen_loops_normal_iterative();
-        break;
-      case RunMode::BLOCK_SEARCH:
-        gen_loops_block();
         break;
       case RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0 && !config.exactflag)
@@ -729,119 +723,6 @@ void Worker::gen_loops_normal() {
     }
 
     // only a single allowed throw value for `pos` < `root_pos`
-    if (pos < root_pos)
-      break;
-  }
-
-  if (did_mark_for_throw)
-    unmark_unreachable_states_throw();
-}
-
-// As above, but for BLOCK mode.
-//
-// Here there is additional structure we impose on the form of the pattern,
-// which makes the search generally faster than NORMAL mode.
-
-void Worker::gen_loops_block() {
-  if (config.exactflag && pos >= l_current)
-    return;
-  ++nnodes;
-
-  bool did_mark_for_throw = false;
-  int col = (loading_work ? load_one_throw() : 0);
-  const int limit = graph.outdegree[from];
-  const int* om = graph.outmatrix[from];
-
-  for (; col < limit; ++col) {
-    const int to = om[col];
-    if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
-      continue;
-    if (to < start_state)
-      continue;
-    if (used[to] != 0)
-      continue;
-
-    const int throwval = graph.outthrowval[from][col];
-    const bool linkthrow = (throwval > 0 && throwval < graph.h);
-    const int old_blocklength = blocklength;
-    const int old_skipcount = skipcount;
-    const int old_firstblocklength = firstblocklength;
-
-    // handle checks for link throws and skips
-    if (linkthrow) {
-      if (firstblocklength >= 0) {
-        if (blocklength != (graph.h - 2)) {
-          // got a skip
-          if (skipcount == config.skiplimit)
-            continue;
-          else
-            ++skipcount;
-        }
-      } else {
-        // first link throw encountered
-        firstblocklength = pos;
-      }
-
-      blocklength = 0;
-    } else
-      ++blocklength;
-
-    if (to == start_state) {
-      if (skipcount != config.skiplimit
-            || (blocklength + firstblocklength) == (graph.h - 2)) {
-        pattern[pos] = throwval;
-        handle_finished_pattern();
-      }
-    } else if (linkthrow) {
-      if (!did_mark_for_throw) {
-        if (!mark_unreachable_states_throw()) {
-          unmark_unreachable_states_throw();
-          blocklength = old_blocklength;
-          skipcount = old_skipcount;
-          firstblocklength = old_firstblocklength;
-          return;
-        }
-        did_mark_for_throw = true;
-      }
-
-      if (mark_unreachable_states_catch(to)) {
-        pattern[pos] = throwval;
-        ++used[to];
-        ++pos;
-        const int old_from = from;
-        from = to;
-        gen_loops_block();
-        from = old_from;
-        --pos;
-        --used[to];
-      }
-      unmark_unreachable_states_catch(to);
-    } else {
-      pattern[pos] = throwval;
-
-      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-            && col < limit - 1) {
-        pattern[pos + 1] = -1;
-        process_inbox_running();
-        steps_taken = 0;
-      }
-
-      ++used[to];
-      ++pos;
-      const int old_from = from;
-      from = to;
-      gen_loops_block();
-      from = old_from;
-      --pos;
-      --used[to];
-    }
-
-    // undo changes so we can backtrack
-    blocklength = old_blocklength;
-    skipcount = old_skipcount;
-    firstblocklength = old_firstblocklength;
-
     if (pos < root_pos)
       break;
   }

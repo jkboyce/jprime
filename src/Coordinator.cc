@@ -592,9 +592,6 @@ void Coordinator::print_summary() const {
             << context.numshortcycles << " short cycles\n";
 
   switch (config.mode) {
-    case RunMode::BLOCK_SEARCH:
-      std::cout << "block mode, " << config.skiplimit << " skips allowed\n";
-      break;
     case RunMode::SUPER_SEARCH:
       std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
       if (config.invertflag)

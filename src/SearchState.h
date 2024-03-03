@@ -25,7 +25,6 @@ struct SearchState {
   int* deadstates_catch = nullptr;
   // int to_cycle = 0;
   // int shifts_remaining = 0;
-  // int skips_remaining = 0;
 };
 
 #endif
