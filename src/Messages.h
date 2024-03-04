@@ -24,7 +24,6 @@
 enum class messages_C2W {
   NONE,
   DO_WORK,
-  UPDATE_METADATA,
   SPLIT_WORK,
   SEND_STATS,
   STOP_WORKER,
@@ -36,9 +35,6 @@ struct MessageC2W {
 
   // for type DO_WORK
   WorkAssignment assignment;
-
-  // for types DO_WORK and UPDATE_METADATA
-  int l_current = 0;
 
   // for type SPLIT_WORK
   int split_alg = 1;
@@ -72,7 +68,7 @@ struct MessageW2C {
   int numstates = 0;
   int numcycles = 0;
   int numshortcycles = 0;
-  int maxlength = 0;
+  int l_bound = 0;
   double secs_working = 0;
 
   // for type RETURN_WORK

@@ -33,15 +33,16 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       worker_id(id),
       graph(config.n, config.h, config.xarray,
         config.mode != RunMode::SUPER_SEARCH) {
-  l_current = config.l;
-  maxlength = (config.mode == RunMode::SUPER_SEARCH)
+  l_min = config.l_min;
+  l_bound = (config.mode == RunMode::SUPER_SEARCH)
       ? graph.superprime_length_bound() + config.shiftlimit
       : graph.prime_length_bound();
-  if (config.l > maxlength) {
-    std::cerr << "No patterns longer than " << maxlength << " are possible\n";
+  if (l_min > l_bound) {
+    std::cerr << "No patterns longer than " << l_bound << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
-  count.resize(maxlength + 1, 0);
+  l_max = (config.l_max > 0 ? config.l_max : l_bound);
+  count.resize(l_max + 1, 0);
   allocate_arrays();
 }
 
@@ -103,14 +104,11 @@ void Worker::run() {
 
       if (msg.type == messages_C2W::DO_WORK) {
         load_work_assignment(msg.assignment);
-        l_current = std::max(l_current, msg.l_current);
         new_assignment = true;
-      } else if (msg.type == messages_C2W::UPDATE_METADATA) {
-        // ignore in idle state
       } else if (msg.type == messages_C2W::SPLIT_WORK) {
         // ignore in idle state
       } else if (msg.type == messages_C2W::SEND_STATS) {
-        process_send_stats_request();
+        send_stats_to_coordinator();
       } else if (msg.type == messages_C2W::STOP_WORKER) {
         stop_worker = true;
       } else
@@ -182,12 +180,10 @@ void Worker::process_inbox_running() {
 
     if (msg.type == messages_C2W::DO_WORK) {
       assert(false);
-    } else if (msg.type == messages_C2W::UPDATE_METADATA) {
-      l_current = std::max(l_current, msg.l_current);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
       process_split_work_request(msg);
     } else if (msg.type == messages_C2W::SEND_STATS) {
-      process_send_stats_request();
+      send_stats_to_coordinator();
     } else if (msg.type == messages_C2W::STOP_WORKER) {
       stopping_work = true;
     }
@@ -254,7 +250,7 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   message_coordinator(msg);
 }
 
-void Worker::process_send_stats_request() {
+void Worker::send_stats_to_coordinator() {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_STATS;
   add_data_to_message(msg);
@@ -295,7 +291,7 @@ void Worker::add_data_to_message(MessageW2C& msg) {
   msg.numstates = graph.numstates;
   msg.numcycles = graph.numcycles;
   msg.numshortcycles = graph.numshortcycles;
-  msg.maxlength = maxlength;
+  msg.l_bound = l_bound;
   msg.secs_working = secs_working;
 
   ntotal = 0;
@@ -534,9 +530,6 @@ void Worker::gen_patterns() {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
-      if (loading_work && pattern[i] != -1 &&
-          config.mode != RunMode::NORMAL_SEARCH)
-        --nnodes;  // avoid double-counting nodes when loading from a save
     }
 
     // build the graph and initialize `deadstates`, `max_possible`, and
@@ -568,9 +561,7 @@ void Worker::gen_patterns() {
              << " states, max_possible = " << max_possible;
       message_coordinator_status(buffer.str());
     }
-    if ((config.longestflag || config.exactflag) && max_possible < l_current)
-      break;
-    if (max_possible == 0)
+    if (max_possible < l_min)
       break;
 
     // when loading work, `root_pos` and `root_throwval_options` are given by
@@ -591,7 +582,7 @@ void Worker::gen_patterns() {
         gen_loops_normal_iterative();
         break;
       case RunMode::SUPER_SEARCH:
-        if (config.shiftlimit == 0 && !config.exactflag)
+        if (config.shiftlimit == 0)
           gen_loops_super0();
         else
           gen_loops_super();
@@ -648,9 +639,8 @@ void Worker::set_active_states() {
 // This version is for NORMAL mode.
 
 void Worker::gen_loops_normal() {
-  if (config.exactflag && pos >= l_current)
+  if (pos >= l_max)
     return;
-  ++nnodes;
 
   bool did_mark_for_throw = false;
   int col = (loading_work ? load_one_throw() : 0);
@@ -729,6 +719,7 @@ void Worker::gen_loops_normal() {
 
   if (did_mark_for_throw)
     unmark_unreachable_states_throw();
+  ++nnodes;
 }
 
 // As above, but for SUPER mode.
@@ -738,9 +729,8 @@ void Worker::gen_loops_normal() {
 // throw to a new shift cycle.
 
 void Worker::gen_loops_super() {
-  if (config.exactflag && pos >= l_current)
+  if (pos >= l_max)
     return;
-  ++nnodes;
 
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
@@ -812,18 +802,18 @@ void Worker::gen_loops_super() {
     if (pos < root_pos)
       break;
   }
+
+  ++nnodes;
 }
 
 // A specialization of gen_loops_super() for the case where `shiftthrows` == 0
-// and `exactflag` is false.
+// and `l_max == l_bound`.
 //
 // This version tracks the specific "exit cycles" that can get back to the
 // start state with a single throw. If those exit cycles are all used and the
 // pattern isn't done, we terminate the search early.
 
 void Worker::gen_loops_super0() {
-  ++nnodes;
-
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -868,6 +858,8 @@ void Worker::gen_loops_super0() {
     if (pos < root_pos)
       break;
   }
+
+  ++nnodes;
 }
 
 // Return the column number in the `outmatrix[from]` row vector that
@@ -1008,7 +1000,7 @@ inline bool Worker::mark_unreachable_states_throw() {
   int statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
       valid = false;
   }
   return valid;
@@ -1021,7 +1013,7 @@ inline bool Worker::mark_unreachable_states_catch(int to_state) {
   int statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
       valid = false;
   }
 
@@ -1056,9 +1048,7 @@ inline void Worker::handle_finished_pattern() {
   ++ntotal;
   ++count[pos + 1];
 
-  if ((pos + 1) >= l_current) {
-    if (config.longestflag)
-      l_current = pos + 1;
+  if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
     report_pattern();
   }
 
@@ -1130,13 +1120,13 @@ void Worker::gen_loops_normal_iterative() {
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (used[to_state] || to_state < start_state) {
+    if (to_state == start_state) {
+      iterative_handle_finished_pattern();
       ++ss->col;
       goto skip_unmarking2;
     }
 
-    if (to_state == start_state) {
-      iterative_handle_finished_pattern();
+    if (used[to_state] || to_state < start_state || pos + 1 == l_max) {
       ++ss->col;
       goto skip_unmarking2;
     }
@@ -1153,7 +1143,7 @@ void Worker::gen_loops_normal_iterative() {
         ss->deadstates_throw = ds;
 
         for (int statenum; (statenum = *es); ++es) {
-          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
             valid1 = false;
         }
 
@@ -1181,7 +1171,7 @@ void Worker::gen_loops_normal_iterative() {
       ss->deadstates_catch = ds;
 
       for (int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current)
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
           valid2 = false;
       }
 
@@ -1304,7 +1294,7 @@ bool Worker::iterative_init_workspace() {
       ss.deadstates_throw = ds;
 
       for (int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
           pos = 0;
           return false;
         }
@@ -1317,7 +1307,7 @@ bool Worker::iterative_init_workspace() {
       ss.deadstates_catch = ds;
 
       for (int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_current) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
           pos = 0;
           return false;
         }
@@ -1451,9 +1441,7 @@ inline void Worker::iterative_handle_finished_pattern() {
   ++ntotal;
   ++count[pos + 1];
 
-  if ((pos + 1) >= l_current) {
-    if (config.longestflag)
-      l_current = pos + 1;
+  if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
     for (size_t i = 0; i <= pos; ++i) {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }

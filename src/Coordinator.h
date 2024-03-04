@@ -32,6 +32,7 @@ class Coordinator {
 
  private:
   const SearchConfig& config;
+  int l_max = -1;
   SearchContext& context;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
@@ -64,7 +65,7 @@ class Coordinator {
   void message_worker(const MessageC2W& msg, int worker_id) const;
   void give_assignments();
   void process_inbox();
-  int process_search_result(const MessageW2C& msg);
+  void process_search_result(const MessageW2C& msg);
   void process_worker_idle(const MessageW2C& msg);
   void process_returned_work(const MessageW2C& msg);
   void process_returned_stats(const MessageW2C& msg);
@@ -79,7 +80,6 @@ class Coordinator {
   bool is_worker_splitting(const int id) const;
   void record_data_from_message(const MessageW2C& msg);
   void remove_from_run_order(const int id);
-  void notify_metadata(int skip_id);
   void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);

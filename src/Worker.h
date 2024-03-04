@@ -37,21 +37,15 @@ class Worker {
   const SearchConfig config;
   Coordinator& coordinator;
   const int worker_id;
-  Graph graph;
-  int maxlength = 0;
-
-  // for loading and sharing work assignments
-  int start_state = 1;
-  int end_state = 1;
-  int root_pos = 0;
-  std::list<int> root_throwval_options;
-  bool loading_work = false;
+  int l_min = 0;
+  int l_max = 0;
+  int l_bound = 0;
 
   // working variables for search
+  Graph graph;
   int pos = 0;
   int from = 1;
   int shiftcount = 0;
-  int l_current = 0;  // minimum length to find
   int max_possible = 0;
   int exitcyclesleft = 0;
   SearchState *beat;  // workspace for search
@@ -60,6 +54,13 @@ class Worker {
   bool* cycleused;  // whether cycle has been visited, in SUPER mode
   int* deadstates;  // indexed by shift cycle number
   int** deadstates_bystate;  // indexed by state number
+
+  // for loading and sharing work assignments
+  int start_state = 1;
+  int end_state = 1;
+  int root_pos = 0;
+  std::list<int> root_throwval_options;
+  bool loading_work = false;
 
   // status data to report to Coordinator
   std::uint64_t ntotal = 0;
@@ -97,7 +98,7 @@ class Worker {
   void calibrate_inbox_check();
   void process_split_work_request(const MessageC2W& msg);
   void send_work_to_coordinator(const WorkAssignment& wa);
-  void process_send_stats_request();
+  void send_stats_to_coordinator();
   void add_data_to_message(MessageW2C& msg);
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;

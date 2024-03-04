@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <stdexcept>
 
 
 void print_help() {
@@ -60,7 +61,7 @@ void print_help() {
     "where:\n"
     "   <# objects>       = number of objects\n"
     "   <max. throw>      = largest allowed throw value\n"
-    "   <length>          = shortest patterns to find (optional, speeds search)\n"
+    "   <length>          = pattern length(s) to find\n"
     "\n"
     "Recognized options:\n"
     "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
@@ -69,14 +70,11 @@ void print_help() {
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
     "                     exclude listed throw values\n"
-    "   -all              find all patterns; otherwise search for the longest\n"
-    "                        patterns only\n"
-    "   -exact            find only patterns of the exact length specified\n"
-    "   -noprint          suppress printing of patterns\n"
-    "   -inverse          print inverse pattern, if it exists\n"
-    "   -noplus           print without using +, - for h and 0 respectively\n"
-    "   -counts           print number of patterns found at each length\n"
-    "   -status           display live search status\n"
+    "   -inverse          print/save inverse pattern, if it exists\n"
+    "   -noplus           print/save without using +, - for h and 0\n"
+    "   -noprint          do not print patterns\n"
+    "   -counts           print/save pattern counts only\n"
+    "   -status           display live search status (needs ANSI terminal)\n"
     "   -verbose          print worker diagnostic information\n"
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
@@ -87,9 +85,9 @@ void print_help() {
     "\n"
     "Examples:\n"
     "   jprime 4 7\n"
-    "   jprime 5 7 15 -noplus -exact\n"
-    "   jprime 5 7 -noplus -all -file 5_7_all\n"
-    "   jprime 6 10 -super 0 -inverse -file 6_10_s0\n";
+    "   jprime 5 7 15 -noplus\n"
+    "   jprime 5 7 -noplus -file 5_7_all\n"
+    "   jprime 6 10 -super 0 -inverse -status -file 6_10_s0\n";
 
   std::cout << helpString << std::endl;
 }
@@ -100,6 +98,10 @@ void print_help() {
 
 void parse_args(size_t argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
+  // defaults for length
+  int l_min = 1;
+  int l_max = -1;
+
   if (config != nullptr) {
     config->n = atoi(argv[1]);
     if (config->n < 1) {
@@ -112,7 +114,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
       std::exit(EXIT_FAILURE);
     }
 
-    // excluded self-throws
+    // defaults for excluded self-throws
     config->xarray.resize(config->h + 1, false);
 
     // defaults for using dual graph
@@ -122,7 +124,6 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     }
   }
 
-  bool fullflag = false;
   bool stealalg_given = false;
 
   for (int i = 1; i < argc; ++i) {
@@ -138,23 +139,9 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-ng")) {
       if (config != nullptr)
         config->groundmode = 2;
-    } else if (!strcmp(argv[i], "-all")) {
-      if (config != nullptr) {
-        fullflag = true;
-        config->longestflag = false;
-      }
     } else if (!strcmp(argv[i], "-noplus")) {
       if (config != nullptr) {
         config->noplusminusflag = true;
-      }
-    } else if (!strcmp(argv[i], "-exact")) {
-      if (config != nullptr) {
-        config->exactflag = true;
-        config->longestflag = false;
-        if (config->l < 2) {
-          std::cerr << "Must specify a length > 1 when using -exact flag\n";
-          std::exit(EXIT_FAILURE);
-        }
       }
     } else if (!strcmp(argv[i], "-super")) {
       if ((i + 1) < argc) {
@@ -235,31 +222,59 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
         std::cerr << "Missing number of threads after -threads\n";
         std::exit(EXIT_FAILURE);
       }
-    } else if (i > 2) {
-      char* p;
-      long temp = strtol(argv[i], &p, 10);
-      if (*p || i != 3) {
-        std::cerr << "Unrecognized input: " << argv[i] << '\n';
-        std::exit(EXIT_FAILURE);
-      } else if (config != nullptr) {
-        config->l = static_cast<int>(temp);
+    } else if (i == 3) {
+      // try to parse argument as a length or length range
+      bool success = false;
+      std::string s{argv[i]};
+      int hyphens = std::count(s.begin(), s.end(), '-');
+      if (hyphens == 0) {
+        int num = atoi(argv[i]);
+        if (num > 0) {
+          l_min = l_max = num;
+          success = true;
+        }
+      } else if (hyphens == 1) {
+        success = true;
+        auto hpos = s.find('-');
+        std::string s1 = s.substr(0, hpos);
+        std::string s2 = s.substr(hpos + 1);
+        if (s1.size() > 0) {
+          int num = atoi(s1.c_str());
+          if (num > 0)
+            l_min = num;
+          else
+            success = false;
+        }
+        if (s2.size() > 0) {
+          int num = atoi(s2.c_str());
+          if (num > 0)
+            l_max = num;
+          else
+            success = false;
+        }
       }
+
+      if (!success) {
+        std::cerr << "Error parsing length: " << argv[i] << '\n';
+        std::exit(EXIT_FAILURE);
+      }
+    } else if (i > 3) {
+      std::cerr << "Unrecognized input: " << argv[i] << '\n';
+      std::exit(EXIT_FAILURE);
     }
   }
 
+  if (config != nullptr) {
+    config->l_min = l_min;
+    config->l_max = l_max;
+  }
+
   // defaults
-  if (config != nullptr && context != nullptr && !stealalg_given) {
-    if (config->mode != RunMode::SUPER_SEARCH && config->l == 0)
-      context->steal_alg = 1;  // steal from longest pattern found so far
-    else
-      context->steal_alg = 3;  // steal from lowest `root_pos`
+  if (context != nullptr && !stealalg_given) {
+    context->steal_alg = 3;  // steal from lowest `root_pos`
   }
 
   // consistency checks
-  if (config != nullptr && fullflag && config->exactflag) {
-    std::cerr << "-all and -exact flags cannot be used together\n";
-    std::exit(EXIT_FAILURE);
-  }
   if (context != nullptr && context->num_threads < 1) {
     std::cerr << "Must have at least one worker thread\n";
     std::exit(EXIT_FAILURE);
@@ -289,16 +304,15 @@ void parse_args(std::string str, SearchConfig* const config,
 // Saving and loading checkpoint files
 //------------------------------------------------------------------------------
 
-void save_context(const SearchContext& context) {
+void save_context(const SearchConfig& config, const SearchContext& context) {
   std::ofstream myfile;
   myfile.open(context.outfile, std::ios::out | std::ios::trunc);
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.3\n"
+  myfile << "version           6.4\n"
          << "command line      " << context.arglist << '\n'
-         << "length            " << context.l_current << '\n'
-         << "length limit      " << context.maxlength << '\n'
+         << "length bound      " << context.l_bound << '\n'
          << "states            " << context.numstates << '\n'
          << "shift cycles      " << context.numcycles << '\n'
          << "short cycles      " << context.numshortcycles << '\n'
@@ -317,7 +331,7 @@ void save_context(const SearchContext& context) {
     myfile << str << '\n';
 
   myfile << "\ncounts\n";
-  for (int i = 1; i <= context.maxlength; ++i)
+  for (int i = 1; i <= (config.l_max > 0 ? config.l_max: context.l_bound); ++i)
     myfile << i << ", " << context.count[i] << '\n';
 
   if (context.assignments.size() > 0) {
@@ -412,8 +426,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.2" && val != "6.3") {
-          error = "file version is below 6.2";
+        if (val != "6.4") {
+          error = "file version is not 6.4";
           break;
         }
         break;
@@ -427,50 +441,50 @@ bool load_context(const std::string& file, SearchContext& context) {
         context.arglist = val;
         break;
       case 2:
-        if (s.rfind("length", 0) != 0) {
+        if (s.rfind("length bound", 0) != 0) {
           error = "syntax in line 3";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.l_current = std::stoi(val);
+        context.l_bound = std::stoi(val);
+        context.count.resize(context.l_bound + 1, 0);
         break;
       case 3:
-        if (s.rfind("length", 0) != 0) {
-          error = "syntax in line 4";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.maxlength = std::stoi(val);
-        context.count.resize(context.maxlength + 1, 0);
-        break;
-      case 4:
         if (s.rfind("states", 0) != 0) {
-          error = "syntax in line 5";
+          error = "syntax in line 4";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.numstates = std::stoi(val);
         break;
-      case 5:
+      case 4:
         if (s.rfind("shift cycles", 0) != 0) {
-          error = "syntax in line 6";
+          error = "syntax in line 5";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.numcycles = std::stoi(val);
         break;
-      case 6:
+      case 5:
         if (s.rfind("short cycles", 0) != 0) {
-          error = "syntax in line 7";
+          error = "syntax in line 6";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.numshortcycles = std::stoi(val);
+        break;
+      case 6:
+        if (s.rfind("patterns", 0) != 0) {
+          error = "syntax in line 7";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.npatterns = std::stol(val);
         break;
       case 7:
         if (s.rfind("patterns", 0) != 0) {
@@ -479,28 +493,28 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.npatterns = std::stol(val);
-        break;
-      case 8:
-        if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 9";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
         context.ntotal = std::stol(val);
         break;
-      case 9:
+      case 8:
         if (s.rfind("nodes", 0) != 0) {
-          error = "syntax in line 10";
+          error = "syntax in line 9";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.nnodes = std::stol(val);
         break;
+      case 9:
       case 10:
+        break;
       case 11:
+        if (s.rfind("seconds", 0) != 0) {
+          error = "syntax in line 12";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.secs_elapsed = std::stod(val);
         break;
       case 12:
         if (s.rfind("seconds", 0) != 0) {
@@ -509,7 +523,7 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.secs_elapsed = std::stod(val);
+        context.secs_working = std::stod(val);
         break;
       case 13:
         if (s.rfind("seconds", 0) != 0) {
@@ -518,22 +532,13 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.secs_working = std::stod(val);
-        break;
-      case 14:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 15";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
         context.secs_available = std::stod(val);
         break;
-      case 15:
+      case 14:
         break;
-      case 16:
+      case 15:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 17";
+          error = "syntax in line 16";
           break;
         }
         section = 2;
@@ -546,7 +551,7 @@ bool load_context(const std::string& file, SearchContext& context) {
       return false;
     }
 
-    if (linenum < 17) {
+    if (linenum < 16) {
       ++linenum;
       continue;
     }
@@ -626,8 +631,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 
       std::cout << "resuming calculation: " << context.arglist << '\n'
                 << "loaded " << context.npatterns
-                << " patterns (length " << context.l_current
-                << ") and " << context.assignments.size()
+                << " patterns and " << context.assignments.size()
                 << " work assignments" << std::endl;
       return;
     }
@@ -661,7 +665,6 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
-
   Coordinator coordinator(config, context);
   coordinator.run();
 
@@ -670,7 +673,7 @@ int main(int argc, char** argv) {
               << std::endl;
     std::sort(context.patterns.begin(), context.patterns.end(),
         pattern_compare);
-    save_context(context);
+    save_context(config, context);
   }
   return 0;
 }

@@ -27,8 +27,11 @@ struct SearchConfig {
   // maximum throw value
   int h = 0;
 
-  // (min) pattern length to find
-  int l = 0;
+  // minimum pattern length to find
+  int l_min = 1;
+
+  // maximum pattern length to find
+  int l_max = -1;
 
   // worker mode
   RunMode mode = RunMode::NORMAL_SEARCH;
@@ -41,12 +44,6 @@ struct SearchConfig {
 
   // print inverses in super mode
   bool invertflag = false;
-
-  // search for the longest pattern(s)
-  bool longestflag = true;
-
-  // search for an exact pattern length
-  bool exactflag = false;
 
   // find patterns in dual graph
   bool dualflag = false;

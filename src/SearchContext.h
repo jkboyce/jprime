@@ -27,9 +27,6 @@ struct SearchContext {
   // original invocation command line arguments, concatenated
   std::string arglist;
 
-  // longest pattern reported by any worker so far
-  int l_current = 0;
-
   // number of states in the juggling graph (does not change)
   int numstates = 0;
 
@@ -41,7 +38,7 @@ struct SearchContext {
 
   // maximum length possible for a prime pattern of the type we're searching
   // (does not change)
-  int maxlength = 0;
+  int l_bound = 0;
 
   // number of patterns found, either in total or (if `longestflag`==true) at
   // the current value of `l_current`
