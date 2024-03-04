@@ -807,14 +807,16 @@ void Worker::gen_loops_super() {
   ++nnodes;
 }
 
-// A specialization of gen_loops_super() for the case where `shiftthrows` == 0
-// and `l_max == l_bound`.
+// A specialization of gen_loops_super() for the case `shiftthrows` == 0.
 //
 // This version tracks the specific "exit cycles" that can get back to the
 // start state with a single throw. If those exit cycles are all used and the
 // pattern isn't done, we terminate the search early.
 
 void Worker::gen_loops_super0() {
+  if (pos >= l_max)
+    return;
+
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -1048,7 +1050,7 @@ inline void Worker::unmark_unreachable_states_catch(int to_state) {
 inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
-  if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
+  if (!config.countsflag && (pos + 1) >= l_min) {
     report_pattern();
   }
 }
@@ -1435,7 +1437,7 @@ void Worker::iterative_update_after_split() {
 inline void Worker::iterative_handle_finished_pattern() {
   ++count[pos + 1];
 
-  if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
+  if (!config.countsflag && (pos + 1) >= l_min) {
     for (size_t i = 0; i <= pos; ++i) {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }
