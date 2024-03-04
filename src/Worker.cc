@@ -1050,7 +1050,7 @@ inline void Worker::unmark_unreachable_states_catch(int to_state) {
 inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
-  if (!config.countsflag && (pos + 1) >= l_min) {
+  if (!config.countflag && (pos + 1) >= l_min) {
     report_pattern();
   }
 }
@@ -1437,7 +1437,7 @@ void Worker::iterative_update_after_split() {
 inline void Worker::iterative_handle_finished_pattern() {
   ++count[pos + 1];
 
-  if (!config.countsflag && (pos + 1) >= l_min) {
+  if (!config.countflag && (pos + 1) >= l_min) {
     for (size_t i = 0; i <= pos; ++i) {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }

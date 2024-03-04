@@ -75,7 +75,7 @@ void print_help() {
     "   -inverse          print/save inverse pattern, if it exists\n"
     "   -noplus           print/save without using +, - for h and 0\n"
     "   -noprint          do not print patterns\n"
-    "   -counts           print/save pattern counts only\n"
+    "   -count            print/save pattern counts only\n"
     "   -status           display live search status (needs ANSI terminal)\n"
     "   -verbose          print worker diagnostic information\n"
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
@@ -209,9 +209,9 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-verbose")) {
       if (config != nullptr)
         config->verboseflag = true;
-    } else if (!strcmp(argv[i], "-counts")) {
+    } else if (!strcmp(argv[i], "-count")) {
       if (config != nullptr)
-        config->countsflag = true;
+        config->countflag = true;
     } else if (!strcmp(argv[i], "-status")) {
       if (config != nullptr)
         config->statusflag = true;

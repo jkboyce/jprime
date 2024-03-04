@@ -58,7 +58,7 @@ struct SearchConfig {
   bool noplusminusflag = false;
 
   // keep a record of patterns seen at each length
-  bool countsflag = false;
+  bool countflag = false;
 
   // for super mode
   int shiftlimit = 0;

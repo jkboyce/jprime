@@ -398,7 +398,7 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.count.resize(msg.count.size(), 0);
   for (int i = 1; i < msg.count.size(); ++i) {
     context.count[i] += msg.count[i];
-    if (config.countsflag && i >= config.l_min && i <= l_max) {
+    if (config.countflag && i >= config.l_min && i <= l_max) {
       context.npatterns += msg.count[i];
     }
   }
@@ -599,7 +599,7 @@ void Coordinator::print_summary() const {
   }
   std::cout << std::endl;
 
-  if (config.countsflag) {
+  if (config.countflag) {
     std::cout << "\nPattern count by length:\n";
     for (int i = config.l_min; i <= l_max; ++i)
       std::cout << i << ", " << context.count[i] << std::endl;
