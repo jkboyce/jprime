@@ -262,9 +262,6 @@ void Coordinator::process_worker_status(const MessageW2C& msg) {
       print_status_output();
     }
   }
-
-  if (msg.longest_found >= 0)
-    worker_longest[msg.worker_id] = msg.longest_found;
 }
 
 //------------------------------------------------------------------------------
@@ -405,6 +402,8 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
       context.npatterns += msg.count[i];
     }
   }
+
+  worker_longest[msg.worker_id] = msg.longest_found;
 }
 
 void Coordinator::remove_from_run_order(const int id) {

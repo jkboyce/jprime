@@ -63,7 +63,6 @@ class Worker {
   bool loading_work = false;
 
   // status data to report to Coordinator
-  std::uint64_t ntotal = 0;
   std::uint64_t nnodes = 0;
   int longest_found = 0;
   double secs_working = 0;

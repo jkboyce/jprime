@@ -70,6 +70,7 @@ struct MessageW2C {
   int numshortcycles = 0;
   int l_bound = 0;
   double secs_working = 0;
+  int longest_found = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;
@@ -83,7 +84,6 @@ struct MessageW2C {
   // for type WORKER_STATUS
   std::string meta;
   int root_pos = -1;
-  int longest_found = -1;
 };
 
 #endif

@@ -285,6 +285,15 @@ void Worker::send_stats_to_coordinator() {
 }
 
 void Worker::add_data_to_message(MessageW2C& msg) {
+  std::uint64_t ntotal = 0;
+
+  for (size_t i = 1; i < count.size(); ++i) {
+    if (count[i] > 0) {
+      ntotal += count[i];
+      longest_found = std::max<int>(longest_found, i);
+    }
+  }
+
   msg.ntotal = ntotal;
   msg.count = count;
   msg.nnodes = nnodes;
@@ -293,8 +302,8 @@ void Worker::add_data_to_message(MessageW2C& msg) {
   msg.numshortcycles = graph.numshortcycles;
   msg.l_bound = l_bound;
   msg.secs_working = secs_working;
+  msg.longest_found = longest_found;
 
-  ntotal = 0;
   count.assign(count.size(), 0);
   nnodes = 0;
   secs_working = 0;
@@ -367,13 +376,6 @@ void Worker::notify_coordinator_rootpos() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_STATUS;
   msg.root_pos = root_pos;
-  message_coordinator(msg);
-}
-
-void Worker::notify_coordinator_longest() const {
-  MessageW2C msg;
-  msg.type = messages_W2C::WORKER_STATUS;
-  msg.longest_found = longest_found;
   message_coordinator(msg);
 }
 
@@ -574,7 +576,6 @@ void Worker::gen_patterns() {
         continue;
     }
     longest_found = 0;
-    notify_coordinator_longest();
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
@@ -1045,16 +1046,10 @@ inline void Worker::unmark_unreachable_states_catch(int to_state) {
 }
 
 inline void Worker::handle_finished_pattern() {
-  ++ntotal;
   ++count[pos + 1];
 
   if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
     report_pattern();
-  }
-
-  if ((pos + 1) > longest_found) {
-    longest_found = pos + 1;
-    notify_coordinator_longest();
   }
 }
 
@@ -1438,7 +1433,6 @@ void Worker::iterative_update_after_split() {
 }
 
 inline void Worker::iterative_handle_finished_pattern() {
-  ++ntotal;
   ++count[pos + 1];
 
   if (!config.countsflag && (pos + 1) >= l_min && (pos + 1) <= l_max) {
@@ -1446,11 +1440,6 @@ inline void Worker::iterative_handle_finished_pattern() {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }
     report_pattern();
-  }
-
-  if ((pos + 1) > longest_found) {
-    longest_found = pos + 1;
-    notify_coordinator_longest();
   }
 }
 
