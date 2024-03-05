@@ -74,10 +74,11 @@ void print_help() {
     "                     exclude listed throw values\n"
     "   -inverse          print/save inverse pattern, if it exists\n"
     "   -noplus           print/save without using +, - for h and 0\n"
+    "   -info             print info without executing search\n"
     "   -noprint          do not print patterns\n"
     "   -count            print/save pattern counts only\n"
     "   -status           display live search status (needs ANSI terminal)\n"
-    "   -verbose          print worker diagnostic information\n"
+    "   -verbose          print worker diagnostic information during search\n"
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted via ctrl-c), resuming, and final output\n"
@@ -212,6 +213,9 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-count")) {
       if (config != nullptr)
         config->countflag = true;
+    } else if (!strcmp(argv[i], "-info")) {
+      if (config != nullptr)
+        config->infoflag = true;
     } else if (!strcmp(argv[i], "-status")) {
       if (config != nullptr)
         config->statusflag = true;

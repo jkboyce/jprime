@@ -54,6 +54,9 @@ struct SearchConfig {
   // print live search status
   bool statusflag = false;
 
+  // print info about search, but do not execute
+  bool infoflag = false;
+
   // print without using +, - for h and 0
   bool noplusminusflag = false;
 

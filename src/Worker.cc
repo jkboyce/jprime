@@ -577,6 +577,9 @@ void Worker::gen_patterns() {
     }
     longest_found = 0;
 
+    if (config.infoflag)
+      continue;
+
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
@@ -1067,12 +1070,10 @@ inline void Worker::handle_finished_pattern() {
 
 void Worker::gen_loops_normal_iterative() {
   if (!iterative_init_workspace()) {
-    // initialization fails when we're loading a work assignment that is no
-    // longer valid, e.g. `l_current` has increased since the work was taken
-    // from another worker
-    for (size_t i = 1; i <= graph.numstates; ++i)
-      used[i] = 0;
-    return;
+    assert(false);
+    // for (size_t i = 1; i <= graph.numstates; ++i)
+    //   used[i] = 0;
+    // return;
   }
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
