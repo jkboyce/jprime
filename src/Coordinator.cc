@@ -599,7 +599,7 @@ void Coordinator::print_summary() const {
   }
   std::cout << std::endl;
 
-  if (config.countflag || l_max > config.l_min) {
+  if (!config.infoflag && (config.countflag || l_max > config.l_min)) {
     std::cout << "\nPattern count by length:\n";
     for (int i = config.l_min; i <= l_max; ++i)
       std::cout << i << ", " << context.count[i] << std::endl;
