@@ -37,11 +37,11 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
   l_bound = (config.mode == RunMode::SUPER_SEARCH)
       ? graph.superprime_length_bound() + config.shiftlimit
       : graph.prime_length_bound();
-  if (l_min > l_bound) {
+  l_max = (config.l_max > 0 ? config.l_max : l_bound);
+  if (l_min > l_bound || l_max > l_bound) {
     std::cerr << "No patterns longer than " << l_bound << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
-  l_max = (config.l_max > 0 ? config.l_max : l_bound);
   count.resize(l_max + 1, 0);
   allocate_arrays();
 }
