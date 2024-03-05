@@ -1,18 +1,17 @@
-version           6.2
-command line      jprime 4 14 -super 0 -g -threads 4 -verbose -file 4_14_s0_g
-length            73
-length limit      73
+version           6.4
+command line      jprime 4 14 73 -super 0 -g -threads 4 -verbose -status -file 4_14_s0_g
+length bound      73
 states            1001
 shift cycles      73
 short cycles      3
 patterns          2054
-patterns (seen)   31384580288906
-nodes visited     159516550042995
+patterns (seen)   31462687573209
+nodes visited     159787662371964
 threads           4
 hardware threads  12
-seconds elapsed   529673.2747
-seconds working   2405665.1000
-seconds avail     2405665.2270
+seconds elapsed   530325.6190
+seconds working   2408274.4515
+seconds avail     2408274.6035
 
 patterns
 5d23d3122c1115117d11812c11151c131ad111118131b182b11114d15161c1131b9111131
@@ -2070,9 +2069,84 @@ d94114114d15271a111a131c61118d11119312d113d411711191c12c1131911b11a151113
 d94114114d18231c11711a1191911181c1319312d113d2231c11411b4119d111191911113
 da2231b11141c3182222d13d223131c131c22411b411ad1111611b161c11711b11a151113
 
+counts
+1, 0
+2, 0
+3, 0
+4, 0
+5, 0
+6, 0
+7, 0
+8, 0
+9, 0
+10, 0
+11, 1
+12, 3
+13, 8
+14, 14
+15, 30
+16, 96
+17, 248
+18, 631
+19, 1710
+20, 3812
+21, 9906
+22, 21877
+23, 52151
+24, 118712
+25, 248688
+26, 533550
+27, 1097900
+28, 2168497
+29, 4241486
+30, 8064674
+31, 14837755
+32, 26781511
+33, 46316700
+34, 79865443
+35, 132076300
+36, 210509709
+37, 330449772
+38, 500270495
+39, 736554653
+40, 1053920174
+41, 1450939827
+42, 1945268870
+43, 2537023502
+44, 3174360347
+45, 3832268581
+46, 4486953218
+47, 5052278964
+48, 5467750535
+49, 5704695634
+50, 5687559239
+51, 5442104047
+52, 5006069802
+53, 4363483940
+54, 3632120974
+55, 2885962784
+56, 2158939414
+57, 1530745080
+58, 1025282941
+59, 639772315
+60, 374304833
+61, 203643909
+62, 101342391
+63, 46577543
+64, 19420102
+65, 7221439
+66, 2397712
+67, 693309
+68, 173304
+69, 35238
+70, 5841
+71, 707
+72, 37
+73, 0
+
 work assignments remaining
-  { start_state:1, end_state:1, root_pos:1, root_options:[9], current:"dadddd63dd49ddd4db5c4ddad5c9d3dd7d8cd3dbdd62dbdbcdd19" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[a98], current:"dddd8cd3c2bddd4d6d9d3dda5d59dbd6dbccdd" }
-  { start_state:1, end_state:1, root_pos:1, root_options:[ca9], current:"cddd9d5dd17cdbc4bddd27dddd3d5abbc1cdbd5cdd3d8d" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[c98], current:"dbdddd53dacc2cdb8d2dbcc5da3dbdd5ccdd51cd6dbccc5" }
-  { start_state:1, end_state:1, root_pos:1, root_options:[cb9], current:"bddd9cd3cd2d6cd8ddd26ddd93dbdd26dd99bd2cdda5ddd" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[cb9], current:"bddd9cd3cc2db5cddac3d4d8d9dd4ddd6c2dbddd18bdd1cdbcdd29" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[9], current:"dadddd63dd48dd9cd36dda8ddd2ccd4cc2d6d9dd5dd7dd2cdda2d" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[a98], current:"dddd8cd33dd9dda3d4add6dd7dbd2db3ddad3d9d3cdbc" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[ca9], current:"cddd9d5db1bdd9d2cddd3d4dd4d8d4dbdd4cc7c1bdd6cc7caca" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[c98], current:"dbdddd53dac3dadbd72dad9dd3dda4dad2dbcdd39d2dbdd5ddd9" }

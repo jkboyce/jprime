@@ -1,18 +1,17 @@
-version           6.2
-command line      jprime 5 13 -super 0 -threads 4 -verbose -file 5_13_s0
-length            98
-length limit      99
+version           6.4
+command line      jprime 5 13 98- -super 0 -threads 4 -verbose -status -file 5_13_s0
+length bound      99
 states            1287
 shift cycles      99
 short cycles      0
 patterns          9
-patterns (seen)   5888976560678
-nodes visited     90293925167940
+patterns (seen)   5902445641381
+nodes visited     90389732464225
 threads           4
 hardware threads  12
-seconds elapsed   340082.9494
-seconds working   1509026.7613
-seconds avail     1509026.9520
+seconds elapsed   340295.9562
+seconds working   1509878.6528
+seconds avail     1509878.9794
 
 patterns
   c48a22c112445cc162a1122c52a441b711a2c31b2c12291b12a13c2b123a22c13c23c2c112c122c2c71112c2c2ca111112
@@ -25,9 +24,110 @@ patterns
   c6b2c123125c2b34c12226c22493c2711a2c31b2c12a119122c89122b1b133c22c23c2c112c122c2c71112c2c2ca111112
   ca52c122a13c2b12b4112bb6112c22a6222c28c2222c41348c22c142c22b26122c82c2c112c122c2c71112c2c2ca111112
 
+counts
+1, 0
+2, 0
+3, 0
+4, 0
+5, 0
+6, 0
+7, 0
+8, 0
+9, 0
+10, 0
+11, 0
+12, 0
+13, 0
+14, 0
+15, 0
+16, 0
+17, 0
+18, 0
+19, 0
+20, 0
+21, 0
+22, 0
+23, 0
+24, 0
+25, 0
+26, 2
+27, 3
+28, 18
+29, 20
+30, 99
+31, 208
+32, 248
+33, 919
+34, 1407
+35, 3625
+36, 6515
+37, 12283
+38, 26983
+39, 49023
+40, 96387
+41, 155950
+42, 311377
+43, 496242
+44, 868776
+45, 1425642
+46, 2285736
+47, 3640443
+48, 5560311
+49, 8547109
+50, 12382857
+51, 18361438
+52, 25658838
+53, 35700442
+54, 49236291
+55, 64512677
+56, 84824735
+57, 108839002
+58, 137819590
+59, 167321252
+60, 207727223
+61, 247172935
+62, 289357478
+63, 342326327
+64, 386509245
+65, 435632515
+66, 499598030
+67, 536145457
+68, 588505274
+69, 618254614
+70, 648325914
+71, 656022401
+72, 647475349
+73, 633303746
+74, 576609659
+75, 533734841
+76, 440881406
+77, 368668741
+78, 295036114
+79, 215950998
+80, 158919906
+81, 103674108
+82, 66042127
+83, 37813932
+84, 20842967
+85, 10821702
+86, 5045607
+87, 2100367
+88, 775961
+89, 245522
+90, 67053
+91, 16875
+92, 3869
+93, 745
+94, 71
+95, 3
+96, 0
+97, 0
+98, 0
+99, 0
+
 work assignments remaining
-  { start_state:1, end_state:1, root_pos:1, root_options:[b987], current:"bccccc31b1b1bccc61b1bbc1bcc1b1ab13bbbcc41bb14a8bcc15ac3b3cc84c1bc3b8" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[b876], current:"caccccc1119c19cccc611acc1bc5b1b61b9bc52cacc23b3bc3c6b61bc4ca5c24c9ccc22a" }
-  { start_state:1, end_state:1, root_pos:0, root_options:[9], current:"acccccc112c19cccc31bc2c15c9bc23cab2aab12cac4c59a1aca15ccc86" }
-  { start_state:1, end_state:1287, root_pos:1, root_options:[87], current:"c9cccc711a1bccccc131b91bbca2c3bc16b3bc8cc12b4bbb24c4bccc4c1b1bb1ac24aab5a" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[9876], current:"ccccc62c118cccc71bc11acc3cc2b3ac1bc15cc9b1b2c2c7c82bcc1bc29c18" }
+  { start_state:1, end_state:1, root_pos:1, root_options:[b987], current:"bccccc31b1b1bccc61b1bbc1bcc1b1ab13bbbc3b4c1bc3c4b3ac3bcc15ca1b3cc6b16bcc18aa2b1a69" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[b876], current:"caccccc1119c19cccc611acc1bc5b1b61acc83c38ca61ac4c7ca2c3cc91ac31bcc4c39" }
+  { start_state:1, end_state:1, root_pos:0, root_options:[9], current:"acccccc112c19cccc31bc2c15c9bb2ca1a2a4ccc45ca42acc82bcc13c9c2bb1aa2c" }
+  { start_state:1, end_state:1287, root_pos:1, root_options:[87], current:"c9cccc711a1bccccc131b91bbca2c3bb1bbc2c17bc17b3aca3abb1a2c4bb6c3b3bcc4c19a" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[9876], current:"ccccc62c118cccc71b2c18c9c2c62bc8c2b2c4ca6c1bc26cc91acc1b1aca8" }

@@ -1,23 +1,142 @@
-version           6.2
-command line      jprime 3 28 118 -super 1 -threads 4 -verbose -file 3_28_118_s1
-length            0
-length limit      118
+version           6.4
+command line      jprime 3 28 118 -super 1 -inverse -threads 4 -verbose -status -file 3_28_118_s1
+length bound      118
 states            3276
 shift cycles      117
 short cycles      0
 patterns          0
-patterns (seen)   239573250764036
-nodes visited     595284512281234
+patterns (seen)   819517657342331
+nodes visited     1723602802241116
 threads           4
 hardware threads  12
-seconds elapsed   1717299.6972
-seconds working   6869198.3990
-seconds avail     6869198.7884
+seconds elapsed   4667464.7282
+seconds working   18669854.7683
+seconds avail     18669858.9112
 
 patterns
 
+counts
+1, 0
+2, 1
+3, 1
+4, 1
+5, 2
+6, 10
+7, 34
+8, 86
+9, 223
+10, 549
+11, 1312
+12, 3000
+13, 6842
+14, 15265
+15, 33868
+16, 73919
+17, 160693
+18, 345419
+19, 737384
+20, 1556637
+21, 3275699
+22, 6823360
+23, 14022554
+24, 27972735
+25, 53768089
+26, 63082052
+27, 104733375
+28, 163875202
+29, 290060003
+30, 488116285
+31, 802161646
+32, 1281404028
+33, 2035355442
+34, 3231898989
+35, 5109330094
+36, 7975188735
+37, 12318620951
+38, 18736394223
+39, 28202597445
+40, 41679986653
+41, 60942733432
+42, 87311032996
+43, 122809712694
+44, 169507434582
+45, 229027512055
+46, 306766430287
+47, 407990182844
+48, 545954989807
+49, 722324150193
+50, 947553414156
+51, 1222395641475
+52, 1561828197618
+53, 1974909628198
+54, 2500149514912
+55, 3115449793376
+56, 3844717677909
+57, 4673061852705
+58, 5610643707668
+59, 6638975316087
+60, 7790284315550
+61, 9009345242542
+62, 10321111554285
+63, 11675706311063
+64, 13082665428623
+65, 14497537218072
+66, 15915312551340
+67, 17281284419769
+68, 18542968142725
+69, 19669675919741
+70, 20595116928871
+71, 21311230273979
+72, 21783568202448
+73, 22000309443147
+74, 21914797904132
+75, 21560219020737
+76, 20885097619482
+77, 19967455468758
+78, 18818320360449
+79, 17503517262673
+80, 16042678960306
+81, 14503643855100
+82, 12903615796027
+83, 11303042298615
+84, 9735905626444
+85, 8243034389606
+86, 6854147319987
+87, 5595789060081
+88, 4480014387628
+89, 3515181139063
+90, 2701035608645
+91, 2028648107758
+92, 1488607703173
+93, 1065404881699
+94, 742497001193
+95, 503145147171
+96, 331178489139
+97, 211282457398
+98, 130439640189
+99, 77753531562
+100, 44522648171
+101, 24393978058
+102, 12756582032
+103, 6328481640
+104, 2982908954
+105, 1330292375
+106, 559102599
+107, 220125352
+108, 80204845
+109, 26594308
+110, 7996180
+111, 2145708
+112, 512661
+113, 108534
+114, 20406
+115, 3159
+116, 370
+117, 23
+118, 0
+
 work assignments remaining
-  { start_state:1, end_state:1, root_pos:1, root_options:[o], current:"rpsqrrrrrrrrrrbqrpr9rrrnrrorrrrdrrrrmrrrrrraqrrorrrcrrrrrrrrrrgrpr" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[ron], current:"rrsqmrrrrmrrrrrrrr7rrrrrrbrrrrrrkrbrrrlrrrrrrrrrdrrrrmrrorr6rprrrrrrkrrrrrrr7rrrrmrrrnrroq" }
-  { start_state:1, end_state:1, root_pos:1, root_options:[o], current:"qqsqrrrrrrrrdqrrrrrr8rrrgrrrrrrrrrdrrorrrrr8rpqrrrrdrrrrrrrriqrprpqrp" }
-  { start_state:1, end_state:1, root_pos:2, root_options:[pn], current:"qrrrrrriqrrrnrrrrrrrrr5rrorrbrprrrrrrrrdrprrorprprrrs4prrrrrrrrirprro" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[qn], current:"rprrrrrrhrprrrrrcrrrnrrrdrrrrrrkrroqrpqr7rrrsqlrrrrerrrrrrrrrrrr9rrorrr" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[on], current:"rrrrrrrrrrrerrcrrrrrrrrrrdrrrrrarjrrrrrrrsgrrrmrrrarrrrmqrrrrrrar" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[qo], current:"rorrrnrrrrrrrrirprrr6rsqrmrrrnrrbrrrrrrhrrrrmrprprrrr6rrrrmrrrrrrr9rrorrrrrrrriqr" }
+  { start_state:1, end_state:1, root_pos:2, root_options:[pn], current:"qrrrlrrrsqlrprrcrrrnrrrnrrrnrrrr7rrorrrrmrrrnrrrrr4rrorrrrmrrrnrprp" }
