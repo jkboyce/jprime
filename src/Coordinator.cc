@@ -572,37 +572,39 @@ void Coordinator::print_summary() const {
   }
   std::cout << " (bound " << context.l_bound << ')';
   if (config.invertflag)
-    std::cout << ", inverse output\n";
+    std::cout << ", inverse output" << std::endl;
   else
-    std::cout << '\n';
+    std::cout << std::endl;
 
   if (config.groundmode == 1)
-    std::cout << "ground state search\n";
+    std::cout << "ground state search" << std::endl;
   if (config.groundmode == 2)
-    std::cout << "excited state search\n";
+    std::cout << "excited state search" << std::endl;
 
-  std::cout << context.npatterns << " patterns found ("
-            << context.ntotal << " seen, "
-            << context.nnodes << " nodes, "
-            << std::fixed << std::setprecision(2)
-            << (static_cast<double>(context.nnodes) / context.secs_elapsed /
-                1000000)
-            << "M nodes/sec)\n";
+  if (!config.infoflag) {
+    std::cout << context.npatterns << " patterns found ("
+              << context.ntotal << " seen, "
+              << context.nnodes << " nodes, "
+              << std::fixed << std::setprecision(2)
+              << (static_cast<double>(context.nnodes) / context.secs_elapsed /
+                  1000000)
+              << "M nodes/sec)\n";
 
-  std::cout << "running time = "
-            << std::fixed << std::setprecision(4)
-            << context.secs_elapsed << " sec";
-  if (context.num_threads > 1) {
-    std::cout << " (worker util = " << std::setprecision(2)
-              << ((context.secs_working / context.secs_available) * 100)
-              << " %)";
-  }
-  std::cout << std::endl;
+    std::cout << "running time = "
+              << std::fixed << std::setprecision(4)
+              << context.secs_elapsed << " sec";
+    if (context.num_threads > 1) {
+      std::cout << " (worker util = " << std::setprecision(2)
+                << ((context.secs_working / context.secs_available) * 100)
+                << " %)";
+    }
+    std::cout << std::endl;
 
-  if (!config.infoflag && (config.countflag || l_max > config.l_min)) {
-    std::cout << "\nPattern count by length:\n";
-    for (int i = config.l_min; i <= l_max; ++i)
-      std::cout << i << ", " << context.count[i] << std::endl;
+    if (config.countflag || l_max > config.l_min) {
+      std::cout << "\nPattern count by length:\n";
+      for (int i = config.l_min; i <= l_max; ++i)
+        std::cout << i << ", " << context.count[i] << std::endl;
+    }
   }
 }
 

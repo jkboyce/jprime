@@ -23,8 +23,8 @@ struct SearchState {
   int* deadstates_throw = nullptr;
   int* excludes_catch = nullptr;
   int* deadstates_catch = nullptr;
-  // int to_cycle = 0;
-  // int shifts_remaining = 0;
+  int to_cycle = -1;
+  int shifts_remaining = 0;
 };
 
 #endif

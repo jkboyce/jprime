@@ -122,6 +122,7 @@ class Worker {
   void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
   void gen_loops_normal_iterative();
+  void gen_loops_super_iterative();
   bool iterative_init_workspace();
   void iterative_calc_rootpos_and_options();
   bool iterative_can_split();
