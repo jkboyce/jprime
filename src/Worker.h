@@ -46,8 +46,8 @@ class Worker {
   int pos = 0;
   int from = 1;
   int shiftcount = 0;
-  int max_possible = 0;
   int exitcyclesleft = 0;
+  int max_possible = 0;
   SearchState *beat;  // workspace for search
   int* pattern;
   int* used;

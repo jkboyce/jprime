@@ -306,6 +306,7 @@ void Worker::add_data_to_message(MessageW2C& msg) {
 
   count.assign(count.size(), 0);
   nnodes = 0;
+  longest_found = 0;
   secs_working = 0;
 }
 
@@ -523,7 +524,10 @@ void Worker::gen_patterns() {
   running = true;
 
   for (; start_state <= end_state; ++start_state) {
-    // reset working variables
+    set_active_states();
+    graph.build_graph();
+
+    // reset working variables for search
     pos = 0;
     from = start_state;
     shiftcount = 0;
@@ -532,50 +536,46 @@ void Worker::gen_patterns() {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
-    }
-
-    // build the graph and initialize `deadstates`, `max_possible`, and
-    // `exitcyclesleft`
-    set_active_states();
-    graph.build_graph();
-    if (!graph.state_active[start_state])
-      continue;
-    for (size_t i = 0; i <= graph.numstates; ++i) {
       deadstates_bystate[i] = deadstates + graph.cyclenum[i];
-      if (i > 0 && !graph.state_active[i])
-        ++deadstates[graph.cyclenum[i]];
       if (graph.isexitcycle[i])
         ++exitcyclesleft;
+    }
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      if (!graph.state_active[i])
+        ++deadstates_bystate[i];
     }
     max_possible = (config.mode == RunMode::SUPER_SEARCH)
         ? graph.superprime_length_bound() + config.shiftlimit
         : graph.prime_length_bound();
 
     if (config.verboseflag) {
-      int inactive = std::count(graph.state_active.begin() + 1,
+      int num_inactive = std::count(graph.state_active.begin() + 1,
           graph.state_active.end(), false);
       std::ostringstream buffer;
       buffer << "worker " << worker_id
              << " starting at state " << graph.state_string(start_state)
              << " (" << start_state << ")\n";
       buffer << "worker " << worker_id
-             << " deactivated " << inactive << " of " << graph.numstates
+             << " deactivated " << num_inactive << " of " << graph.numstates
              << " states, max_possible = " << max_possible;
       message_coordinator_status(buffer.str());
     }
     if (max_possible < l_min || config.infoflag)
       break;
+    if (!graph.state_active[start_state]) {
+      loading_work = false;
+      continue;
+    }
 
-    // when loading work, `root_pos` and `root_throwval_options` are given by
-    // the work assignment, otherwise initialize here
     if (!loading_work) {
+      // when loading work, `root_pos` and `root_throwval_options` are given by
+      // the work assignment, otherwise initialize here
       root_pos = 0;
       notify_coordinator_rootpos();
       build_rootpos_throw_options(start_state, 0);
       if (root_throwval_options.size() == 0)
         continue;
     }
-    longest_found = 0;
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
@@ -741,8 +741,6 @@ void Worker::gen_loops_super() {
   for (; col < limit; ++col) {
     const int to = om[col];
     if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
-      continue;
-    if (to < start_state)
       continue;
     if (used[to] != 0)
       continue;
@@ -1125,10 +1123,6 @@ void Worker::gen_loops_normal_iterative() {
       ++ss->col;
       goto skip_unmarking2;
     }
-    if (to_state < start_state) {
-      ++ss->col;
-      goto skip_unmarking2;
-    }
     if (pos + 1 == l_max) {
       ++ss->col;
       goto skip_unmarking2;
@@ -1245,7 +1239,7 @@ void Worker::gen_loops_super_iterative() {
   while (pos >= 0) {
     // begin with any necessary cleanup from previous operations
     if (ss->to_cycle != -1) {
-      cycleused[ss->to_cycle] = 0;
+      cycleused[ss->to_cycle] = false;
       ss->to_cycle = -1;
     }
     if (ss->to_state != 0) {
@@ -1264,10 +1258,6 @@ void Worker::gen_loops_super_iterative() {
 
     const int to_state = ss->outmatrix[ss->col];
     if (used[to_state]) {
-      ++ss->col;
-      goto skip_unmarking;
-    }
-    if (to_state < start_state) {
       ++ss->col;
       goto skip_unmarking;
     }
@@ -1310,7 +1300,7 @@ void Worker::gen_loops_super_iterative() {
       }
 
       used[to_state] = 1;
-      cycleused[to_cycle] = 1;
+      cycleused[to_cycle] = true;
       ss->to_state = to_state;
       ss->to_cycle = to_cycle;
       ++pos;
@@ -1453,8 +1443,8 @@ bool Worker::iterative_init_workspace() {
 
     if (config.mode == RunMode::SUPER_SEARCH) {
       if (pattern[i] != 0 && pattern[i] != graph.h) {
-        assert(cycleused[ss.to_cycle] == 0);
-        cycleused[ss.to_cycle] = 1;
+        assert(!cycleused[ss.to_cycle]);
+        cycleused[ss.to_cycle] = true;
       } else {
         if (shifts_remaining == 0)
           return false;

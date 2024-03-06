@@ -401,7 +401,8 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
     }
   }
 
-  worker_longest[msg.worker_id] = msg.longest_found;
+  worker_longest[msg.worker_id] = std::max<int>(
+      worker_longest[msg.worker_id], msg.longest_found);
 }
 
 void Coordinator::remove_from_run_order(const int id) {
