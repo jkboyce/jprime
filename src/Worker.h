@@ -30,19 +30,19 @@ class Worker {
  public:
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
-  static constexpr double secs_per_inbox_check_target = 0.001;
+  static constexpr double secs_per_inbox_check_target = 0.01;
 
  private:
   // set during construction and do not change
   const SearchConfig config;
   Coordinator& coordinator;
   const int worker_id;
+  Graph graph;
   int l_min = 0;
   int l_max = 0;
   int l_bound = 0;
 
   // working variables for search
-  Graph graph;
   int pos = 0;
   int from = 1;
   int shiftcount = 0;

@@ -44,9 +44,9 @@ class Coordinator {
   std::vector<std::string> worker_status;
   static bool stopping;
 
-  static constexpr double nanosecs_per_inbox_check = 100000000 *
-      Worker::secs_per_inbox_check_target;
-
+  // check inbox 10x more often than workers do
+  static constexpr double nanosecs_per_inbox_check =
+      1e8 * Worker::secs_per_inbox_check_target;
   static constexpr double secs_per_status = 1;
   static constexpr int waits_per_status = static_cast<int>(1e9 *
       secs_per_status / nanosecs_per_inbox_check);
