@@ -14,7 +14,6 @@ After cloning the repository, on a Unix system run `make` to build the `jprime` 
 `jprime` has three modes of operation, intended to search for long prime patterns in complementary ways:
 
 - Normal mode, the default (slowest speed). This finds patterns by searching the juggling graph directly for long cycles. Specifying a `min. length` value can make the search much faster.
-- Block mode (medium speed). This searches the juggling graph directly as well, but constrains the search to patterns in "block form" as discovered by Johannes Waldmann (see the linked paper for more details). Invoke block mode with `-block <skips>` on the command line, where `<skips>` is how many short blocks to allow; a larger number of skips slows down the search.
 - Super mode (fastest speed). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
 
 ## Results
