@@ -296,9 +296,12 @@ void Graph::find_exclude_states() {
 }
 
 // Fill in array `isexitcycle` that indicates which shift cycles can exit
-// directly to the start state.
+// directly to the start state, assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
+  for (size_t i = 0; i <= numstates; ++i)
+    isexitcycle[i] = false;
+
   int lowest_active_state = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {

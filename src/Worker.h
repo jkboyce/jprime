@@ -63,10 +63,9 @@ class Worker {
   bool loading_work = false;
 
   // status data to report to Coordinator
-  std::uint64_t nnodes = 0;
-  int longest_found = 0;
-  double secs_working = 0;
   std::vector<std::uint64_t> count;
+  std::uint64_t nnodes = 0;
+  double secs_working = 0;
   bool running = false;
 
   // for managing the frequency to check the inbox while running
@@ -123,6 +122,7 @@ class Worker {
   void handle_finished_pattern();
   void gen_loops_normal_iterative();
   void gen_loops_super_iterative();
+  void gen_loops_super0_iterative();
   bool iterative_init_workspace();
   void iterative_calc_rootpos_and_options();
   bool iterative_can_split();

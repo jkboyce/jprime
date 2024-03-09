@@ -89,6 +89,7 @@ class Coordinator {
   void print_summary() const;
   void erase_status_output() const;
   void print_status_output();
+  static std::string current_time_string();
   std::string make_worker_status(const MessageW2C& msg);
 };
 

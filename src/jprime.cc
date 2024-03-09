@@ -657,7 +657,6 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
   // set initial work assignment; default value does entire calculation
   WorkAssignment wa;
   context.assignments.push_back(wa);
-  context.nnodes = 1;
 }
 
 //------------------------------------------------------------------------------

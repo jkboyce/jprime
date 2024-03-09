@@ -62,15 +62,13 @@ struct MessageW2C {
   int length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
-  std::uint64_t ntotal = 0;
   std::vector<std::uint64_t> count;
   std::uint64_t nnodes = 0;
+  double secs_working = 0;
   int numstates = 0;
   int numcycles = 0;
   int numshortcycles = 0;
   int l_bound = 0;
-  double secs_working = 0;
-  int longest_found = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;

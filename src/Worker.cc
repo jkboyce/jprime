@@ -232,7 +232,13 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
     message_coordinator_status(buffer.str());
   }
 
-  send_work_to_coordinator(split_work_assignment(msg.split_alg));
+  WorkAssignment wa = split_work_assignment(msg.split_alg);
+  send_work_to_coordinator(wa);
+
+  // Avoid double counting nodes: Each of the "prefix" nodes up to and
+  // including `root_pos` will be reported twice to the Coordinator: by this
+  // worker, and the worker that does the job we just split off and returned.
+  nnodes -= (wa.root_pos + 1);
 
   if (config.verboseflag) {
     std::ostringstream buffer;
@@ -285,28 +291,16 @@ void Worker::send_stats_to_coordinator() {
 }
 
 void Worker::add_data_to_message(MessageW2C& msg) {
-  std::uint64_t ntotal = 0;
-
-  for (size_t i = 1; i < count.size(); ++i) {
-    if (count[i] > 0) {
-      ntotal += count[i];
-      longest_found = std::max<int>(longest_found, i);
-    }
-  }
-
-  msg.ntotal = ntotal;
   msg.count = count;
   msg.nnodes = nnodes;
+  msg.secs_working = secs_working;
   msg.numstates = graph.numstates;
   msg.numcycles = graph.numcycles;
   msg.numshortcycles = graph.numshortcycles;
   msg.l_bound = l_bound;
-  msg.secs_working = secs_working;
-  msg.longest_found = longest_found;
 
   count.assign(count.size(), 0);
   nnodes = 0;
-  longest_found = 0;
   secs_working = 0;
 }
 
@@ -584,7 +578,7 @@ void Worker::gen_patterns() {
         break;
       case RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0)
-          gen_loops_super0();
+          gen_loops_super0_iterative();
         else
           gen_loops_super_iterative();
         break;
@@ -632,7 +626,7 @@ void Worker::set_active_states() {
 
 // Try all allowed throw values at the current pattern position `pos`,
 // recursively continuing until (a) a pattern is found, or (b) we determine
-// that we can't generate a path of length `l` or longer from our current
+// that we can't generate a path of length `l_min` or longer from our current
 // position.
 //
 // These routines are by far the most performance-critical portions of jprime.
@@ -1048,7 +1042,7 @@ inline void Worker::unmark_unreachable_states_catch(int to_state) {
 inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
-  if (!config.countflag && (pos + 1) >= l_min) {
+  if ((pos + 1) >= l_min && !config.countflag) {
     report_pattern();
   }
 }
@@ -1066,9 +1060,6 @@ inline void Worker::handle_finished_pattern() {
 void Worker::gen_loops_normal_iterative() {
   if (!iterative_init_workspace()) {
     assert(false);
-    // for (size_t i = 1; i <= graph.numstates; ++i)
-    //   used[i] = 0;
-    // return;
   }
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
@@ -1077,7 +1068,6 @@ void Worker::gen_loops_normal_iterative() {
 
   while (pos >= 0) {
     // begin with any necessary cleanup from previous marking operations
-
     if (ss->to_state != 0) {
       used[ss->to_state] = 0;
       ss->to_state = 0;
@@ -1350,6 +1340,90 @@ void Worker::gen_loops_super_iterative() {
   assert(pos == 0);
 }
 
+// Non-recursive version of get_loops_super0()
+
+void Worker::gen_loops_super0_iterative() {
+  if (!iterative_init_workspace()) {
+    assert(false);
+  }
+
+  SearchState* ss = &beat[pos + 1];
+
+  while (pos >= 0) {
+    // begin with any necessary cleanup from previous operations
+    if (ss->to_cycle != -1) {
+      cycleused[ss->to_cycle] = false;
+      ss->to_cycle = -1;
+    }
+
+    skip_unmarking:
+    if (ss->col == ss->col_limit) {
+      --pos;
+      --ss;
+      ++ss->col;
+      ++nnodes;
+      continue;
+    }
+
+    const int to_state = ss->outmatrix[ss->col];
+    if (to_state == start_state) {
+      iterative_handle_finished_pattern();
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    const int to_cycle = graph.cyclenum[to_state];
+    if (cycleused[to_cycle]) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (ss->exitcycles_remaining == 0) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (pos + 1 == l_max) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (++steps_taken >= steps_per_inbox_check) {
+      steps_taken = 0;
+      iterative_calc_rootpos_and_options();
+
+      if (iterative_can_split()) {
+        for (size_t i = 0; i <= pos; ++i) {
+          pattern[i] = graph.outthrowval[beat[i + 1].from_state]
+                                        [beat[i + 1].col];
+        }
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        iterative_update_after_split();
+      }
+    }
+
+    cycleused[to_cycle] = true;
+    ss->to_state = to_state;
+    ss->to_cycle = to_cycle;
+    int exitcycles_remaining = (graph.isexitcycle[to_cycle] ?
+        ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);
+    ++pos;
+    ++ss;
+    ss->col = 0;
+    ss->col_limit = graph.outdegree[to_state];
+    ss->from_state = to_state;
+    ss->to_state = 0;
+    ss->outmatrix = graph.outmatrix[to_state];
+    ss->to_cycle = -1;
+    ss->exitcycles_remaining = exitcycles_remaining;
+    goto skip_unmarking;
+  }
+
+  ++pos;
+  assert(pos == 0);
+}
+
 // Set up the SearchState array with initial values.
 //
 // Leaves `pos` pointing to the last beat with loaded data, ready for the
@@ -1358,19 +1432,21 @@ void Worker::gen_loops_super_iterative() {
 // Returns true on success, false on failure.
 
 bool Worker::iterative_init_workspace() {
-  beat[1].col = 0;
-  beat[1].col_limit = graph.outdegree[start_state];
-  beat[1].from_state = start_state;
-  beat[1].to_state = 0;
-  beat[1].outmatrix = graph.outmatrix[start_state];
-  beat[1].excludes_throw = nullptr;
-  beat[1].excludes_catch = nullptr;
-  beat[1].to_cycle = -1;
-  beat[1].shifts_remaining = config.shiftlimit;
-  pos = 0;
-
-  if (!loading_work)
+  if (!loading_work) {
+    pos = 0;
+    SearchState& ss = beat[pos + 1];
+    ss.col = 0;
+    ss.col_limit = graph.outdegree[start_state];
+    ss.from_state = start_state;
+    ss.to_state = 0;
+    ss.outmatrix = graph.outmatrix[start_state];
+    ss.excludes_throw = nullptr;
+    ss.excludes_catch = nullptr;
+    ss.to_cycle = -1;
+    ss.shifts_remaining = config.shiftlimit;
+    ss.exitcycles_remaining = exitcyclesleft;
     return true;
+  }
 
   // When loading from a work assignment, load_work_assignment() will have
   // set up `pattern`, `root_pos`, and `root_throwval_options`
@@ -1379,6 +1455,7 @@ bool Worker::iterative_init_workspace() {
   pos = -1;
   int last_from_state = start_state;
   int shifts_remaining = config.shiftlimit;
+  int exitcycles_remaining = exitcyclesleft;
 
   for (size_t i = 0; pattern[i] != -1; ++i) {
     pos = i;
@@ -1410,6 +1487,7 @@ bool Worker::iterative_init_workspace() {
     ss.excludes_catch = nullptr;
     ss.to_cycle = graph.cyclenum[ss.to_state];
     ss.shifts_remaining = shifts_remaining;
+    ss.exitcycles_remaining = exitcycles_remaining;
 
     if (config.mode == RunMode::NORMAL_SEARCH) {
       if (pattern[i] != 0 && pattern[i] != graph.h) {
@@ -1445,6 +1523,8 @@ bool Worker::iterative_init_workspace() {
       if (pattern[i] != 0 && pattern[i] != graph.h) {
         assert(!cycleused[ss.to_cycle]);
         cycleused[ss.to_cycle] = true;
+        if (graph.isexitcycle[ss.to_cycle])
+          --exitcycles_remaining;
       } else {
         if (shifts_remaining == 0)
           return false;
@@ -1455,7 +1535,8 @@ bool Worker::iterative_init_workspace() {
 
     // mark next state as used
     assert(used[ss.to_state] == 0);
-    used[ss.to_state] = 1;
+    if (config.mode == RunMode::NORMAL_SEARCH || config.shiftlimit > 0)
+      used[ss.to_state] = 1;
 
     last_from_state = ss.to_state;
   }
@@ -1472,6 +1553,7 @@ bool Worker::iterative_init_workspace() {
     rss.excludes_catch = nullptr;
     rss.to_cycle = -1;
     rss.shifts_remaining = shifts_remaining;
+    rss.exitcycles_remaining = exitcycles_remaining;
 
     // set `col` at `root_pos`
     rss.col = graph.maxoutdegree;
@@ -1484,11 +1566,6 @@ bool Worker::iterative_init_workspace() {
     }
 
     pos = root_pos;
-
-    // Avoid double-counting search nodes by making this correction. Each of the
-    // nodes up to and including `root_pos` will be reported to the Coordinator
-    // twice: by the original worker, and this worker that stole from it.
-    nnodes -= (root_pos + 1);
   }
 
   // set `col_limit` at `root_pos`

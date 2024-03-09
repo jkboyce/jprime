@@ -49,6 +49,9 @@ void Coordinator::run() {
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
 
+  if (config.verboseflag)
+    std::cout << "Started on: " << current_time_string();
+
   // start worker threads
   for (int id = 0; id < context.num_threads; ++id) {
     if (config.verboseflag) {
@@ -96,6 +99,8 @@ void Coordinator::run() {
   }
 
   erase_status_output();
+  if (config.verboseflag)
+    std::cout << "Finished on: " << current_time_string();
   if (context.assignments.size() > 0)
     std::cout << "\nPARTIAL RESULTS:\n";
   print_summary();
@@ -183,7 +188,6 @@ void Coordinator::process_inbox() {
 void Coordinator::process_search_result(const MessageW2C& msg) {
   // workers will only send patterns in the right length range
   context.patterns.push_back(msg.pattern);
-  ++context.npatterns;
 
   if (config.printflag)
     print_pattern(msg);
@@ -204,7 +208,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
       std::cout << ", removed from splitting queue ("
                 << (workers_splitting.size() - 1) << " splitting)";
     }
-    std::cout << std::endl;
+    std::cout << " on: " << current_time_string();
     print_status_output();
   }
 
@@ -236,7 +240,6 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
     return;
 
   worker_status[msg.worker_id] = make_worker_status(msg);
-
   if (++stats_received == context.num_threads) {
     erase_status_output();
     print_status_output();
@@ -256,7 +259,8 @@ void Coordinator::process_worker_status(const MessageW2C& msg) {
     if (config.verboseflag) {
       erase_status_output();
       std::cout << "worker " << msg.worker_id
-                << " new root_pos: " << msg.root_pos << '\n';
+                << " new root_pos " << msg.root_pos
+                << " on: " << current_time_string();
       print_status_output();
     }
   }
@@ -382,27 +386,29 @@ bool Coordinator::is_worker_splitting(const int id) const {
 }
 
 void Coordinator::record_data_from_message(const MessageW2C& msg) {
-  context.ntotal += msg.ntotal;
   context.nnodes += msg.nnodes;
+  context.secs_working += msg.secs_working;
   context.numstates = msg.numstates;
   context.numcycles = msg.numcycles;
   context.numshortcycles = msg.numshortcycles;
   context.l_bound = std::max(context.l_bound, msg.l_bound);
-  context.secs_working += msg.secs_working;
 
   l_max = (config.l_max > 0 ? config.l_max : context.l_bound);
   assert(msg.count.size() == l_max + 1);
   assert(context.count.size() <= msg.count.size());
   context.count.resize(msg.count.size(), 0);
+
   for (int i = 1; i < msg.count.size(); ++i) {
     context.count[i] += msg.count[i];
-    if (config.countflag && i >= config.l_min && i <= l_max) {
+    context.ntotal += msg.count[i];
+    if (i >= config.l_min && i <= l_max) {
       context.npatterns += msg.count[i];
     }
+    if (msg.count[i] > 0) {
+      worker_longest[msg.worker_id] = std::max<int>(
+          worker_longest[msg.worker_id], i);
+    }
   }
-
-  worker_longest[msg.worker_id] = std::max<int>(
-      worker_longest[msg.worker_id], msg.longest_found);
 }
 
 void Coordinator::remove_from_run_order(const int id) {
@@ -438,7 +444,7 @@ void Coordinator::stop_workers() {
 }
 
 // Use the distribution of patterns found so far to extrapolate the expected
-// number of patterns at length `maxlength`. This may be a useful signal of the
+// number of patterns at length `l_bound`. This may be a useful signal of the
 // degree of search completion.
 //
 // The distribution of patterns by length is observed to closely follow a
@@ -517,7 +523,7 @@ double Coordinator::expected_patterns_at_maxlength() {
   double B = M21 * sx2y + M22 * sxy + M23 * sy;
   double C = M31 * sx2y + M32 * sxy + M33 * sy;
 
-  // evaluate the expected number of patterns found at x = maxlength
+  // evaluate the expected number of patterns found at x = l_bound
   double x = static_cast<double>(context.l_bound);
   double lny = A * x * x + B * x + C;
   return exp(lny);
@@ -531,7 +537,7 @@ void Coordinator::signal_handler(int signum) {
 }
 
 //------------------------------------------------------------------------------
-// Handle output
+// Handle terminal output
 //------------------------------------------------------------------------------
 
 void Coordinator::print_pattern(const MessageW2C& msg) {
@@ -545,40 +551,42 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 }
 
 void Coordinator::print_summary() const {
-  std::cout << "balls: " << (config.dualflag ? config.h - config.n : config.n)
+  std::cout << "objects: " << (config.dualflag ? config.h - config.n : config.n)
             << ", max throw: " << config.h << '\n';
 
-  std::cout << "graph: " << context.numstates << " states, "
-            << context.numcycles << " shift cycles, "
-            << context.numshortcycles << " short cycles\n";
-
-  switch (config.mode) {
-    case RunMode::NORMAL_SEARCH:
-      std::cout << "normal mode";
-      break;
-    case RunMode::SUPER_SEARCH:
-      std::cout << "super mode, " << config.shiftlimit << " shifts allowed";
-      break;
-    default:
-      break;
-  }
-  std::cout << ", length " << config.l_min;
+  std::cout << "length: " << config.l_min;
   if (l_max > config.l_min) {
     if (l_max == context.l_bound)
       std::cout << '-';
     else
       std::cout << '-' << l_max;
   }
-  std::cout << " (bound " << context.l_bound << ')';
+  std::cout << " (bound " << context.l_bound << "), ";
+
+  switch (config.mode) {
+    case RunMode::NORMAL_SEARCH:
+      std::cout << "normal mode";
+      break;
+    case RunMode::SUPER_SEARCH:
+      std::cout << "super mode (" << config.shiftlimit << " shift limit)";
+      break;
+    default:
+      break;
+  }
+
   if (config.invertflag)
-    std::cout << ", inverse output" << std::endl;
+    std::cout << ", inverse output\n";
   else
-    std::cout << std::endl;
+    std::cout << '\n';
 
   if (config.groundmode == 1)
     std::cout << "ground state search" << std::endl;
   if (config.groundmode == 2)
     std::cout << "excited state search" << std::endl;
+
+  std::cout << "graph: " << context.numstates << " states, "
+            << context.numcycles << " shift cycles, "
+            << context.numshortcycles << " short cycles\n";
 
   if (!config.infoflag) {
     std::cout << context.npatterns << " patterns found ("
@@ -597,14 +605,17 @@ void Coordinator::print_summary() const {
                 << ((context.secs_working / context.secs_available) * 100)
                 << " %)";
     }
-    std::cout << std::endl;
+    std::cout << '\n';
 
     if (config.countflag || l_max > config.l_min) {
       std::cout << "\nPattern count by length:\n";
       for (int i = config.l_min; i <= l_max; ++i)
-        std::cout << i << ", " << context.count[i] << std::endl;
+        std::cout << i << ", " << context.count[i] << '\n';
     }
   }
+
+  std::cout << "------------------------------------------------------------"
+            << std::endl;
 }
 
 void Coordinator::erase_status_output() const {
@@ -620,14 +631,17 @@ void Coordinator::print_status_output() {
   if (!config.statusflag)
     return;
 
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_timet = std::chrono::system_clock::to_time_t(now);
-  std::string now_str = std::ctime(&now_timet);
-  std::cout << "Status on " << now_str;
+  std::cout << "Status on: " << current_time_string();
   for (int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status[i] << std::endl;
 
   stats_printed = true;
+}
+
+std::string Coordinator::current_time_string() {
+  auto now = std::chrono::system_clock::now();
+  std::time_t now_timet = std::chrono::system_clock::to_time_t(now);
+  return std::ctime(&now_timet);
 }
 
 std::string Coordinator::make_worker_status(const MessageW2C& msg) {
