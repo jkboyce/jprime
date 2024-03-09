@@ -31,7 +31,7 @@
 // 01/28/24  Version 6.3 adds pattern counting by length, and search status
 //           display in -verbose mode.
 // 03/04/24  Version 6.4 changes command line interface, improves performance,
-//           and adds non-recursive NORMAL mode search
+//           and adds non-recursive search
 
 
 #include "SearchConfig.h"
@@ -641,6 +641,10 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
                 << " patterns and " << context.assignments.size()
                 << " work assignments" << std::endl;
       return;
+    } else {
+      std::cerr << "could not find checkpoint file '" << args_context.outfile
+                << "'\n";
+      std::exit(EXIT_FAILURE);
     }
   }
 
