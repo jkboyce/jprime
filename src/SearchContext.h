@@ -40,11 +40,10 @@ struct SearchContext {
   // (does not change)
   int l_bound = 0;
 
-  // number of patterns found, either in total or (if `longestflag`==true) at
-  // the current value of `l_current`
+  // number of patterns found in the range [l_min, l_max]
   std::uint64_t npatterns = 0;
 
-  // total number of patterns seen
+  // total number of patterns seen, of any length
   std::uint64_t ntotal = 0;
 
   // number of patterns seen at each length

@@ -11,6 +11,7 @@
 #include "State.h"
 
 #include <algorithm>
+#include <cassert>
 
 
 State::State(int balls, int height)
@@ -20,7 +21,7 @@ State::State(std::string s) {
   h = s.size();
   n = 0;
   for (size_t i = 0; i < h; ++i) {
-    int val = (s[i] == 'x' || s[i] == '1') ? 1 : 0;
+    int val = (s.at(i) == 'x' || s.at(i) == '1') ? 1 : 0;
     slot.push_back(val);
     n += val;
   }
@@ -32,14 +33,19 @@ State State::advance_with_throw(int throwval) const {
   s.slot.erase(s.slot.begin());
   s.slot.push_back(0);
 
+  assert(s.slot.size() == h);
+  assert(throwval <= h);
+
   if ((head == 0 && throwval != 0) || (head != 0 && throwval == 0) ||
-      (throwval > 0 && s.slot[throwval - 1] != 0)) {
+      (throwval > 0 && s.slot.at(throwval - 1) != 0)) {
     std::cerr << "cannot throw " << throwval
               << " from state " << (*this) << "\n";
     std::exit(EXIT_FAILURE);
   }
 
-  s.slot[throwval - 1] = 1;
+  if (throwval > 0)
+    s.slot.at(throwval - 1) = 1;
+
   return s;
 }
 
@@ -82,7 +88,7 @@ bool State::operator==(const State& s2) const {
 std::string State::to_string() const {
   std::string result;
   for (int i = 0; i < h; ++i) {
-    result += (slot[i] ? 'x' : '-');
+    result += (slot.at(i) ? 'x' : '-');
   }
   return result;
 }

@@ -42,7 +42,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
     std::cerr << "No patterns longer than " << l_bound << " are possible\n";
     std::exit(EXIT_FAILURE);
   }
-  count.resize(l_max + 1, 0);
+  count.assign(l_max + 1, 0);
   allocate_arrays();
 }
 
@@ -270,16 +270,16 @@ void Worker::send_stats_to_coordinator() {
 
     int tempfrom = start_state;
     for (int i = 0; i <= pos; ++i) {
-      msg.worker_throw[i] = pattern[i];
+      msg.worker_throw.at(i) = pattern[i];
 
       for (int col = 0; col < graph.outdegree[tempfrom]; ++col) {
         if (graph.outthrowval[tempfrom][col] == pattern[i]) {
           if (i < root_pos)
-            msg.worker_optionsleft[i] = 0;
+            msg.worker_optionsleft.at(i) = 0;
           else if (i == root_pos)
-            msg.worker_optionsleft[i] = root_throwval_options.size();
+            msg.worker_optionsleft.at(i) = root_throwval_options.size();
           else
-            msg.worker_optionsleft[i] = graph.outdegree[tempfrom] - col - 1;
+            msg.worker_optionsleft.at(i) = graph.outdegree[tempfrom] - col - 1;
           tempfrom = graph.outmatrix[tempfrom][col];
           break;
         }
@@ -330,7 +330,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(pos == 0);
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern[i] : -1;
+    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern.at(i)
+        : -1;
   }
 }
 
@@ -535,7 +536,7 @@ void Worker::gen_patterns() {
         ++exitcyclesleft;
     }
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      if (!graph.state_active[i])
+      if (!graph.state_active.at(i))
         ++deadstates_bystate[i];
     }
     max_possible = (config.mode == RunMode::SUPER_SEARCH)
@@ -556,7 +557,7 @@ void Worker::gen_patterns() {
     }
     if (max_possible < l_min || config.infoflag)
       break;
-    if (!graph.state_active[start_state]) {
+    if (!graph.state_active.at(start_state)) {
       loading_work = false;
       continue;
     }
@@ -600,7 +601,7 @@ void Worker::gen_patterns() {
 
 void Worker::set_active_states() {
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    graph.state_active[i] = (i >= start_state);
+    graph.state_active.at(i) = (i >= start_state);
   }
 
   if (config.mode == RunMode::SUPER_SEARCH) {
@@ -608,13 +609,14 @@ void Worker::set_active_states() {
       // number of consecutive '-'s at the start of the state, plus number of
       // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
       int start0s = 0;
-      while (start0s < graph.h && graph.state[i].slot[start0s] == 0)
+      while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0)
         ++start0s;
       int end1s = 0;
-      while (end1s < graph.h && graph.state[i].slot[graph.h - end1s - 1] != 0)
+      while (end1s < graph.h && graph.state.at(i).slot.at(graph.h - end1s - 1)
+          != 0)
         ++end1s;
       if (start0s + end1s > config.shiftlimit) {
-        graph.state_active[i] = false;
+        graph.state_active.at(i) = false;
       }
     }
   }

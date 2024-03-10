@@ -55,7 +55,7 @@ Graph::~Graph() {
 void Graph::init() {
   numstates = num_states(n, h);
   for (int i = 0; i <= h; ++i) {
-    if (!xarray[i])
+    if (!xarray.at(i))
       ++maxoutdegree;
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
@@ -69,7 +69,7 @@ void Graph::init() {
   assert(state.size() == numstates + 1);
 
   find_shift_cycles();
-  state_active = std::vector<bool>(numstates + 1, true);
+  state_active.assign(numstates + 1, 1);
   build_graph();
 }
 
@@ -158,7 +158,7 @@ int Graph::num_states(int n, int h) {
   return result;
 }
 
-// Generate the list of all possible states into the state[] array.
+// Generate the list of all possible states into the `state` vector.
 //
 // Returns the number of states found.
 
@@ -167,18 +167,18 @@ int Graph::gen_states(int num, int pos, int left) {
     return num;
 
   if (pos == 0) {
-    state[num + 1][0] = left;
-    state.push_back(state[num + 1]);
+    state.at(num + 1)[0] = left;
+    state.push_back(state.at(num + 1));
     return (num + 1);
   }
 
   // try a '-' at position `pos`
-  state[num + 1][pos] = 0;
+  state.at(num + 1)[pos] = 0;
   num = gen_states(num, pos - 1, left);
 
   // then try a 'x' at position `pos`
   if (left > 0) {
-    state[num + 1][pos] = 1;
+    state.at(num + 1)[pos] = 1;
     num = gen_states(num, pos - 1, left - 1);
   }
 
@@ -196,8 +196,13 @@ void Graph::find_shift_cycles() {
   int cycleindex = 0;
   std::vector<int> cyclestates(h);
 
+  for (size_t i = 0; i <= numstates; ++i) {
+    cyclenum[i] = 0;
+    cycleperiod[i] = 0;
+  }
+
   for (size_t i = 1; i <= numstates; ++i) {
-    State s = state[i];
+    State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
@@ -207,7 +212,7 @@ void Graph::find_shift_cycles() {
       int k = get_statenum(s);
       assert(k > 0);
 
-      cyclestates[j] = k;
+      cyclestates.at(j) = k;
       if (k == i && !periodfound) {
         cycleper = static_cast<int>(j + 1);
         periodfound = true;
@@ -218,7 +223,7 @@ void Graph::find_shift_cycles() {
 
     if (newshiftcycle) {
       for (size_t j = 0; j < h; j++)
-        cyclenum[cyclestates[j]] = cycleindex;
+        cyclenum[cyclestates.at(j)] = cycleindex;
       cycleperiod[cycleindex] = cycleper;
       if (cycleper < h)
         ++numshortcycles;
@@ -242,19 +247,19 @@ void Graph::find_shift_cycles() {
 void Graph::gen_matrices() {
   for (size_t i = 1; i <= numstates; ++i) {
     outdegree[i] = 0;
-    if (!state_active[i])
+    if (!state_active.at(i))
       continue;
 
     int outthrownum = 0;
 
     for (int throwval = h; throwval >= 0; --throwval) {
-      if (xarray[throwval])
+      if (xarray.at(throwval))
         continue;
 
       int k = advance_state(i, throwval);
       if (k <= 0)
         continue;
-      if (!state_active[k])
+      if (!state_active.at(k))
         continue;
       if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
           cyclenum[i] == cyclenum[k])
@@ -275,7 +280,7 @@ void Graph::find_exclude_states() {
   for (size_t i = 1; i <= numstates; ++i) {
     // Find states that are excluded by a link throw from state `i`. These are
     // the states downstream in i's shift cycle that end in 'x'.
-    State s = state[i].downstream();
+    State s = state.at(i).downstream();
     int j = 0;
     while (s.slot[s.h - 1] != 0 && j < h) {
       excludestates_throw[i][j++] = get_statenum(s);
@@ -285,7 +290,7 @@ void Graph::find_exclude_states() {
 
     // Find states that are excluded by a link throw into state `i`. These are
     // the states upstream in i's shift cycle that start with '-'.
-    s = state[i].upstream();
+    s = state.at(i).upstream();
     j = 0;
     while (s.slot[0] == 0 && j < h) {
       excludestates_catch[i][j++] = get_statenum(s);
@@ -305,7 +310,7 @@ void Graph::find_exit_cycles() {
   int lowest_active_state = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active[i])
+    if (!state_active.at(i))
       continue;
     if (lowest_active_state == 0) {
       lowest_active_state = i;
@@ -332,24 +337,24 @@ void Graph::build_graph() {
     bool changed = false;
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active[i])
+      if (!state_active.at(i))
         continue;
       if (outdegree[i] == 0) {
-        state_active[i] = false;
+        state_active.at(i) = false;
         changed = true;
         continue;
       }
 
       for (int j = 0; j < outdegree[i]; ++j) {
-        ++indegree[outmatrix[i][j]];
+        ++indegree.at(outmatrix[i][j]);
       }
     }
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active[i])
+      if (!state_active.at(i))
         continue;
-      if (indegree[i] == 0) {
-        state_active[i] = false;
+      if (indegree.at(i) == 0) {
+        state_active.at(i) = false;
         changed = true;
       }
     }
@@ -373,18 +378,18 @@ int Graph::prime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (state_active[i]) {
+    if (state_active.at(i)) {
       ++result;
-      any_active[cyclenum[i]] = true;
+      any_active.at(cyclenum[i]) = true;
     } else {
-      all_active[cyclenum[i]] = false;
+      all_active.at(cyclenum[i]) = false;
     }
   }
 
   int cycles_active = std::count(any_active.begin(), any_active.end(), true);
   if (cycles_active > 1) {
     for (size_t i = 0; i < numcycles; ++i) {
-      if (any_active[i] && all_active[i])
+      if (any_active.at(i) && all_active.at(i))
         --result;
     }
   }
@@ -397,8 +402,8 @@ int Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (state_active[i]) {
-      any_active[cyclenum[i]] = true;
+    if (state_active.at(i)) {
+      any_active.at(cyclenum[i]) = true;
     }
   }
 
@@ -414,7 +419,7 @@ int Graph::superprime_length_bound() const {
 
 int Graph::get_statenum(const State& s) const {
   for (int i = 1; i <= numstates; ++i) {
-    if (state[i] == s)
+    if (state.at(i) == s)
       return i;
   }
   return -1;
@@ -424,39 +429,40 @@ int Graph::get_statenum(const State& s) const {
 // throw. Returns -1 if the throw results in a collision.
 
 int Graph::advance_state(int statenum, int throwval) const {
-  if (throwval < 0 || throwval > state[statenum].h)
+  if (throwval < 0 || throwval > state.at(statenum).h)
     return -1;
-  if (throwval > 0 && state[statenum].slot[0] == 0)
+  if (throwval > 0 && state.at(statenum).slot.at(0) == 0)
     return -1;
-  if (throwval < state[statenum].h && state[statenum].slot[throwval] != 0)
+  if (throwval < state.at(statenum).h &&
+      state.at(statenum).slot.at(throwval) != 0)
     return -1;
 
-  return get_statenum(state[statenum].advance_with_throw(throwval));
+  return get_statenum(state.at(statenum).advance_with_throw(throwval));
 }
 
 // Return the reverse of a given state, where both the input and output are
-// referenced to the state number (i.e., index in the state[] array).
+// referenced to the state number (i.e., index in the `state` vector).
 //
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
 int Graph::reverse_state(int statenum) const {
-  return get_statenum(state[statenum].reverse());
+  return get_statenum(state.at(statenum).reverse());
 }
 
 // Return the next state downstream in the given state's shift cycle
 
 int Graph::downstream_state(int statenum) const {
-  return get_statenum(state[statenum].downstream());
+  return get_statenum(state.at(statenum).downstream());
 }
 
 // Return the next state upstream in the given state's shift cycle
 
 int Graph::upstream_state(int statenum) const {
-  return get_statenum(state[statenum].upstream());
+  return get_statenum(state.at(statenum).upstream());
 }
 
 // Return a text representation of a given state number
 
 std::string Graph::state_string(int statenum) const {
-  return state[statenum].to_string();
+  return state.at(statenum).to_string();
 }

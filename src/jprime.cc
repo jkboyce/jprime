@@ -119,7 +119,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     }
 
     // defaults for excluded self-throws
-    config->xarray.resize(config->h + 1, false);
+    config->xarray.assign(config->h + 1, false);
 
     // defaults for using dual graph
     if (config->h > (2 * config->n)) {
@@ -158,7 +158,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
           config->mode = RunMode::SUPER_SEARCH;
           config->shiftlimit = atoi(argv[i]);
           if (config->shiftlimit == 0)
-            config->xarray[0] = config->xarray[config->h] = true;
+            config->xarray.at(0) = config->xarray.at(config->h) = true;
         }
       } else {
         std::cerr << "Must provide shift limit in -super mode\n";
@@ -204,7 +204,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
           std::exit(EXIT_FAILURE);
         }
         if (config != nullptr && j >= 0 && j < config->h)
-          config->xarray[config->dualflag ? (config->h - j) : j] = true;
+          config->xarray.at(config->dualflag ? (config->h - j) : j) = true;
         ++i;
       }
       --i;

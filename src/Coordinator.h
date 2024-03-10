@@ -32,8 +32,8 @@ class Coordinator {
 
  private:
   const SearchConfig& config;
-  int l_max = -1;
   SearchContext& context;
+  int l_max = -1;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
   std::set<int> workers_idle;
@@ -41,7 +41,6 @@ class Coordinator {
   std::list<int> workers_run_order;
   std::vector<int> worker_rootpos;
   std::vector<int> worker_longest;
-  std::vector<std::string> worker_status;
   static bool stopping;
 
   // check inbox 10x more often than workers do
@@ -55,6 +54,7 @@ class Coordinator {
   int stats_counter = 0;
   int stats_received = 0;
   bool stats_printed = false;
+  std::vector<std::string> worker_status;
   std::vector<int> worker_start_state;
   std::vector<std::vector<int>> worker_optionsleft_start;
   std::vector<std::vector<int>> worker_optionsleft_last;
