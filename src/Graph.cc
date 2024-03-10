@@ -69,7 +69,7 @@ void Graph::init() {
   assert(state.size() == numstates + 1);
 
   find_shift_cycles();
-  state_active.assign(numstates + 1, 1);
+  state_active.assign(numstates + 1, true);
   build_graph();
 }
 
@@ -167,18 +167,18 @@ int Graph::gen_states(int num, int pos, int left) {
     return num;
 
   if (pos == 0) {
-    state.at(num + 1)[0] = left;
+    state.at(num + 1).slot.at(0) = left;
     state.push_back(state.at(num + 1));
     return (num + 1);
   }
 
   // try a '-' at position `pos`
-  state.at(num + 1)[pos] = 0;
+  state.at(num + 1).slot.at(pos) = 0;
   num = gen_states(num, pos - 1, left);
 
   // then try a 'x' at position `pos`
   if (left > 0) {
-    state.at(num + 1)[pos] = 1;
+    state.at(num + 1).slot.at(pos) = 1;
     num = gen_states(num, pos - 1, left - 1);
   }
 
@@ -282,7 +282,7 @@ void Graph::find_exclude_states() {
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     int j = 0;
-    while (s.slot[s.h - 1] != 0 && j < h) {
+    while (s.slot.at(s.h - 1) != 0 && j < h) {
       excludestates_throw[i][j++] = get_statenum(s);
       s = s.downstream();
     }
@@ -292,7 +292,7 @@ void Graph::find_exclude_states() {
     // the states upstream in i's shift cycle that start with '-'.
     s = state.at(i).upstream();
     j = 0;
-    while (s.slot[0] == 0 && j < h) {
+    while (s.slot.at(0) == 0 && j < h) {
       excludestates_catch[i][j++] = get_statenum(s);
       s = s.upstream();
     }
