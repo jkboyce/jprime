@@ -16,18 +16,18 @@
 #include <cassert>
 
 
-Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc)
-    : n(n), h(h), xarray(xa), linkthrows_within_cycle(ltwc) {
+Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l)
+    : n(n), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
 
 Graph::Graph(int n, int h)
-    : n(n), h(h), xarray(h + 1, false), linkthrows_within_cycle(true) {
+    : n(n), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
   init();
 }
 
 Graph::Graph(const Graph& g)
-    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle) {
+    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle, g.l) {
 }
 
 Graph& Graph::operator=(const Graph& g) {
@@ -37,6 +37,7 @@ Graph& Graph::operator=(const Graph& g) {
   delete_arrays();
   n = g.n;
   h = g.h;
+  l = g.l;
   xarray = g.xarray;
   linkthrows_within_cycle = g.linkthrows_within_cycle;
   init();
@@ -53,20 +54,19 @@ Graph::~Graph() {
 //------------------------------------------------------------------------------
 
 void Graph::init() {
-  numstates = num_states(n, h);
+  state.push_back({n, h});  // state at index 0 is unused
+  if (l == 0)
+    gen_states_all(state, n, h);
+  else
+    gen_states_for_period(state, n, h, l);
+  numstates = state.size() - 1;
+
   for (int i = 0; i <= h; ++i) {
     if (!xarray.at(i))
       ++maxoutdegree;
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   allocate_arrays();
-
-  state.push_back({n, h});  // index 0 in state vector is unused
-  state.push_back({n, h});
-  int ns = gen_states(0, h - 1, n);
-  state.pop_back();
-  assert(ns == numstates);
-  assert(state.size() == numstates + 1);
 
   find_shift_cycles();
   state_active.assign(numstates + 1, true);
@@ -148,41 +148,62 @@ void Graph::delete_arrays() {
   isexitcycle = nullptr;
 }
 
-// Find the number of states (vertices) in the juggling graph, for a given
-// number of balls and maximum throw value. This is just (h choose n).
+//------------------------------------------------------------------------------
+// Generate the states and shift cycles in the graph
+//------------------------------------------------------------------------------
 
-int Graph::num_states(int n, int h) {
+// Generate all possible states into the vector `s`.
+
+void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
+  s.push_back({n, h});
+  (void)gen_states_all_helper(s, 0, h - 1, n);
+  s.pop_back();
+  assert(s.size() - 1 == combinations(n, h));
+}
+
+// Helper function to generate states in the general case. Recursively insert
+// 1s into successive slots, and when all 1s are used up append a new state
+// to the list.
+//
+// Returns the number of states found.
+
+int Graph::gen_states_all_helper(std::vector<State>& s, int num, int pos,
+    int left) {
+  if (left > (pos + 1))
+    return num;
+
+  if (pos == 0) {
+    s.at(num + 1).slot.at(0) = left;
+    s.push_back(s.at(num + 1));
+    return (num + 1);
+  }
+
+  // try a '-' at position `pos`
+  s.at(num + 1).slot.at(pos) = 0;
+  num = gen_states_all_helper(s, num, pos - 1, left);
+
+  // then try a 'x' at position `pos`
+  if (left > 0) {
+    s.at(num + 1).slot.at(pos) = 1;
+    num = gen_states_all_helper(s, num, pos - 1, left - 1);
+  }
+
+  return num;
+}
+
+// Compute (h choose n).
+
+int Graph::combinations(int n, int h) {
   int result = 1;
   for (int denom = 1; denom <= std::min(n, h - n); ++denom)
     result = (result * (h - denom + 1)) / denom;
   return result;
 }
 
-// Generate the list of all possible states into the `state` vector.
-//
-// Returns the number of states found.
+// Generate all possible states that can be part of a pattern of period `l`.
 
-int Graph::gen_states(int num, int pos, int left) {
-  if (left > (pos + 1))
-    return num;
+void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
 
-  if (pos == 0) {
-    state.at(num + 1).slot.at(0) = left;
-    state.push_back(state.at(num + 1));
-    return (num + 1);
-  }
-
-  // try a '-' at position `pos`
-  state.at(num + 1).slot.at(pos) = 0;
-  num = gen_states(num, pos - 1, left);
-
-  // then try a 'x' at position `pos`
-  if (left > 0) {
-    state.at(num + 1).slot.at(pos) = 1;
-    num = gen_states(num, pos - 1, left - 1);
-  }
-
-  return num;
 }
 
 // Generate arrays describing the shift cycles of the juggling graph.
@@ -231,6 +252,53 @@ void Graph::find_shift_cycles() {
     }
   }
   numcycles = cycleindex;
+}
+
+//------------------------------------------------------------------------------
+// Prep core data structures for search
+//------------------------------------------------------------------------------
+
+// Build the core data structures used during pattern search. This takes into
+// account whether states are active; transitions in and out of inactive states
+// are pruned from the graph.
+
+void Graph::build_graph() {
+  while (true) {
+    gen_matrices();
+
+    // deactivate any states with 0 outdegree or indegree
+    std::vector<int> indegree(numstates + 1, 0);
+    bool changed = false;
+
+    for (size_t i = 1; i <= numstates; ++i) {
+      if (!state_active.at(i))
+        continue;
+      if (outdegree[i] == 0) {
+        state_active.at(i) = false;
+        changed = true;
+        continue;
+      }
+
+      for (int j = 0; j < outdegree[i]; ++j) {
+        ++indegree.at(outmatrix[i][j]);
+      }
+    }
+
+    for (size_t i = 1; i <= numstates; ++i) {
+      if (!state_active.at(i))
+        continue;
+      if (indegree.at(i) == 0) {
+        state_active.at(i) = false;
+        changed = true;
+      }
+    }
+
+    if (!changed)
+      break;
+  }
+
+  find_exclude_states();
+  find_exit_cycles();
 }
 
 // Generate matrices describing the structure of the juggling graph:
@@ -324,48 +392,9 @@ void Graph::find_exit_cycles() {
   }
 }
 
-// Build the core data structures used during pattern search. This takes into
-// account whether states are active; transitions in and out of inactive states
-// are pruned from the graph.
-
-void Graph::build_graph() {
-  while (true) {
-    gen_matrices();
-
-    // deactivate any states with 0 outdegree or indegree
-    std::vector<int> indegree(numstates + 1, 0);
-    bool changed = false;
-
-    for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i))
-        continue;
-      if (outdegree[i] == 0) {
-        state_active.at(i) = false;
-        changed = true;
-        continue;
-      }
-
-      for (int j = 0; j < outdegree[i]; ++j) {
-        ++indegree.at(outmatrix[i][j]);
-      }
-    }
-
-    for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i))
-        continue;
-      if (indegree.at(i) == 0) {
-        state_active.at(i) = false;
-        changed = true;
-      }
-    }
-
-    if (!changed)
-      break;
-  }
-
-  find_exclude_states();
-  find_exit_cycles();
-}
+//------------------------------------------------------------------------------
+// Utility methods
+//------------------------------------------------------------------------------
 
 // Calculate an upper bound on the length of prime patterns in the graph.
 
@@ -409,10 +438,6 @@ int Graph::superprime_length_bound() const {
 
   return std::count(any_active.begin(), any_active.end(), true);
 }
-
-//------------------------------------------------------------------------------
-// Utility methods
-//------------------------------------------------------------------------------
 
 // Return the index in the `state` array that corresponds to a given state.
 // Returns -1 if not found.

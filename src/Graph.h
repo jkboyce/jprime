@@ -20,7 +20,7 @@
 
 class Graph {
  public:
-  Graph(int n, int h, const std::vector<bool>& xa, bool ltwc);
+  Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l = 0);
   Graph(int n, int h);
   Graph(const Graph& g);
   Graph(Graph&&) =delete;
@@ -30,11 +30,12 @@ class Graph {
 
  public:
   // calculated at construction and do not change
-  int n;
-  int h;
-  std::vector<State> state;
+  int n = 0;
+  int h = 0;
+  int l = 0;  // if nonzero then a graph specific to patterns of that period
   std::vector<bool> xarray;
-  bool linkthrows_within_cycle;
+  bool linkthrows_within_cycle = true;
+  std::vector<State> state;
   int numstates = 0;
   int maxoutdegree = 0;
   int numcycles = 0;
@@ -55,8 +56,11 @@ class Graph {
   void init();
   void allocate_arrays();
   void delete_arrays();
-  static int num_states(int n, int h);
-  int gen_states(int num, int pos, int left);
+  static void gen_states_all(std::vector<State>& s, int n, int h);
+  static int gen_states_all_helper(std::vector<State>& s, int num, int pos,
+      int left);
+  static int combinations(int n, int h);
+  static void gen_states_for_period(std::vector<State>& s, int n, int h, int l);
   void find_shift_cycles();
   void gen_matrices();
   void find_exclude_states();

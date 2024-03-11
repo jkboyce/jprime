@@ -32,7 +32,9 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       coordinator(coord),
       worker_id(id),
       graph(config.n, config.h, config.xarray,
-        config.mode != RunMode::SUPER_SEARCH) {
+        config.mode != RunMode::SUPER_SEARCH,
+        (config.l_min == config.l_max && config.l_min < config.h
+        ? config.l_min : 0)) {
   l_min = config.l_min;
   l_bound = (config.mode == RunMode::SUPER_SEARCH)
       ? graph.superprime_length_bound() + config.shiftlimit
