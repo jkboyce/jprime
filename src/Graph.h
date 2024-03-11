@@ -20,6 +20,7 @@
 
 class Graph {
  public:
+  Graph();
   Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l = 0);
   Graph(int n, int h);
   Graph(const Graph& g);

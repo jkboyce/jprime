@@ -14,11 +14,22 @@
 #include <string>
 #include <vector>
 
+
 enum class RunMode {
   NORMAL_SEARCH,
   SUPER_SEARCH,
 };
 
+enum class GroundMode {
+  GROUND_SEARCH,
+  EXCITED_SEARCH,
+  ALL_SEARCH,
+};
+
+enum class GraphMode {
+  FULL_GRAPH,
+  SINGLE_PERIOD_GRAPH,
+};
 
 struct SearchConfig {
   // number of objects
@@ -36,8 +47,11 @@ struct SearchConfig {
   // worker mode
   RunMode mode = RunMode::NORMAL_SEARCH;
 
-  // ground state, excited state, or both
-  int groundmode = 0;
+  // ground state, excited state, or all
+  GroundMode groundmode = GroundMode::ALL_SEARCH;
+
+  // type of graph to build
+  GraphMode graphmode = GraphMode::FULL_GRAPH;
 
   // print patterns to console
   bool printflag = true;

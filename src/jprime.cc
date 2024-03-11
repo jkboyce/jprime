@@ -139,10 +139,10 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
         config->invertflag = true;
     } else if (!strcmp(argv[i], "-g")) {
       if (config != nullptr)
-        config->groundmode = 1;
+        config->groundmode = GroundMode::GROUND_SEARCH;
     } else if (!strcmp(argv[i], "-ng")) {
       if (config != nullptr)
-        config->groundmode = 2;
+        config->groundmode = GroundMode::EXCITED_SEARCH;
     } else if (!strcmp(argv[i], "-noplus")) {
       if (config != nullptr) {
         config->noplusminusflag = true;
@@ -274,6 +274,11 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
   if (config != nullptr) {
     config->l_min = l_min;
     config->l_max = l_max;
+
+    if (config->l_min == config->l_max && config->l_min < config->h)
+      config->graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
+    else
+      config->graphmode = GraphMode::FULL_GRAPH;
   }
 
   // defaults

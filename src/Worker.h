@@ -110,6 +110,7 @@ class Worker {
   void gen_patterns();
   void set_active_states();
   void gen_loops_normal();
+  void gen_loops_normal_marking();
   void gen_loops_super();
   void gen_loops_super0();
   int load_one_throw();
@@ -120,7 +121,7 @@ class Worker {
   void unmark_unreachable_states_throw();
   void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
-  void gen_loops_normal_iterative();
+  void gen_loops_normal_marking_iterative();
   void gen_loops_super_iterative();
   void gen_loops_super0_iterative();
   bool iterative_init_workspace();

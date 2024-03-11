@@ -33,17 +33,22 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
       worker_id(id),
       graph(config.n, config.h, config.xarray,
         config.mode != RunMode::SUPER_SEARCH,
-        (config.l_min == config.l_max && config.l_min < config.h
-        ? config.l_min : 0)) {
-  l_min = config.l_min;
-  l_bound = (config.mode == RunMode::SUPER_SEARCH)
-      ? graph.superprime_length_bound() + config.shiftlimit
-      : graph.prime_length_bound();
-  l_max = (config.l_max > 0 ? config.l_max : l_bound);
-  if (l_min > l_bound || l_max > l_bound) {
-    std::cerr << "No patterns longer than " << l_bound << " are possible\n";
-    std::exit(EXIT_FAILURE);
+        config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0) {
+  if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+    l_bound = l_max = l_min = config.l_min;
+  } else {
+    l_min = config.l_min;
+    l_bound = (config.mode == RunMode::SUPER_SEARCH)
+        ? graph.superprime_length_bound() + config.shiftlimit
+        : graph.prime_length_bound();
+    l_max = (config.l_max > 0 ? config.l_max : l_bound);
+
+    if (l_min > l_bound || l_max > l_bound) {
+      std::cerr << "No patterns longer than " << l_bound << " are possible\n";
+      std::exit(EXIT_FAILURE);
+    }
   }
+
   count.assign(l_max + 1, 0);
   allocate_arrays();
 }
@@ -313,9 +318,10 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   start_state = wa.start_state;
   end_state = wa.end_state;
   if (start_state == -1)
-    start_state = (config.groundmode == 2) ? 2 : 1;
+    start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
   if (end_state == -1)
-    end_state = (config.groundmode == 1) ? 1 : graph.numstates;
+    end_state = (config.groundmode == GroundMode::GROUND_SEARCH ? 1 :
+      graph.numstates);
 
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
@@ -541,9 +547,13 @@ void Worker::gen_patterns() {
       if (!graph.state_active.at(i))
         ++deadstates_bystate[i];
     }
-    max_possible = (config.mode == RunMode::SUPER_SEARCH)
-        ? graph.superprime_length_bound() + config.shiftlimit
-        : graph.prime_length_bound();
+    if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+      max_possible = l_bound;
+    } else {
+      max_possible = (config.mode == RunMode::SUPER_SEARCH)
+          ? graph.superprime_length_bound() + config.shiftlimit
+          : graph.prime_length_bound();
+    }
 
     if (config.verboseflag) {
       int num_inactive = std::count(graph.state_active.begin() + 1,
@@ -577,7 +587,10 @@ void Worker::gen_patterns() {
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
-        gen_loops_normal_iterative();
+        if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH)
+          gen_loops_normal();
+        else
+          gen_loops_normal_marking_iterative();
         break;
       case RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0)
@@ -629,15 +642,74 @@ void Worker::set_active_states() {
 //------------------------------------------------------------------------------
 
 // Try all allowed throw values at the current pattern position `pos`,
-// recursively continuing until (a) a pattern is found, or (b) we determine
-// that we can't generate a path of length `l_min` or longer from our current
-// position.
+// recursively continuing until a pattern is found or `l_max` is exceeded.
 //
 // These routines are by far the most performance-critical portions of jprime.
 //
 // This version is for NORMAL mode.
 
 void Worker::gen_loops_normal() {
+  if (pos >= l_max)
+    return;
+
+  int col = (loading_work ? load_one_throw() : 0);
+  const int limit = graph.outdegree[from];
+  const int* om = graph.outmatrix[from];
+
+  for (; col < limit; ++col) {
+    const int to = om[col];
+    if (pos == root_pos &&
+        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+      continue;
+    if (used[to] != 0)
+      continue;
+
+    const int throwval = graph.outthrowval[from][col];
+    if (to == start_state) {
+      pattern[pos] = throwval;
+      handle_finished_pattern();
+      continue;
+    }
+
+    pattern[pos] = throwval;
+
+    // see if it's time to check the inbox
+    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
+          && col < limit - 1) {
+      // the restrictions on when we enter here are in case we get a message
+      // to hand off work to another worker; see split_work_assignment()
+
+      // terminate the pattern at the current position in case we get a
+      // STOP_WORKER message and need to unwind back to run()
+      pattern[pos + 1] = -1;
+      process_inbox_running();
+      steps_taken = 0;
+    }
+
+    ++used[to];
+    ++pos;
+    const int old_from = from;
+    from = to;
+    gen_loops_normal();
+    from = old_from;
+    --pos;
+    --used[to];
+
+    // only a single allowed throw value for `pos` < `root_pos`
+    if (pos < root_pos)
+      break;
+  }
+
+  ++nnodes;
+}
+
+// As above, but for long searches close to `l_bound`.
+//
+// This version marks off states that are made unreachable by link throws
+// between shift cycles. We cut the search short when we determine we can't
+// generate a pattern of length `l_min` or longer from our current position.
+
+void Worker::gen_loops_normal_marking() {
   if (pos >= l_max)
     return;
 
@@ -667,6 +739,7 @@ void Worker::gen_loops_normal() {
         if (!mark_unreachable_states_throw()) {
           // bail since all additional `col` values will also be link throws
           unmark_unreachable_states_throw();
+          ++nnodes;
           return;
         }
         did_mark_for_throw = true;
@@ -679,7 +752,7 @@ void Worker::gen_loops_normal() {
         ++pos;
         const int old_from = from;
         from = to;
-        gen_loops_normal();
+        gen_loops_normal_marking();
         from = old_from;
         --pos;
         --used[to];
@@ -705,7 +778,7 @@ void Worker::gen_loops_normal() {
       ++pos;
       const int old_from = from;
       from = to;
-      gen_loops_normal();
+      gen_loops_normal_marking();
       from = old_from;
       --pos;
       --used[to];
@@ -1061,7 +1134,7 @@ inline void Worker::handle_finished_pattern() {
 // It is slightly faster than the recursive version and also avoids potential
 // stack overflow on deeper searches.
 
-void Worker::gen_loops_normal_iterative() {
+void Worker::gen_loops_normal_marking_iterative() {
   if (!iterative_init_workspace()) {
     assert(false);
   }
@@ -1678,7 +1751,7 @@ inline void Worker::iterative_handle_finished_pattern() {
 void Worker::report_pattern() const {
   std::ostringstream buffer;
 
-  if (config.groundmode != 1) {
+  if (config.groundmode != GroundMode::GROUND_SEARCH) {
     if (start_state == 1)
       buffer << "  ";
     else
@@ -1693,7 +1766,7 @@ void Worker::report_pattern() const {
   if (config.invertflag) {
     const std::string inverse = get_inverse();
     if (inverse.length() > 0) {
-      if (config.groundmode != 1 && start_state == 1)
+      if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
         buffer << "  ";
       buffer << " : " << inverse;
     }

@@ -578,9 +578,9 @@ void Coordinator::print_summary() const {
   else
     std::cout << '\n';
 
-  if (config.groundmode == 1)
+  if (config.groundmode == GroundMode::GROUND_SEARCH)
     std::cout << "ground state search" << std::endl;
-  if (config.groundmode == 2)
+  if (config.groundmode == GroundMode::EXCITED_SEARCH)
     std::cout << "excited state search" << std::endl;
 
   std::cout << "graph: " << context.numstates << " states, "

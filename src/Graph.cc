@@ -16,6 +16,8 @@
 #include <cassert>
 
 
+Graph::Graph() {}
+
 Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l)
     : n(n), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
@@ -55,12 +57,12 @@ Graph::~Graph() {
 
 void Graph::init() {
   state.push_back({0, h});  // state at index 0 is unused
-  if (l == 0)
+  if (l == 0) {
     gen_states_all(state, n, h);
-  else
+  } else {
     gen_states_for_period(state, n, h, l);
+  }
   numstates = state.size() - 1;
-  std::cerr << numstates << " states\n";
 
   for (int i = 0; i <= h; ++i) {
     if (!xarray.at(i))
@@ -69,7 +71,8 @@ void Graph::init() {
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   allocate_arrays();
 
-  find_shift_cycles();
+  if (l == 0)
+    find_shift_cycles();
   state_active.assign(numstates + 1, true);
   build_graph();
 }
@@ -246,6 +249,10 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
   }
 }
 
+//------------------------------------------------------------------------------
+// Prep core data structures for search
+//------------------------------------------------------------------------------
+
 // Generate arrays describing the shift cycles of the juggling graph.
 //
 // - Which shift cycle number a given state belongs to:
@@ -280,7 +287,7 @@ void Graph::find_shift_cycles() {
       } else if (k < i)
         newshiftcycle = false;
     }
-    assert(cyclestates[h - 1] == i);
+    assert(cyclestates.at(h - 1) == i);
 
     if (newshiftcycle) {
       for (size_t j = 0; j < h; j++)
@@ -293,10 +300,6 @@ void Graph::find_shift_cycles() {
   }
   numcycles = cycleindex;
 }
-
-//------------------------------------------------------------------------------
-// Prep core data structures for search
-//------------------------------------------------------------------------------
 
 // Build the core data structures used during pattern search. This takes into
 // account whether states are active; transitions in and out of inactive states
@@ -337,8 +340,10 @@ void Graph::build_graph() {
       break;
   }
 
-  find_exclude_states();
-  find_exit_cycles();
+  if (l == 0) {
+    find_exclude_states();
+    find_exit_cycles();
+  }
 }
 
 // Generate matrices describing the structure of the juggling graph:
