@@ -646,10 +646,6 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
                 << " patterns and " << context.assignments.size()
                 << " work assignments" << std::endl;
       return;
-    } else {
-      std::cerr << "could not find checkpoint file '" << args_context.outfile
-                << "'\n";
-      std::exit(EXIT_FAILURE);
     }
   }
 
