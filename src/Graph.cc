@@ -278,12 +278,21 @@ void Graph::gen_matrices() {
 
 void Graph::find_exclude_states() {
   for (size_t i = 1; i <= numstates; ++i) {
+    if (!state_active.at(i)) {
+      excludestates_throw[i][0] = 0;
+      excludestates_catch[i][0] = 0;
+      continue;
+    }
+
     // Find states that are excluded by a link throw from state `i`. These are
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     int j = 0;
     while (s.slot.at(s.h - 1) != 0 && j < h) {
-      excludestates_throw[i][j++] = get_statenum(s);
+      int statenum = get_statenum(s);
+      if (statenum < 1 || !state_active.at(statenum))
+        break;
+      excludestates_throw[i][j++] = statenum;
       s = s.downstream();
     }
     excludestates_throw[i][j] = 0;
@@ -293,7 +302,10 @@ void Graph::find_exclude_states() {
     s = state.at(i).upstream();
     j = 0;
     while (s.slot.at(0) == 0 && j < h) {
-      excludestates_catch[i][j++] = get_statenum(s);
+      int statenum = get_statenum(s);
+      if (statenum < 1 || !state_active.at(statenum))
+        break;
+      excludestates_catch[i][j++] = statenum;
       s = s.upstream();
     }
     excludestates_catch[i][j] = 0;
