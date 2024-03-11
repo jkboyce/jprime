@@ -54,12 +54,13 @@ Graph::~Graph() {
 //------------------------------------------------------------------------------
 
 void Graph::init() {
-  state.push_back({n, h});  // state at index 0 is unused
+  state.push_back({0, h});  // state at index 0 is unused
   if (l == 0)
     gen_states_all(state, n, h);
   else
     gen_states_for_period(state, n, h, l);
   numstates = state.size() - 1;
+  std::cerr << numstates << " states\n";
 
   for (int i = 0; i <= h; ++i) {
     if (!xarray.at(i))
@@ -156,7 +157,7 @@ void Graph::delete_arrays() {
 
 void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
   s.push_back({n, h});
-  (void)gen_states_all_helper(s, 0, h - 1, n);
+  gen_states_all_helper(s, h - 1, n);
   s.pop_back();
   assert(s.size() - 1 == combinations(n, h));
 }
@@ -164,31 +165,27 @@ void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
 // Helper function to generate states in the general case. Recursively insert
 // 1s into successive slots, and when all 1s are used up append a new state
 // to the list.
-//
-// Returns the number of states found.
 
-int Graph::gen_states_all_helper(std::vector<State>& s, int num, int pos,
-    int left) {
+void Graph::gen_states_all_helper(std::vector<State>& s, int pos, int left) {
   if (left > (pos + 1))
-    return num;
+    return;  // no way to succeed
 
   if (pos == 0) {
-    s.at(num + 1).slot.at(0) = left;
-    s.push_back(s.at(num + 1));
-    return (num + 1);
+    s.back().slot.at(0) = left;
+    // success: duplicate state at the end and continue
+    s.push_back(s.back());
+    return;
   }
 
   // try a '-' at position `pos`
-  s.at(num + 1).slot.at(pos) = 0;
-  num = gen_states_all_helper(s, num, pos - 1, left);
+  s.back().slot.at(pos) = 0;
+  gen_states_all_helper(s, pos - 1, left);
 
   // then try a 'x' at position `pos`
   if (left > 0) {
-    s.at(num + 1).slot.at(pos) = 1;
-    num = gen_states_all_helper(s, num, pos - 1, left - 1);
+    s.back().slot.at(pos) = 1;
+    gen_states_all_helper(s, pos - 1, left - 1);
   }
-
-  return num;
 }
 
 // Compute (h choose n).
@@ -203,7 +200,50 @@ int Graph::combinations(int n, int h) {
 // Generate all possible states that can be part of a pattern of period `l`.
 
 void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
+  s.push_back({n, h});
+  gen_states_for_period_helper(s, 0, n, h, l);
+  s.pop_back();
+}
 
+// Helper function to generate states in the period-limited case. The states are
+// enumerated by partitioning the `n` objects into `l` different positions.
+
+void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
+    int left, const int h, const int l) {
+  if (pos == l) {
+    if (left == 0) {
+      // success: duplicate state at the end and continue
+      s.push_back(s.back());
+    }
+    return;
+  }
+
+  // empty all the slots at position `pos`
+  for (int i = pos; i < h; i += l) {
+    s.back().slot[i] = 0;
+  }
+
+  // work out the maximum number that can go into later slots, and the min
+  // for this slot
+  int max_later = 0;
+  for (int pos2 = pos + 1; pos2 < l; ++pos2) {
+    for (int i = pos2; i < h; i += l) {
+      ++max_later;
+    }
+  }
+  int min_fill = (left > max_later ? left - max_later : 0);
+
+  if (min_fill == 0)
+    gen_states_for_period_helper(s, pos + 1, left, h, l);
+
+  // successively fill slots at `pos`
+  int filled = 0;
+  for (int i = pos; i < h && filled < left; i += l) {
+    s.back().slot[i] = 1;
+    ++filled;
+    if (filled >= min_fill)
+      gen_states_for_period_helper(s, pos + 1, left - filled, h, l);
+  }
 }
 
 // Generate arrays describing the shift cycles of the juggling graph.

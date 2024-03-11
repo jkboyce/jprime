@@ -57,10 +57,11 @@ class Graph {
   void allocate_arrays();
   void delete_arrays();
   static void gen_states_all(std::vector<State>& s, int n, int h);
-  static int gen_states_all_helper(std::vector<State>& s, int num, int pos,
-      int left);
+  static void gen_states_all_helper(std::vector<State>& s, int pos, int left);
   static int combinations(int n, int h);
   static void gen_states_for_period(std::vector<State>& s, int n, int h, int l);
+  static void gen_states_for_period_helper(std::vector<State>& s, int pos,
+    int left, int h, int l);
   void find_shift_cycles();
   void gen_matrices();
   void find_exclude_states();
