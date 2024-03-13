@@ -625,7 +625,7 @@ void Coordinator::print_summary() const {
 void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
-  for (int i = 0; i < context.num_threads + 1; ++i) {
+  for (int i = 0; i < context.num_threads + 2; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
@@ -641,6 +641,10 @@ void Coordinator::print_status_output() {
     std::cout << "Status (compressed display) on: " << current_time_string();
   else
     std::cout << "Status on: " << current_time_string();
+  std::cout << "sta/end  rp options remaining at position";
+  for (int i = 29; i < status_width; ++i)
+    std::cout << ' ';
+  std::cout << "dist  len\n";
   for (int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
