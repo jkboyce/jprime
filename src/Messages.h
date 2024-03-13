@@ -76,6 +76,7 @@ struct MessageW2C {
   // for type RETURN_STATS
   bool running = false;
   int start_state = 0;
+  int end_state = 0;
   std::vector<int> worker_throw;
   std::vector<int> worker_optionsleft;
 

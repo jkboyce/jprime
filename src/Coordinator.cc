@@ -635,7 +635,12 @@ void Coordinator::print_status_output() {
   if (!config.statusflag)
     return;
 
-  std::cout << "Status on: " << current_time_string();
+  const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
+      l_max > status_width);
+  if (compressed)
+    std::cout << "Status (compressed display) on: " << current_time_string();
+  else
+    std::cout << "Status on: " << current_time_string();
   for (int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
@@ -656,10 +661,13 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   const int id = msg.worker_id;
   const std::vector<int>& options = msg.worker_optionsleft;
 
+  buffer << std::setw(3) << std::min(msg.start_state, 999) << '/';
+  buffer << std::setw(3) << std::min(msg.end_state, 999) << ' ';
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999) << ' ';
 
-  const bool super = (config.mode == RunMode::SUPER_SEARCH);
-  const int width = std::min(context.l_bound, 66);
+  const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
+      l_max > status_width);
+
   int printed = 0;
   bool have_highlighted_start = false;
   bool highlight_start = false;
@@ -667,7 +675,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool highlight_last = false;
   int rootpos_distance = 999;
 
-  int skipped = context.l_bound - width;
+  int skipped = l_max;
   for (int i = 0; i < context.num_threads; ++i)
     skipped = std::min(skipped, worker_rootpos.at(i));
 
@@ -686,13 +694,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
     char ch = '\0';
 
-    if (super) {
-      if (i < worker_rootpos.at(id)) {
-        ch = '*';
-      } else {
-        ch = '0' + options.at(i);
-      }
-    } else {
+    if (compressed) {
       if (i < worker_rootpos.at(id)) {
         ch = '*';
       } else if (i == worker_rootpos.at(id)) {
@@ -701,6 +703,12 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
         // skip
       } else if (msg.worker_throw.at(i) == config.h) {
         // skip
+      } else {
+        ch = '0' + options.at(i);
+      }
+    } else {
+      if (i < worker_rootpos.at(id)) {
+        ch = '*';
       } else {
         ch = '0' + options.at(i);
       }
@@ -719,11 +727,11 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
       ++printed;
     }
 
-    if (printed >= width)
+    if (printed >= status_width)
       break;
   }
 
-  while (printed < width) {
+  while (printed < status_width) {
     buffer << ' ';
     ++printed;
   }

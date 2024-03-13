@@ -51,6 +51,7 @@ class Coordinator {
   static constexpr double secs_per_status = 1;
   static constexpr int waits_per_status = static_cast<int>(1e9 *
       secs_per_status / nanosecs_per_inbox_check);
+  static constexpr int status_width = 58;
   int stats_counter = 0;
   int stats_received = 0;
   bool stats_printed = false;

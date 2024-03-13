@@ -272,6 +272,7 @@ void Worker::send_stats_to_coordinator() {
   if (running) {
     // include a snapshot of the current state of the search
     msg.start_state = start_state;
+    msg.end_state = end_state;
     msg.worker_throw.resize(pos + 1);
     msg.worker_optionsleft.resize(pos + 1);
 
