@@ -672,6 +672,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   }
 
   const int id = msg.worker_id;
+  const int root_pos = worker_rootpos.at(id);
   const std::vector<int>& options = msg.worker_optionsleft;
 
   buffer << std::setw(3) << std::min(msg.start_state, 999) << '/';
@@ -688,16 +689,12 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool highlight_last = false;
   int rootpos_distance = 999;
 
-  int skipped = l_max;
-  for (int i = 0; i < context.num_threads; ++i)
-    skipped = std::min(skipped, worker_rootpos.at(i));
-
-  for (int i = skipped; i < options.size(); ++i) {
+  for (int i = root_pos; i < options.size(); ++i) {
     if (!highlight_start && !have_highlighted_start &&
         i < worker_optionsleft_start.at(id).size() &&
         options.at(i) != worker_optionsleft_start.at(id).at(i)) {
       highlight_start = have_highlighted_start = true;
-      rootpos_distance = i - worker_rootpos.at(id);
+      rootpos_distance = i - root_pos;
     }
     if (!highlight_last && !have_highlighted_last &&
         i < worker_optionsleft_last.at(id).size() &&
@@ -708,9 +705,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     char ch = '\0';
 
     if (compressed) {
-      if (i < worker_rootpos.at(id)) {
-        ch = '*';
-      } else if (i == worker_rootpos.at(id)) {
+      if (i == root_pos) {
         ch = '0' + options.at(i);
       } else if (msg.worker_throw.at(i) == 0) {
         // skip
@@ -720,11 +715,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
         ch = '0' + options.at(i);
       }
     } else {
-      if (i < worker_rootpos.at(id)) {
-        ch = '*';
-      } else {
-        ch = '0' + options.at(i);
-      }
+      ch = '0' + options.at(i);
     }
 
     if (ch != '\0') {
