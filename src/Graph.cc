@@ -336,8 +336,7 @@ void Graph::build_graph() {
       break;
   }
 
-  if (l == 0)
-    find_exclude_states();
+  find_exclude_states();
   find_exit_cycles();
 }
 
