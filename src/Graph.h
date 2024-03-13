@@ -20,7 +20,6 @@
 
 class Graph {
  public:
-  Graph();
   Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l = 0);
   Graph(int n, int h);
   Graph(const Graph& g);
@@ -59,7 +58,6 @@ class Graph {
   void delete_arrays();
   static void gen_states_all(std::vector<State>& s, int n, int h);
   static void gen_states_all_helper(std::vector<State>& s, int pos, int left);
-  static int combinations(int n, int h);
   static void gen_states_for_period(std::vector<State>& s, int n, int h, int l);
   static void gen_states_for_period_helper(std::vector<State>& s, int pos,
     int left, int h, int l);
@@ -70,6 +68,7 @@ class Graph {
 
  public:
   void build_graph();
+  static std::uint64_t combinations(int n, int h);
   int prime_length_bound() const;
   int superprime_length_bound() const;
   int get_statenum(const State& s) const;

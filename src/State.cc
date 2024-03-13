@@ -97,3 +97,27 @@ std::ostream& operator<<(std::ostream& ost, const State& s) {
   ost << s.to_string();
   return ost;
 }
+
+// Standard library compliant Compare relation for States
+//
+// Returns true if the first argument appears before the second in a strict
+// weak ordering, and false otherwise.
+
+bool state_compare(const State& s1, const State& s2) {
+  if (s1.n < s2.n)
+    return true;
+  if (s1.n > s2.n)
+    return false;
+  if (s1.h < s2.h)
+    return true;
+  if (s1.h > s2.h)
+    return false;
+
+  for (int i = s1.h - 1; i >= 0; --i) {
+    if (s1.slot.at(i) < s2.slot.at(i))
+      return true;
+    if (s1.slot.at(i) > s2.slot.at(i))
+      return false;
+  }
+  return false;
+}

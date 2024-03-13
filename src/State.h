@@ -36,5 +36,6 @@ class State {
 };
 
 std::ostream& operator<<(std::ostream& ost, const State& s);
+bool state_compare(const State& s1, const State& s2);
 
 #endif

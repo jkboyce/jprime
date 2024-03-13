@@ -16,8 +16,6 @@
 #include <cassert>
 
 
-Graph::Graph() {}
-
 Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l)
     : n(n), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
@@ -59,8 +57,12 @@ void Graph::init() {
   state.push_back({0, h});  // state at index 0 is unused
   if (l == 0) {
     gen_states_all(state, n, h);
+    // states are generated in sorted order
   } else {
     gen_states_for_period(state, n, h, l);
+    if (state.size() > 1) {
+      std::sort(state.begin() + 1, state.end(), state_compare);
+    }
   }
   numstates = state.size() - 1;
 
@@ -71,8 +73,7 @@ void Graph::init() {
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
   allocate_arrays();
 
-  if (l == 0)
-    find_shift_cycles();
+  find_shift_cycles();
   state_active.assign(numstates + 1, true);
   build_graph();
 }
@@ -191,15 +192,6 @@ void Graph::gen_states_all_helper(std::vector<State>& s, int pos, int left) {
   }
 }
 
-// Compute (h choose n).
-
-int Graph::combinations(int n, int h) {
-  int result = 1;
-  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
-    result = (result * (h - denom + 1)) / denom;
-  return result;
-}
-
 // Generate all possible states that can be part of a pattern of period `l`.
 
 void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
@@ -278,20 +270,24 @@ void Graph::find_shift_cycles() {
     for (size_t j = 0; j < h; ++j) {
       s = s.upstream();
       int k = get_statenum(s);
-      assert(k > 0);
-
       cyclestates.at(j) = k;
+      if (k < 1)
+        continue;
+
       if (k == i && !periodfound) {
         cycleper = static_cast<int>(j + 1);
         periodfound = true;
-      } else if (k < i)
+      } else if (k < i) {
         newshiftcycle = false;
+      }
     }
     assert(cyclestates.at(h - 1) == i);
 
     if (newshiftcycle) {
-      for (size_t j = 0; j < h; j++)
-        cyclenum[cyclestates.at(j)] = cycleindex;
+      for (size_t j = 0; j < h; j++) {
+        if (cyclestates.at(j) > 0)
+          cyclenum[cyclestates.at(j)] = cycleindex;
+      }
       cycleperiod[cycleindex] = cycleper;
       if (cycleper < h)
         ++numshortcycles;
@@ -340,10 +336,9 @@ void Graph::build_graph() {
       break;
   }
 
-  if (l == 0) {
+  if (l == 0)
     find_exclude_states();
-    find_exit_cycles();
-  }
+  find_exit_cycles();
 }
 
 // Generate matrices describing the structure of the juggling graph:
@@ -387,7 +382,7 @@ void Graph::gen_matrices() {
 }
 
 // Generate arrays that are used for marking excluded states during NORMAL
-// mode search.
+// mode search with marking.
 
 void Graph::find_exclude_states() {
   for (size_t i = 1; i <= numstates; ++i) {
@@ -453,6 +448,15 @@ void Graph::find_exit_cycles() {
 // Utility methods
 //------------------------------------------------------------------------------
 
+// Compute (h choose n).
+
+std::uint64_t Graph::combinations(int n, int h) {
+  std::uint64_t result = 1;
+  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
+    result = (result * (h - denom + 1)) / denom;
+  return result;
+}
+
 // Calculate an upper bound on the length of prime patterns in the graph.
 
 int Graph::prime_length_bound() const {
@@ -498,11 +502,33 @@ int Graph::superprime_length_bound() const {
 
 // Return the index in the `state` array that corresponds to a given state.
 // Returns -1 if not found.
+//
+// Note this assumes the `state` vector is sorted!
 
 int Graph::get_statenum(const State& s) const {
-  for (int i = 1; i <= numstates; ++i) {
-    if (state.at(i) == s)
-      return i;
+  if (state_compare(s, state.at(1)))
+    return -1;
+  if (state_compare(state.at(numstates), s))
+    return -1;
+
+  if (state.at(1) == s)
+    return 1;
+  if (state.at(numstates) == s)
+    return numstates;
+
+  size_t below = 1;
+  size_t above = numstates;
+
+  // loop invariant: state[below] < s < state[above]
+  while (below < above - 1) {
+    size_t mid = (below + above) / 2;
+    if (state.at(mid) == s)
+      return mid;
+    if (state_compare(state.at(mid), s)) {
+      below = mid;
+    } else {
+      above = mid;
+    }
   }
   return -1;
 }

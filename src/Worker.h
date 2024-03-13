@@ -108,7 +108,7 @@ class Worker {
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
-  void set_active_states();
+  void set_inactive_states();
   void gen_loops_normal();
   void gen_loops_normal_marking();
   void gen_loops_super();
@@ -121,9 +121,9 @@ class Worker {
   void unmark_unreachable_states_throw();
   void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
-  void gen_loops_normal_marking_iterative();
-  void gen_loops_super_iterative();
-  void gen_loops_super0_iterative();
+  void iterative_gen_loops_normal_marking();
+  void iterative_gen_loops_super();
+  void iterative_gen_loops_super0();
   bool iterative_init_workspace();
   void iterative_calc_rootpos_and_options();
   bool iterative_can_split();

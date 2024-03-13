@@ -583,9 +583,14 @@ void Coordinator::print_summary() const {
   if (config.groundmode == GroundMode::EXCITED_SEARCH)
     std::cout << "excited state search" << std::endl;
 
-  std::cout << "graph: " << context.numstates << " states, "
-            << context.numcycles << " shift cycles, "
-            << context.numshortcycles << " short cycles\n";
+  std::cout << "graph: " << context.numstates << " states";
+  if (config.graphmode == GraphMode::FULL_GRAPH) {
+    std::cout << ", " << context.numcycles << " shift cycles, "
+              << context.numshortcycles << " short cycles\n";
+  } else {
+    std::cout << " (" << Graph::combinations(config.n, config.h)
+              << " in full graph)\n";
+  }
 
   if (!config.infoflag) {
     std::cout << context.npatterns << " patterns found ("

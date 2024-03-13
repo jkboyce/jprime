@@ -526,8 +526,11 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
+  for (size_t i = 1; i <= graph.numstates; ++i)
+    graph.state_active.at(i) = true;
+
   for (; start_state <= end_state; ++start_state) {
-    set_active_states();
+    set_inactive_states();
     graph.build_graph();
 
     // reset working variables for search
@@ -543,9 +546,11 @@ void Worker::gen_patterns() {
       if (graph.isexitcycle[i])
         ++exitcyclesleft;
     }
+
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      if (!graph.state_active.at(i))
+      if (!graph.state_active.at(i)) {
         ++deadstates_bystate[i];
+      }
     }
     if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
       max_possible = l_bound;
@@ -590,13 +595,13 @@ void Worker::gen_patterns() {
         if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH)
           gen_loops_normal();
         else
-          gen_loops_normal_marking_iterative();
+          iterative_gen_loops_normal_marking();
         break;
       case RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0)
-          gen_loops_super0_iterative();
+          iterative_gen_loops_super0();
         else
-          gen_loops_super_iterative();
+          iterative_gen_loops_super();
         break;
       default:
         assert(false);
@@ -609,15 +614,14 @@ void Worker::gen_patterns() {
   assert(pos == 0);
 }
 
-// Set which states are active for the upcoming search.
+// Set which states are inactive for the upcoming search.
 //
 // Note that Graph::build_graph() may deactivate additional states based on
-// reachability.
+// reachability. This routine should never mark states as active!
 
-void Worker::set_active_states() {
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    graph.state_active.at(i) = (i >= start_state);
-  }
+void Worker::set_inactive_states() {
+  for (size_t i = 0; i < start_state; ++i)
+    graph.state_active.at(i) = false;
 
   if (config.mode == RunMode::SUPER_SEARCH) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
@@ -1134,7 +1138,7 @@ inline void Worker::handle_finished_pattern() {
 // It is slightly faster than the recursive version and also avoids potential
 // stack overflow on deeper searches.
 
-void Worker::gen_loops_normal_marking_iterative() {
+void Worker::iterative_gen_loops_normal_marking() {
   if (!iterative_init_workspace()) {
     assert(false);
   }
@@ -1296,7 +1300,7 @@ void Worker::gen_loops_normal_marking_iterative() {
 
 // Non-recursive version of get_loops_super()
 
-void Worker::gen_loops_super_iterative() {
+void Worker::iterative_gen_loops_super() {
   if (!iterative_init_workspace()) {
     assert(false);
   }
@@ -1419,7 +1423,7 @@ void Worker::gen_loops_super_iterative() {
 
 // Non-recursive version of get_loops_super0()
 
-void Worker::gen_loops_super0_iterative() {
+void Worker::iterative_gen_loops_super0() {
   if (!iterative_init_workspace()) {
     assert(false);
   }
