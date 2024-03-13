@@ -200,8 +200,8 @@ void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
   s.pop_back();
 }
 
-// Helper function to generate states in the period-limited case. The states are
-// enumerated by partitioning the `n` objects into `l` different positions.
+// Helper function to generate states in the single-period case. The states are
+// enumerated by partitioning the `n` objects into `l` different buckets.
 
 void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
     int left, const int h, const int l) {
