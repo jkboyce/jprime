@@ -658,10 +658,16 @@ std::string Coordinator::current_time_string() {
 }
 
 std::string Coordinator::make_worker_status(const MessageW2C& msg) {
-  if (!msg.running)
-    return "    idle";
-
   std::ostringstream buffer;
+
+  if (!msg.running) {
+    buffer << "  -/  -   - IDLE";
+    for (int i = 1; i < status_width; ++i)
+      buffer << ' ';
+    buffer << "-    -";
+    return buffer.str();
+  }
+
   const int id = msg.worker_id;
   const std::vector<int>& options = msg.worker_optionsleft;
 
