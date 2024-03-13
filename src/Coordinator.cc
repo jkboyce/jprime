@@ -637,13 +637,16 @@ void Coordinator::print_status_output() {
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
       l_max > status_width);
-  if (compressed)
-    std::cout << "Status (compressed display) on: " << current_time_string();
-  else
-    std::cout << "Status on: " << current_time_string();
+  std::cout << "Status on: " << current_time_string();
   std::cout << "sta/end  rp options remaining at position";
-  for (int i = 29; i < status_width; ++i)
-    std::cout << ' ';
+  if (compressed) {
+    std::cout << " (compressed view)";
+    for (int i = 47; i < status_width; ++i)
+      std::cout << ' ';
+  } else {
+    for (int i = 29; i < status_width; ++i)
+      std::cout << ' ';
+  }
   std::cout << "dist  len\n";
   for (int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
