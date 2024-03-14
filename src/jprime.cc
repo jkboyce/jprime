@@ -31,7 +31,8 @@
 // 01/28/24  Version 6.3 adds pattern counting by length, and search status
 //           display in -verbose mode.
 // 03/04/24  Version 6.4 changes command line interface, improves performance,
-//           and adds non-recursive search
+//           and adds non-recursive search.
+// 03/14/24  Version 6.5 adds single-period mode, support for throws > 35.
 
 
 #include "SearchConfig.h"
@@ -50,7 +51,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.4 (2024.03.04)\n"
+    "jprime version 6.5 (2024.03.14)\n"
     "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
