@@ -1795,10 +1795,14 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
     return;
   }
 
-  if (val < 10)
-    buffer << static_cast<char>(val + '0');
-  else
-    buffer << static_cast<char>(val - 10 + 'a');
+  if (config.throwdigits == 1) {
+    if (val < 10)
+      buffer << static_cast<char>(val + '0');
+    else
+      buffer << static_cast<char>(val - 10 + 'a');
+  } else {
+    buffer << std::setw(config.throwdigits) << val;
+  }
 }
 
 // Return the current pattern as a string.
@@ -1810,6 +1814,8 @@ std::string Worker::get_pattern() const {
     const int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
         : pattern[i]);
     print_throw(buffer, throwval);
+    if (config.throwdigits > 1 && i < pos)
+      buffer << ',';
   }
 
   return buffer.str();

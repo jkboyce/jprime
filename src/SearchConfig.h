@@ -71,7 +71,11 @@ struct SearchConfig {
   // print info about search, but do not execute
   bool infoflag = false;
 
-  // print without using +, - for h and 0
+  // if 1 then print as letter (a=10, b=11, ...), if >1 then print as an integer
+  // with the given field width
+  int throwdigits = 1;
+
+  // print without using +, - for h and 0 (when throwdigits = 1)
   bool noplusminusflag = false;
 
   // keep a record of patterns seen at each length
