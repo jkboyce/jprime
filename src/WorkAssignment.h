@@ -40,8 +40,6 @@ struct WorkAssignment {
   bool from_string(std::string str);
 };
 
-char throw_char(int val);
-int throw_value(char ch);
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa);
 
 #endif

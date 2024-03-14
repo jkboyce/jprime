@@ -130,6 +130,7 @@ class Worker {
   void iterative_update_after_split();
   void iterative_handle_finished_pattern();
   void report_pattern() const;
+  static char throw_char(int val);
   void print_throw(std::ostringstream& buffer, int val) const;
   std::string get_pattern() const;
   std::string get_inverse() const;

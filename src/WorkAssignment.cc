@@ -21,7 +21,7 @@
 bool WorkAssignment::from_string(std::string str) {
   std::regex rgx(
       "\\{ start_state:([0-9]+), end_state:([0-9]+), root_pos:([0-9]+), "
-      "root_options:\\[([0-9a-z]+)\\], current:\\\"([0-9a-z]*)\\\" \\}"
+      "root_options:\\[([0-9,]+)\\], current:\\\"([0-9,]*)\\\" \\}"
   );
   std::smatch matches;
 
@@ -33,25 +33,31 @@ bool WorkAssignment::from_string(std::string str) {
   root_pos = std::stoi(matches[3].str());
 
   root_throwval_options.clear();
-  for (char c : matches[4].str())
-    root_throwval_options.push_back(throw_value(c));
+  std::string tvo{matches[4].str()};
+  auto x = tvo.begin();
+  while (true) {
+    auto y = std::find(x, tvo.end(), ',');
+    std::string s{x, y};
+    root_throwval_options.push_back(std::stoi(s));
+    if (y == tvo.end())
+      break;
+    x = y + 1;
+  }
 
   partial_pattern.clear();
-  for (char c : matches[5].str())
-    partial_pattern.push_back(throw_value(c));
+  std::string pp{matches[5].str()};
+  x = pp.begin();
+  while (true) {
+    auto y = std::find(x, pp.end(), ',');
+    std::string s{x, y};
+    partial_pattern.push_back(std::stoi(s));
+    if (y == pp.end())
+      break;
+    x = y + 1;
+  }
 
   // std::cout << "result:" << std::endl << *this << std::endl;
   return true;
-}
-
-// Return a character for a given integer throw value (0 = '0', 1 = '1',
-// 10 = 'a', 11 = 'b', ...
-
-char throw_char(int val) {
-  if (val < 10)
-    return static_cast<char>(val + '0');
-  else
-    return static_cast<char>(val - 10 + 'a');
 }
 
 // Return an integer throw value corresponding to a character
@@ -74,11 +80,17 @@ std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
       << ", end_state:" << wa.end_state
       << ", root_pos:" << wa.root_pos
       << ", root_options:[";
-  for (int v : wa.root_throwval_options)
-    ost << throw_char(v);
+  for (int v : wa.root_throwval_options) {
+    if (v != wa.root_throwval_options.front())
+      ost << ',';
+    ost << v;
+  }
   ost << "], current:\"";
-  for (int i = 0; i < (int)wa.partial_pattern.size(); ++i)
-    ost << throw_char(wa.partial_pattern[i]);
+  for (size_t i = 0; i < wa.partial_pattern.size(); ++i) {
+    if (i > 0)
+      ost << ',';
+    ost << wa.partial_pattern.at(i);
+  }
   ost << "\" }";
   return ost;
 }

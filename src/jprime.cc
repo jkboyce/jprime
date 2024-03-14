@@ -341,7 +341,7 @@ void save_context(const SearchConfig& config, const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.4\n"
+  myfile << "version           6.5\n"
          << "command line      " << context.arglist << '\n'
          << "length bound      " << context.l_bound << '\n'
          << "states            " << context.numstates << '\n'
@@ -545,8 +545,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.4") {
-          error = "file version is not 6.4";
+        if (val != "6.5") {
+          error = "file version is not 6.5";
           break;
         }
         break;

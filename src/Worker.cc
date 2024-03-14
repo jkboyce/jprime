@@ -654,9 +654,6 @@ void Worker::set_inactive_states() {
 // This version is for NORMAL mode.
 
 void Worker::gen_loops_normal() {
-  if (pos >= l_max)
-    return;
-
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -668,15 +665,15 @@ void Worker::gen_loops_normal() {
       continue;
     if (used[to] != 0)
       continue;
+    pattern[pos] = graph.outthrowval[from][col];
 
-    const int throwval = graph.outthrowval[from][col];
     if (to == start_state) {
-      pattern[pos] = throwval;
       handle_finished_pattern();
       continue;
     }
 
-    pattern[pos] = throwval;
+    if (pos + 1 == l_max)
+      continue;
 
     // see if it's time to check the inbox
     if (++steps_taken >= steps_per_inbox_check && pos > root_pos
@@ -715,9 +712,6 @@ void Worker::gen_loops_normal() {
 // generate a pattern of length `l_min` or longer from our current position.
 
 void Worker::gen_loops_normal_marking() {
-  if (pos >= l_max)
-    return;
-
   bool did_mark_for_throw = false;
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
@@ -737,6 +731,9 @@ void Worker::gen_loops_normal_marking() {
       handle_finished_pattern();
       continue;
     }
+
+    if (pos + 1 == l_max)
+      continue;
 
     if (throwval != 0 && throwval != graph.h) {
       // link throws make certain nearby states unreachable
@@ -766,14 +763,8 @@ void Worker::gen_loops_normal_marking() {
     } else {
       pattern[pos] = throwval;
 
-      // see if it's time to check the inbox
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
-        // the restrictions on when we enter here are in case we get a message
-        // to hand off work to another worker; see split_work_assignment()
-
-        // terminate the pattern at the current position in case we get a
-        // STOP_WORKER message and need to unwind back to run()
         pattern[pos + 1] = -1;
         process_inbox_running();
         steps_taken = 0;
@@ -806,9 +797,6 @@ void Worker::gen_loops_normal_marking() {
 // throw to a new shift cycle.
 
 void Worker::gen_loops_super() {
-  if (pos >= l_max)
-    return;
-
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -833,6 +821,8 @@ void Worker::gen_loops_super() {
       pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
+      } else if (pos + 1 == l_max) {
+        continue;
       } else {
         if (++steps_taken >= steps_per_inbox_check && pos > root_pos
               && col < limit - 1) {
@@ -860,6 +850,8 @@ void Worker::gen_loops_super() {
       pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
+      } else if (pos + 1 == l_max) {
+        continue;
       } else {
         ++shiftcount;
         ++used[to];
@@ -888,9 +880,6 @@ void Worker::gen_loops_super() {
 // pattern isn't done, we terminate the search early.
 
 void Worker::gen_loops_super0() {
-  if (pos >= l_max)
-    return;
-
   int col = (loading_work ? load_one_throw() : 0);
   const int limit = graph.outdegree[from];
   const int* om = graph.outmatrix[from];
@@ -907,10 +896,11 @@ void Worker::gen_loops_super0() {
     pattern[pos] = graph.outthrowval[from][col];
     if (to == start_state) {
       handle_finished_pattern();
+    } else if (pos + 1 == l_max) {
+      continue;
+    } else if (exitcyclesleft == 0) {
+      continue;
     } else {
-      if (exitcyclesleft == 0)
-        continue;
-
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
         pattern[pos + 1] = -1;
@@ -947,6 +937,9 @@ int Worker::load_one_throw() {
   if (pattern[pos] == -1) {
     loading_work = false;
     return 0;
+  }
+  if (pos + 1 == l_max) {
+    loading_work = false;
   }
 
   for (int col = 0; col < graph.outdegree[from]; ++col) {
@@ -1784,6 +1777,16 @@ void Worker::report_pattern() const {
   message_coordinator(msg);
 }
 
+// Return a character for a given integer throw value (0 = '0', 1 = '1',
+// 10 = 'a', 11 = 'b', ...
+
+char Worker::throw_char(int val) {
+  if (val < 10)
+    return static_cast<char>(val + '0');
+  else
+    return static_cast<char>(val - 10 + 'a');
+}
+
 // Output a single throw to a string buffer.
 
 void Worker::print_throw(std::ostringstream& buffer, int val) const {
@@ -1796,10 +1799,7 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
   }
 
   if (config.throwdigits == 1) {
-    if (val < 10)
-      buffer << static_cast<char>(val + '0');
-    else
-      buffer << static_cast<char>(val - 10 + 'a');
+    buffer << throw_char(val);
   } else {
     buffer << std::setw(config.throwdigits) << val;
   }
