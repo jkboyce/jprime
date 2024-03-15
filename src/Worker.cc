@@ -531,6 +531,11 @@ void Worker::gen_patterns() {
     graph.state_active.at(i) = true;
 
   for (; start_state <= end_state; ++start_state) {
+    if (!graph.state_active.at(start_state)) {
+      loading_work = false;
+      continue;
+    }
+
     set_inactive_states();
     graph.build_graph();
 

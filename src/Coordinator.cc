@@ -638,7 +638,7 @@ void Coordinator::print_status_output() {
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
       l_max > status_width);
   std::cout << "Status on: " << current_time_string();
-  std::cout << "sta/end  rp options remaining at position";
+  std::cout << " sta/ end  rp options remaining at position";
   if (compressed) {
     std::cout << " (compressed view)";
     for (int i = 47; i < status_width; ++i)
@@ -664,7 +664,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   std::ostringstream buffer;
 
   if (!msg.running) {
-    buffer << "  -/  -   - IDLE";
+    buffer << "   -/   -   - IDLE";
     for (int i = 1; i < status_width; ++i)
       buffer << ' ';
     buffer << "-    -";
@@ -675,8 +675,8 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   const int root_pos = worker_rootpos.at(id);
   const std::vector<int>& options = msg.worker_optionsleft;
 
-  buffer << std::setw(3) << std::min(msg.start_state, 999) << '/';
-  buffer << std::setw(3) << std::min(msg.end_state, 999) << ' ';
+  buffer << std::setw(4) << std::min(msg.start_state, 9999) << '/';
+  buffer << std::setw(4) << std::min(msg.end_state, 9999) << ' ';
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999) << ' ';
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
