@@ -109,6 +109,13 @@ class Worker {
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
   void set_inactive_states();
+  void report_pattern() const;
+  static char throw_char(int val);
+  void print_throw(std::ostringstream& buffer, int val) const;
+  std::string get_pattern() const;
+  std::string get_inverse() const;
+
+  // core search routines (recursive)
   void gen_loops_normal();
   void gen_loops_normal_marking();
   void gen_loops_super();
@@ -121,6 +128,8 @@ class Worker {
   void unmark_unreachable_states_throw();
   void unmark_unreachable_states_catch(int to_state);
   void handle_finished_pattern();
+
+  // core search routines (iterative)
   void iterative_gen_loops_normal_marking();
   void iterative_gen_loops_super();
   void iterative_gen_loops_super0();
@@ -129,11 +138,6 @@ class Worker {
   bool iterative_can_split();
   void iterative_update_after_split();
   void iterative_handle_finished_pattern();
-  void report_pattern() const;
-  static char throw_char(int val);
-  void print_throw(std::ostringstream& buffer, int val) const;
-  std::string get_pattern() const;
-  std::string get_inverse() const;
 };
 
 class JprimeStopException : public std::exception {
