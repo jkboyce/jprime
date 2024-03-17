@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -67,7 +68,7 @@ void Worker::allocate_arrays() {
   deadstates = new int[graph.numstates + 1];
   deadstates_bystate = new int*[graph.numstates + 1];
 
-  for (size_t i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
     beat[i] = {};
     pattern[i] = -1;
     used[i] = 0;
@@ -338,7 +339,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
   assert(pos == 0);
 
-  for (size_t i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern.at(i)
         : -1;
   }
@@ -354,7 +355,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (size_t i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
     if (pattern[i] == -1)
       break;
     wa.partial_pattern.push_back(pattern[i]);
@@ -423,7 +424,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   wa.start_state = start_state;
   wa.end_state = start_state;
   wa.root_pos = root_pos;
-  for (size_t i = 0; i < root_pos; ++i)
+  for (size_t i = 0; i < static_cast<size_t>(root_pos); ++i)
     wa.partial_pattern.push_back(pattern[i]);
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
@@ -480,7 +481,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
+    for (size_t pos2 = 0; pos2 <= static_cast<size_t>(pos); ++pos2) {
       const int throwval = pattern[pos2];
       for (col = 0; col < graph.outdegree[from_state]; ++col) {
         if (throwval == graph.outthrowval[from_state][col])
@@ -498,7 +499,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       }
       assert(col != graph.outdegree[from_state]);
 
-      if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
+      if (pos2 > static_cast<size_t>(root_pos) &&
+          col < graph.outdegree[from_state] - 1) {
         new_root_pos = static_cast<int>(pos2);
         break;
       }
@@ -527,7 +529,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
-  for (size_t i = 1; i <= graph.numstates; ++i)
+  for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i)
     graph.state_active.at(i) = true;
 
   for (; start_state <= end_state; ++start_state) {
@@ -544,7 +546,7 @@ void Worker::gen_patterns() {
     from = start_state;
     shiftcount = 0;
     exitcyclesleft = 0;
-    for (size_t i = 0; i <= graph.numstates; ++i) {
+    for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
@@ -553,7 +555,7 @@ void Worker::gen_patterns() {
         ++exitcyclesleft;
     }
 
-    for (size_t i = 1; i <= graph.numstates; ++i) {
+    for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i) {
       if (!graph.state_active.at(i)) {
         ++deadstates_bystate[i];
       }
@@ -626,11 +628,11 @@ void Worker::gen_patterns() {
 // reachability. This routine should never mark states as active!
 
 void Worker::set_inactive_states() {
-  for (size_t i = 0; i < start_state; ++i)
+  for (size_t i = 0; i < static_cast<size_t>(start_state); ++i)
     graph.state_active.at(i) = false;
 
   if (config.mode == RunMode::SUPER_SEARCH) {
-    for (size_t i = 1; i <= graph.numstates; ++i) {
+    for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i) {
       // number of consecutive '-'s at the start of the state, plus number of
       // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
       int start0s = 0;

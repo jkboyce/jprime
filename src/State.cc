@@ -20,7 +20,7 @@ State::State(int balls, int height)
 State::State(std::string s) {
   h = s.size();
   n = 0;
-  for (size_t i = 0; i < h; ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(h); ++i) {
     int val = (s.at(i) == 'x' || s.at(i) == '1') ? 1 : 0;
     slot.push_back(val);
     n += val;
@@ -33,7 +33,7 @@ State State::advance_with_throw(int throwval) const {
   s.slot.erase(s.slot.begin());
   s.slot.push_back(0);
 
-  assert(s.slot.size() == h);
+  assert(s.slot.size() == static_cast<size_t>(h));
   assert(throwval <= h);
 
   if ((head == 0 && throwval != 0) || (head != 0 && throwval == 0) ||

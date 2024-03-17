@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <cassert>
 
 
@@ -154,7 +155,7 @@ void Worker::iterative_gen_loops_normal_marking() {
         iterative_calc_rootpos_and_options();
 
         if (iterative_can_split()) {
-          for (size_t i = 0; i <= pos; ++i) {
+          for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
@@ -246,7 +247,7 @@ void Worker::iterative_gen_loops_super() {
         iterative_calc_rootpos_and_options();
 
         if (iterative_can_split()) {
-          for (size_t i = 0; i <= pos; ++i) {
+          for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
@@ -360,7 +361,7 @@ void Worker::iterative_gen_loops_super0() {
       iterative_calc_rootpos_and_options();
 
       if (iterative_can_split()) {
-        for (size_t i = 0; i <= pos; ++i) {
+        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
@@ -524,7 +525,8 @@ bool Worker::iterative_init_workspace() {
 
     // set `col` at `root_pos`
     rss.col = graph.maxoutdegree;
-    for (size_t i = 0; i < graph.outdegree[rss.from_state]; ++i) {
+    for (size_t i = 0;
+        i < static_cast<size_t>(graph.outdegree[rss.from_state]); ++i) {
       int throwval = graph.outthrowval[rss.from_state][i];
       if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
           throwval) != root_throwval_options.end()) {
@@ -538,7 +540,8 @@ bool Worker::iterative_init_workspace() {
   // set `col_limit` at `root_pos`
   SearchState& rss = beat[root_pos + 1];
   rss.col_limit = 0;
-  for (size_t i = 0; i < graph.outdegree[rss.from_state]; ++i) {
+  for (size_t i = 0;
+      i < static_cast<size_t>(graph.outdegree[rss.from_state]); ++i) {
     int throwval = graph.outthrowval[rss.from_state][i];
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
@@ -573,7 +576,8 @@ void Worker::iterative_calc_rootpos_and_options() {
 
   root_throwval_options.clear();
   SearchState& ss = beat[new_root_pos + 1];
-  for (size_t col = ss.col + 1; col < ss.col_limit; ++col) {
+  for (size_t col = ss.col + 1; col < static_cast<size_t>(ss.col_limit);
+      ++col) {
     root_throwval_options.push_back(graph.outthrowval[ss.from_state][col]);
   }
 }
@@ -584,7 +588,7 @@ void Worker::iterative_calc_rootpos_and_options() {
 // Needs an updated value of `root_pos`.
 
 bool Worker::iterative_can_split() {
-  for (size_t i = root_pos + 1; i <= pos; ++i) {
+  for (size_t i = root_pos + 1; i <= static_cast<size_t>(pos); ++i) {
     SearchState& ss = beat[i + 1];
     if (ss.col < ss.col_limit - 1)
       return true;
@@ -604,13 +608,14 @@ void Worker::iterative_update_after_split() {
               << '\n';
   }
   assert(root_pos <= pos);
-  for (size_t i = 0; i < root_pos; ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(root_pos); ++i) {
     SearchState& ss = beat[i + 1];
     ss.col_limit = ss.col + 1;  // ensure no further iteration on this beat
   }
   SearchState& ss = beat[root_pos + 1];
   int new_col_limit = ss.col + 1;
-  for (size_t i = ss.col + 1; i < graph.outdegree[ss.from_state]; ++i) {
+  for (size_t i = ss.col + 1;
+      i < static_cast<size_t>(graph.outdegree[ss.from_state]); ++i) {
     int throwval = graph.outthrowval[ss.from_state][i];
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
@@ -624,7 +629,7 @@ inline void Worker::iterative_handle_finished_pattern() {
   ++count[pos + 1];
 
   if ((pos + 1) >= l_min && !config.countflag) {
-    for (size_t i = 0; i <= pos; ++i) {
+    for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }
     report_pattern();

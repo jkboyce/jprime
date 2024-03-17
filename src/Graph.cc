@@ -86,7 +86,7 @@ void Graph::allocate_arrays() {
   cycleperiod = new int[numstates + 1];
   isexitcycle = new bool[numstates + 1];
 
-  for (size_t i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
     outdegree[i] = 0;
     cyclenum[i] = 0;
     cycleperiod[i] = 0;
@@ -98,17 +98,17 @@ void Graph::allocate_arrays() {
   excludestates_throw = new int*[numstates + 1];
   excludestates_catch = new int*[numstates + 1];
 
-  for (size_t i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
     outmatrix[i] = new int[maxoutdegree];
     outthrowval[i] = new int[maxoutdegree];
     excludestates_throw[i] = new int[h];
     excludestates_catch[i] = new int[h];
 
-    for (size_t j = 0; j < maxoutdegree; ++j) {
+    for (size_t j = 0; j < static_cast<size_t>(maxoutdegree); ++j) {
       outmatrix[i][j] = 0;
       outthrowval[i][j] = 0;
     }
-    for (size_t j = 0; j < h; ++j) {
+    for (size_t j = 0; j < static_cast<size_t>(h); ++j) {
       excludestates_throw[i][j] = 0;
       excludestates_catch[i][j] = 0;
     }
@@ -116,7 +116,7 @@ void Graph::allocate_arrays() {
 }
 
 void Graph::delete_arrays() {
-  for (size_t i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
     if (outmatrix) {
       delete[] outmatrix[i];
       outmatrix[i] = nullptr;
@@ -256,35 +256,35 @@ void Graph::find_shift_cycles() {
   int cycleindex = 0;
   std::vector<int> cyclestates(h);
 
-  for (size_t i = 0; i <= numstates; ++i) {
+  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
     cyclenum[i] = 0;
     cycleperiod[i] = 0;
   }
 
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
     int cycleper = h;
 
-    for (size_t j = 0; j < h; ++j) {
+    for (size_t j = 0; j < static_cast<size_t>(h); ++j) {
       s = s.upstream();
       int k = get_statenum(s);
       cyclestates.at(j) = k;
       if (k < 1)
         continue;
 
-      if (k == i && !periodfound) {
+      if (static_cast<size_t>(k) == i && !periodfound) {
         cycleper = static_cast<int>(j + 1);
         periodfound = true;
-      } else if (k < i) {
+      } else if (static_cast<size_t>(k) < i) {
         newshiftcycle = false;
       }
     }
-    assert(cyclestates.at(h - 1) == i);
+    assert(static_cast<size_t>(cyclestates.at(h - 1)) == i);
 
     if (newshiftcycle) {
-      for (size_t j = 0; j < h; j++) {
+      for (size_t j = 0; j < static_cast<size_t>(h); j++) {
         if (cyclestates.at(j) > 0)
           cyclenum[cyclestates.at(j)] = cycleindex;
       }
@@ -309,7 +309,7 @@ void Graph::build_graph() {
     std::vector<int> indegree(numstates + 1, 0);
     bool changed = false;
 
-    for (size_t i = 1; i <= numstates; ++i) {
+    for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
       if (!state_active.at(i))
         continue;
       if (outdegree[i] == 0) {
@@ -323,7 +323,7 @@ void Graph::build_graph() {
       }
     }
 
-    for (size_t i = 1; i <= numstates; ++i) {
+    for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
       if (!state_active.at(i))
         continue;
       if (indegree.at(i) == 0) {
@@ -352,7 +352,7 @@ void Graph::build_graph() {
 // outmatrix[][] == 0 indicates no connection.
 
 void Graph::gen_matrices() {
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     outdegree[i] = 0;
     if (!state_active.at(i))
       continue;
@@ -384,7 +384,7 @@ void Graph::gen_matrices() {
 // mode search with marking.
 
 void Graph::find_exclude_states() {
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     if (!state_active.at(i)) {
       excludestates_throw[i][0] = 0;
       excludestates_catch[i][0] = 0;
@@ -423,12 +423,12 @@ void Graph::find_exclude_states() {
 // directly to the start state, assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
-  for (size_t i = 0; i <= numstates; ++i)
+  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i)
     isexitcycle[i] = false;
 
   int lowest_active_state = 0;
 
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     if (!state_active.at(i))
       continue;
     if (lowest_active_state == 0) {
@@ -466,7 +466,7 @@ int Graph::prime_length_bound() const {
   std::vector<bool> all_active(numcycles, true);
   std::vector<bool> any_active(numcycles, false);
 
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     if (state_active.at(i)) {
       ++result;
       any_active.at(cyclenum[i]) = true;
@@ -477,7 +477,7 @@ int Graph::prime_length_bound() const {
 
   int cycles_active = std::count(any_active.begin(), any_active.end(), true);
   if (cycles_active > 1) {
-    for (size_t i = 0; i < numcycles; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(numcycles); ++i) {
       if (any_active.at(i) && all_active.at(i))
         --result;
     }
@@ -490,7 +490,7 @@ int Graph::prime_length_bound() const {
 int Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
 
-  for (size_t i = 1; i <= numstates; ++i) {
+  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
     if (state_active.at(i)) {
       any_active.at(cyclenum[i]) = true;
     }

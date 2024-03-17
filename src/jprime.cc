@@ -131,7 +131,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
 
   bool stealalg_given = false;
 
-  for (int i = 1; i < argc; ++i) {
+  for (size_t i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
       if (config != nullptr)
         config->printflag = false;

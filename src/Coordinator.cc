@@ -279,7 +279,8 @@ void Coordinator::steal_work() {
   while (workers_idle.size() > workers_splitting.size()) {
     // when all of the workers are either idle or queued for splitting, there
     // are no active workers to take work from
-    if (workers_idle.size() + workers_splitting.size() == context.num_threads) {
+    if (workers_idle.size() + workers_splitting.size() ==
+        static_cast<size_t>(context.num_threads)) {
       if (config.verboseflag && sent_split_request) {
         erase_status_output();
         std::cout << "could not steal work (" << workers_idle.size()
@@ -393,14 +394,15 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.l_bound = std::max(context.l_bound, msg.l_bound);
 
   l_max = (config.l_max > 0 ? config.l_max : context.l_bound);
-  assert(msg.count.size() == l_max + 1);
+  assert(msg.count.size() == static_cast<size_t>(l_max + 1));
   assert(context.count.size() <= msg.count.size());
   context.count.resize(msg.count.size(), 0);
 
-  for (int i = 1; i < msg.count.size(); ++i) {
+  for (size_t i = 1; i < msg.count.size(); ++i) {
     context.count.at(i) += msg.count.at(i);
     context.ntotal += msg.count.at(i);
-    if (i >= config.l_min && i <= l_max) {
+    if (i >= static_cast<size_t>(config.l_min) &&
+        i <= static_cast<size_t>(l_max)) {
       context.npatterns += msg.count.at(i);
     }
     if (msg.count.at(i) > 0) {
@@ -450,11 +452,11 @@ void Coordinator::stop_workers() {
 // Gaussian (bell) shape, so we fit to this shape.
 
 double Coordinator::expected_patterns_at_maxlength() {
-  int mode = 0;
-  int max = 0;
+  size_t mode = 0;
+  size_t max = 0;
   std::uint64_t modeval = 0;
 
-  for (int i = 0; i < context.count.size(); ++i) {
+  for (size_t i = 0; i < context.count.size(); ++i) {
     if (context.count.at(i) > modeval) {
       mode = i;
       modeval = context.count.at(i);
@@ -466,9 +468,9 @@ double Coordinator::expected_patterns_at_maxlength() {
   // fit a parabola to the log of pattern count
   double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
   double sy = 0, sxy = 0, sx2y = 0;
-  int xstart = std::max<int>(max - 10, mode);
+  size_t xstart = std::max<size_t>(max - 10, mode);
 
-  for (int i = xstart; i < context.count.size(); ++i) {
+  for (size_t i = xstart; i < context.count.size(); ++i) {
     if (context.count.at(i) < 5)
       continue;
 
@@ -689,7 +691,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool highlight_last = false;
   int rootpos_distance = 999;
 
-  for (int i = root_pos; i < options.size(); ++i) {
+  for (size_t i = root_pos; i < options.size(); ++i) {
     if (!highlight_start && !have_highlighted_start &&
         i < worker_optionsleft_start.at(id).size() &&
         options.at(i) != worker_optionsleft_start.at(id).at(i)) {
@@ -705,7 +707,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     char ch = '\0';
 
     if (compressed) {
-      if (i == root_pos) {
+      if (i == static_cast<size_t>(root_pos)) {
         ch = '0' + options.at(i);
       } else if (msg.worker_throw.at(i) == 0) {
         // skip
