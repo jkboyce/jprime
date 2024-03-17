@@ -36,10 +36,10 @@ class Graph {
   std::vector<bool> xarray;
   bool linkthrows_within_cycle = true;
   std::vector<State> state;
-  int numstates = 0;
-  int maxoutdegree = 0;
-  int numcycles = 0;
-  int numshortcycles = 0;
+  unsigned int numstates = 0;
+  unsigned int maxoutdegree = 0;
+  unsigned int numcycles = 0;
+  unsigned int numshortcycles = 0;
   int* cyclenum;
   int* cycleperiod;
 
@@ -69,8 +69,8 @@ class Graph {
  public:
   void build_graph();
   static std::uint64_t combinations(int n, int h);
-  int prime_length_bound() const;
-  int superprime_length_bound() const;
+  unsigned int prime_length_bound() const;
+  unsigned int superprime_length_bound() const;
   int get_statenum(const State& s) const;
   int advance_state(int statenum, int throwval) const;
   int reverse_state(int statenum) const;

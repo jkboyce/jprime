@@ -36,11 +36,11 @@ class Worker {
   // set during construction and do not change
   const SearchConfig config;
   Coordinator& coordinator;
-  const int worker_id;
+  const unsigned int worker_id;
   Graph graph;
   int l_min = 0;
   int l_max = 0;
-  int l_bound = 0;
+  unsigned int l_bound = 0;
 
   // working variables for search
   int pos = 0;

@@ -70,7 +70,7 @@ void Graph::init() {
     if (!xarray.at(i))
       ++maxoutdegree;
   }
-  maxoutdegree = std::min(maxoutdegree, h - n + 1);
+  maxoutdegree = std::min(maxoutdegree, static_cast<unsigned int>(h - n + 1));
   allocate_arrays();
 
   find_shift_cycles();
@@ -86,7 +86,7 @@ void Graph::allocate_arrays() {
   cycleperiod = new int[numstates + 1];
   isexitcycle = new bool[numstates + 1];
 
-  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     outdegree[i] = 0;
     cyclenum[i] = 0;
     cycleperiod[i] = 0;
@@ -98,7 +98,7 @@ void Graph::allocate_arrays() {
   excludestates_throw = new int*[numstates + 1];
   excludestates_catch = new int*[numstates + 1];
 
-  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     outmatrix[i] = new int[maxoutdegree];
     outthrowval[i] = new int[maxoutdegree];
     excludestates_throw[i] = new int[h];
@@ -116,7 +116,7 @@ void Graph::allocate_arrays() {
 }
 
 void Graph::delete_arrays() {
-  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     if (outmatrix) {
       delete[] outmatrix[i];
       outmatrix[i] = nullptr;
@@ -163,7 +163,7 @@ void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
   s.push_back({n, h});
   gen_states_all_helper(s, h - 1, n);
   s.pop_back();
-  assert(s.size() - 1 == combinations(n, h));
+  assert(s.size() == combinations(n, h) + 1);
 }
 
 // Helper function to generate states in the general case. Recursively insert
@@ -256,12 +256,12 @@ void Graph::find_shift_cycles() {
   int cycleindex = 0;
   std::vector<int> cyclestates(h);
 
-  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 0; i <= numstates; ++i) {
     cyclenum[i] = 0;
     cycleperiod[i] = 0;
   }
 
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
@@ -309,7 +309,7 @@ void Graph::build_graph() {
     std::vector<int> indegree(numstates + 1, 0);
     bool changed = false;
 
-    for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+    for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
       if (outdegree[i] == 0) {
@@ -323,7 +323,7 @@ void Graph::build_graph() {
       }
     }
 
-    for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+    for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
       if (indegree.at(i) == 0) {
@@ -352,7 +352,7 @@ void Graph::build_graph() {
 // outmatrix[][] == 0 indicates no connection.
 
 void Graph::gen_matrices() {
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     outdegree[i] = 0;
     if (!state_active.at(i))
       continue;
@@ -384,7 +384,7 @@ void Graph::gen_matrices() {
 // mode search with marking.
 
 void Graph::find_exclude_states() {
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     if (!state_active.at(i)) {
       excludestates_throw[i][0] = 0;
       excludestates_catch[i][0] = 0;
@@ -423,12 +423,12 @@ void Graph::find_exclude_states() {
 // directly to the start state, assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
-  for (size_t i = 0; i <= static_cast<size_t>(numstates); ++i)
+  for (size_t i = 0; i <= numstates; ++i)
     isexitcycle[i] = false;
 
   int lowest_active_state = 0;
 
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     if (!state_active.at(i))
       continue;
     if (lowest_active_state == 0) {
@@ -458,15 +458,15 @@ std::uint64_t Graph::combinations(int n, int h) {
 
 // Calculate an upper bound on the length of prime patterns in the graph.
 
-int Graph::prime_length_bound() const {
+unsigned int Graph::prime_length_bound() const {
   // when there is more than one shift cycle, a prime pattern has to miss at
   // least one state in each shift cycle it visits
 
-  int result = 0;
+  unsigned int result = 0;
   std::vector<bool> all_active(numcycles, true);
   std::vector<bool> any_active(numcycles, false);
 
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
       ++result;
       any_active.at(cyclenum[i]) = true;
@@ -487,10 +487,10 @@ int Graph::prime_length_bound() const {
 
 // Calculate an upper bound on the length of superprime patterns in the graph.
 
-int Graph::superprime_length_bound() const {
+unsigned int Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
 
-  for (size_t i = 1; i <= static_cast<size_t>(numstates); ++i) {
+  for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
       any_active.at(cyclenum[i]) = true;
     }

@@ -71,7 +71,7 @@ void Coordinator::run() {
     steal_work();
     process_inbox();
 
-    if ((workers_idle.size() == static_cast<size_t>(context.num_threads)
+    if ((workers_idle.size() == context.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
       // any worker that was running will have sent back a RETURN_WORK message
@@ -279,8 +279,7 @@ void Coordinator::steal_work() {
   while (workers_idle.size() > workers_splitting.size()) {
     // when all of the workers are either idle or queued for splitting, there
     // are no active workers to take work from
-    if (workers_idle.size() + workers_splitting.size() ==
-        static_cast<size_t>(context.num_threads)) {
+    if (workers_idle.size() + workers_splitting.size() == context.num_threads) {
       if (config.verboseflag && sent_split_request) {
         erase_status_output();
         std::cout << "could not steal work (" << workers_idle.size()

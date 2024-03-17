@@ -55,20 +55,20 @@ enum class messages_W2C {
 struct MessageW2C {
   // for all message types
   messages_W2C type = messages_W2C::NONE;
-  int worker_id = 0;
+  unsigned int worker_id = 0;
 
   // for type SEARCH_RESULT
   std::string pattern;
-  int length = 0;
+  unsigned int length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
   std::vector<std::uint64_t> count;
   std::uint64_t nnodes = 0;
   double secs_working = 0;
-  int numstates = 0;
-  int numcycles = 0;
-  int numshortcycles = 0;
-  int l_bound = 0;
+  unsigned int numstates = 0;
+  unsigned int numcycles = 0;
+  unsigned int numshortcycles = 0;
+  unsigned int l_bound = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;

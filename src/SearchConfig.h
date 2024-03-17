@@ -73,7 +73,7 @@ struct SearchConfig {
 
   // if 1 then print as letter (a=10, b=11, ...), if >1 then print as an integer
   // with the given field width
-  int throwdigits = 1;
+  unsigned int throwdigits = 1;
 
   // print without using +, - for h and 0 (when throwdigits = 1)
   bool noplusminusflag = false;
@@ -82,7 +82,7 @@ struct SearchConfig {
   bool countflag = false;
 
   // for super mode
-  int shiftlimit = 0;
+  unsigned int shiftlimit = 0;
 
   // throw values to exclude from search
   std::vector<bool> xarray;

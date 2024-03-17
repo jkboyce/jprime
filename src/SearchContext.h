@@ -28,17 +28,17 @@ struct SearchContext {
   std::string arglist;
 
   // number of states in the juggling graph (does not change)
-  int numstates = 0;
+  unsigned int numstates = 0;
 
   // number of shift cycles in the juggling graph
-  int numcycles = 0;
+  unsigned int numcycles = 0;
 
   // number of short (length < h) shift cycles
-  int numshortcycles = 0;
+  unsigned int numshortcycles = 0;
 
   // maximum length possible for a prime pattern of the type we're searching
   // (does not change)
-  int l_bound = 0;
+  unsigned int l_bound = 0;
 
   // number of patterns found in the range [l_min, l_max]
   std::uint64_t npatterns = 0;
@@ -68,7 +68,7 @@ struct SearchContext {
   std::list<WorkAssignment> assignments;
 
   // number of worker threads to use
-  int num_threads = 1;
+  unsigned int num_threads = 1;
 
   // whether to use a file to save, resume after interruption, and record the
   // final results
@@ -78,10 +78,10 @@ struct SearchContext {
   std::string outfile;
 
   // work stealing algorithm to use
-  int steal_alg = 1;
+  unsigned int steal_alg = 1;
 
   // work splitting algorithm to use
-  int split_alg = 1;
+  unsigned int split_alg = 1;
 };
 
 #endif
