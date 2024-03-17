@@ -721,11 +721,11 @@ std::string Worker::get_pattern() const {
   std::ostringstream buffer;
 
   for (int i = 0; i <= pos; ++i) {
+    if (config.throwdigits > 1 && i != 0)
+      buffer << ',';
     const int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
         : pattern[i]);
     print_throw(buffer, throwval);
-    if (config.throwdigits > 1 && i < pos)
-      buffer << ',';
   }
 
   return buffer.str();

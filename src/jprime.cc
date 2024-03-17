@@ -89,10 +89,10 @@ void print_help() {
     "\n"
     "Examples:\n"
     "   jprime 4 7\n"
-    "   jprime 5 7 14-15\n"
     "   jprime 5 7 -noplus -file 5_7_all\n"
-    "   jprime 4 9 112\n"
-    "   jprime 4 9 14- -super 0 -inverse\n";
+    "   jprime 6 10 187-\n"
+    "   jprime 4 9 14- -super 0 -inverse\n"
+    "   jprime 7 42 6 -g\n";
 
   std::cout << helpString << std::endl;
 }

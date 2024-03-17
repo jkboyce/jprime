@@ -60,19 +60,6 @@ bool WorkAssignment::from_string(std::string str) {
   return true;
 }
 
-// Return an integer throw value corresponding to a character
-
-int throw_value(char ch) {
-  if (ch >= '0' && ch <= '9')
-    return static_cast<int>(ch - '0');
-  else if (ch >= 'a' && ch <= 'z')
-    return static_cast<int>(ch - 'a') + 10;
-  else if (ch >= 'A' && ch <= 'Z')
-    return static_cast<int>(ch - 'A') + 10;
-  else
-    return -1;
-}
-
 // Output a text representation
 
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
