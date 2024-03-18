@@ -131,10 +131,11 @@ class Worker {
   void handle_finished_pattern();
 
   // core search routines (iterative)
+  void iterative_gen_loops_normal();
   void iterative_gen_loops_normal_marking();
   void iterative_gen_loops_super();
   void iterative_gen_loops_super0();
-  bool iterative_init_workspace();
+  bool iterative_init_workspace(bool marking);
   void iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();

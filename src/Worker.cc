@@ -529,7 +529,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
-  for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i)
+  for (size_t i = 1; i <= graph.numstates; ++i)
     graph.state_active.at(i) = true;
 
   for (; start_state <= end_state; ++start_state) {
@@ -560,13 +560,9 @@ void Worker::gen_patterns() {
         ++deadstates_bystate[i];
       }
     }
-    if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
-      max_possible = l_bound;
-    } else {
-      max_possible = (config.mode == RunMode::SUPER_SEARCH)
-          ? graph.superprime_length_bound() + config.shiftlimit
-          : graph.prime_length_bound();
-    }
+    max_possible = (config.mode == RunMode::SUPER_SEARCH)
+        ? graph.superprime_length_bound() + config.shiftlimit
+        : graph.prime_length_bound();
 
     if (config.verboseflag) {
       int num_inactive = std::count(graph.state_active.begin() + 1,
@@ -601,7 +597,7 @@ void Worker::gen_patterns() {
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH)
-          gen_loops_normal();
+          iterative_gen_loops_normal();
         else
           iterative_gen_loops_normal_marking();
         break;
@@ -628,7 +624,7 @@ void Worker::gen_patterns() {
 // reachability. This routine should never mark states as active!
 
 void Worker::set_inactive_states() {
-  for (size_t i = 0; i < static_cast<size_t>(start_state); ++i)
+  for (size_t i = 0; i < start_state; ++i)
     graph.state_active.at(i) = false;
 
   if (config.mode == RunMode::SUPER_SEARCH) {

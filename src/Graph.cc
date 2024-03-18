@@ -463,22 +463,21 @@ unsigned int Graph::prime_length_bound() const {
   // least one state in each shift cycle it visits
 
   unsigned int result = 0;
-  std::vector<bool> all_active(numcycles, true);
-  std::vector<bool> any_active(numcycles, false);
+  std::vector<int> num_active(numcycles, 0);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
       ++result;
-      any_active.at(cyclenum[i]) = true;
-    } else {
-      all_active.at(cyclenum[i]) = false;
+      ++num_active.at(cyclenum[i]);
     }
   }
 
-  int cycles_active = std::count(any_active.begin(), any_active.end(), true);
+  int cycles_active = numcycles -
+      std::count(num_active.begin(), num_active.end(), 0);
+
   if (cycles_active > 1) {
-    for (size_t i = 0; i < static_cast<size_t>(numcycles); ++i) {
-      if (any_active.at(i) && all_active.at(i))
+    for (size_t i = 0; i < numcycles; ++i) {
+      if (num_active.at(i) == cycleperiod[i])
         --result;
     }
   }

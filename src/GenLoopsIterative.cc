@@ -25,13 +25,87 @@
 // It is slightly faster than the recursive version and also avoids potential
 // stack overflow on deeper searches.
 
-void Worker::iterative_gen_loops_normal_marking() {
-  if (!iterative_init_workspace()) {
+void Worker::iterative_gen_loops_normal() {
+  if (!iterative_init_workspace(false)) {
     assert(false);
   }
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
   // provide a guard since beat[0].col is modified at the end of the search.
+  SearchState* ss = &beat[pos + 1];
+
+  while (pos >= 0) {
+    // begin with any necessary cleanup from previous marking operations
+    if (ss->to_state != 0) {
+      used[ss->to_state] = 0;
+      ss->to_state = 0;
+    }
+
+    skip_unmarking:
+    if (ss->col == ss->col_limit) {
+      --pos;
+      --ss;
+      ++ss->col;
+      ++nnodes;
+      continue;
+    }
+
+    const int to_state = ss->outmatrix[ss->col];
+    if (to_state == start_state) {
+      iterative_handle_finished_pattern();
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (used[to_state]) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (pos + 1 == l_max) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (++steps_taken >= steps_per_inbox_check) {
+      steps_taken = 0;
+      iterative_calc_rootpos_and_options();
+
+      if (iterative_can_split()) {
+        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+          pattern[i] = graph.outthrowval[beat[i + 1].from_state]
+                                        [beat[i + 1].col];
+        }
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        iterative_update_after_split();
+      }
+    }
+
+    // advance to next beat
+    used[to_state] = 1;
+    ss->to_state = to_state;
+    ++pos;
+    ++ss;
+    ss->col = 0;
+    ss->col_limit = graph.outdegree[to_state];
+    ss->from_state = to_state;
+    ss->to_state = 0;
+    ss->outmatrix = graph.outmatrix[to_state];
+    goto skip_unmarking;
+  }
+
+  ++pos;
+  assert(pos == 0);
+}
+
+// Non-recursive version of get_loops_normal_marking()
+
+void Worker::iterative_gen_loops_normal_marking() {
+  if (!iterative_init_workspace(true)) {
+    assert(false);
+  }
+
   SearchState* ss = &beat[pos + 1];
 
   while (pos >= 0) {
@@ -81,6 +155,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       ++ss->col;
       goto skip_unmarking2;
     }
+
     if (pos + 1 == l_max) {
       ++ss->col;
       goto skip_unmarking2;
@@ -188,7 +263,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 // Non-recursive version of get_loops_super()
 
 void Worker::iterative_gen_loops_super() {
-  if (!iterative_init_workspace()) {
+  if (!iterative_init_workspace(false)) {
     assert(false);
   }
 
@@ -311,7 +386,7 @@ void Worker::iterative_gen_loops_super() {
 // Non-recursive version of get_loops_super0()
 
 void Worker::iterative_gen_loops_super0() {
-  if (!iterative_init_workspace()) {
+  if (!iterative_init_workspace(false)) {
     assert(false);
   }
 
@@ -399,7 +474,7 @@ void Worker::iterative_gen_loops_super0() {
 //
 // Returns true on success, false on failure.
 
-bool Worker::iterative_init_workspace() {
+bool Worker::iterative_init_workspace(bool marking) {
   if (!loading_work) {
     pos = 0;
     SearchState& ss = beat[pos + 1];
@@ -457,32 +532,30 @@ bool Worker::iterative_init_workspace() {
     ss.shifts_remaining = shifts_remaining;
     ss.exitcycles_remaining = exitcycles_remaining;
 
-    if (config.mode == RunMode::NORMAL_SEARCH) {
-      if (pattern[i] != 0 && pattern[i] != graph.h) {
-        // mark unreachable states due to link throw
-        unsigned int* ds = deadstates_bystate[ss.from_state];
-        unsigned int* es = graph.excludestates_throw[ss.from_state];
-        ss.excludes_throw = es;
-        ss.deadstates_throw = ds;
+    if (marking && pattern[i] != 0 && pattern[i] != graph.h) {
+      // mark unreachable states due to link throw
+      unsigned int* ds = deadstates_bystate[ss.from_state];
+      unsigned int* es = graph.excludestates_throw[ss.from_state];
+      ss.excludes_throw = es;
+      ss.deadstates_throw = ds;
 
-        for (unsigned int statenum; (statenum = *es); ++es) {
-          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
-            pos = 0;
-            return false;
-          }
+      for (unsigned int statenum; (statenum = *es); ++es) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
+          pos = 0;
+          return false;
         }
+      }
 
-        // mark unreachable states due to link catch
-        ds = deadstates_bystate[ss.to_state];
-        es = graph.excludestates_catch[ss.to_state];
-        ss.excludes_catch = es;
-        ss.deadstates_catch = ds;
+      // mark unreachable states due to link catch
+      ds = deadstates_bystate[ss.to_state];
+      es = graph.excludestates_catch[ss.to_state];
+      ss.excludes_catch = es;
+      ss.deadstates_catch = ds;
 
-        for (unsigned int statenum; (statenum = *es); ++es) {
-          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
-            pos = 0;
-            return false;
-          }
+      for (unsigned int statenum; (statenum = *es); ++es) {
+        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
+          pos = 0;
+          return false;
         }
       }
     }
