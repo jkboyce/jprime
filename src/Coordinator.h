@@ -38,7 +38,6 @@ class Coordinator {
   std::vector<std::thread*> worker_thread;
   std::set<unsigned int> workers_idle;
   std::set<unsigned int> workers_splitting;
-  std::list<unsigned int> workers_run_order;
   std::vector<int> worker_rootpos;
   std::vector<unsigned int> worker_longest;
   static bool stopping;
@@ -78,11 +77,9 @@ class Coordinator {
   int find_stealing_target_longestpattern() const;
   int find_stealing_target_lowestid() const;
   int find_stealing_target_lowestrootpos() const;
-  int find_stealing_target_longestruntime() const;
   bool is_worker_idle(const unsigned int id) const;
   bool is_worker_splitting(const unsigned int id) const;
   void record_data_from_message(const MessageW2C& msg);
-  void remove_from_run_order(const unsigned int id);
   void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);

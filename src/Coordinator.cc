@@ -141,7 +141,6 @@ void Coordinator::give_assignments() {
     MessageC2W msg;
     msg.type = messages_C2W::DO_WORK;
     msg.assignment = wa;
-    workers_run_order.push_back(id);
     worker_rootpos.at(id) = wa.root_pos;
     worker_longest.at(id) = 0;
     if (config.statusflag) {
@@ -194,7 +193,6 @@ void Coordinator::process_search_result(const MessageW2C& msg) {
 }
 
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
-  remove_from_run_order(msg.worker_id);
   workers_idle.insert(msg.worker_id);
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
@@ -221,10 +219,6 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   workers_splitting.erase(msg.worker_id);
   context.assignments.push_back(msg.assignment);
   record_data_from_message(msg);
-
-  // put splittee at the back of the run order list
-  remove_from_run_order(msg.worker_id);
-  workers_run_order.push_back(msg.worker_id);
 
   if (config.verboseflag) {
     erase_status_output();
@@ -301,9 +295,6 @@ void Coordinator::steal_work() {
       case 3:
         id = find_stealing_target_lowestrootpos();
         break;
-      case 4:
-        id = find_stealing_target_longestruntime();
-        break;
       default:
         assert(false);
     }
@@ -368,11 +359,6 @@ int Coordinator::find_stealing_target_lowestrootpos() const {
   return id_min;
 }
 
-int Coordinator::find_stealing_target_longestruntime() const {
-  // strategy: take work from the worker running the longest
-  return workers_run_order.front();
-}
-
 //------------------------------------------------------------------------------
 // Helper functions
 //------------------------------------------------------------------------------
@@ -410,22 +396,6 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
           worker_longest.at(msg.worker_id), i);
     }
   }
-}
-
-void Coordinator::remove_from_run_order(const unsigned int id) {
-  // remove worker from workers_run_order
-  std::list<unsigned int>::iterator iter = workers_run_order.begin();
-  std::list<unsigned int>::iterator end = workers_run_order.end();
-  bool found = false;
-
-  while (iter != end) {
-    if (*iter == id) {
-      found = true;
-      iter = workers_run_order.erase(iter);
-    } else
-      ++iter;
-  }
-  assert(found);
 }
 
 void Coordinator::stop_workers() {
