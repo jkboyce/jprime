@@ -65,10 +65,10 @@ void Worker::allocate_arrays() {
   pattern = new int[graph.numstates + 1];
   used = new int[graph.numstates + 1];
   cycleused = new bool[graph.numstates + 1];
-  deadstates = new int[graph.numstates + 1];
-  deadstates_bystate = new int*[graph.numstates + 1];
+  deadstates = new unsigned int[graph.numstates + 1];
+  deadstates_bystate = new unsigned int*[graph.numstates + 1];
 
-  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     beat[i] = {};
     pattern[i] = -1;
     used[i] = 0;
@@ -281,7 +281,7 @@ void Worker::send_stats_to_coordinator() {
     for (int i = 0; i <= pos; ++i) {
       msg.worker_throw.at(i) = pattern[i];
 
-      for (int col = 0; col < graph.outdegree[tempfrom]; ++col) {
+      for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
         if (graph.outthrowval[tempfrom][col] == pattern[i]) {
           if (i < root_pos)
             msg.worker_optionsleft.at(i) = 0;
@@ -339,7 +339,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
   assert(pos == 0);
 
-  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern.at(i)
         : -1;
   }
@@ -355,7 +355,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
+  for (size_t i = 0; i <= graph.numstates; ++i) {
     if (pattern[i] == -1)
       break;
     wa.partial_pattern.push_back(pattern[i]);
@@ -428,8 +428,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     wa.partial_pattern.push_back(pattern[i]);
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
-  std::list<int>::iterator iter = root_throwval_options.begin();
-  std::list<int>::iterator end = root_throwval_options.end();
+  std::list<unsigned int>::iterator iter = root_throwval_options.begin();
+  std::list<unsigned int>::iterator end = root_throwval_options.end();
   while (iter != end) {
     if (*iter == pattern[root_pos])
       iter = root_throwval_options.erase(iter);
@@ -546,7 +546,7 @@ void Worker::gen_patterns() {
     from = start_state;
     shiftcount = 0;
     exitcyclesleft = 0;
-    for (size_t i = 0; i <= static_cast<size_t>(graph.numstates); ++i) {
+    for (size_t i = 0; i <= graph.numstates; ++i) {
       used[i] = 0;
       cycleused[i] = false;
       deadstates[i] = 0;
@@ -555,7 +555,7 @@ void Worker::gen_patterns() {
         ++exitcyclesleft;
     }
 
-    for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i) {
+    for (size_t i = 1; i <= graph.numstates; ++i) {
       if (!graph.state_active.at(i)) {
         ++deadstates_bystate[i];
       }
@@ -632,7 +632,7 @@ void Worker::set_inactive_states() {
     graph.state_active.at(i) = false;
 
   if (config.mode == RunMode::SUPER_SEARCH) {
-    for (size_t i = 1; i <= static_cast<size_t>(graph.numstates); ++i) {
+    for (size_t i = 1; i <= graph.numstates; ++i) {
       // number of consecutive '-'s at the start of the state, plus number of
       // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
       int start0s = 0;

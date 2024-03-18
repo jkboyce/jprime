@@ -40,16 +40,16 @@ class Graph {
   unsigned int maxoutdegree = 0;
   unsigned int numcycles = 0;
   unsigned int numshortcycles = 0;
-  int* cyclenum;
-  int* cycleperiod;
+  unsigned int* cyclenum;
+  unsigned int* cycleperiod;
 
   // updated as states are activated/deactivated
   std::vector<bool> state_active;
-  int** outmatrix;
-  int* outdegree;
-  int** outthrowval;
-  int** excludestates_throw;
-  int** excludestates_catch;
+  unsigned int** outmatrix;
+  unsigned int* outdegree;
+  unsigned int** outthrowval;
+  unsigned int** excludestates_throw;
+  unsigned int** excludestates_catch;
   bool* isexitcycle;
 
  private:

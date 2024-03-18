@@ -22,12 +22,12 @@
 // This version is for NORMAL mode.
 
 void Worker::gen_loops_normal() {
-  int col = (loading_work ? load_one_throw() : 0);
-  const int limit = graph.outdegree[from];
-  const int* om = graph.outmatrix[from];
+  unsigned int col = (loading_work ? load_one_throw() : 0);
+  const unsigned int limit = graph.outdegree[from];
+  const unsigned int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = om[col];
+    const unsigned int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -81,12 +81,12 @@ void Worker::gen_loops_normal() {
 
 void Worker::gen_loops_normal_marking() {
   bool did_mark_for_throw = false;
-  int col = (loading_work ? load_one_throw() : 0);
-  const int limit = graph.outdegree[from];
-  const int* om = graph.outmatrix[from];
+  unsigned int col = (loading_work ? load_one_throw() : 0);
+  const unsigned int limit = graph.outdegree[from];
+  const unsigned int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = om[col];
+    const unsigned int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
@@ -165,13 +165,13 @@ void Worker::gen_loops_normal_marking() {
 // throw to a new shift cycle.
 
 void Worker::gen_loops_super() {
-  int col = (loading_work ? load_one_throw() : 0);
-  const int limit = graph.outdegree[from];
-  const int* om = graph.outmatrix[from];
-  const int* ov = graph.outthrowval[from];
+  unsigned int col = (loading_work ? load_one_throw() : 0);
+  const unsigned int limit = graph.outdegree[from];
+  const unsigned int* om = graph.outmatrix[from];
+  const unsigned int* ov = graph.outthrowval[from];
 
   for (; col < limit; ++col) {
-    const int to = om[col];
+    const unsigned int to = om[col];
     if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
       continue;
     if (used[to] != 0)
@@ -248,16 +248,16 @@ void Worker::gen_loops_super() {
 // pattern isn't done, we terminate the search early.
 
 void Worker::gen_loops_super0() {
-  int col = (loading_work ? load_one_throw() : 0);
-  const int limit = graph.outdegree[from];
-  const int* om = graph.outmatrix[from];
+  unsigned int col = (loading_work ? load_one_throw() : 0);
+  const unsigned int limit = graph.outdegree[from];
+  const unsigned int* om = graph.outmatrix[from];
 
   for (; col < limit; ++col) {
-    const int to = om[col];
+    const unsigned int to = om[col];
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    const int to_cycle = graph.cyclenum[to];
+    const unsigned int to_cycle = graph.cyclenum[to];
     if (cycleused[to_cycle])
       continue;
 
@@ -281,7 +281,7 @@ void Worker::gen_loops_super0() {
         --exitcyclesleft;
       cycleused[to_cycle] = true;
       ++pos;
-      const int old_from = from;
+      const unsigned int old_from = from;
       from = to;
       gen_loops_super0();
       from = old_from;
@@ -301,7 +301,7 @@ void Worker::gen_loops_super0() {
 // corresponds to the throw value at position `pos` in the pattern. This allows
 // us to resume where we left off when loading from a work assignment.
 
-int Worker::load_one_throw() {
+unsigned int Worker::load_one_throw() {
   if (pattern[pos] == -1) {
     loading_work = false;
     return 0;
@@ -310,7 +310,7 @@ int Worker::load_one_throw() {
     loading_work = false;
   }
 
-  for (int col = 0; col < graph.outdegree[from]; ++col) {
+  for (unsigned int col = 0; col < graph.outdegree[from]; ++col) {
     if (graph.outthrowval[from][col] == pattern[pos])
       return col;
   }
@@ -344,8 +344,8 @@ int Worker::load_one_throw() {
 // the pattern. This list of options is maintained in case we get a request
 // to split work.
 
-void Worker::build_rootpos_throw_options(int rootpos_from_state,
-      int start_column) {
+void Worker::build_rootpos_throw_options(unsigned int rootpos_from_state,
+    unsigned int start_column) {
   root_throwval_options.clear();
   for (int col = start_column; col < graph.outdegree[rootpos_from_state]; ++col)
     root_throwval_options.push_back(graph.outthrowval[rootpos_from_state][col]);
@@ -371,16 +371,17 @@ void Worker::build_rootpos_throw_options(int rootpos_from_state,
 // Returns true if `throwval` is an allowed choice at position `root_pos`,
 // false otherwise.
 
-bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
+bool Worker::mark_off_rootpos_option(unsigned int throwval,
+    unsigned int to_state) {
   bool found = false;
-  int remaining = 0;
-  std::list<int>::iterator iter = root_throwval_options.begin();
-  std::list<int>::iterator end = root_throwval_options.end();
+  unsigned int remaining = 0;
+  std::list<unsigned int>::iterator iter = root_throwval_options.begin();
+  std::list<unsigned int>::iterator end = root_throwval_options.end();
 
   while (iter != end) {
     // housekeeping: has this root_pos option been pruned from the graph?
     bool pruned = true;
-    for (int i = 0; i < graph.outdegree[from]; ++i) {
+    for (size_t i = 0; i < graph.outdegree[from]; ++i) {
       if (graph.outthrowval[from][i] == *iter) {
         pruned = false;
         break;
@@ -433,9 +434,9 @@ bool Worker::mark_off_rootpos_option(int throwval, int to_state) {
 
 inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
-  int* const ds = deadstates_bystate[from];
-  int* es = graph.excludestates_throw[from];
-  int statenum = 0;
+  unsigned int* const ds = deadstates_bystate[from];
+  unsigned int* es = graph.excludestates_throw[from];
+  unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
@@ -444,11 +445,11 @@ inline bool Worker::mark_unreachable_states_throw() {
   return valid;
 }
 
-inline bool Worker::mark_unreachable_states_catch(int to_state) {
+inline bool Worker::mark_unreachable_states_catch(unsigned int to_state) {
   bool valid = true;
-  int* const ds = deadstates_bystate[to_state];
-  int* es = graph.excludestates_catch[to_state];
-  int statenum = 0;
+  unsigned int* const ds = deadstates_bystate[to_state];
+  unsigned int* es = graph.excludestates_catch[to_state];
+  unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
@@ -461,9 +462,9 @@ inline bool Worker::mark_unreachable_states_catch(int to_state) {
 // Reverse the marking operations above, so we can backtrack.
 
 inline void Worker::unmark_unreachable_states_throw() {
-  int* const ds = deadstates_bystate[from];
-  int* es = graph.excludestates_throw[from];
-  int statenum = 0;
+  unsigned int* const ds = deadstates_bystate[from];
+  unsigned int* es = graph.excludestates_throw[from];
+  unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
     if (--used[statenum] == 0 && --*ds > 0)
@@ -471,10 +472,10 @@ inline void Worker::unmark_unreachable_states_throw() {
   }
 }
 
-inline void Worker::unmark_unreachable_states_catch(int to_state) {
-  int* const ds = deadstates_bystate[to_state];
-  int* es = graph.excludestates_catch[to_state];
-  int statenum = 0;
+inline void Worker::unmark_unreachable_states_catch(unsigned int to_state) {
+  unsigned int* const ds = deadstates_bystate[to_state];
+  unsigned int* es = graph.excludestates_catch[to_state];
+  unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
     if (--used[statenum] == 0 && --*ds > 0)

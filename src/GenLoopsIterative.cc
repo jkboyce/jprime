@@ -43,9 +43,9 @@ void Worker::iterative_gen_loops_normal_marking() {
 
     skip_unmarking1:
     if (ss->excludes_catch) {
-      int* const ds = ss->deadstates_catch;
-      int* es = ss->excludes_catch;
-      for (int statenum; (statenum = *es); ++es) {
+      unsigned int* const ds = ss->deadstates_catch;
+      unsigned int* es = ss->excludes_catch;
+      for (unsigned int statenum; (statenum = *es); ++es) {
         if (--used[statenum] == 0 && --*ds > 0)
           ++max_possible;
       }
@@ -55,9 +55,9 @@ void Worker::iterative_gen_loops_normal_marking() {
     skip_unmarking2:
     if (ss->col == ss->col_limit) {
       if (ss->excludes_throw) {
-        int* const ds = ss->deadstates_throw;
-        int* es = ss->excludes_throw;
-        for (int statenum; (statenum = *es); ++es) {
+        unsigned int* const ds = ss->deadstates_throw;
+        unsigned int* es = ss->excludes_throw;
+        for (unsigned int statenum; (statenum = *es); ++es) {
           if (--used[statenum] == 0 && --*ds > 0)
             ++max_possible;
         }
@@ -92,12 +92,12 @@ void Worker::iterative_gen_loops_normal_marking() {
         // mark states excluded by link throw; only need to do this once since
         // the link throws all come at the end of each row in `outmatrix`
         bool valid1 = true;
-        int* const ds = deadstates_bystate[ss->from_state];
-        int* es = graph.excludestates_throw[ss->from_state];
+        unsigned int* const ds = deadstates_bystate[ss->from_state];
+        unsigned int* es = graph.excludestates_throw[ss->from_state];
         ss->excludes_throw = es;  // save to clean up later
         ss->deadstates_throw = ds;
 
-        for (int statenum; (statenum = *es); ++es) {
+        for (unsigned int statenum; (statenum = *es); ++es) {
           if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
             valid1 = false;
         }
@@ -105,7 +105,7 @@ void Worker::iterative_gen_loops_normal_marking() {
         if (!valid1) {
           // undo marking operation and bail to previous beat
           es = ss->excludes_throw;
-          for (int statenum; (statenum = *es); ++es) {
+          for (unsigned int statenum; (statenum = *es); ++es) {
             if (--used[statenum] == 0 && --*ds > 0)
               ++max_possible;
           }
@@ -120,12 +120,12 @@ void Worker::iterative_gen_loops_normal_marking() {
 
       // account for states excluded by link catch
       bool valid2 = true;
-      int* const ds = deadstates_bystate[to_state];
-      int* es = graph.excludestates_catch[to_state];
+      unsigned int* const ds = deadstates_bystate[to_state];
+      unsigned int* es = graph.excludestates_catch[to_state];
       ss->excludes_catch = es;
       ss->deadstates_catch = ds;
 
-      for (int statenum; (statenum = *es); ++es) {
+      for (unsigned int statenum; (statenum = *es); ++es) {
         if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
           valid2 = false;
       }
@@ -220,9 +220,9 @@ void Worker::iterative_gen_loops_super() {
       goto skip_unmarking;
     }
 
-    const int throwval = graph.outthrowval[ss->from_state][ss->col];
+    const unsigned int throwval = graph.outthrowval[ss->from_state][ss->col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
-    const int shifts_remaining = ss->shifts_remaining;
+    const unsigned int shifts_remaining = ss->shifts_remaining;
 
     if (linkthrow) {
       if (to_state == start_state) {
@@ -421,9 +421,9 @@ bool Worker::iterative_init_workspace() {
 
   loading_work = false;
   pos = -1;
-  int last_from_state = start_state;
-  int shifts_remaining = config.shiftlimit;
-  int exitcycles_remaining = exitcyclesleft;
+  unsigned int last_from_state = start_state;
+  unsigned int shifts_remaining = config.shiftlimit;
+  unsigned int exitcycles_remaining = exitcyclesleft;
 
   for (size_t i = 0; pattern[i] != -1; ++i) {
     pos = i;
@@ -460,12 +460,12 @@ bool Worker::iterative_init_workspace() {
     if (config.mode == RunMode::NORMAL_SEARCH) {
       if (pattern[i] != 0 && pattern[i] != graph.h) {
         // mark unreachable states due to link throw
-        int* ds = deadstates_bystate[ss.from_state];
-        int* es = graph.excludestates_throw[ss.from_state];
+        unsigned int* ds = deadstates_bystate[ss.from_state];
+        unsigned int* es = graph.excludestates_throw[ss.from_state];
         ss.excludes_throw = es;
         ss.deadstates_throw = ds;
 
-        for (int statenum; (statenum = *es); ++es) {
+        for (unsigned int statenum; (statenum = *es); ++es) {
           if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
             pos = 0;
             return false;
@@ -478,7 +478,7 @@ bool Worker::iterative_init_workspace() {
         ss.excludes_catch = es;
         ss.deadstates_catch = ds;
 
-        for (int statenum; (statenum = *es); ++es) {
+        for (unsigned int statenum; (statenum = *es); ++es) {
           if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
             pos = 0;
             return false;
@@ -511,8 +511,7 @@ bool Worker::iterative_init_workspace() {
 
   if (pos < root_pos) {
     // loading a work assignment that was stolen from another worker
-    assert(pos == root_pos - 1);
-
+    assert(pos + 1 == root_pos);
     SearchState& rss = beat[root_pos + 1];
     rss.from_state = last_from_state;
     rss.to_state = 0;
@@ -525,12 +524,11 @@ bool Worker::iterative_init_workspace() {
 
     // set `col` at `root_pos`
     rss.col = graph.maxoutdegree;
-    for (size_t i = 0;
-        i < static_cast<size_t>(graph.outdegree[rss.from_state]); ++i) {
-      int throwval = graph.outthrowval[rss.from_state][i];
+    for (size_t i = 0; i < graph.outdegree[rss.from_state]; ++i) {
+      unsigned int throwval = graph.outthrowval[rss.from_state][i];
       if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
           throwval) != root_throwval_options.end()) {
-        rss.col = std::min<int>(rss.col, i);
+        rss.col = std::min<unsigned int>(rss.col, i);
       }
     }
 
@@ -540,12 +538,11 @@ bool Worker::iterative_init_workspace() {
   // set `col_limit` at `root_pos`
   SearchState& rss = beat[root_pos + 1];
   rss.col_limit = 0;
-  for (size_t i = 0;
-      i < static_cast<size_t>(graph.outdegree[rss.from_state]); ++i) {
-    int throwval = graph.outthrowval[rss.from_state][i];
+  for (size_t i = 0; i < graph.outdegree[rss.from_state]; ++i) {
+    unsigned int throwval = graph.outthrowval[rss.from_state][i];
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
-      rss.col_limit = std::max<int>(rss.col_limit, i + 1);
+      rss.col_limit = std::max<unsigned int>(rss.col_limit, i + 1);
     }
   }
   assert(rss.col < rss.col_limit);
@@ -576,8 +573,7 @@ void Worker::iterative_calc_rootpos_and_options() {
 
   root_throwval_options.clear();
   SearchState& ss = beat[new_root_pos + 1];
-  for (size_t col = ss.col + 1; col < static_cast<size_t>(ss.col_limit);
-      ++col) {
+  for (size_t col = ss.col + 1; col < ss.col_limit; ++col) {
     root_throwval_options.push_back(graph.outthrowval[ss.from_state][col]);
   }
 }
@@ -613,10 +609,9 @@ void Worker::iterative_update_after_split() {
     ss.col_limit = ss.col + 1;  // ensure no further iteration on this beat
   }
   SearchState& ss = beat[root_pos + 1];
-  int new_col_limit = ss.col + 1;
-  for (size_t i = ss.col + 1;
-      i < static_cast<size_t>(graph.outdegree[ss.from_state]); ++i) {
-    int throwval = graph.outthrowval[ss.from_state][i];
+  unsigned int new_col_limit = ss.col + 1;
+  for (size_t i = ss.col + 1; i < graph.outdegree[ss.from_state]; ++i) {
+    unsigned int throwval = graph.outthrowval[ss.from_state][i];
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
       new_col_limit = i + 1;

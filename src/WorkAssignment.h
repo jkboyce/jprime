@@ -32,10 +32,10 @@ struct WorkAssignment {
   int root_pos = 0;
 
   // set of unexplored throw options at `pos`==`root_pos`
-  std::list<int> root_throwval_options;
+  std::list<unsigned int> root_throwval_options;
 
   // sequence of throws comprising the current position in the search tree
-  std::vector<int> partial_pattern;
+  std::vector<unsigned int> partial_pattern;
 
   bool from_string(std::string str);
 };

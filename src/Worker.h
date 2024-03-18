@@ -52,14 +52,14 @@ class Worker {
   int* pattern;
   int* used;
   bool* cycleused;  // whether cycle has been visited, in SUPER mode
-  int* deadstates;  // indexed by shift cycle number
-  int** deadstates_bystate;  // indexed by state number
+  unsigned int* deadstates;  // indexed by shift cycle number
+  unsigned int** deadstates_bystate;  // indexed by state number
 
   // for loading and sharing work assignments
-  int start_state = 1;
-  int end_state = 1;
+  unsigned int start_state = 1;
+  unsigned int end_state = 1;
   int root_pos = 0;
-  std::list<int> root_throwval_options;
+  std::list<unsigned int> root_throwval_options;
   bool loading_work = false;
 
   // status data to report to Coordinator
@@ -120,13 +120,14 @@ class Worker {
   void gen_loops_normal_marking();
   void gen_loops_super();
   void gen_loops_super0();
-  int load_one_throw();
-  void build_rootpos_throw_options(int rootpos_from_state, int min_column);
-  bool mark_off_rootpos_option(int throwval, int to_state);
+  unsigned int load_one_throw();
+  void build_rootpos_throw_options(unsigned int rootpos_from_state,
+      unsigned int min_column);
+  bool mark_off_rootpos_option(unsigned int throwval, unsigned int to_state);
   bool mark_unreachable_states_throw();
-  bool mark_unreachable_states_catch(int to_state);
+  bool mark_unreachable_states_catch(unsigned int to_state);
   void unmark_unreachable_states_throw();
-  void unmark_unreachable_states_catch(int to_state);
+  void unmark_unreachable_states_catch(unsigned int to_state);
   void handle_finished_pattern();
 
   // core search routines (iterative)

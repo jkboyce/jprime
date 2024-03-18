@@ -81,9 +81,9 @@ void Graph::init() {
 // Allocate all arrays used by the graph and initialize to default values.
 
 void Graph::allocate_arrays() {
-  outdegree = new int[numstates + 1];
-  cyclenum = new int[numstates + 1];
-  cycleperiod = new int[numstates + 1];
+  outdegree = new unsigned int[numstates + 1];
+  cyclenum = new unsigned int[numstates + 1];
+  cycleperiod = new unsigned int[numstates + 1];
   isexitcycle = new bool[numstates + 1];
 
   for (size_t i = 0; i <= numstates; ++i) {
@@ -93,18 +93,18 @@ void Graph::allocate_arrays() {
     isexitcycle[i] = false;
   }
 
-  outmatrix = new int*[numstates + 1];
-  outthrowval = new int*[numstates + 1];
-  excludestates_throw = new int*[numstates + 1];
-  excludestates_catch = new int*[numstates + 1];
+  outmatrix = new unsigned int*[numstates + 1];
+  outthrowval = new unsigned int*[numstates + 1];
+  excludestates_throw = new unsigned int*[numstates + 1];
+  excludestates_catch = new unsigned int*[numstates + 1];
 
   for (size_t i = 0; i <= numstates; ++i) {
-    outmatrix[i] = new int[maxoutdegree];
-    outthrowval[i] = new int[maxoutdegree];
-    excludestates_throw[i] = new int[h];
-    excludestates_catch[i] = new int[h];
+    outmatrix[i] = new unsigned int[maxoutdegree];
+    outthrowval[i] = new unsigned int[maxoutdegree];
+    excludestates_throw[i] = new unsigned int[h];
+    excludestates_catch[i] = new unsigned int[h];
 
-    for (size_t j = 0; j < static_cast<size_t>(maxoutdegree); ++j) {
+    for (size_t j = 0; j < maxoutdegree; ++j) {
       outmatrix[i][j] = 0;
       outthrowval[i][j] = 0;
     }

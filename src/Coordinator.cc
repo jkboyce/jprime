@@ -107,7 +107,8 @@ void Coordinator::run() {
 // Handle interactions with the Worker threads
 //------------------------------------------------------------------------------
 
-void Coordinator::message_worker(const MessageC2W& msg, int worker_id) const {
+void Coordinator::message_worker(const MessageC2W& msg,
+    unsigned int worker_id) const {
   worker.at(worker_id)->inbox_lock.lock();
   worker.at(worker_id)->inbox.push(msg);
   worker.at(worker_id)->inbox_lock.unlock();
@@ -376,11 +377,11 @@ int Coordinator::find_stealing_target_longestruntime() const {
 // Helper functions
 //------------------------------------------------------------------------------
 
-bool Coordinator::is_worker_idle(const int id) const {
+bool Coordinator::is_worker_idle(const unsigned int id) const {
   return (workers_idle.count(id) != 0);
 }
 
-bool Coordinator::is_worker_splitting(const int id) const {
+bool Coordinator::is_worker_splitting(const unsigned int id) const {
   return (workers_splitting.count(id) != 0);
 }
 
@@ -411,10 +412,10 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
   }
 }
 
-void Coordinator::remove_from_run_order(const int id) {
+void Coordinator::remove_from_run_order(const unsigned int id) {
   // remove worker from workers_run_order
-  std::list<int>::iterator iter = workers_run_order.begin();
-  std::list<int>::iterator end = workers_run_order.end();
+  std::list<unsigned int>::iterator iter = workers_run_order.begin();
+  std::list<unsigned int>::iterator end = workers_run_order.end();
   bool found = false;
 
   while (iter != end) {
@@ -672,12 +673,12 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     return buffer.str();
   }
 
-  const int id = msg.worker_id;
+  const unsigned int id = msg.worker_id;
   const int root_pos = worker_rootpos.at(id);
-  const std::vector<int>& options = msg.worker_optionsleft;
+  const std::vector<unsigned int>& options = msg.worker_optionsleft;
 
-  buffer << std::setw(4) << std::min(msg.start_state, 9999) << '/';
-  buffer << std::setw(4) << std::min(msg.end_state, 9999) << ' ';
+  buffer << std::setw(4) << std::min(msg.start_state, 9999u) << '/';
+  buffer << std::setw(4) << std::min(msg.end_state, 9999u) << ' ';
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999) << ' ';
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&

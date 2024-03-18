@@ -36,11 +36,11 @@ class Coordinator {
   int l_max = -1;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
-  std::set<int> workers_idle;
-  std::set<int> workers_splitting;
-  std::list<int> workers_run_order;
+  std::set<unsigned int> workers_idle;
+  std::set<unsigned int> workers_splitting;
+  std::list<unsigned int> workers_run_order;
   std::vector<int> worker_rootpos;
-  std::vector<int> worker_longest;
+  std::vector<unsigned int> worker_longest;
   static bool stopping;
 
   // check inbox 10x more often than workers do
@@ -56,16 +56,16 @@ class Coordinator {
   int stats_received = 0;
   bool stats_printed = false;
   std::vector<std::string> worker_status;
-  std::vector<int> worker_start_state;
-  std::vector<std::vector<int>> worker_optionsleft_start;
-  std::vector<std::vector<int>> worker_optionsleft_last;
+  std::vector<unsigned int> worker_start_state;
+  std::vector<std::vector<unsigned int>> worker_optionsleft_start;
+  std::vector<std::vector<unsigned int>> worker_optionsleft_last;
 
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
   void run();
 
  private:
-  void message_worker(const MessageC2W& msg, int worker_id) const;
+  void message_worker(const MessageC2W& msg, unsigned int worker_id) const;
   void give_assignments();
   void process_inbox();
   void process_search_result(const MessageW2C& msg);
@@ -79,10 +79,10 @@ class Coordinator {
   int find_stealing_target_lowestid() const;
   int find_stealing_target_lowestrootpos() const;
   int find_stealing_target_longestruntime() const;
-  bool is_worker_idle(const int id) const;
-  bool is_worker_splitting(const int id) const;
+  bool is_worker_idle(const unsigned int id) const;
+  bool is_worker_splitting(const unsigned int id) const;
   void record_data_from_message(const MessageW2C& msg);
-  void remove_from_run_order(const int id);
+  void remove_from_run_order(const unsigned int id);
   void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);
