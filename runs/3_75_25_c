@@ -1,0 +1,43 @@
+version           6.5
+command line      jprime 3 75 25 -count -threads 4 -status -file 3_75_25_c
+length bound      25
+states            2925
+shift cycles      325
+short cycles      1
+patterns          2473092566267
+patterns (seen)   3471661252748
+nodes visited     20408323090149
+threads           4
+hardware threads  12
+seconds elapsed   49322.4801
+seconds working   197281.6311
+seconds avail     197289.9206
+
+patterns
+
+counts
+1, 1
+2, 3
+3, 11
+4, 36
+5, 127
+6, 405
+7, 1409
+8, 4561
+9, 15557
+10, 50278
+11, 169409
+12, 549977
+13, 1828930
+14, 5919872
+15, 19592781
+16, 63137718
+17, 206902865
+18, 665495286
+19, 2157909709
+20, 6883436908
+21, 22094796091
+22, 69585190932
+23, 219190609665
+24, 677693073950
+25, 2473092566267
