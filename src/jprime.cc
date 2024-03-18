@@ -103,6 +103,8 @@ void print_help() {
 
 void parse_args(size_t argc, char** argv, SearchConfig* const config,
       SearchContext* const context) {
+  bool file_output_mode = false;
+
   // defaults for length
   int l_min = 1;
   int l_max = -1;
@@ -167,6 +169,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
       }
     } else if (!strcmp(argv[i], "-file")) {
       if ((i + 1) < argc) {
+        file_output_mode = true;
         ++i;
         if (context != nullptr) {
           context->fileoutputflag = true;
@@ -276,11 +279,13 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     config->l_min = l_min;
     config->l_max = l_max;
 
+    // graph type
     if (config->l_min == config->l_max && config->l_min < config->h)
       config->graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
     else
       config->graphmode = GraphMode::FULL_GRAPH;
 
+    // output throws as letters (a, b, ...) or numbers (10, 11, ...)
     int max_throw_value = config->h;
     if (l_max > 0) {
       if (config->dualflag) {
@@ -298,6 +303,11 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
       for (int temp = 100; temp <= max_throw_value; temp *= 10) {
         ++config->throwdigits;
       }
+    }
+
+    // default to -count mode when -noprint is active and no output file
+    if (!file_output_mode && !config->printflag) {
+      config->countflag = true;
     }
   }
 
