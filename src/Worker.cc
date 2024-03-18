@@ -749,8 +749,8 @@ std::string Worker::get_inverse() const {
   bool cycle_multiple = false;
 
   for (int i = 0; i <= pos; ++i) {
-    patternstate[i] = state_current;
-    stateused[state_current] = true;
+    patternstate.at(i) = state_current;
+    stateused.at(state_current) = true;
 
     const int state_next = graph.advance_state(state_current, pattern[i]);
     assert(state_next > 0);
@@ -758,11 +758,11 @@ std::string Worker::get_inverse() const {
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
-      if (cycleused[cycle_current]) {
+      if (cycleused.at(cycle_current)) {
         // revisited cycle number `cycle_current` --> no inverse
         return buffer.str();
       }
-      cycleused[cycle_current] = true;
+      cycleused.at(cycle_current) = true;
       cycle_multiple = true;
     } else if (pattern[i] != 0 && pattern[i] != graph.h) {
       // link throw within a single cycle --> no inverse
@@ -772,7 +772,7 @@ std::string Worker::get_inverse() const {
     state_current = state_next;
     cycle_current = cycle_next;
   }
-  patternstate[pos + 1] = start_state;
+  patternstate.at(pos + 1) = start_state;
 
   if (!cycle_multiple) {
     // never left starting shift cycle --> no inverse
