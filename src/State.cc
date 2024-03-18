@@ -85,6 +85,10 @@ bool State::operator==(const State& s2) const {
   return (n == s2.n && h == s2.h && slot == s2.slot);
 }
 
+bool State::operator<(const State& s2) const {
+  return state_compare(*this, s2);
+}
+
 std::string State::to_string() const {
   std::string result;
   for (int i = 0; i < h; ++i) {

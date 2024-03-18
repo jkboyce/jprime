@@ -740,7 +740,7 @@ std::string Worker::get_inverse() const {
   std::vector<bool> stateused(graph.numstates + 1, false);
   std::vector<bool> cycleused(graph.numstates + 1, false);
 
-  // step 1. build a vector of state numbers traversed by the pattern, and
+  // Step 1. build a vector of state numbers traversed by the pattern, and
   // determine if an inverse exists.
   //
   // a pattern has an inverse if and only if:
@@ -783,98 +783,79 @@ std::string Worker::get_inverse() const {
     return buffer.str();
   }
 
-  // step 2. Find the inverse pattern
+  // Step 2. Find the inverse pattern.
   //
-  // iterate through the link throws in the pattern to build up a list of
-  // states and throws for the inverse
+  // Iterate through the link throws in the pattern to build up a list of
+  // states and throws for the inverse.
+  //
+  // The inverse may go through states that aren't in the graph so we can't
+  // refer to them by state number.
 
-  std::vector<int> inversepattern(graph.numstates + 1);
-  std::vector<int> inversestate(graph.numstates + 1);
-  int inverse_start_state = -1;
-  int inverse_pos = -1;
+  std::vector<int> inversepattern;
+  std::vector<State> inversestate;
 
   for (int i = 0; i <= pos; ++i) {
-    if (graph.cyclenum[patternstate[i]] == graph.cyclenum[patternstate[i + 1]])
+    // continue until `pattern[i]` is a link throw
+    if (graph.cyclenum[patternstate.at(i)] ==
+        graph.cyclenum[patternstate.at(i + 1)]) {
       continue;
+    }
 
-    if (inverse_start_state == -1) {
+    if (inversestate.size() == 0) {
       // the inverse pattern starts at the (reversed version of) the next state
       // 'downstream' from `patternstate[i]`
-      inverse_start_state = inversestate[0] =
-          graph.reverse_state(graph.downstream_state(patternstate[i]));
+      inversestate.push_back(
+          graph.state.at(patternstate.at(i)).downstream().reverse());
     }
 
-    ++inverse_pos;
     const int inversethrow = graph.h - pattern[i];
-    inversepattern[inverse_pos] = inversethrow;
-    inversestate[inverse_pos + 1] =
-        graph.advance_state(inversestate[inverse_pos], inversethrow);
+    inversepattern.push_back(inversethrow);
+    inversestate.push_back(
+        inversestate.back().advance_with_throw(inversethrow));
 
-    if (inversestate[inverse_pos + 1] < 0) {
-      std::cerr << "bad state advance: going from state "
-                << inversestate[inverse_pos] << '\n';
-      std::cerr << "   (" << graph.state_string(inversestate[inverse_pos])
-                << ")\n";
-      std::cerr << "   using throw " << inversethrow << '\n';
-      std::cerr << "----------------" << '\n';
-      std::cerr << "orig. pattern = " << get_pattern() << '\n';
-      for (int j = 0; j <= pos; ++j) {
-        std::cerr << graph.state_string(patternstate[j]) << "   "
-                 << pattern[j] << '\n';
-      }
-      std::cerr << "   orig. pattern position = " << i << '\n';
-      std::cerr << "----------------\n";
-      std::cerr << "inverse pattern:\n";
-      for (int j = 0; j <= inverse_pos; ++j) {
-        std::cerr << graph.state_string(inversestate[j]) << "   "
-                 << inversepattern[j] << '\n';
-      }
-      std::exit(EXIT_FAILURE);
-    }
-    assert(inversestate[inverse_pos + 1] > 0);
-
-    // the inverse pattern advances along the shift cycle until it gets
-    // to a state that is used by the original pattern
+    // advance the inverse pattern along the shift cycle until it gets to a
+    // state whose reverse is used by the original pattern
 
     while (true) {
-      int trial_state = graph.downstream_state(inversestate[inverse_pos + 1]);
-
-      if (stateused[graph.reverse_state(trial_state)])
+      State trial_state = inversestate.back().downstream();
+      int trial_statenum = graph.get_statenum(trial_state.reverse());
+      if (trial_statenum > 0 && stateused.at(trial_statenum))
         break;
-      else {
-        ++inverse_pos;
-        inversepattern[inverse_pos] =
-            graph.state[trial_state].slot[graph.h - 1] ? graph.h : 0;
-        inversestate[inverse_pos + 1] = trial_state;
-      }
+
+      inversepattern.push_back(trial_state.slot.at(graph.h - 1) ? graph.h : 0);
+      inversestate.push_back(trial_state);
     }
 
-    if (inversestate[inverse_pos + 1] == inverse_start_state)
+    if (inversestate.back() == inversestate.front())
       break;
   }
-  assert(inverse_pos > 0);
-  assert(inverse_start_state > 0);
-  assert(inversestate[inverse_pos + 1] == inverse_start_state);
+  assert(inversestate.size() > 0);
+  assert(inversestate.back() == inversestate.front());
 
-  // step 3. Output the inverse pattern
+  // Step 3. Output the inverse pattern.
   //
   // By convention we output all patterns starting with the smallest state.
 
-  int min_state = inversestate[0];
+  State min_state = inversestate.at(0);
   int min_index = 0;
-  for (int i = 1; i <= inverse_pos; ++i) {
-    if (inversestate[i] < min_state) {
-      min_state = inversestate[i];
+  for (int i = 1; i < inversestate.size(); ++i) {
+    if (inversestate.at(i) < min_state) {
+      min_state = inversestate.at(i);
       min_index = i;
     }
   }
-  if (config.dualflag)
-    min_index = inverse_pos - min_index + 1;
 
-  for (int i = 0; i <= inverse_pos; ++i) {
-    int j = (i + min_index) % (inverse_pos + 1);
-    int throwval = (config.dualflag ?
-        (graph.h - inversepattern[inverse_pos - j]) : inversepattern[j]);
+  const int inverselength = inversepattern.size();
+  if (config.dualflag)
+    min_index = inverselength - min_index;
+
+  for (int i = 0; i < inverselength; ++i) {
+    int j = (i + min_index) % inverselength;
+    const int throwval = (config.dualflag
+        ? graph.h - inversepattern.at(inverselength - j - 1)
+        : inversepattern.at(j));
+    if (config.throwdigits > 1 && i != 0)
+      buffer << ',';
     print_throw(buffer, throwval);
   }
 

@@ -32,6 +32,7 @@ class State {
   State reverse() const;
   int& operator[](size_t i);
   bool operator==(const State& s2) const;
+  bool operator<(const State& s2) const;
   std::string to_string() const;
 };
 
