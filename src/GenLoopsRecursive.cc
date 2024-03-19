@@ -340,27 +340,6 @@ unsigned int Worker::load_one_throw() {
   return 0;
 }
 
-// Determine the set of throw options available at position `root_pos` in
-// the pattern. This list of options is maintained in case we get a request
-// to split work.
-
-void Worker::build_rootpos_throw_options(unsigned int rootpos_from_state,
-    unsigned int start_column) {
-  root_throwval_options.clear();
-  for (int col = start_column; col < graph.outdegree[rootpos_from_state]; ++col)
-    root_throwval_options.push_back(graph.outthrowval[rootpos_from_state][col]);
-
-  if (config.verboseflag) {
-    std::ostringstream buffer;
-    buffer << "worker " << worker_id << " options at root_pos " << root_pos
-           << ": [";
-    for (int v : root_throwval_options)
-      print_throw(buffer, v);
-    buffer << "]";
-    message_coordinator_status(buffer.str());
-  }
-}
-
 // Mark off `throwval` from our set of allowed throw options at position
 // `root_pos` in the pattern.
 //
@@ -393,7 +372,7 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
       buffer << "worker " << worker_id << " option ";
       print_throw(buffer, throwval);
       buffer << " at root_pos " << root_pos << " was pruned; removing";
-      message_coordinator_status(buffer.str());
+      message_coordinator_text(buffer.str());
     }
 
     if (!pruned && *iter == throwval) {
@@ -404,7 +383,7 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
         buffer << "worker " << worker_id << " starting option ";
         print_throw(buffer, throwval);
         buffer << " at root_pos " << root_pos;
-        message_coordinator_status(buffer.str());
+        message_coordinator_text(buffer.str());
       }
     }
 
@@ -418,7 +397,7 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
 
   if (remaining == 0) {
     ++root_pos;
-    notify_coordinator_rootpos();
+    notify_coordinator_update();
     build_rootpos_throw_options(to_state, 0);
   }
 

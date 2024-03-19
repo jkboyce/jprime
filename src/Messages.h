@@ -49,7 +49,7 @@ enum class messages_W2C {
   WORKER_IDLE,
   RETURN_WORK,
   RETURN_STATS,
-  WORKER_STATUS,
+  WORKER_UPDATE,
 };
 
 struct MessageW2C {
@@ -75,14 +75,14 @@ struct MessageW2C {
 
   // for type RETURN_STATS
   bool running = false;
-  unsigned int start_state = 0;
-  unsigned int end_state = 0;
   std::vector<unsigned int> worker_throw;
   std::vector<unsigned int> worker_optionsleft;
 
-  // for type WORKER_STATUS
+  // for type WORKER_UPDATE
   std::string meta;
-  int root_pos = -1;
+  unsigned int start_state = 0;
+  unsigned int end_state = 0;
+  unsigned int root_pos = 0;
 };
 
 #endif

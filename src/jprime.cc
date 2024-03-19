@@ -131,8 +131,6 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     }
   }
 
-  bool stealalg_given = false;
-
   for (size_t i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-noprint")) {
       if (config != nullptr)
@@ -182,10 +180,8 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-steal_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        if (context != nullptr) {
+        if (context != nullptr)
           context->steal_alg = atoi(argv[i]);
-          stealalg_given = true;
-        }
       } else {
         std::cerr << "No number provided after -steal_alg\n";
         std::exit(EXIT_FAILURE);
@@ -309,11 +305,6 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     if (!file_output_mode && !config->printflag) {
       config->countflag = true;
     }
-  }
-
-  // defaults
-  if (context != nullptr && !stealalg_given) {
-    context->steal_alg = 3;  // steal from lowest `root_pos`
   }
 
   // consistency checks

@@ -165,9 +165,9 @@ void Worker::message_coordinator(MessageW2C& msg) const {
   coordinator.inbox_lock.unlock();
 }
 
-void Worker::message_coordinator_status(const std::string& str) const {
+void Worker::message_coordinator_text(const std::string& str) const {
   MessageW2C msg;
-  msg.type = messages_W2C::WORKER_STATUS;
+  msg.type = messages_W2C::WORKER_UPDATE;
   msg.meta = str;
   message_coordinator(msg);
 }
@@ -237,7 +237,7 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
   if (config.verboseflag) {
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " splitting work...";
-    message_coordinator_status(buffer.str());
+    message_coordinator_text(buffer.str());
   }
 
   WorkAssignment wa = split_work_assignment(msg.split_alg);
@@ -246,13 +246,15 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
   // Avoid double counting nodes: Each of the "prefix" nodes up to and
   // including `root_pos` will be reported twice to the Coordinator: by this
   // worker, and the worker that does the job we just split off and returned.
-  nnodes -= (wa.root_pos + 1);
+  if (wa.start_state == start_state) {
+    nnodes -= (wa.root_pos + 1);
+  }
 
   if (config.verboseflag) {
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " remaining work after split:\n"
            << "  " << get_work_assignment();
-    message_coordinator_status(buffer.str());
+    message_coordinator_text(buffer.str());
   }
 }
 
@@ -272,8 +274,6 @@ void Worker::send_stats_to_coordinator() {
 
   if (running) {
     // include a snapshot of the current state of the search
-    msg.start_state = start_state;
-    msg.end_state = end_state;
     msg.worker_throw.resize(pos + 1);
     msg.worker_optionsleft.resize(pos + 1);
 
@@ -319,29 +319,20 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 
   start_state = wa.start_state;
   end_state = wa.end_state;
-  if (start_state == -1)
-    start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
-  if (end_state == -1)
-    end_state = (config.groundmode == GroundMode::GROUND_SEARCH ? 1 :
-      graph.numstates);
-
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
-  if (wa.start_state == -1 || wa.end_state == -1) {
-    // assignment came from the coordinator which doesn't know how to correctly
-    // set the throw options, so do that here
-    build_rootpos_throw_options(start_state, 0);
-  }
-  assert(root_throwval_options.size() > 0);
-  if (pos != 0) {
-    std::cerr << "\nworker " << worker_id
-              << ", pos: " << pos << '\n';
-  }
-  assert(pos == 0);
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
     pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern.at(i)
         : -1;
+  }
+
+  if (start_state == 0) {
+    start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
+  }
+  if (end_state == 0) {
+    end_state = (config.groundmode == GroundMode::GROUND_SEARCH ? 1 :
+      graph.numstates);
   }
 }
 
@@ -378,11 +369,38 @@ void Worker::notify_coordinator_idle() {
 // coordinator may use this information to determine which worker to steal work
 // from when another worker goes idle.
 
-void Worker::notify_coordinator_rootpos() const {
+void Worker::notify_coordinator_update() const {
   MessageW2C msg;
-  msg.type = messages_W2C::WORKER_STATUS;
+  msg.type = messages_W2C::WORKER_UPDATE;
   msg.root_pos = root_pos;
+  msg.start_state = start_state;
+  msg.end_state = end_state;
   message_coordinator(msg);
+}
+
+// Determine the set of throw options available at position `root_pos` in
+// the pattern. This list of options is maintained in case we get a request
+// to split work.
+
+void Worker::build_rootpos_throw_options(unsigned int from_state,
+    unsigned int start_column) {
+  root_throwval_options.clear();
+  for (int col = start_column; col < graph.outdegree[from_state]; ++col) {
+    root_throwval_options.push_back(graph.outthrowval[from_state][col]);
+  }
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << "worker " << worker_id << " options at root_pos " << root_pos
+           << ": [";
+    for (int v : root_throwval_options) {
+      if (config.throwdigits > 1 && v != root_throwval_options.front())
+        buffer << ',';
+      print_throw(buffer, v);
+    }
+    buffer << "]";
+    message_coordinator_text(buffer.str());
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -395,6 +413,10 @@ void Worker::notify_coordinator_rootpos() const {
 // performance.
 
 WorkAssignment Worker::split_work_assignment(int split_alg) {
+  if (end_state > start_state) {
+    return split_work_assignment_takestartstates();
+  }
+
   switch (split_alg) {
     case 1:
       return split_work_assignment_takeall();
@@ -406,6 +428,21 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
       assert(false);
       return split_work_assignment_takeall();
   }
+}
+
+WorkAssignment Worker::split_work_assignment_takestartstates() {
+  unsigned int takenum = (end_state - start_state + 1) / 2;
+  assert(takenum > 0);
+  assert(end_state >= start_state + takenum);
+
+  WorkAssignment wa;
+  wa.start_state = end_state - takenum + 1;
+  wa.end_state = end_state;
+  wa.root_pos = 0;
+
+  end_state = end_state - takenum;
+  notify_coordinator_update();
+  return wa;
 }
 
 WorkAssignment Worker::split_work_assignment_takeall() {
@@ -509,7 +546,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     }
     assert(new_root_pos != -1);
     root_pos = new_root_pos;
-    notify_coordinator_rootpos();
+    notify_coordinator_update();
     build_rootpos_throw_options(from_state, col + 1);
     assert(root_throwval_options.size() > 0);
   }
@@ -574,23 +611,33 @@ void Worker::gen_patterns() {
       buffer << "worker " << worker_id
              << " deactivated " << num_inactive << " of " << graph.numstates
              << " states, max_possible = " << max_possible;
-      message_coordinator_status(buffer.str());
+      message_coordinator_text(buffer.str());
     }
     if (max_possible < l_min || config.infoflag)
       break;
+
     if (!graph.state_active.at(start_state)) {
       loading_work = false;
       continue;
     }
 
-    if (!loading_work) {
-      // when loading work, `root_pos` and `root_throwval_options` are given by
-      // the work assignment, otherwise initialize here
+    if (!loading_work || root_throwval_options.size() == 0) {
+      // when loading work, `root_pos` (and usually `root_throwval_options`) are
+      // given by the work assignment, otherwise initialize here
       root_pos = 0;
-      notify_coordinator_rootpos();
       build_rootpos_throw_options(start_state, 0);
-      if (root_throwval_options.size() == 0)
-        continue;
+    }
+
+    if (root_throwval_options.size() > 0) {
+      /*
+      process_inbox_running();
+      if (start_state > end_state)
+        break;
+      */
+      notify_coordinator_update();
+    } else {
+      loading_work = false;
+      continue;
     }
 
     std::vector<int> used_start(used, used + graph.numstates + 1);

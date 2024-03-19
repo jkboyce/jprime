@@ -69,9 +69,8 @@ void Worker::iterative_gen_loops_normal() {
 
     if (++steps_taken >= steps_per_inbox_check) {
       steps_taken = 0;
-      iterative_calc_rootpos_and_options();
 
-      if (iterative_can_split()) {
+      if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
         for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
@@ -227,9 +226,8 @@ void Worker::iterative_gen_loops_normal_marking() {
     } else {  // shift throw
       if (++steps_taken >= steps_per_inbox_check) {
         steps_taken = 0;
-        iterative_calc_rootpos_and_options();
 
-        if (iterative_can_split()) {
+        if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
           for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
@@ -319,9 +317,8 @@ void Worker::iterative_gen_loops_super() {
 
       if (++steps_taken >= steps_per_inbox_check) {
         steps_taken = 0;
-        iterative_calc_rootpos_and_options();
 
-        if (iterative_can_split()) {
+        if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
           for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
@@ -433,9 +430,8 @@ void Worker::iterative_gen_loops_super0() {
 
     if (++steps_taken >= steps_per_inbox_check) {
       steps_taken = 0;
-      iterative_calc_rootpos_and_options();
 
-      if (iterative_can_split()) {
+      if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
         for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
@@ -629,19 +625,23 @@ bool Worker::iterative_init_workspace(bool marking) {
 //
 // These elements are not updated during the search itself, so they need to be
 // regenerated before we respond to incoming messages.
+//
+// Returns true on success, false on failure. Failure occurs when there are
+// no positions < `pos` with unexplored options.
 
-void Worker::iterative_calc_rootpos_and_options() {
+bool Worker::iterative_calc_rootpos_and_options() {
   int new_root_pos = 0;
   for (; new_root_pos < pos; ++new_root_pos) {
     SearchState& ss = beat[new_root_pos + 1];
     if (ss.col < ss.col_limit - 1)
       break;
   }
-  assert(new_root_pos < pos);
+  if (new_root_pos == pos)
+    return false;
 
   if (new_root_pos != root_pos) {
     root_pos = new_root_pos;
-    notify_coordinator_rootpos();
+    notify_coordinator_update();
   }
 
   root_throwval_options.clear();
@@ -649,6 +649,7 @@ void Worker::iterative_calc_rootpos_and_options() {
   for (size_t col = ss.col + 1; col < ss.col_limit; ++col) {
     root_throwval_options.push_back(graph.outthrowval[ss.from_state][col]);
   }
+  return true;
 }
 
 // Determine whether we will be able to respond to a SPLIT_WORK request at

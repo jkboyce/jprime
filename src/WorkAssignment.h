@@ -19,17 +19,17 @@
 
 
 struct WorkAssignment {
-  // lowest value of `start_state` for search; -1 auto-calculates based on
+  // lowest value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
-  int start_state = -1;
+  unsigned int start_state = 0;
 
-  // highest value of `start_state` for search; -1 auto-calculates based on
+  // highest value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
-  int end_state = -1;
+  unsigned int end_state = 0;
 
   // lowest value of `pos` that still has unexplored throw options in the
   // search tree; used for splitting work
-  int root_pos = 0;
+  unsigned int root_pos = 0;
 
   // set of unexplored throw options at `pos`==`root_pos`
   std::list<unsigned int> root_throwval_options;

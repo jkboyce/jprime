@@ -38,8 +38,9 @@ class Coordinator {
   std::vector<std::thread*> worker_thread;
   std::set<unsigned int> workers_idle;
   std::set<unsigned int> workers_splitting;
-  std::vector<int> worker_rootpos;
-  std::vector<unsigned int> worker_longest;
+  std::vector<unsigned int> worker_startstate;
+  std::vector<unsigned int> worker_endstate;
+  std::vector<unsigned int> worker_rootpos;
   static bool stopping;
 
   // check inbox 10x more often than workers do
@@ -55,9 +56,9 @@ class Coordinator {
   int stats_received = 0;
   bool stats_printed = false;
   std::vector<std::string> worker_status;
-  std::vector<unsigned int> worker_start_state;
   std::vector<std::vector<unsigned int>> worker_optionsleft_start;
   std::vector<std::vector<unsigned int>> worker_optionsleft_last;
+  std::vector<unsigned int> worker_longest;
 
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
@@ -71,12 +72,10 @@ class Coordinator {
   void process_worker_idle(const MessageW2C& msg);
   void process_returned_work(const MessageW2C& msg);
   void process_returned_stats(const MessageW2C& msg);
-  void process_worker_status(const MessageW2C& msg);
+  void process_worker_update(const MessageW2C& msg);
   void collect_stats();
   void steal_work();
-  int find_stealing_target_longestpattern() const;
-  int find_stealing_target_lowestid() const;
-  int find_stealing_target_lowestrootpos() const;
+  int find_stealing_target_mostremaining() const;
   bool is_worker_idle(const unsigned int id) const;
   bool is_worker_splitting(const unsigned int id) const;
   void record_data_from_message(const MessageW2C& msg);

@@ -56,8 +56,8 @@ class Worker {
   unsigned int** deadstates_bystate;  // indexed by state number
 
   // for loading and sharing work assignments
-  unsigned int start_state = 1;
-  unsigned int end_state = 1;
+  unsigned int start_state = 0;
+  unsigned int end_state = 0;
   int root_pos = 0;
   std::list<unsigned int> root_throwval_options;
   bool loading_work = false;
@@ -89,7 +89,7 @@ class Worker {
   void allocate_arrays();
   void delete_arrays();
   void message_coordinator(MessageW2C& msg) const;
-  void message_coordinator_status(const std::string& str) const;
+  void message_coordinator_text(const std::string& str) const;
   void process_inbox_running();
   void record_elapsed_time(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start);
@@ -101,9 +101,11 @@ class Worker {
   void load_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
-  void notify_coordinator_rootpos() const;
-  void notify_coordinator_longest() const;
+  void notify_coordinator_update() const;
+  void build_rootpos_throw_options(unsigned int from_state,
+      unsigned int min_column);
   WorkAssignment split_work_assignment(int split_alg);
+  WorkAssignment split_work_assignment_takestartstates();
   WorkAssignment split_work_assignment_takeall();
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
@@ -121,8 +123,6 @@ class Worker {
   void gen_loops_super();
   void gen_loops_super0();
   unsigned int load_one_throw();
-  void build_rootpos_throw_options(unsigned int rootpos_from_state,
-      unsigned int min_column);
   bool mark_off_rootpos_option(unsigned int throwval, unsigned int to_state);
   bool mark_unreachable_states_throw();
   bool mark_unreachable_states_catch(unsigned int to_state);
@@ -136,7 +136,7 @@ class Worker {
   void iterative_gen_loops_super();
   void iterative_gen_loops_super0();
   bool iterative_init_workspace(bool marking);
-  void iterative_calc_rootpos_and_options();
+  bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();
   void iterative_handle_finished_pattern();
