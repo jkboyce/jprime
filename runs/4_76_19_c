@@ -1,0 +1,37 @@
+version           6.5
+command line      jprime 4 76 19 -count -threads 4 -status -file 4_76_19_c
+length bound      19
+states            7315
+shift cycles      1330
+short cycles      1
+patterns          490067180301
+patterns (seen)   600455049278
+nodes visited     7504700781184
+threads           4
+hardware threads  12
+seconds elapsed   15448.0448
+seconds working   61739.1141
+seconds avail     61792.1791
+
+patterns
+
+counts
+1, 1
+2, 4
+3, 19
+4, 83
+5, 390
+6, 1647
+7, 7597
+8, 32856
+9, 147142
+10, 639322
+11, 2869436
+12, 12484760
+13, 55563312
+14, 240997697
+15, 1060978201
+16, 4568758648
+17, 19834453594
+18, 84610934268
+19, 490067180301
