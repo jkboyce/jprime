@@ -353,10 +353,28 @@ void Graph::build_graph() {
 
 void Graph::gen_matrices() {
   for (size_t i = 1; i <= numstates; ++i) {
-    outdegree[i] = 0;
-    if (!state_active.at(i))
+    if (!state_active.at(i)) {
+      outdegree[i] = 0;
+      continue;
+    }
+
+    bool row_valid = true;
+
+    if (outdegree[i] == 0) {
+      row_valid = false;
+    } else {
+      for (size_t j = 0; j < outdegree[i]; ++j) {
+        if (!state_active.at(outmatrix[i][j])) {
+          row_valid = false;
+          break;
+        }
+      }
+    }
+
+    if (row_valid)
       continue;
 
+    outdegree[i] = 0;
     int outthrownum = 0;
 
     for (int throwval = h; throwval >= 0; --throwval) {

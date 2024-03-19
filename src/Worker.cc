@@ -566,8 +566,10 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
-  for (size_t i = 1; i <= graph.numstates; ++i)
+  for (size_t i = 1; i <= graph.numstates; ++i) {
     graph.state_active.at(i) = true;
+    graph.outdegree[i] = 0;  // so build_graph() does a full recalc
+  }
 
   for (; start_state <= end_state; ++start_state) {
     if (!graph.state_active.at(start_state)) {
@@ -628,17 +630,12 @@ void Worker::gen_patterns() {
       build_rootpos_throw_options(start_state, 0);
     }
 
-    if (root_throwval_options.size() > 0) {
-      /*
-      process_inbox_running();
-      if (start_state > end_state)
-        break;
-      */
-      notify_coordinator_update();
-    } else {
+    if (root_throwval_options.size() == 0) {
       loading_work = false;
       continue;
     }
+
+    notify_coordinator_update();
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
