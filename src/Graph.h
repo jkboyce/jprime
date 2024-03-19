@@ -63,11 +63,11 @@ class Graph {
     int left, int h, int l);
   void find_shift_cycles();
   void gen_matrices();
-  void find_exclude_states();
   void find_exit_cycles();
 
  public:
   void build_graph();
+  void find_exclude_states();
   static std::uint64_t combinations(int n, int h);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;

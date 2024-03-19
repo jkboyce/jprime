@@ -640,16 +640,19 @@ void Worker::gen_patterns() {
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
-        if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH)
+        if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
           iterative_gen_loops_normal();
-        else
+        } else {
+          graph.find_exclude_states();
           iterative_gen_loops_normal_marking();
+        }
         break;
       case RunMode::SUPER_SEARCH:
-        if (config.shiftlimit == 0)
+        if (config.shiftlimit == 0) {
           iterative_gen_loops_super0();
-        else
+        } else {
           iterative_gen_loops_super();
+        }
         break;
       default:
         assert(false);

@@ -336,7 +336,6 @@ void Graph::build_graph() {
       break;
   }
 
-  find_exclude_states();
   find_exit_cycles();
 }
 
@@ -358,42 +357,65 @@ void Graph::gen_matrices() {
       continue;
     }
 
-    bool row_valid = true;
-
+    // each row is calculated once per WorkAssignment
     if (outdegree[i] == 0) {
-      row_valid = false;
-    } else {
-      for (size_t j = 0; j < outdegree[i]; ++j) {
-        if (!state_active.at(outmatrix[i][j])) {
-          row_valid = false;
-          break;
-        }
+      int outthrownum = 0;
+      for (int throwval = h; throwval >= 0; --throwval) {
+        if (xarray.at(throwval))
+          continue;
+
+        int k = advance_state(i, throwval);
+        if (k <= 0)
+          continue;
+        if (!state_active.at(k))
+          continue;
+        if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
+            cyclenum[i] == cyclenum[k])
+          continue;
+
+        outmatrix[i][outthrownum] = k;
+        outthrowval[i][outthrownum] = throwval;
+        ++outthrownum;
       }
+      outdegree[i] = outthrownum;
+      continue;
     }
 
-    if (row_valid)
-      continue;
-
-    outdegree[i] = 0;
+    // remove inactive states from row
     int outthrownum = 0;
+    for (size_t j = 0; j < outdegree[i]; ++j) {
+      if (state_active.at(outmatrix[i][j])) {
+        if (outthrownum != j) {
+          outmatrix[i][outthrownum] = outmatrix[i][j];
+          outthrowval[i][outthrownum] = outthrowval[i][j];
+        }
+        ++outthrownum;
+      }
+    }
+    outdegree[i] = outthrownum;
+  }
+}
 
-    for (int throwval = h; throwval >= 0; --throwval) {
-      if (xarray.at(throwval))
-        continue;
+// Fill in array `isexitcycle` that indicates which shift cycles can exit
+// directly to the start state, assumed to be the lowest active state number.
 
-      int k = advance_state(i, throwval);
-      if (k <= 0)
-        continue;
-      if (!state_active.at(k))
-        continue;
-      if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
-          cyclenum[i] == cyclenum[k])
-        continue;
+void Graph::find_exit_cycles() {
+  for (size_t i = 0; i <= numstates; ++i)
+    isexitcycle[i] = false;
 
-      outmatrix[i][outthrownum] = k;
-      outthrowval[i][outthrownum] = throwval;
-      ++outthrownum;
-      ++outdegree[i];
+  int lowest_active_state = 0;
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (!state_active.at(i))
+      continue;
+    if (lowest_active_state == 0) {
+      lowest_active_state = i;
+      continue;
+    }
+
+    for (int j = 0; j < outdegree[i]; ++j) {
+      if (outmatrix[i][j] == lowest_active_state)
+        isexitcycle[cyclenum[i]] = true;
     }
   }
 }
@@ -434,30 +456,6 @@ void Graph::find_exclude_states() {
       s = s.upstream();
     }
     excludestates_catch[i][j] = 0;
-  }
-}
-
-// Fill in array `isexitcycle` that indicates which shift cycles can exit
-// directly to the start state, assumed to be the lowest active state number.
-
-void Graph::find_exit_cycles() {
-  for (size_t i = 0; i <= numstates; ++i)
-    isexitcycle[i] = false;
-
-  int lowest_active_state = 0;
-
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active.at(i))
-      continue;
-    if (lowest_active_state == 0) {
-      lowest_active_state = i;
-      continue;
-    }
-
-    for (int j = 0; j < outdegree[i]; ++j) {
-      if (outmatrix[i][j] == lowest_active_state)
-        isexitcycle[cyclenum[i]] = true;
-    }
   }
 }
 
