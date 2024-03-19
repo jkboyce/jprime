@@ -629,7 +629,7 @@ void Coordinator::print_status_output() {
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
       l_max > status_width);
   std::cout << "Status on: " << current_time_string();
-  std::cout << " sta/ end  rp options remaining at position";
+  std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
     std::cout << " (compressed view)";
     for (int i = 47; i < status_width; ++i)
