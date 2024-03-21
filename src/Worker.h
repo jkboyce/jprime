@@ -132,6 +132,7 @@ class Worker {
 
   // core search routines (iterative)
   void iterative_gen_loops_normal();
+  void iterative_gen_loops_normal_counting();
   void iterative_gen_loops_normal_marking();
   void iterative_gen_loops_super();
   void iterative_gen_loops_super0();

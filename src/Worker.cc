@@ -641,7 +641,11 @@ void Worker::gen_patterns() {
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
-          iterative_gen_loops_normal();
+          if (config.countflag) {
+            iterative_gen_loops_normal_counting();
+          } else {
+            iterative_gen_loops_normal();
+          }
         } else {
           graph.find_exclude_states();
           iterative_gen_loops_normal_marking();

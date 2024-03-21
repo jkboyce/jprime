@@ -98,6 +98,81 @@ void Worker::iterative_gen_loops_normal() {
   assert(pos == 0);
 }
 
+// Version of gen_loops_normal() specific to the case `countflag` == true
+
+void Worker::iterative_gen_loops_normal_counting() {
+  if (!iterative_init_workspace(false)) {
+    assert(false);
+  }
+
+  // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
+  // provide a guard since beat[0].col is modified at the end of the search.
+  SearchState* ss = &beat[pos + 1];
+
+  while (pos >= 0) {
+    // begin with any necessary cleanup from previous marking operations
+    if (ss->to_state != 0) {
+      used[ss->to_state] = 0;
+      ss->to_state = 0;
+    }
+
+    skip_unmarking:
+    if (ss->col == ss->col_limit) {
+      --pos;
+      --ss;
+      ++ss->col;
+      ++nnodes;
+      continue;
+    }
+
+    const int to_state = ss->outmatrix[ss->col];
+    if (to_state == start_state) {
+      ++count[pos + 1];
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (used[to_state]) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (pos + 1 == l_max) {
+      ++ss->col;
+      goto skip_unmarking;
+    }
+
+    if (++steps_taken >= steps_per_inbox_check) {
+      steps_taken = 0;
+
+      if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
+        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+          pattern[i] = graph.outthrowval[beat[i + 1].from_state]
+                                        [beat[i + 1].col];
+        }
+        pattern[pos + 1] = -1;
+        process_inbox_running();
+        iterative_update_after_split();
+      }
+    }
+
+    // advance to next beat
+    used[to_state] = 1;
+    ss->to_state = to_state;
+    ++pos;
+    ++ss;
+    ss->col = 0;
+    ss->col_limit = graph.outdegree[to_state];
+    ss->from_state = to_state;
+    ss->to_state = 0;
+    ss->outmatrix = graph.outmatrix[to_state];
+    goto skip_unmarking;
+  }
+
+  ++pos;
+  assert(pos == 0);
+}
+
 // Non-recursive version of get_loops_normal_marking()
 
 void Worker::iterative_gen_loops_normal_marking() {
