@@ -690,16 +690,19 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool hl_last = false;
   unsigned int rootpos_distance = 999u;
 
-  for (size_t i = root_pos; i < ops.size(); ++i) {
+  for (size_t i = 0; i < ops.size(); ++i) {
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {
       hl_start = did_hl_start = true;
-      rootpos_distance = i - root_pos;
+      rootpos_distance = (i > root_pos ? i - root_pos : 0);
     }
     if (!hl_last && !did_hl_last && i < ops_last.size() &&
         ops.at(i) != ops_last.at(i)) {
       hl_last = did_hl_last = true;
     }
+
+    if (i < root_pos)
+      continue;
 
     char ch = '\0';
 
