@@ -145,12 +145,13 @@ void Coordinator::give_assignments() {
     worker_startstate.at(id) = wa.start_state;
     worker_endstate.at(id) = wa.end_state;
     worker_rootpos.at(id) = wa.root_pos;
+    message_worker(msg, id);
+
     if (config.statusflag) {
       worker_optionsleft_start.at(id).resize(0);
       worker_optionsleft_last.at(id).resize(0);
       worker_longest.at(id) = 0;
     }
-    message_worker(msg, id);
 
     if (config.verboseflag) {
       erase_status_output();
@@ -251,47 +252,54 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
       std::cout << msg.meta << '\n';
       print_status_output();
     }
-  } else {
-    bool startstate_changed = false;
-    bool endstate_changed = false;
-    bool rootpos_changed = false;
+    return;
+  }
 
-    if (msg.start_state != worker_startstate.at(msg.worker_id)) {
-      startstate_changed = true;
-      worker_startstate.at(msg.worker_id) = msg.start_state;
-    }
-    if (msg.end_state != worker_endstate.at(msg.worker_id)) {
-      endstate_changed = true;
-      worker_endstate.at(msg.worker_id) = msg.end_state;
-    }
-    if (msg.root_pos != worker_rootpos.at(msg.worker_id)) {
-      rootpos_changed = true;
-      worker_rootpos.at(msg.worker_id) = msg.root_pos;
-    }
+  bool startstate_changed = false;
+  bool endstate_changed = false;
+  bool rootpos_changed = false;
 
-    if (config.verboseflag &&
-        (startstate_changed || endstate_changed || rootpos_changed)) {
-      erase_status_output();
-      bool comma = false;
-      std::cout << "worker " << msg.worker_id;
-      if (startstate_changed) {
-        std::cout << " new start_state " << msg.start_state;
-        comma = true;
-      }
-      if (endstate_changed) {
-        if (comma)
-          std::cout << ',';
-        std::cout << " new end_state " << msg.end_state;
-        comma = true;
-      }
-      if (rootpos_changed) {
-        if (comma)
-          std::cout << ',';
-        std::cout << " new root_pos " << msg.root_pos;
-      }
-      std::cout << " on: " << current_time_string();
-      print_status_output();
+  if (msg.start_state != worker_startstate.at(msg.worker_id)) {
+    startstate_changed = true;
+    worker_startstate.at(msg.worker_id) = msg.start_state;
+
+    if (config.statusflag) {
+      worker_optionsleft_start.at(msg.worker_id).resize(0);
+      worker_optionsleft_last.at(msg.worker_id).resize(0);
+      worker_longest.at(msg.worker_id) = 0;
     }
+  }
+  if (msg.end_state != worker_endstate.at(msg.worker_id)) {
+    endstate_changed = true;
+    worker_endstate.at(msg.worker_id) = msg.end_state;
+  }
+  if (msg.root_pos != worker_rootpos.at(msg.worker_id)) {
+    rootpos_changed = true;
+    worker_rootpos.at(msg.worker_id) = msg.root_pos;
+  }
+
+  if (config.verboseflag &&
+      (startstate_changed || endstate_changed || rootpos_changed)) {
+    erase_status_output();
+    bool comma = false;
+    std::cout << "worker " << msg.worker_id;
+    if (startstate_changed) {
+      std::cout << " new start_state " << msg.start_state;
+      comma = true;
+    }
+    if (endstate_changed) {
+      if (comma)
+        std::cout << ',';
+      std::cout << " new end_state " << msg.end_state;
+      comma = true;
+    }
+    if (rootpos_changed) {
+      if (comma)
+        std::cout << ',';
+      std::cout << " new root_pos " << msg.root_pos;
+    }
+    std::cout << " on: " << current_time_string();
+    print_status_output();
   }
 }
 
@@ -318,7 +326,7 @@ void Coordinator::steal_work() {
       break;
     }
 
-    int id = 0;
+    unsigned int id = 0;
     switch (context.steal_alg) {
       case 1:
         id = find_stealing_target_mostremaining();
@@ -346,7 +354,7 @@ void Coordinator::steal_work() {
 
 // Identify the running worker with the most remaining work
 
-int Coordinator::find_stealing_target_mostremaining() const {
+unsigned int Coordinator::find_stealing_target_mostremaining() const {
   // strategy: take work from the worker with the most remaining work
   //
   // first look at most remaining `start_state` values, then look at lowest
@@ -357,7 +365,7 @@ int Coordinator::find_stealing_target_mostremaining() const {
   unsigned int max_startstates_remaining = 0;
   unsigned int min_rootpos = 0;
 
-  for (int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
     if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
 
@@ -663,8 +671,10 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   }
 
   const unsigned int id = msg.worker_id;
-  const int root_pos = worker_rootpos.at(id);
-  const std::vector<unsigned int>& options = msg.worker_optionsleft;
+  const unsigned int root_pos = worker_rootpos.at(id);
+  const std::vector<unsigned int>& ops = msg.worker_optionsleft;
+  std::vector<unsigned int>& ops_start = worker_optionsleft_start.at(id);
+  std::vector<unsigned int>& ops_last = worker_optionsleft_last.at(id);
 
   buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
   buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
@@ -674,48 +684,46 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
       l_max > status_width);
 
   int printed = 0;
-  bool have_highlighted_start = false;
-  bool highlight_start = false;
-  bool have_highlighted_last = false;
-  bool highlight_last = false;
-  int rootpos_distance = 999;
+  bool did_hl_start = false;
+  bool hl_start = false;
+  bool did_hl_last = false;
+  bool hl_last = false;
+  unsigned int rootpos_distance = 999u;
 
-  for (size_t i = root_pos; i < options.size(); ++i) {
-    if (!highlight_start && !have_highlighted_start &&
-        i < worker_optionsleft_start.at(id).size() &&
-        options.at(i) != worker_optionsleft_start.at(id).at(i)) {
-      highlight_start = have_highlighted_start = true;
+  for (size_t i = root_pos; i < ops.size(); ++i) {
+    if (!hl_start && !did_hl_start && i < ops_start.size() &&
+        ops.at(i) != ops_start.at(i)) {
+      hl_start = did_hl_start = true;
       rootpos_distance = i - root_pos;
     }
-    if (!highlight_last && !have_highlighted_last &&
-        i < worker_optionsleft_last.at(id).size() &&
-        options.at(i) != worker_optionsleft_last.at(id).at(i)) {
-      highlight_last = have_highlighted_last = true;
+    if (!hl_last && !did_hl_last && i < ops_last.size() &&
+        ops.at(i) != ops_last.at(i)) {
+      hl_last = did_hl_last = true;
     }
 
     char ch = '\0';
 
     if (compressed) {
-      if (i == static_cast<size_t>(root_pos)) {
-        ch = '0' + options.at(i);
+      if (i == root_pos) {
+        ch = '0' + ops.at(i);
       } else if (msg.worker_throw.at(i) == 0) {
         // skip
       } else if (msg.worker_throw.at(i) == config.h) {
         // skip
       } else {
-        ch = '0' + options.at(i);
+        ch = '0' + ops.at(i);
       }
     } else {
-      ch = '0' + options.at(i);
+      ch = '0' + ops.at(i);
     }
 
     if (ch != '\0') {
-      if (highlight_start) {
+      if (hl_start) {
         buffer << '\x1B' << "[7m" << ch << '\x1B' << "[27m";
-        highlight_start = highlight_last = false;
-      } else if (highlight_last) {
+        hl_start = hl_last = false;
+      } else if (hl_last) {
         buffer << '\x1B' << "[1m" << ch << '\x1B' << "[22m";
-        highlight_last = false;
+        hl_last = false;
       } else {
         buffer << ch;
       }
@@ -731,12 +739,12 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     ++printed;
   }
 
-  buffer << std::setw(4) << std::max(0, rootpos_distance);
+  buffer << std::setw(4) << rootpos_distance;
   buffer << std::setw(5) << worker_longest.at(id);
 
-  worker_optionsleft_last.at(id) = msg.worker_optionsleft;
-  if (worker_optionsleft_start.at(id).size() == 0) {
-    worker_optionsleft_start.at(id) = msg.worker_optionsleft;
+  ops_last = ops;
+  if (ops_start.size() == 0) {
+    ops_start = ops;
   }
 
   return buffer.str();

@@ -593,7 +593,6 @@ void Worker::gen_patterns() {
       if (graph.isexitcycle[i])
         ++exitcyclesleft;
     }
-
     for (size_t i = 1; i <= graph.numstates; ++i) {
       if (!graph.state_active.at(i)) {
         ++deadstates_bystate[i];
@@ -615,6 +614,7 @@ void Worker::gen_patterns() {
              << " states, max_possible = " << max_possible;
       message_coordinator_text(buffer.str());
     }
+
     if (max_possible < l_min || config.infoflag)
       break;
 
@@ -791,17 +791,17 @@ std::string Worker::get_inverse() const {
   // - it never revisits a shift cycle, and
   // - it never does a link throw (0 < t < h) within a single cycle
 
-  int state_current = start_state;
-  int cycle_current = graph.cyclenum[start_state];
+  unsigned int state_current = start_state;
+  unsigned int cycle_current = graph.cyclenum[start_state];
   bool cycle_multiple = false;
 
-  for (int i = 0; i <= pos; ++i) {
+  for (size_t i = 0; i <= pos; ++i) {
     patternstate.at(i) = state_current;
     stateused.at(state_current) = true;
 
     const int state_next = graph.advance_state(state_current, pattern[i]);
     assert(state_next > 0);
-    const int cycle_next = graph.cyclenum[state_next];
+    const unsigned int cycle_next = graph.cyclenum[state_next];
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
@@ -837,7 +837,7 @@ std::string Worker::get_inverse() const {
   std::vector<int> inversepattern;
   std::vector<State> inversestate;
 
-  for (int i = 0; i <= pos; ++i) {
+  for (size_t i = 0; i <= pos; ++i) {
     // continue until `pattern[i]` is a link throw
     if (graph.cyclenum[patternstate.at(i)] ==
         graph.cyclenum[patternstate.at(i + 1)]) {
@@ -879,21 +879,19 @@ std::string Worker::get_inverse() const {
   //
   // By convention we output all patterns starting with the smallest state.
 
-  State min_state = inversestate.at(0);
-  int min_index = 0;
-  for (int i = 1; i < inversestate.size(); ++i) {
-    if (inversestate.at(i) < min_state) {
-      min_state = inversestate.at(i);
+  size_t min_index = 0;
+  for (size_t i = 1; i < inversestate.size(); ++i) {
+    if (inversestate.at(i) < inversestate.at(min_index)) {
       min_index = i;
     }
   }
 
-  const int inverselength = inversepattern.size();
+  const size_t inverselength = inversepattern.size();
   if (config.dualflag)
     min_index = inverselength - min_index;
 
-  for (int i = 0; i < inverselength; ++i) {
-    int j = (i + min_index) % inverselength;
+  for (size_t i = 0; i < inverselength; ++i) {
+    size_t j = (i + min_index) % inverselength;
     const int throwval = (config.dualflag
         ? graph.h - inversepattern.at(inverselength - j - 1)
         : inversepattern.at(j));

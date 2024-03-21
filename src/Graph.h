@@ -71,12 +71,12 @@ class Graph {
   static std::uint64_t combinations(int n, int h);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
-  int get_statenum(const State& s) const;
-  int advance_state(int statenum, int throwval) const;
-  int reverse_state(int statenum) const;
-  int downstream_state(int statenum) const;
-  int upstream_state(int statenum) const;
-  std::string state_string(int statenum) const;
+  unsigned int get_statenum(const State& s) const;
+  unsigned int advance_state(unsigned int statenum, int throwval) const;
+  unsigned int reverse_state(unsigned int statenum) const;
+  unsigned int downstream_state(unsigned int statenum) const;
+  unsigned int upstream_state(unsigned int statenum) const;
+  std::string state_string(unsigned int statenum) const;
 };
 
 #endif

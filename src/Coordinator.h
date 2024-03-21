@@ -75,7 +75,7 @@ class Coordinator {
   void process_worker_update(const MessageW2C& msg);
   void collect_stats();
   void steal_work();
-  int find_stealing_target_mostremaining() const;
+  unsigned int find_stealing_target_mostremaining() const;
   bool is_worker_idle(const unsigned int id) const;
   bool is_worker_splitting(const unsigned int id) const;
   void record_data_from_message(const MessageW2C& msg);

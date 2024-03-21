@@ -37,7 +37,7 @@ struct MessageC2W {
   WorkAssignment assignment;
 
   // for type SPLIT_WORK
-  int split_alg = 1;
+  unsigned int split_alg = 1;
 };
 
 

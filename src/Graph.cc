@@ -515,15 +515,15 @@ unsigned int Graph::superprime_length_bound() const {
 }
 
 // Return the index in the `state` array that corresponds to a given state.
-// Returns -1 if not found.
+// Returns 0 if not found.
 //
 // Note this assumes the `state` vector is sorted!
 
-int Graph::get_statenum(const State& s) const {
+unsigned int Graph::get_statenum(const State& s) const {
   if (state_compare(s, state.at(1)))
-    return -1;
+    return 0;
   if (state_compare(state.at(numstates), s))
-    return -1;
+    return 0;
 
   if (state.at(1) == s)
     return 1;
@@ -544,20 +544,20 @@ int Graph::get_statenum(const State& s) const {
       above = mid;
     }
   }
-  return -1;
+  return 0;
 }
 
 // Return the state number that comes from advancing a given state by a single
-// throw. Returns -1 if the throw results in a collision.
+// throw. Returns 0 if the throw results in a collision.
 
-int Graph::advance_state(int statenum, int throwval) const {
+unsigned int Graph::advance_state(unsigned int statenum, int throwval) const {
   if (throwval < 0 || throwval > state.at(statenum).h)
-    return -1;
+    return 0;
   if (throwval > 0 && state.at(statenum).slot.at(0) == 0)
-    return -1;
+    return 0;
   if (throwval < state.at(statenum).h &&
       state.at(statenum).slot.at(throwval) != 0)
-    return -1;
+    return 0;
 
   return get_statenum(state.at(statenum).advance_with_throw(throwval));
 }
@@ -567,24 +567,24 @@ int Graph::advance_state(int statenum, int throwval) const {
 //
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
-int Graph::reverse_state(int statenum) const {
+unsigned int Graph::reverse_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).reverse());
 }
 
 // Return the next state downstream in the given state's shift cycle
 
-int Graph::downstream_state(int statenum) const {
+unsigned int Graph::downstream_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).downstream());
 }
 
 // Return the next state upstream in the given state's shift cycle
 
-int Graph::upstream_state(int statenum) const {
+unsigned int Graph::upstream_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).upstream());
 }
 
 // Return a text representation of a given state number
 
-std::string Graph::state_string(int statenum) const {
+std::string Graph::state_string(unsigned int statenum) const {
   return state.at(statenum).to_string();
 }
