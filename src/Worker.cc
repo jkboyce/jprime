@@ -738,10 +738,13 @@ void Worker::report_pattern() const {
 // 10 = 'a', 11 = 'b', ...
 
 char Worker::throw_char(int val) {
-  if (val < 10)
+  if (val < 0 || val > 35) {
+    return '?';
+  } else if (val < 10) {
     return static_cast<char>(val + '0');
-  else
+  } else {
     return static_cast<char>(val - 10 + 'a');
+  }
 }
 
 // Output a single throw to a string buffer.

@@ -88,11 +88,11 @@ void print_help() {
     "input are ignored and can be omitted. For example: jprime -file testrun\n"
     "\n"
     "Examples:\n"
-    "   jprime 4 7\n"
-    "   jprime 5 7 -noplus -file 5_7_all\n"
     "   jprime 6 10 187-\n"
     "   jprime 4 9 14- -super 0 -inverse\n"
-    "   jprime 7 42 6 -g\n";
+    "   jprime 7 42 6 -g\n"
+    "   jprime 5 7 -noplus -file 5_7_all\n"
+    "   jprime 2 60 30 -count -threads 4 -status";
 
   std::cout << helpString << std::endl;
 }
