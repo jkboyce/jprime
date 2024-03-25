@@ -30,61 +30,77 @@ void Worker::iterative_gen_loops_normal() {
     assert(false);
   }
 
+  // using local variables instead of Worker instance variables gives
+  // 18% speedup (macOS)
+  int p = pos;
+  uint64_t nn = nnodes;
+  const int lmax = l_max;
+  int* const u = used;
+  int steps = 0;
+  int steps_limit = steps_per_inbox_check;
+  const unsigned int st_state = start_state;
+
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
   // provide a guard since beat[0].col is modified at the end of the search.
   SearchState* ss = &beat[pos + 1];
 
-  while (pos >= 0) {
+  while (p >= 0) {
     // begin with any necessary cleanup from previous marking operations
     if (ss->to_state != 0) {
-      used[ss->to_state] = 0;
+      u[ss->to_state] = 0;
       ss->to_state = 0;
     }
 
     skip_unmarking:
     if (ss->col == ss->col_limit) {
-      --pos;
+      --p;
       --ss;
       ++ss->col;
-      ++nnodes;
+      ++nn;
       continue;
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (to_state == start_state) {
+    if (to_state == st_state) {
+      pos = p;
       iterative_handle_finished_pattern();
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (used[to_state]) {
+    if (u[to_state]) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (pos + 1 == l_max) {
+    if (p + 1 == lmax) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (++steps_taken >= steps_per_inbox_check) {
-      steps_taken = 0;
+    if (++steps >= steps_limit) {
+      steps = 0;
 
+      pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
         for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
         pattern[pos + 1] = -1;
+        nnodes = nn;
         process_inbox_running();
         iterative_update_after_split();
+        nn = nnodes;
+        steps_limit = steps_per_inbox_check;
+        // the above functions do not change `pos`
       }
     }
 
     // advance to next beat
-    used[to_state] = 1;
+    u[to_state] = 1;
     ss->to_state = to_state;
-    ++pos;
+    ++p;
     ++ss;
     ss->col = 0;
     ss->col_limit = graph.outdegree[to_state];
@@ -94,7 +110,9 @@ void Worker::iterative_gen_loops_normal() {
     goto skip_unmarking;
   }
 
-  ++pos;
+  ++p;
+  pos = p;
+  nnodes = nn;
   assert(pos == 0);
 }
 
@@ -105,71 +123,85 @@ void Worker::iterative_gen_loops_normal_counting() {
     assert(false);
   }
 
-  // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
-  // provide a guard since beat[0].col is modified at the end of the search.
+  int p = pos;
+  uint64_t nn = nnodes;
+  const int lmax = l_max;
+  int* const u = used;
+  int steps = 0;
+  int steps_limit = steps_per_inbox_check;
+  const unsigned int st_state = start_state;
+  unsigned int** const outmatrix = graph.outmatrix;
+  unsigned int* const outdegree = graph.outdegree;
+
   SearchState* ss = &beat[pos + 1];
 
-  while (pos >= 0) {
+  while (p >= 0) {
     // begin with any necessary cleanup from previous marking operations
     if (ss->to_state != 0) {
-      used[ss->to_state] = 0;
+      u[ss->to_state] = 0;
       ss->to_state = 0;
     }
 
     skip_unmarking:
     if (ss->col == ss->col_limit) {
-      --pos;
+      --p;
       --ss;
       ++ss->col;
-      ++nnodes;
+      ++nn;
       continue;
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (to_state == start_state) {
-      ++count[pos + 1];
+    if (to_state == st_state) {
+      ++count[p + 1];
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (used[to_state]) {
+    if (u[to_state]) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (pos + 1 == l_max) {
+    if (p + 1 == lmax) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (++steps_taken >= steps_per_inbox_check) {
-      steps_taken = 0;
+    if (++steps >= steps_limit) {
+      steps = 0;
 
+      pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
         for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
         pattern[pos + 1] = -1;
+        nnodes = nn;
         process_inbox_running();
         iterative_update_after_split();
+        nn = nnodes;
+        steps_limit = steps_per_inbox_check;
       }
     }
 
     // advance to next beat
-    used[to_state] = 1;
+    u[to_state] = 1;
     ss->to_state = to_state;
-    ++pos;
+    ++p;
     ++ss;
     ss->col = 0;
-    ss->col_limit = graph.outdegree[to_state];
+    ss->col_limit = outdegree[to_state];
     ss->from_state = to_state;
     ss->to_state = 0;
-    ss->outmatrix = graph.outmatrix[to_state];
+    ss->outmatrix = outmatrix[to_state];
     goto skip_unmarking;
   }
 
-  ++pos;
+  ++p;
+  pos = p;
+  nnodes = nn;
   assert(pos == 0);
 }
 
@@ -180,12 +212,24 @@ void Worker::iterative_gen_loops_normal_marking() {
     assert(false);
   }
 
+  int p = pos;
+  uint64_t nn = nnodes;
+  const int lmax = l_max;
+  int* const u = used;
+  int steps = 0;
+  int steps_limit = steps_per_inbox_check;
+  unsigned int st_state = start_state;
+  unsigned int** const ds_bystate = deadstates_bystate;
+  unsigned int** const outmatrix = graph.outmatrix;
+  unsigned int* const outdegree = graph.outdegree;
+  unsigned int** const outthrowval = graph.outthrowval;
+
   SearchState* ss = &beat[pos + 1];
 
-  while (pos >= 0) {
+  while (p >= 0) {
     // begin with any necessary cleanup from previous marking operations
     if (ss->to_state != 0) {
-      used[ss->to_state] = 0;
+      u[ss->to_state] = 0;
       ss->to_state = 0;
     }
 
@@ -194,7 +238,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       unsigned int* const ds = ss->deadstates_catch;
       unsigned int* es = ss->excludes_catch;
       for (unsigned int statenum; (statenum = *es); ++es) {
-        if (--used[statenum] == 0 && --*ds > 0)
+        if (--u[statenum] == 0 && --*ds > 0)
           ++max_possible;
       }
       ss->excludes_catch = nullptr;
@@ -206,48 +250,49 @@ void Worker::iterative_gen_loops_normal_marking() {
         unsigned int* const ds = ss->deadstates_throw;
         unsigned int* es = ss->excludes_throw;
         for (unsigned int statenum; (statenum = *es); ++es) {
-          if (--used[statenum] == 0 && --*ds > 0)
+          if (--u[statenum] == 0 && --*ds > 0)
             ++max_possible;
         }
       }
 
-      --pos;
+      --p;
       --ss;
       ++ss->col;
-      ++nnodes;
+      ++nn;
       continue;
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (to_state == start_state) {
+    if (to_state == st_state) {
+      pos = p;
       iterative_handle_finished_pattern();
       ++ss->col;
       goto skip_unmarking2;
     }
 
-    if (used[to_state]) {
+    if (u[to_state]) {
       ++ss->col;
       goto skip_unmarking2;
     }
 
-    if (pos + 1 == l_max) {
+    if (p + 1 == lmax) {
       ++ss->col;
       goto skip_unmarking2;
     }
 
-    const int throwval = graph.outthrowval[ss->from_state][ss->col];
+    const int throwval = outthrowval[ss->from_state][ss->col];
     if (throwval != 0 && throwval != graph.h) {
       if (ss->excludes_throw == nullptr) {
         // mark states excluded by link throw; only need to do this once since
         // the link throws all come at the end of each row in `outmatrix`
         bool valid1 = true;
-        unsigned int* const ds = deadstates_bystate[ss->from_state];
+        unsigned int* const ds = ds_bystate[ss->from_state];
         unsigned int* es = graph.excludestates_throw[ss->from_state];
         ss->excludes_throw = es;  // save to clean up later
         ss->deadstates_throw = ds;
 
         for (unsigned int statenum; (statenum = *es); ++es) {
-          if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+          if (++u[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
             valid1 = false;
         }
 
@@ -255,41 +300,41 @@ void Worker::iterative_gen_loops_normal_marking() {
           // undo marking operation and bail to previous beat
           es = ss->excludes_throw;
           for (unsigned int statenum; (statenum = *es); ++es) {
-            if (--used[statenum] == 0 && --*ds > 0)
+            if (--u[statenum] == 0 && --*ds > 0)
               ++max_possible;
           }
 
-          --pos;
+          --p;
           --ss;
           ++ss->col;
-          ++nnodes;
+          ++nn;
           continue;
         }
       }
 
       // account for states excluded by link catch
       bool valid2 = true;
-      unsigned int* const ds = deadstates_bystate[to_state];
+      unsigned int* const ds = ds_bystate[to_state];
       unsigned int* es = graph.excludestates_catch[to_state];
       ss->excludes_catch = es;
       ss->deadstates_catch = ds;
 
       for (unsigned int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+        if (++u[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
           valid2 = false;
       }
 
       if (valid2) {
         // advance to next beat
-        used[to_state] = 1;
+        u[to_state] = 1;
         ss->to_state = to_state;
-        ++pos;
+        ++p;
         ++ss;
         ss->col = 0;
-        ss->col_limit = graph.outdegree[to_state];
+        ss->col_limit = outdegree[to_state];
         ss->from_state = to_state;
         ss->to_state = 0;
-        ss->outmatrix = graph.outmatrix[to_state];
+        ss->outmatrix = outmatrix[to_state];
         ss->excludes_throw = nullptr;
         ss->excludes_catch = nullptr;
         goto skip_unmarking2;
@@ -299,37 +344,43 @@ void Worker::iterative_gen_loops_normal_marking() {
       ++ss->col;
       goto skip_unmarking1;
     } else {  // shift throw
-      if (++steps_taken >= steps_per_inbox_check) {
-        steps_taken = 0;
+      if (++steps >= steps_limit) {
+        steps = 0;
 
+        pos = p;
         if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
           for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
           pattern[pos + 1] = -1;
+          nnodes = nn;
           process_inbox_running();
           iterative_update_after_split();
+          nn = nnodes;
+          steps_limit = steps_per_inbox_check;
         }
       }
 
       // advance to next beat
-      used[to_state] = 1;
+      u[to_state] = 1;
       ss->to_state = to_state;
-      ++pos;
+      ++p;
       ++ss;
       ss->col = 0;
-      ss->col_limit = graph.outdegree[to_state];
+      ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = graph.outmatrix[to_state];
+      ss->outmatrix = outmatrix[to_state];
       ss->excludes_throw = nullptr;
       ss->excludes_catch = nullptr;
       goto skip_unmarking2;
     }
   }
 
-  ++pos;
+  ++p;
+  pos = p;
+  nnodes = nn;
   assert(pos == 0);
 }
 
@@ -340,81 +391,99 @@ void Worker::iterative_gen_loops_super() {
     assert(false);
   }
 
+  int p = pos;
+  uint64_t nn = nnodes;
+  const int lmax = l_max;
+  int* const u = used;
+  int steps = 0;
+  int steps_limit = steps_per_inbox_check;
+  const unsigned int st_state = start_state;
+  bool* const cu = cycleused;
+  unsigned int** const outmatrix = graph.outmatrix;
+  unsigned int* const outdegree = graph.outdegree;
+  unsigned int** const outthrowval = graph.outthrowval;
+  unsigned int* const cyclenum = graph.cyclenum;
+
   SearchState* ss = &beat[pos + 1];
 
-  while (pos >= 0) {
+  while (p >= 0) {
     // begin with any necessary cleanup from previous operations
     if (ss->to_cycle != -1) {
-      cycleused[ss->to_cycle] = false;
+      cu[ss->to_cycle] = false;
       ss->to_cycle = -1;
     }
     if (ss->to_state != 0) {
-      used[ss->to_state] = 0;
+      u[ss->to_state] = 0;
       ss->to_state = 0;
     }
 
     skip_unmarking:
     if (ss->col == ss->col_limit) {
-      --pos;
+      --p;
       --ss;
       ++ss->col;
-      ++nnodes;
+      ++nn;
       continue;
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (used[to_state]) {
+    if (u[to_state]) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    const unsigned int throwval = graph.outthrowval[ss->from_state][ss->col];
+    const unsigned int throwval = outthrowval[ss->from_state][ss->col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
     const unsigned int shifts_remaining = ss->shifts_remaining;
 
     if (linkthrow) {
-      if (to_state == start_state) {
+      if (to_state == st_state) {
+        pos = p;
         iterative_handle_finished_pattern();
         ++ss->col;
         goto skip_unmarking;
       }
 
-      const int to_cycle = graph.cyclenum[to_state];
-      if (cycleused[to_cycle]) {
+      const int to_cycle = cyclenum[to_state];
+      if (cu[to_cycle]) {
         ++ss->col;
         goto skip_unmarking;
       }
 
-      if (pos + 1 == l_max) {
+      if (p + 1 == lmax) {
         ++ss->col;
         goto skip_unmarking;
       }
 
-      if (++steps_taken >= steps_per_inbox_check) {
-        steps_taken = 0;
+      if (++steps >= steps_limit) {
+        steps = 0;
 
+        pos = p;
         if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
           for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
           pattern[pos + 1] = -1;
+          nnodes = nn;
           process_inbox_running();
           iterative_update_after_split();
+          nn = nnodes;
+          steps_limit = steps_per_inbox_check;
         }
       }
 
-      used[to_state] = 1;
-      cycleused[to_cycle] = true;
+      u[to_state] = 1;
+      cu[to_cycle] = true;
       ss->to_state = to_state;
       ss->to_cycle = to_cycle;
-      ++pos;
+      ++p;
       ++ss;
       ss->col = 0;
-      ss->col_limit = graph.outdegree[to_state];
+      ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = graph.outmatrix[to_state];
+      ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining;
       goto skip_unmarking;
@@ -424,34 +493,37 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
-      if (to_state == start_state) {
+      if (to_state == st_state) {
+        pos = p;
         iterative_handle_finished_pattern();
         ++ss->col;
         goto skip_unmarking;
       }
 
-      if (pos + 1 == l_max) {
+      if (p + 1 == lmax) {
         ++ss->col;
         goto skip_unmarking;
       }
 
-      used[to_state] = 1;
+      u[to_state] = 1;
       ss->to_state = to_state;
       // ss->to_cycle = -1;
-      ++pos;
+      ++p;
       ++ss;
       ss->col = 0;
-      ss->col_limit = graph.outdegree[to_state];
+      ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = graph.outmatrix[to_state];
+      ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining - 1;
       goto skip_unmarking;
     }
   }
 
-  ++pos;
+  ++p;
+  pos = p;
+  nnodes = nn;
   assert(pos == 0);
 }
 
@@ -462,33 +534,46 @@ void Worker::iterative_gen_loops_super0() {
     assert(false);
   }
 
+  int p = pos;
+  uint64_t nn = nnodes;
+  const int lmax = l_max;
+  int steps = 0;
+  int steps_limit = steps_per_inbox_check;
+  const unsigned int st_state = start_state;
+  bool* const cu = cycleused;
+  unsigned int** const outmatrix = graph.outmatrix;
+  unsigned int* const outdegree = graph.outdegree;
+  unsigned int* const cyclenum = graph.cyclenum;
+  bool* const isexitcycle = graph.isexitcycle;
+
   SearchState* ss = &beat[pos + 1];
 
-  while (pos >= 0) {
+  while (p >= 0) {
     // begin with any necessary cleanup from previous operations
     if (ss->to_cycle != -1) {
-      cycleused[ss->to_cycle] = false;
+      cu[ss->to_cycle] = false;
       ss->to_cycle = -1;
     }
 
     skip_unmarking:
     if (ss->col == ss->col_limit) {
-      --pos;
+      --p;
       --ss;
       ++ss->col;
-      ++nnodes;
+      ++nn;
       continue;
     }
 
     const int to_state = ss->outmatrix[ss->col];
-    if (to_state == start_state) {
+    if (to_state == st_state) {
+      pos = p;
       iterative_handle_finished_pattern();
       ++ss->col;
       goto skip_unmarking;
     }
 
-    const int to_cycle = graph.cyclenum[to_state];
-    if (cycleused[to_cycle]) {
+    const int to_cycle = cyclenum[to_state];
+    if (cu[to_cycle]) {
       ++ss->col;
       goto skip_unmarking;
     }
@@ -498,43 +583,49 @@ void Worker::iterative_gen_loops_super0() {
       goto skip_unmarking;
     }
 
-    if (pos + 1 == l_max) {
+    if (p + 1 == lmax) {
       ++ss->col;
       goto skip_unmarking;
     }
 
-    if (++steps_taken >= steps_per_inbox_check) {
-      steps_taken = 0;
+    if (++steps >= steps_limit) {
+      steps = 0;
 
+      pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
         for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
         pattern[pos + 1] = -1;
+        nnodes = nn;
         process_inbox_running();
         iterative_update_after_split();
+        nn = nnodes;
+        steps_limit = steps_per_inbox_check;
       }
     }
 
-    cycleused[to_cycle] = true;
+    cu[to_cycle] = true;
     ss->to_state = to_state;
     ss->to_cycle = to_cycle;
-    int exitcycles_remaining = (graph.isexitcycle[to_cycle] ?
+    const int exitcycles_remaining = (isexitcycle[to_cycle] ?
         ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);
-    ++pos;
+    ++p;
     ++ss;
     ss->col = 0;
-    ss->col_limit = graph.outdegree[to_state];
+    ss->col_limit = outdegree[to_state];
     ss->from_state = to_state;
     ss->to_state = 0;
-    ss->outmatrix = graph.outmatrix[to_state];
+    ss->outmatrix = outmatrix[to_state];
     ss->to_cycle = -1;
     ss->exitcycles_remaining = exitcycles_remaining;
     goto skip_unmarking;
   }
 
-  ++pos;
+  ++p;
+  pos = p;
+  nnodes = nn;
   assert(pos == 0);
 }
 
