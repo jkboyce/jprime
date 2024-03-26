@@ -30,8 +30,8 @@ void Worker::iterative_gen_loops_normal() {
     assert(false);
   }
 
-  // using local variables instead of Worker instance variables gives
-  // 18% speedup (macOS)
+  // using local variables instead of Worker instance variables gives 18%
+  // speedup (macOS)
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
@@ -632,7 +632,9 @@ void Worker::iterative_gen_loops_super0() {
 // Set up the SearchState array with initial values.
 //
 // Leaves `pos` pointing to the last beat with loaded data, ready for the
-// iterative algorithm to resume.
+// iterative algorithm to resume. Input parameter `marking` indicates whether
+// to do marking operations during setup (the `excludes` and `deadstates`
+// elements of SearchState).
 //
 // Returns true on success, false on failure.
 

@@ -334,7 +334,7 @@ void Coordinator::steal_work() {
       default:
         assert(false);
     }
-    assert(id >= 0 && id < context.num_threads);
+    assert(id < context.num_threads);
 
     MessageC2W msg;
     msg.type = messages_C2W::SPLIT_WORK;
@@ -352,14 +352,12 @@ void Coordinator::steal_work() {
   }
 }
 
-// Identify the running worker with the most remaining work
+// Return the id of the busy worker with the most remaining work.
+//
+// First look at most remaining `start_state` values, and if no workers have
+// unexplored start states then find the lowest `root_pos` value.
 
 unsigned int Coordinator::find_stealing_target_mostremaining() const {
-  // strategy: take work from the worker with the most remaining work
-  //
-  // first look at most remaining `start_state` values, then look at lowest
-  // `root_pos` value.
-
   int id_startstates = -1;
   int id_rootpos = -1;
   unsigned int max_startstates_remaining = 0;
@@ -688,7 +686,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool hl_start = false;
   bool did_hl_last = false;
   bool hl_last = false;
-  unsigned int rootpos_distance = 999u;
+  unsigned int rootpos_distance = 1000u;
 
   for (size_t i = 0; i < ops.size(); ++i) {
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
@@ -742,7 +740,10 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     ++printed;
   }
 
-  buffer << std::setw(4) << rootpos_distance;
+  if (rootpos_distance < 1000u)
+    buffer << std::setw(4) << rootpos_distance;
+  else
+    buffer << " ---";
   buffer << std::setw(5) << worker_longest.at(id);
 
   ops_last = ops;
