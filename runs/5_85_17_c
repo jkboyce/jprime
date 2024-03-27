@@ -1,0 +1,35 @@
+version           6.5
+command line      jprime 5 85 17 -count -threads 4 -status -file 5_85_17_c
+length bound      17
+states            20349
+shift cycles      4845
+short cycles      1
+patterns          773962487261
+patterns (seen)   876967243748
+nodes visited     21233556426290
+threads           4
+hardware threads  12
+seconds elapsed   40917.9118
+seconds working   163670.0360
+seconds avail     163671.6471
+
+patterns
+
+counts
+1, 1
+2, 5
+3, 29
+4, 153
+5, 851
+6, 4384
+7, 24315
+8, 127090
+9, 686686
+10, 3668565
+11, 19907728
+12, 105322021
+13, 567432472
+14, 2992480468
+15, 15905532971
+16, 83409568748
+17, 773962487261
