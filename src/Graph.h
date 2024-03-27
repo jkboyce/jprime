@@ -72,7 +72,7 @@ class Graph {
  public:
   void build_graph();
   void find_exclude_states();
-  static std::uint64_t combinations(int n, int h);
+  static std::uint64_t combinations(unsigned int a, unsigned int b);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
   unsigned int get_statenum(const State& s) const;

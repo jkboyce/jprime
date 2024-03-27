@@ -166,7 +166,7 @@ void Graph::gen_states_all(std::vector<State>& s, unsigned int n,
   s.push_back({n, h});
   gen_states_all_helper(s, h - 1, n);
   s.pop_back();
-  assert(s.size() == combinations(n, h) + 1);
+  assert(s.size() == combinations(h, n) + 1);
 }
 
 // Helper function to generate states in the general case. Recursively insert
@@ -470,12 +470,15 @@ void Graph::find_exclude_states() {
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Compute (h choose n).
+// Compute (a choose b).
 
-std::uint64_t Graph::combinations(int n, int h) {
+std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
+  if (a < b)
+    return 0;
+
   std::uint64_t result = 1;
-  for (int denom = 1; denom <= std::min(n, h - n); ++denom)
-    result = (result * (h - denom + 1)) / denom;
+  for (unsigned int denom = 1; denom <= std::min(b, a - b); ++denom)
+    result = (result * (a - denom + 1)) / denom;
   return result;
 }
 
