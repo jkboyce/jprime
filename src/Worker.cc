@@ -36,9 +36,9 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
         config.mode != RunMode::SUPER_SEARCH,
         config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0) {
   if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
-    l_bound = l_max = l_min = config.l_min;
+    l_bound = l_max = l_min = static_cast<unsigned int>(config.l_min);
   } else {
-    l_min = config.l_min;
+    l_min = static_cast<unsigned int>(config.l_min);
     l_bound = (config.mode == RunMode::SUPER_SEARCH)
         ? graph.superprime_length_bound() + config.shiftlimit
         : graph.prime_length_bound();
@@ -278,17 +278,22 @@ void Worker::send_stats_to_coordinator() {
     msg.worker_optionsleft.resize(pos + 1);
 
     int tempfrom = start_state;
-    for (int i = 0; i <= pos; ++i) {
+    for (size_t i = 0; i <= pos; ++i) {
       msg.worker_throw.at(i) = pattern[i];
 
       for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
-        if (graph.outthrowval[tempfrom][col] == pattern[i]) {
-          if (i < root_pos)
+        if (pattern[i] < 0)
+          continue;
+
+        if (graph.outthrowval[tempfrom][col] ==
+            static_cast<unsigned int>(pattern[i])) {
+          if (i < root_pos) {
             msg.worker_optionsleft.at(i) = 0;
-          else if (i == root_pos)
+          } else if (i == root_pos) {
             msg.worker_optionsleft.at(i) = root_throwval_options.size();
-          else
+          } else {
             msg.worker_optionsleft.at(i) = graph.outdegree[tempfrom] - col - 1;
+          }
           tempfrom = graph.outmatrix[tempfrom][col];
           break;
         }
@@ -385,7 +390,8 @@ void Worker::notify_coordinator_update() const {
 void Worker::build_rootpos_throw_options(unsigned int from_state,
     unsigned int start_column) {
   root_throwval_options.clear();
-  for (int col = start_column; col < graph.outdegree[from_state]; ++col) {
+  for (unsigned int col = start_column; col < graph.outdegree[from_state];
+      ++col) {
     root_throwval_options.push_back(graph.outthrowval[from_state][col]);
   }
 
@@ -393,7 +399,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " options at root_pos " << root_pos
            << ": [";
-    for (int v : root_throwval_options) {
+    for (unsigned int v : root_throwval_options) {
       if (config.throwdigits > 1 && v != root_throwval_options.front())
         buffer << ',';
       print_throw(buffer, v);
@@ -426,7 +432,6 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
       break;
     default:
       assert(false);
-      return split_work_assignment_takeall();
   }
 }
 
@@ -461,17 +466,20 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   wa.start_state = start_state;
   wa.end_state = start_state;
   wa.root_pos = root_pos;
-  for (size_t i = 0; i < static_cast<size_t>(root_pos); ++i)
+  for (size_t i = 0; i < root_pos; ++i) {
     wa.partial_pattern.push_back(pattern[i]);
+  }
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
   std::list<unsigned int>::iterator iter = root_throwval_options.begin();
   std::list<unsigned int>::iterator end = root_throwval_options.end();
   while (iter != end) {
-    if (*iter == pattern[root_pos])
+    if (pattern[root_pos] >= 0 &&
+        *iter == static_cast<unsigned int>(pattern[root_pos])) {
       iter = root_throwval_options.erase(iter);
-    else
+    } else {
       ++iter;
+    }
   }
   assert(root_throwval_options.size() > 0);
 
@@ -493,8 +501,9 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
       iter = root_throwval_options.erase(iter);
-    } else
+    } else {
       ++iter;
+    }
     ++index;
   }
 
@@ -512,17 +521,18 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // So we know there must be a value of `new_root_pos` with the properties we
     // need, in the range root_pos < new_root_pos <= pos.
 
-    int from_state = start_state;
+    unsigned int from_state = start_state;
     int new_root_pos = -1;
-    int col = 0;
+    unsigned int col = 0;
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (size_t pos2 = 0; pos2 <= static_cast<size_t>(pos); ++pos2) {
-      const int throwval = pattern[pos2];
+    for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
+      const unsigned int throwval = static_cast<unsigned int>(pattern[pos2]);
       for (col = 0; col < graph.outdegree[from_state]; ++col) {
-        if (throwval == graph.outthrowval[from_state][col])
+        if (throwval == graph.outthrowval[from_state][col]) {
           break;
+        }
       }
       // diagnostics if there's a problem
       if (col == graph.outdegree[from_state]) {
@@ -536,8 +546,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       }
       assert(col != graph.outdegree[from_state]);
 
-      if (pos2 > static_cast<size_t>(root_pos) &&
-          col < graph.outdegree[from_state] - 1) {
+      if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
         new_root_pos = static_cast<int>(pos2);
         break;
       }
@@ -545,7 +554,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       from_state = graph.outmatrix[from_state][col];
     }
     assert(new_root_pos != -1);
-    root_pos = new_root_pos;
+    root_pos = static_cast<unsigned int>(new_root_pos);
     notify_coordinator_update();
     build_rootpos_throw_options(from_state, col + 1);
     assert(root_throwval_options.size() > 0);
@@ -568,7 +577,7 @@ void Worker::gen_patterns() {
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
     graph.state_active.at(i) = true;
-    graph.outdegree[i] = 0;  // so build_graph() does a full recalc
+    graph.outdegree[i] = 0;  // so build_graph() below does a full recalc
   }
 
   for (; start_state <= end_state; ++start_state) {
@@ -579,28 +588,7 @@ void Worker::gen_patterns() {
 
     set_inactive_states();
     graph.build_graph();
-
-    // reset working variables for search
-    pos = 0;
-    from = start_state;
-    shiftcount = 0;
-    exitcyclesleft = 0;
-    for (size_t i = 0; i <= graph.numstates; ++i) {
-      used[i] = 0;
-      cycleused[i] = false;
-      deadstates[i] = 0;
-      deadstates_bystate[i] = deadstates + graph.cyclenum[i];
-      if (graph.isexitcycle[i])
-        ++exitcyclesleft;
-    }
-    for (size_t i = 1; i <= graph.numstates; ++i) {
-      if (!graph.state_active.at(i)) {
-        ++deadstates_bystate[i];
-      }
-    }
-    max_possible = (config.mode == RunMode::SUPER_SEARCH)
-        ? graph.superprime_length_bound() + config.shiftlimit
-        : graph.prime_length_bound();
+    initialize_working_variables();
 
     if (config.verboseflag) {
       int num_inactive = std::count(graph.state_active.begin() + 1,
@@ -615,27 +603,26 @@ void Worker::gen_patterns() {
       message_coordinator_text(buffer.str());
     }
 
-    if (max_possible < l_min || config.infoflag)
+    if (max_possible < static_cast<int>(l_min) || config.infoflag) {
       break;
-
+    }
     if (!graph.state_active.at(start_state)) {
       loading_work = false;
       continue;
     }
-
     if (!loading_work || root_throwval_options.size() == 0) {
       // when loading work, `root_pos` (and usually `root_throwval_options`) are
       // given by the work assignment, otherwise initialize here
       root_pos = 0;
       build_rootpos_throw_options(start_state, 0);
     }
-
     if (root_throwval_options.size() == 0) {
       loading_work = false;
       continue;
     }
-
     notify_coordinator_update();
+
+    // RELEASE THE KRAKEN
 
     std::vector<int> used_start(used, used + graph.numstates + 1);
     switch (config.mode) {
@@ -682,10 +669,10 @@ void Worker::set_inactive_states() {
     for (size_t i = 1; i <= graph.numstates; ++i) {
       // number of consecutive '-'s at the start of the state, plus number of
       // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
-      int start0s = 0;
+      unsigned int start0s = 0;
       while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0)
         ++start0s;
-      int end1s = 0;
+      unsigned int end1s = 0;
       while (end1s < graph.h && graph.state.at(i).slot.at(graph.h - end1s - 1)
           != 0)
         ++end1s;
@@ -694,6 +681,33 @@ void Worker::set_inactive_states() {
       }
     }
   }
+}
+
+// Initialize all working variables prior to gen_loops()
+
+void Worker::initialize_working_variables() {
+  pos = 0;
+  from = start_state;
+  shiftcount = 0;
+  exitcyclesleft = 0;
+  for (size_t i = 0; i <= graph.numstates; ++i) {
+    used[i] = 0;
+    cycleused[i] = false;
+    deadstates[i] = 0;
+    deadstates_bystate[i] = deadstates + graph.cyclenum[i];
+    if (graph.isexitcycle[i])
+      ++exitcyclesleft;
+  }
+
+  for (size_t i = 1; i <= graph.numstates; ++i) {
+    if (!graph.state_active.at(i)) {
+      ++deadstates_bystate[i];
+    }
+  }
+
+  max_possible = (config.mode == RunMode::SUPER_SEARCH)
+      ? graph.superprime_length_bound() + config.shiftlimit
+      : graph.prime_length_bound();
 }
 
 //------------------------------------------------------------------------------
@@ -749,7 +763,7 @@ char Worker::throw_char(int val) {
 
 // Output a single throw to a string buffer.
 
-void Worker::print_throw(std::ostringstream& buffer, int val) const {
+void Worker::print_throw(std::ostringstream& buffer, unsigned int val) const {
   if (!config.noplusminusflag && val == 0) {
     buffer << '-';
     return;
@@ -770,11 +784,12 @@ void Worker::print_throw(std::ostringstream& buffer, int val) const {
 std::string Worker::get_pattern() const {
   std::ostringstream buffer;
 
-  for (int i = 0; i <= pos; ++i) {
+  for (size_t i = 0; i <= pos; ++i) {
     if (config.throwdigits > 1 && i != 0)
       buffer << ',';
-    const int throwval = (config.dualflag ? (graph.h - pattern[pos - i])
-        : pattern[i]);
+    const unsigned int throwval = (config.dualflag
+      ? graph.h - static_cast<unsigned int>(pattern[pos - i])
+      : static_cast<unsigned int>(pattern[i]));
     print_throw(buffer, throwval);
   }
 
@@ -818,7 +833,8 @@ std::string Worker::get_inverse() const {
       }
       cycleused.at(cycle_current) = true;
       cycle_multiple = true;
-    } else if (pattern[i] != 0 && pattern[i] != graph.h) {
+    } else if (pattern[i] != 0 &&
+        static_cast<unsigned int>(pattern[i]) != graph.h) {
       // link throw within a single cycle --> no inverse
       return buffer.str();
     }
@@ -841,7 +857,7 @@ std::string Worker::get_inverse() const {
   // The inverse may go through states that aren't in the graph so we can't
   // refer to them by state number.
 
-  std::vector<int> inversepattern;
+  std::vector<unsigned int> inversepattern;
   std::vector<State> inversestate;
 
   for (size_t i = 0; i <= pos; ++i) {
@@ -858,7 +874,8 @@ std::string Worker::get_inverse() const {
           graph.state.at(patternstate.at(i)).downstream().reverse());
     }
 
-    const int inversethrow = graph.h - pattern[i];
+    const unsigned int inversethrow = graph.h
+        - static_cast<unsigned int>(pattern[i]);
     inversepattern.push_back(inversethrow);
     inversestate.push_back(
         inversestate.back().advance_with_throw(inversethrow));
@@ -868,7 +885,7 @@ std::string Worker::get_inverse() const {
 
     while (true) {
       State trial_state = inversestate.back().downstream();
-      int trial_statenum = graph.get_statenum(trial_state.reverse());
+      unsigned int trial_statenum = graph.get_statenum(trial_state.reverse());
       if (trial_statenum > 0 && stateused.at(trial_statenum))
         break;
 
@@ -899,7 +916,7 @@ std::string Worker::get_inverse() const {
 
   for (size_t i = 0; i < inverselength; ++i) {
     size_t j = (i + min_index) % inverselength;
-    const int throwval = (config.dualflag
+    const unsigned int throwval = (config.dualflag
         ? graph.h - inversepattern.at(inverselength - j - 1)
         : inversepattern.at(j));
     if (config.throwdigits > 1 && i != 0)

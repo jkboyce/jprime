@@ -20,8 +20,9 @@
 
 class Graph {
  public:
-  Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l = 0);
-  Graph(int n, int h);
+  Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa, bool ltwc,
+      unsigned int l = 0);
+  Graph(unsigned int n, unsigned int h);
   Graph(const Graph& g);
   Graph(Graph&&) =delete;
   Graph& operator=(const Graph& g);
@@ -30,9 +31,9 @@ class Graph {
 
  public:
   // calculated at construction and do not change
-  int n = 0;
-  int h = 0;
-  int l = 0;  // if nonzero then a graph specific to patterns of that period
+  unsigned int n = 0;
+  unsigned int h = 0;
+  unsigned int l = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
   bool linkthrows_within_cycle = true;
   std::vector<State> state;
@@ -56,11 +57,14 @@ class Graph {
   void init();
   void allocate_arrays();
   void delete_arrays();
-  static void gen_states_all(std::vector<State>& s, int n, int h);
-  static void gen_states_all_helper(std::vector<State>& s, int pos, int left);
-  static void gen_states_for_period(std::vector<State>& s, int n, int h, int l);
-  static void gen_states_for_period_helper(std::vector<State>& s, int pos,
-    int left, int h, int l);
+  static void gen_states_all(std::vector<State>& s, unsigned int n,
+    unsigned int h);
+  static void gen_states_all_helper(std::vector<State>& s, unsigned int pos,
+    unsigned int left);
+  static void gen_states_for_period(std::vector<State>& s, unsigned int n,
+    unsigned int h, unsigned int l);
+  static void gen_states_for_period_helper(std::vector<State>& s,
+    unsigned int pos, unsigned int left, unsigned int h, unsigned int l);
   void find_shift_cycles();
   void gen_matrices();
   void find_exit_cycles();
@@ -72,7 +76,8 @@ class Graph {
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
   unsigned int get_statenum(const State& s) const;
-  unsigned int advance_state(unsigned int statenum, int throwval) const;
+  unsigned int advance_state(unsigned int statenum, unsigned int throwval)
+    const;
   unsigned int reverse_state(unsigned int statenum) const;
   unsigned int downstream_state(unsigned int statenum) const;
   unsigned int upstream_state(unsigned int statenum) const;

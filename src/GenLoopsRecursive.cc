@@ -56,6 +56,7 @@ void Worker::gen_loops_normal() {
       steps_taken = 0;
     }
 
+    // we need to go deeper
     ++used[to];
     ++pos;
     const int old_from = from;
@@ -93,7 +94,7 @@ void Worker::gen_loops_normal_marking() {
     if (used[to] != 0)
       continue;
 
-    const int throwval = graph.outthrowval[from][col];
+    const unsigned int throwval = graph.outthrowval[from][col];
     if (to == start_state) {
       pattern[pos] = throwval;
       handle_finished_pattern();
@@ -116,7 +117,6 @@ void Worker::gen_loops_normal_marking() {
       }
 
       if (mark_unreachable_states_catch(to)) {
-        // we need to go deeper
         pattern[pos] = throwval;
         ++used[to];
         ++pos;
@@ -177,12 +177,12 @@ void Worker::gen_loops_super() {
     if (used[to] != 0)
       continue;
 
-    const int throwval = ov[col];
+    const unsigned int throwval = ov[col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
 
     if (linkthrow) {
       // going to a shift cycle that's already been visited?
-      const int to_cycle = graph.cyclenum[to];
+      const unsigned int to_cycle = graph.cyclenum[to];
       if (cycleused[to_cycle])
         continue;
 
@@ -311,13 +311,13 @@ unsigned int Worker::load_one_throw() {
   }
 
   for (unsigned int col = 0; col < graph.outdegree[from]; ++col) {
-    if (graph.outthrowval[from][col] == pattern[pos])
+    if (graph.outthrowval[from][col] == static_cast<unsigned int>(pattern[pos]))
       return col;
   }
 
   // diagnostic information if there's a problem
   std::ostringstream buffer;
-  for (int i = 0; i <= pos; ++i)
+  for (size_t i = 0; i <= pos; ++i)
     print_throw(buffer, pattern[i]);
   std::cerr << "worker: " << worker_id << '\n'
             << "pos: " << pos << '\n'
@@ -327,13 +327,13 @@ unsigned int Worker::load_one_throw() {
             << "start_state: " << start_state << '\n'
             << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
-  for (int i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outthrowval[from][i] << ", ";
   std::cerr << "\noutmatrix[from][]: ";
-  for (int i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.outmatrix[from][i] << ", ";
   std::cerr << "\nstate[outmatrix[from][]]: ";
-  for (int i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.maxoutdegree; ++i)
     std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
   std::cerr << '\n';
   std::exit(EXIT_FAILURE);
@@ -418,7 +418,8 @@ inline bool Worker::mark_unreachable_states_throw() {
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+    if (++used[statenum] == 1 && ++*ds > 1 &&
+        --max_possible < static_cast<int>(l_min))
       valid = false;
   }
   return valid;
@@ -431,7 +432,8 @@ inline bool Worker::mark_unreachable_states_catch(unsigned int to_state) {
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+    if (++used[statenum] == 1 && ++*ds > 1 &&
+        --max_possible < static_cast<int>(l_min))
       valid = false;
   }
 

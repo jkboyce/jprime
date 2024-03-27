@@ -67,7 +67,7 @@ std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
       << ", end_state:" << wa.end_state
       << ", root_pos:" << wa.root_pos
       << ", root_options:[";
-  for (int v : wa.root_throwval_options) {
+  for (unsigned int v : wa.root_throwval_options) {
     if (v != wa.root_throwval_options.front())
       ost << ',';
     ost << v;

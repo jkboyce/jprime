@@ -36,8 +36,8 @@ void Worker::iterative_gen_loops_normal() {
   uint64_t nn = nnodes;
   const int lmax = l_max;
   int* const u = used;
-  int steps = 0;
-  int steps_limit = steps_per_inbox_check;
+  unsigned int steps = 0;
+  unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
@@ -60,7 +60,7 @@ void Worker::iterative_gen_loops_normal() {
       continue;
     }
 
-    const int to_state = ss->outmatrix[ss->col];
+    const unsigned int to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
       pos = p;
       iterative_handle_finished_pattern();
@@ -83,7 +83,7 @@ void Worker::iterative_gen_loops_normal() {
 
       pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+        for (size_t i = 0; i <= pos; ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
@@ -127,8 +127,8 @@ void Worker::iterative_gen_loops_normal_counting() {
   uint64_t nn = nnodes;
   const int lmax = l_max;
   int* const u = used;
-  int steps = 0;
-  int steps_limit = steps_per_inbox_check;
+  unsigned int steps = 0;
+  unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   unsigned int** const outmatrix = graph.outmatrix;
   unsigned int* const outdegree = graph.outdegree;
@@ -151,7 +151,7 @@ void Worker::iterative_gen_loops_normal_counting() {
       continue;
     }
 
-    const int to_state = ss->outmatrix[ss->col];
+    const unsigned int to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
       ++count[p + 1];
       ++ss->col;
@@ -173,7 +173,7 @@ void Worker::iterative_gen_loops_normal_counting() {
 
       pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+        for (size_t i = 0; i <= pos; ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
@@ -216,8 +216,8 @@ void Worker::iterative_gen_loops_normal_marking() {
   uint64_t nn = nnodes;
   const int lmax = l_max;
   int* const u = used;
-  int steps = 0;
-  int steps_limit = steps_per_inbox_check;
+  unsigned int steps = 0;
+  unsigned int steps_limit = steps_per_inbox_check;
   unsigned int st_state = start_state;
   unsigned int** const ds_bystate = deadstates_bystate;
   unsigned int** const outmatrix = graph.outmatrix;
@@ -262,7 +262,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       continue;
     }
 
-    const int to_state = ss->outmatrix[ss->col];
+    const unsigned int to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
       pos = p;
       iterative_handle_finished_pattern();
@@ -280,7 +280,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       goto skip_unmarking2;
     }
 
-    const int throwval = outthrowval[ss->from_state][ss->col];
+    const unsigned int throwval = outthrowval[ss->from_state][ss->col];
     if (throwval != 0 && throwval != graph.h) {
       if (ss->excludes_throw == nullptr) {
         // mark states excluded by link throw; only need to do this once since
@@ -292,7 +292,8 @@ void Worker::iterative_gen_loops_normal_marking() {
         ss->deadstates_throw = ds;
 
         for (unsigned int statenum; (statenum = *es); ++es) {
-          if (++u[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+          if (++u[statenum] == 1 && ++*ds > 1 &&
+              --max_possible < static_cast<int>(l_min))
             valid1 = false;
         }
 
@@ -320,7 +321,8 @@ void Worker::iterative_gen_loops_normal_marking() {
       ss->deadstates_catch = ds;
 
       for (unsigned int statenum; (statenum = *es); ++es) {
-        if (++u[statenum] == 1 && ++*ds > 1 && --max_possible < l_min)
+        if (++u[statenum] == 1 && ++*ds > 1 &&
+            --max_possible < static_cast<int>(l_min))
           valid2 = false;
       }
 
@@ -349,7 +351,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 
         pos = p;
         if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-          for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+          for (size_t i = 0; i <= pos; ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
@@ -395,8 +397,8 @@ void Worker::iterative_gen_loops_super() {
   uint64_t nn = nnodes;
   const int lmax = l_max;
   int* const u = used;
-  int steps = 0;
-  int steps_limit = steps_per_inbox_check;
+  unsigned int steps = 0;
+  unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   bool* const cu = cycleused;
   unsigned int** const outmatrix = graph.outmatrix;
@@ -426,7 +428,7 @@ void Worker::iterative_gen_loops_super() {
       continue;
     }
 
-    const int to_state = ss->outmatrix[ss->col];
+    const unsigned int to_state = ss->outmatrix[ss->col];
     if (u[to_state]) {
       ++ss->col;
       goto skip_unmarking;
@@ -460,7 +462,7 @@ void Worker::iterative_gen_loops_super() {
 
         pos = p;
         if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-          for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+          for (size_t i = 0; i <= pos; ++i) {
             pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                           [beat[i + 1].col];
           }
@@ -537,8 +539,8 @@ void Worker::iterative_gen_loops_super0() {
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
-  int steps = 0;
-  int steps_limit = steps_per_inbox_check;
+  unsigned int steps = 0;
+  unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   bool* const cu = cycleused;
   unsigned int** const outmatrix = graph.outmatrix;
@@ -564,7 +566,7 @@ void Worker::iterative_gen_loops_super0() {
       continue;
     }
 
-    const int to_state = ss->outmatrix[ss->col];
+    const unsigned int to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
       pos = p;
       iterative_handle_finished_pattern();
@@ -572,7 +574,7 @@ void Worker::iterative_gen_loops_super0() {
       goto skip_unmarking;
     }
 
-    const int to_cycle = cyclenum[to_state];
+    const unsigned int to_cycle = cyclenum[to_state];
     if (cu[to_cycle]) {
       ++ss->col;
       goto skip_unmarking;
@@ -593,7 +595,7 @@ void Worker::iterative_gen_loops_super0() {
 
       pos = p;
       if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-        for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+        for (size_t i = 0; i <= pos; ++i) {
           pattern[i] = graph.outthrowval[beat[i + 1].from_state]
                                         [beat[i + 1].col];
         }
@@ -659,7 +661,6 @@ bool Worker::iterative_init_workspace(bool marking) {
   // set up `pattern`, `root_pos`, and `root_throwval_options`
 
   loading_work = false;
-  pos = -1;
   unsigned int last_from_state = start_state;
   unsigned int shifts_remaining = config.shiftlimit;
   unsigned int exitcycles_remaining = exitcyclesleft;
@@ -670,8 +671,10 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.from_state = last_from_state;
     ss.col_limit = graph.outdegree[ss.from_state];
 
+    unsigned int tv = static_cast<unsigned int>(pattern[i]);
+
     for (ss.col = 0; ss.col < ss.col_limit; ++ss.col) {
-      if (graph.outthrowval[ss.from_state][ss.col] == pattern[i])
+      if (graph.outthrowval[ss.from_state][ss.col] == tv)
         break;
     }
     if (ss.col == ss.col_limit) {
@@ -696,7 +699,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.shifts_remaining = shifts_remaining;
     ss.exitcycles_remaining = exitcycles_remaining;
 
-    if (marking && pattern[i] != 0 && pattern[i] != graph.h) {
+    if (marking && tv != 0 && tv != graph.h) {
       // mark unreachable states due to link throw
       unsigned int* ds = deadstates_bystate[ss.from_state];
       unsigned int* es = graph.excludestates_throw[ss.from_state];
@@ -704,7 +707,8 @@ bool Worker::iterative_init_workspace(bool marking) {
       ss.deadstates_throw = ds;
 
       for (unsigned int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
+        if (++used[statenum] == 1 && ++*ds > 1 &&
+            --max_possible < static_cast<int>(l_min)) {
           pos = 0;
           return false;
         }
@@ -717,7 +721,8 @@ bool Worker::iterative_init_workspace(bool marking) {
       ss.deadstates_catch = ds;
 
       for (unsigned int statenum; (statenum = *es); ++es) {
-        if (++used[statenum] == 1 && ++*ds > 1 && --max_possible < l_min) {
+        if (++used[statenum] == 1 && ++*ds > 1 &&
+            --max_possible < static_cast<int>(l_min)) {
           pos = 0;
           return false;
         }
@@ -725,7 +730,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     }
 
     if (config.mode == RunMode::SUPER_SEARCH) {
-      if (pattern[i] != 0 && pattern[i] != graph.h) {
+      if (tv != 0 && tv != graph.h) {
         assert(!cycleused[ss.to_cycle]);
         cycleused[ss.to_cycle] = true;
         if (graph.isexitcycle[ss.to_cycle])
@@ -746,9 +751,9 @@ bool Worker::iterative_init_workspace(bool marking) {
     last_from_state = ss.to_state;
   }
 
-  if (pos < root_pos) {
+  if (pattern[0] == -1 || pos < root_pos) {
     // loading a work assignment that was stolen from another worker
-    assert(pos + 1 == root_pos);
+    assert(pattern[0] == -1 || pos + 1 == root_pos);
     SearchState& rss = beat[root_pos + 1];
     rss.from_state = last_from_state;
     rss.to_state = 0;
@@ -798,7 +803,7 @@ bool Worker::iterative_init_workspace(bool marking) {
 // no positions < `pos` with unexplored options.
 
 bool Worker::iterative_calc_rootpos_and_options() {
-  int new_root_pos = 0;
+  unsigned int new_root_pos = 0;
   for (; new_root_pos < pos; ++new_root_pos) {
     SearchState& ss = beat[new_root_pos + 1];
     if (ss.col < ss.col_limit - 1)
@@ -826,7 +831,7 @@ bool Worker::iterative_calc_rootpos_and_options() {
 // Needs an updated value of `root_pos`.
 
 bool Worker::iterative_can_split() {
-  for (size_t i = root_pos + 1; i <= static_cast<size_t>(pos); ++i) {
+  for (size_t i = root_pos + 1; i <= pos; ++i) {
     SearchState& ss = beat[i + 1];
     if (ss.col < ss.col_limit - 1)
       return true;
@@ -846,7 +851,7 @@ void Worker::iterative_update_after_split() {
               << '\n';
   }
   assert(root_pos <= pos);
-  for (size_t i = 0; i < static_cast<size_t>(root_pos); ++i) {
+  for (size_t i = 0; i < root_pos; ++i) {
     SearchState& ss = beat[i + 1];
     ss.col_limit = ss.col + 1;  // ensure no further iteration on this beat
   }
@@ -866,7 +871,7 @@ inline void Worker::iterative_handle_finished_pattern() {
   ++count[pos + 1];
 
   if ((pos + 1) >= l_min && !config.countflag) {
-    for (size_t i = 0; i <= static_cast<size_t>(pos); ++i) {
+    for (size_t i = 0; i <= pos; ++i) {
       pattern[i] = graph.outthrowval[beat[i + 1].from_state][beat[i + 1].col];
     }
     report_pattern();

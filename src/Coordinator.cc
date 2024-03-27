@@ -44,7 +44,7 @@ void Coordinator::run() {
     std::cout << "Started on: " << current_time_string();
 
   // start worker threads
-  for (int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
     if (config.verboseflag) {
       std::cout << "worker " << id << " starting..." << std::endl;
     }
@@ -89,7 +89,7 @@ void Coordinator::run() {
   context.secs_elapsed += runtime;
   context.secs_available += runtime * context.num_threads;
 
-  for (int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
     delete worker.at(id);
     delete worker_thread.at(id);
     worker.at(id) = nullptr;
@@ -116,12 +116,12 @@ void Coordinator::message_worker(const MessageC2W& msg,
 }
 
 void Coordinator::collect_stats() {
-  if (!config.statusflag || --stats_counter > 0)
+  if (!config.statusflag || ++stats_counter < waits_per_status)
     return;
 
-  stats_counter = waits_per_status;
+  stats_counter = 0;
   stats_received = 0;
-  for (int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::SEND_STATS;
     message_worker(msg, id);
@@ -134,7 +134,7 @@ void Coordinator::collect_stats() {
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     auto it = workers_idle.begin();
-    int id = *it;
+    unsigned int id = *it;
     workers_idle.erase(it);
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
@@ -367,7 +367,7 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
     if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
 
-    int startstates_remaining = worker_endstate.at(id) -
+    unsigned int startstates_remaining = worker_endstate.at(id) -
         worker_startstate.at(id);
     if (startstates_remaining > 0 && (id_startstates == -1 ||
         max_startstates_remaining < startstates_remaining)) {
@@ -412,8 +412,7 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
   for (size_t i = 1; i < msg.count.size(); ++i) {
     context.count.at(i) += msg.count.at(i);
     context.ntotal += msg.count.at(i);
-    if (i >= static_cast<size_t>(config.l_min) &&
-        i <= static_cast<size_t>(l_max)) {
+    if (i >= config.l_min && i <= static_cast<size_t>(l_max)) {
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
@@ -426,7 +425,7 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
 void Coordinator::stop_workers() {
   if (config.verboseflag)
     erase_status_output();
-  for (int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::STOP_WORKER;
     message_worker(msg, id);
@@ -529,6 +528,7 @@ double Coordinator::expected_patterns_at_maxlength() {
 bool Coordinator::stopping = false;
 
 void Coordinator::signal_handler(int signum) {
+  (void)signum;
   stopping = true;
 }
 
@@ -551,8 +551,8 @@ void Coordinator::print_summary() const {
             << ", max throw: " << config.h << '\n';
 
   std::cout << "length: " << config.l_min;
-  if (l_max > config.l_min) {
-    if (l_max == context.l_bound)
+  if (l_max > static_cast<int>(config.l_min)) {
+    if (l_max == static_cast<int>(context.l_bound))
       std::cout << '-';
     else
       std::cout << '-' << l_max;
@@ -608,7 +608,7 @@ void Coordinator::print_summary() const {
     }
     std::cout << '\n';
 
-    if (config.countflag || l_max > config.l_min) {
+    if (config.countflag || l_max > static_cast<int>(config.l_min)) {
       std::cout << "\nPattern count by length:\n";
       for (int i = config.l_min; i <= l_max; ++i)
         std::cout << i << ", " << context.count.at(i) << '\n';
@@ -622,7 +622,7 @@ void Coordinator::print_summary() const {
 void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
-  for (int i = 0; i < context.num_threads + 2; ++i) {
+  for (unsigned int i = 0; i < context.num_threads + 2; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
@@ -645,7 +645,7 @@ void Coordinator::print_status_output() {
       std::cout << ' ';
   }
   std::cout << "dist  len\n";
-  for (int i = 0; i < context.num_threads; ++i)
+  for (unsigned int i = 0; i < context.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
   stats_printed = true;

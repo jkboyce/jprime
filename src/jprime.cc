@@ -198,7 +198,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-x")) {
       ++i;
       while (i < argc && argv[i][0] != '-') {
-        int j = atoi(argv[i]);
+        unsigned int j = static_cast<unsigned int>(atoi(argv[i]));
         if (config != nullptr && j == config->h) {
           std::cerr << "Cannot exclude max. throw value with -x\n";
           std::exit(EXIT_FAILURE);
@@ -224,7 +224,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
       if ((i + 1) < argc) {
         ++i;
         if (context != nullptr)
-          context->num_threads = static_cast<int>(atoi(argv[i]));
+          context->num_threads = static_cast<unsigned int>(atoi(argv[i]));
       } else {
         std::cerr << "Missing number of threads after -threads\n";
         std::exit(EXIT_FAILURE);
@@ -276,13 +276,15 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     config->l_max = l_max;
 
     // graph type
-    if (config->l_min == config->l_max && config->l_min < config->h)
+    if (static_cast<int>(config->l_min) == config->l_max &&
+        config->l_min < config->h) {
       config->graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
-    else
+    } else {
       config->graphmode = GraphMode::FULL_GRAPH;
+    }
 
     // output throws as letters (a, b, ...) or numbers (10, 11, ...)
-    int max_throw_value = config->h;
+    unsigned int max_throw_value = config->h;
     if (l_max > 0) {
       if (config->dualflag) {
         max_throw_value = std::min(max_throw_value, (config->h - config->n) *
@@ -296,7 +298,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else {
       config->noplusminusflag = true;
       config->throwdigits = 2;
-      for (int temp = 100; temp <= max_throw_value; temp *= 10) {
+      for (unsigned int temp = 100; temp <= max_throw_value; temp *= 10) {
         ++config->throwdigits;
       }
     }
@@ -364,8 +366,10 @@ void save_context(const SearchConfig& config, const SearchContext& context) {
     myfile << str << '\n';
 
   myfile << "\ncounts\n";
-  for (int i = 1; i <= (config.l_max > 0 ? config.l_max: context.l_bound); ++i)
+  for (size_t i = 1; i <= (config.l_max > 0 ? config.l_max : context.l_bound);
+      ++i) {
     myfile << i << ", " << context.count[i] << '\n';
+  }
 
   if (context.assignments.size() > 0) {
     myfile << "\nwork assignments remaining\n";
@@ -451,14 +455,14 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
   if (pat1.size() == 0)
     return true;
 
-  int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
-  int pat1_end = pat1_start;
-  while (pat1_end != static_cast<int>(pat1.size()) && pat1[pat1_end] != ' ')
+  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  unsigned int pat1_end = pat1_start;
+  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
     ++pat1_end;
 
-  int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
-  int pat2_end = pat2_start;
-  while (pat2_end != static_cast<int>(pat2.size()) && pat2[pat2_end] != ' ')
+  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  unsigned int pat2_end = pat2_start;
+  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
     ++pat2_end;
 
   // shorter patterns sort earlier
@@ -474,7 +478,7 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
     return false;
 
   // ascii order, except '+' is higher than any other character
-  for (int i = pat1_start; i < pat1_end; ++i) {
+  for (size_t i = pat1_start; i < pat1_end; ++i) {
     if (pat1[i] == pat2[i])
       continue;
     if (pat1[i] == '+' && pat2[i] != '+')

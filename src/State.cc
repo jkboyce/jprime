@@ -14,26 +14,26 @@
 #include <cassert>
 
 
-State::State(int balls, int height)
+State::State(unsigned int balls, unsigned int height)
     : n(balls), h(height), slot(height, 0) {}
 
 State::State(std::string s) {
   h = s.size();
   n = 0;
-  for (size_t i = 0; i < static_cast<size_t>(h); ++i) {
+  for (size_t i = 0; i < h; ++i) {
     int val = (s.at(i) == 'x' || s.at(i) == '1') ? 1 : 0;
     slot.push_back(val);
     n += val;
   }
 }
 
-State State::advance_with_throw(int throwval) const {
+State State::advance_with_throw(unsigned int throwval) const {
   State s = *this;
-  int head = *s.slot.begin();
+  unsigned int head = *s.slot.begin();
   s.slot.erase(s.slot.begin());
   s.slot.push_back(0);
 
-  assert(s.slot.size() == static_cast<size_t>(h));
+  assert(s.slot.size() == h);
   assert(throwval <= h);
 
   if ((head == 0 && throwval != 0) || (head != 0 && throwval == 0) ||
@@ -53,7 +53,7 @@ State State::advance_with_throw(int throwval) const {
 
 State State::downstream() const {
   State s = *this;
-  int head = *s.slot.begin();
+  unsigned int head = *s.slot.begin();
   s.slot.erase(s.slot.begin());
   s.slot.push_back(head);
   return s;
@@ -63,7 +63,7 @@ State State::downstream() const {
 
 State State::upstream() const {
   State s = *this;
-  int tail = s.slot.back();
+  unsigned int tail = s.slot.back();
   s.slot.pop_back();
   s.slot.insert(s.slot.begin(), tail);
   return s;
@@ -77,7 +77,7 @@ State State::reverse() const {
   return s;
 }
 
-int& State::operator[](size_t i) {
+unsigned int& State::operator[](size_t i) {
   return slot.at(i);
 }
 
@@ -91,7 +91,7 @@ bool State::operator<(const State& s2) const {
 
 std::string State::to_string() const {
   std::string result;
-  for (int i = 0; i < h; ++i) {
+  for (size_t i = 0; i < h; ++i) {
     result += (slot.at(i) ? 'x' : '-');
   }
   return result;

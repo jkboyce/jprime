@@ -33,13 +33,13 @@ enum class GraphMode {
 
 struct SearchConfig {
   // number of objects
-  int n = 0;
+  unsigned int n = 0;
 
   // maximum throw value
-  int h = 0;
+  unsigned int h = 0;
 
   // minimum pattern length to find
-  int l_min = 1;
+  unsigned int l_min = 1;
 
   // maximum pattern length to find
   int l_max = -1;

@@ -38,15 +38,15 @@ class Worker {
   Coordinator& coordinator;
   const unsigned int worker_id;
   Graph graph;
-  int l_min = 0;
-  int l_max = 0;
+  unsigned int l_min = 0;
+  unsigned int l_max = 0;
   unsigned int l_bound = 0;
 
   // working variables for search
-  int pos = 0;
-  int from = 1;
-  int shiftcount = 0;
-  int exitcyclesleft = 0;
+  unsigned int pos = 0;
+  unsigned int from = 1;
+  unsigned int shiftcount = 0;
+  unsigned int exitcyclesleft = 0;
   int max_possible = 0;
   SearchState *beat;  // workspace for search
   int* pattern;
@@ -58,7 +58,7 @@ class Worker {
   // for loading and sharing work assignments
   unsigned int start_state = 0;
   unsigned int end_state = 0;
-  int root_pos = 0;
+  unsigned int root_pos = 0;
   std::list<unsigned int> root_throwval_options;
   bool loading_work = false;
 
@@ -111,9 +111,10 @@ class Worker {
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
   void set_inactive_states();
+  void initialize_working_variables();
   void report_pattern() const;
   static char throw_char(int val);
-  void print_throw(std::ostringstream& buffer, int val) const;
+  void print_throw(std::ostringstream& buffer, unsigned int val) const;
   std::string get_pattern() const;
   std::string get_inverse() const;
 

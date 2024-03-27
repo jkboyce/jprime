@@ -18,19 +18,19 @@
 
 class State {
  public:
-  State(int balls, int height);
+  State(unsigned int balls, unsigned int height);
   State(std::string s);
 
  public:
-  int n;  // number of objects
-  int h;  // max throw height
-  std::vector<int> slot;  // 0 or 1
+  unsigned int n;  // number of objects
+  unsigned int h;  // max throw height
+  std::vector<unsigned int> slot;  // 0 or 1
 
-  State advance_with_throw(int throwval) const;
+  State advance_with_throw(unsigned int throwval) const;
   State downstream() const;
   State upstream() const;
   State reverse() const;
-  int& operator[](size_t i);
+  unsigned int& operator[](size_t i);
   bool operator==(const State& s2) const;
   bool operator<(const State& s2) const;
   std::string to_string() const;

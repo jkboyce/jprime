@@ -16,12 +16,13 @@
 #include <cassert>
 
 
-Graph::Graph(int n, int h, const std::vector<bool>& xa, bool ltwc, int l)
+Graph::Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa,
+    bool ltwc, unsigned int l)
     : n(n), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
 
-Graph::Graph(int n, int h)
+Graph::Graph(unsigned int n, unsigned int h)
     : n(n), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
   init();
 }
@@ -66,11 +67,12 @@ void Graph::init() {
   }
   numstates = state.size() - 1;
 
-  for (int i = 0; i <= h; ++i) {
-    if (!xarray.at(i))
+  for (size_t i = 0; i <= h; ++i) {
+    if (!xarray.at(i)) {
       ++maxoutdegree;
+    }
   }
-  maxoutdegree = std::min(maxoutdegree, static_cast<unsigned int>(h - n + 1));
+  maxoutdegree = std::min(maxoutdegree, h - n + 1);
   allocate_arrays();
 
   find_shift_cycles();
@@ -108,7 +110,7 @@ void Graph::allocate_arrays() {
       outmatrix[i][j] = 0;
       outthrowval[i][j] = 0;
     }
-    for (size_t j = 0; j < static_cast<size_t>(h); ++j) {
+    for (size_t j = 0; j < h; ++j) {
       excludestates_throw[i][j] = 0;
       excludestates_catch[i][j] = 0;
     }
@@ -159,7 +161,8 @@ void Graph::delete_arrays() {
 
 // Generate all possible states into the vector `s`.
 
-void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
+void Graph::gen_states_all(std::vector<State>& s, unsigned int n,
+    unsigned int h) {
   s.push_back({n, h});
   gen_states_all_helper(s, h - 1, n);
   s.pop_back();
@@ -170,7 +173,8 @@ void Graph::gen_states_all(std::vector<State>& s, int n, int h) {
 // 1s into successive slots, and when all 1s are used up append a new state
 // to the list.
 
-void Graph::gen_states_all_helper(std::vector<State>& s, int pos, int left) {
+void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
+    unsigned int left) {
   if (left > (pos + 1))
     return;  // no way to succeed
 
@@ -194,7 +198,8 @@ void Graph::gen_states_all_helper(std::vector<State>& s, int pos, int left) {
 
 // Generate all possible states that can be part of a pattern of period `l`.
 
-void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
+void Graph::gen_states_for_period(std::vector<State>& s, unsigned int n,
+    unsigned int h, unsigned int l) {
   s.push_back({n, h});
   gen_states_for_period_helper(s, 0, n, h, l);
   s.pop_back();
@@ -203,8 +208,9 @@ void Graph::gen_states_for_period(std::vector<State>& s, int n, int h, int l) {
 // Helper function to generate states in the single-period case. The states are
 // enumerated by partitioning the `n` objects into `l` different buckets.
 
-void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
-    int left, const int h, const int l) {
+void Graph::gen_states_for_period_helper(std::vector<State>& s,
+    unsigned int pos, unsigned int left, const unsigned int h,
+    const unsigned int l) {
   if (pos == l) {
     if (left == 0) {
       // success: duplicate state at the end and continue
@@ -214,26 +220,26 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
   }
 
   // empty all the slots at position `pos`
-  for (int i = pos; i < h; i += l) {
+  for (size_t i = pos; i < h; i += l) {
     s.back().slot[i] = 0;
   }
 
   // work out the maximum number that can go into later slots, and the min
   // for this slot
-  int max_later = 0;
-  for (int pos2 = pos + 1; pos2 < l; ++pos2) {
-    for (int i = pos2; i < h; i += l) {
+  unsigned int max_later = 0;
+  for (size_t pos2 = pos + 1; pos2 < l; ++pos2) {
+    for (size_t i = pos2; i < h; i += l) {
       ++max_later;
     }
   }
-  int min_fill = (left > max_later ? left - max_later : 0);
+  unsigned int min_fill = (left > max_later ? left - max_later : 0);
 
   if (min_fill == 0)
     gen_states_for_period_helper(s, pos + 1, left, h, l);
 
   // successively fill slots at `pos`
-  int filled = 0;
-  for (int i = pos; i < h && filled < left; i += l) {
+  unsigned int filled = 0;
+  for (size_t i = pos; i < h && filled < left; i += l) {
     s.back().slot[i] = 1;
     ++filled;
     if (filled >= min_fill)
@@ -254,7 +260,7 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s, int pos,
 
 void Graph::find_shift_cycles() {
   int cycleindex = 0;
-  std::vector<int> cyclestates(h);
+  std::vector<unsigned int> cyclestates(h);
 
   for (size_t i = 0; i <= numstates; ++i) {
     cyclenum[i] = 0;
@@ -265,26 +271,26 @@ void Graph::find_shift_cycles() {
     State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
-    int cycleper = h;
+    unsigned int cycleper = h;
 
-    for (size_t j = 0; j < static_cast<size_t>(h); ++j) {
+    for (size_t j = 0; j < h; ++j) {
       s = s.upstream();
-      int k = get_statenum(s);
+      unsigned int k = get_statenum(s);
       cyclestates.at(j) = k;
-      if (k < 1)
+      if (k == 0)
         continue;
 
-      if (static_cast<size_t>(k) == i && !periodfound) {
-        cycleper = static_cast<int>(j + 1);
+      if (k == i && !periodfound) {
+        cycleper = j + 1;
         periodfound = true;
-      } else if (static_cast<size_t>(k) < i) {
+      } else if (k < i) {
         newshiftcycle = false;
       }
     }
-    assert(static_cast<size_t>(cyclestates.at(h - 1)) == i);
+    assert(cyclestates.at(h - 1) == i);
 
     if (newshiftcycle) {
-      for (size_t j = 0; j < static_cast<size_t>(h); j++) {
+      for (size_t j = 0; j < h; j++) {
         if (cyclestates.at(j) > 0)
           cyclenum[cyclestates.at(j)] = cycleindex;
       }
@@ -318,7 +324,7 @@ void Graph::build_graph() {
         continue;
       }
 
-      for (int j = 0; j < outdegree[i]; ++j) {
+      for (size_t j = 0; j < outdegree[i]; ++j) {
         ++indegree.at(outmatrix[i][j]);
       }
     }
@@ -359,22 +365,23 @@ void Graph::gen_matrices() {
 
     // each row is calculated once per WorkAssignment
     if (outdegree[i] == 0) {
-      int outthrownum = 0;
+      unsigned int outthrownum = 0;
       for (int throwval = h; throwval >= 0; --throwval) {
-        if (xarray.at(throwval))
+        const unsigned int tv = static_cast<unsigned int>(throwval);
+        if (xarray.at(tv))
           continue;
 
-        int k = advance_state(i, throwval);
-        if (k <= 0)
+        unsigned int k = advance_state(i, tv);
+        if (k == 0)
           continue;
         if (!state_active.at(k))
           continue;
-        if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
+        if (tv > 0 && tv < h && !linkthrows_within_cycle &&
             cyclenum[i] == cyclenum[k])
           continue;
 
         outmatrix[i][outthrownum] = k;
-        outthrowval[i][outthrownum] = throwval;
+        outthrowval[i][outthrownum] = tv;
         ++outthrownum;
       }
       outdegree[i] = outthrownum;
@@ -382,7 +389,7 @@ void Graph::gen_matrices() {
     }
 
     // remove inactive states from row
-    int outthrownum = 0;
+    unsigned int outthrownum = 0;
     for (size_t j = 0; j < outdegree[i]; ++j) {
       if (state_active.at(outmatrix[i][j])) {
         if (outthrownum != j) {
@@ -403,7 +410,7 @@ void Graph::find_exit_cycles() {
   for (size_t i = 0; i <= numstates; ++i)
     isexitcycle[i] = false;
 
-  int lowest_active_state = 0;
+  unsigned int lowest_active_state = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (!state_active.at(i))
@@ -413,7 +420,7 @@ void Graph::find_exit_cycles() {
       continue;
     }
 
-    for (int j = 0; j < outdegree[i]; ++j) {
+    for (size_t j = 0; j < outdegree[i]; ++j) {
       if (outmatrix[i][j] == lowest_active_state)
         isexitcycle[cyclenum[i]] = true;
     }
@@ -434,10 +441,10 @@ void Graph::find_exclude_states() {
     // Find states that are excluded by a link throw from state `i`. These are
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
-    int j = 0;
+    unsigned int j = 0;
     while (s.slot.at(s.h - 1) != 0 && j < h) {
-      int statenum = get_statenum(s);
-      if (statenum < 1 || !state_active.at(statenum))
+      unsigned int statenum = get_statenum(s);
+      if (statenum == 0 || !state_active.at(statenum))
         break;
       excludestates_throw[i][j++] = statenum;
       s = s.downstream();
@@ -449,8 +456,8 @@ void Graph::find_exclude_states() {
     s = state.at(i).upstream();
     j = 0;
     while (s.slot.at(0) == 0 && j < h) {
-      int statenum = get_statenum(s);
-      if (statenum < 1 || !state_active.at(statenum))
+      unsigned int statenum = get_statenum(s);
+      if (statenum == 0 || !state_active.at(statenum))
         break;
       excludestates_catch[i][j++] = statenum;
       s = s.upstream();
@@ -479,7 +486,7 @@ unsigned int Graph::prime_length_bound() const {
   // least one state in each shift cycle it visits
 
   unsigned int result = 0;
-  std::vector<int> num_active(numcycles, 0);
+  std::vector<unsigned int> num_active(numcycles, 0);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
@@ -493,8 +500,9 @@ unsigned int Graph::prime_length_bound() const {
 
   if (cycles_active > 1) {
     for (size_t i = 0; i < numcycles; ++i) {
-      if (num_active.at(i) == cycleperiod[i])
+      if (num_active.at(i) == cycleperiod[i]) {
         --result;
+      }
     }
   }
   return result;
@@ -550,7 +558,8 @@ unsigned int Graph::get_statenum(const State& s) const {
 // Return the state number that comes from advancing a given state by a single
 // throw. Returns 0 if the throw results in a collision.
 
-unsigned int Graph::advance_state(unsigned int statenum, int throwval) const {
+unsigned int Graph::advance_state(unsigned int statenum,
+    unsigned int throwval) const {
   if (throwval < 0 || throwval > state.at(statenum).h)
     return 0;
   if (throwval > 0 && state.at(statenum).slot.at(0) == 0)
