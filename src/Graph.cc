@@ -166,7 +166,7 @@ void Graph::delete_arrays() {
 }
 
 //------------------------------------------------------------------------------
-// Generate the states and shift cycles in the graph
+// Generate the states in the graph
 //------------------------------------------------------------------------------
 
 // Generate all possible states into the vector `s`.
@@ -361,7 +361,7 @@ void Graph::build_graph() {
     gen_matrices();
 
     // deactivate any states with 0 outdegree or indegree
-    std::vector<int> indegree(numstates + 1, 0);
+    std::vector<unsigned int> indegree(numstates + 1, 0);
     bool changed = false;
 
     for (size_t i = 1; i <= numstates; ++i) {
