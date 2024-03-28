@@ -60,6 +60,11 @@ class Graph {
   void init();
   void allocate_arrays();
   void delete_arrays();
+  void find_shift_cycles();
+  void gen_matrices();
+  void find_exit_cycles();
+
+  using op_key_type = std::tuple<unsigned int, unsigned int>;
   static void gen_states_all(std::vector<State>& s, unsigned int n,
     unsigned int h);
   static void gen_states_all_helper(std::vector<State>& s, unsigned int pos,
@@ -68,21 +73,16 @@ class Graph {
     unsigned int h, unsigned int l);
   static void gen_states_for_period_helper(std::vector<State>& s,
     unsigned int pos, unsigned int left, unsigned int h, unsigned int l);
-  void find_shift_cycles();
-  void gen_matrices();
-  void find_exit_cycles();
-
-  using op_key_type = std::tuple<unsigned int, unsigned int>;
-
- public:
-  void build_graph();
-  void find_exclude_states();
-  static std::uint64_t combinations(unsigned int a, unsigned int b);
   static std::uint64_t ordered_partitions(unsigned int n, unsigned int h,
     unsigned int l);
   static std::uint64_t ordered_partitions_helper(unsigned int pos,
     unsigned int left, const unsigned int h, const unsigned int l,
     std::map<op_key_type, std::uint64_t>& cache);
+
+ public:
+  void build_graph();
+  void find_exclude_states();
+  static std::uint64_t combinations(unsigned int a, unsigned int b);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
   unsigned int get_statenum(const State& s) const;
