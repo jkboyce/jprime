@@ -531,6 +531,26 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
   return result;
 }
 
+// Compute the number of shift cycles with `n` objects, max throw `h`, with
+// exact period `p`.
+
+std::uint64_t Graph::shift_cycle_count(unsigned int n, unsigned int h,
+    unsigned int p) {
+  if (h % p != 0)
+    return 0;
+  if (n % (h / p) != 0)
+    return 0;
+  if (p < h)
+    return shift_cycle_count(n * p / h, p, p);
+
+  std::uint64_t val = combinations(h, n);
+  for (unsigned int p2 = 1; p2 <= h / 2; ++p2) {
+    val -= p2 * shift_cycle_count(n, h, p2);
+  }
+  assert(val % h == 0);
+  return (val / h);
+}
+
 // Calculate an upper bound on the length of prime patterns in the graph.
 
 unsigned int Graph::prime_length_bound() const {

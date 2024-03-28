@@ -83,6 +83,8 @@ class Graph {
   void build_graph();
   void find_exclude_states();
   static std::uint64_t combinations(unsigned int a, unsigned int b);
+  static std::uint64_t shift_cycle_count(unsigned int n, unsigned int h,
+    unsigned int p);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
   unsigned int get_statenum(const State& s) const;
