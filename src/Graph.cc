@@ -12,7 +12,6 @@
 
 #include <iostream>
 #include <algorithm>
-#include <vector>
 #include <cassert>
 
 
@@ -55,6 +54,17 @@ Graph::~Graph() {
 //------------------------------------------------------------------------------
 
 void Graph::init() {
+  // calculate the number of states in the graph
+  const std::uint64_t num = (l == 0 ? combinations(h, n) :
+      ordered_partitions(n, h, l));
+  if (num > max_states) {
+    std::cerr << "Number of states " << num
+              << " exceeds limit of " << max_states << '\n';
+    std::exit(EXIT_FAILURE);
+  }
+  numstates = static_cast<unsigned int>(num);
+
+  // enumerate the states
   state.push_back({0, h});  // state at index 0 is unused
   if (l == 0) {
     gen_states_all(state, n, h);
@@ -65,7 +75,7 @@ void Graph::init() {
       std::sort(state.begin() + 1, state.end(), state_compare);
     }
   }
-  numstates = state.size() - 1;
+  assert(state.size() == numstates + 1);
 
   for (size_t i = 0; i <= h; ++i) {
     if (!xarray.at(i)) {
@@ -166,7 +176,6 @@ void Graph::gen_states_all(std::vector<State>& s, unsigned int n,
   s.push_back({n, h});
   gen_states_all_helper(s, h - 1, n);
   s.pop_back();
-  assert(s.size() == combinations(h, n) + 1);
 }
 
 // Helper function to generate states in the general case. Recursively insert
@@ -479,6 +488,46 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
   std::uint64_t result = 1;
   for (unsigned int denom = 1; denom <= std::min(b, a - b); ++denom)
     result = (result * (a - denom + 1)) / denom;
+  return result;
+}
+
+// Compute the number of ways of building states for a single-period graph.
+//
+// We partition each state into `l` slots, where slot `i` is associated with
+// positions i, i + l, i + 2*l, ... in the state, up to a maximum of h - 1.
+// The only degree of freedom is how many objects to put into each slot; the
+// state positions must be filled from the bottom up in order to be part of a
+// period `l` pattern.
+
+std::uint64_t Graph::ordered_partitions(unsigned int n, unsigned int h,
+    unsigned int l) {
+  std::map<op_key_type, std::uint64_t> cache;
+  return ordered_partitions_helper(0, n, h, l, cache);
+}
+
+std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
+    unsigned int left, const unsigned int h, const unsigned int l,
+    std::map<op_key_type, std::uint64_t>& cache) {
+  op_key_type key{pos, left};
+  if (cache.find(key) != cache.end())
+    return cache[key];
+
+  unsigned int max_fill = 0;
+  for (unsigned int i = pos; i < h; i += l) {
+    ++max_fill;
+  }
+  max_fill = std::min(max_fill, left);
+
+  std::uint64_t result = 0;
+  if (pos == l - 1) {
+    result = (left <= max_fill ? 1 : 0);
+  } else {
+    for (unsigned int i = 0; i <= max_fill; ++i) {
+      result += ordered_partitions_helper(pos + 1, left - i, h, l, cache);
+    }
+  }
+
+  cache[key] = result;
   return result;
 }
 
