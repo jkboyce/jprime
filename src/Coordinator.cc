@@ -55,8 +55,8 @@ void Coordinator::run() {
     worker_rootpos.push_back(0);
     if (config.statusflag) {
       worker_status.push_back("     ");
-      worker_optionsleft_start.push_back({});
-      worker_optionsleft_last.push_back({});
+      worker_options_left_start.push_back({});
+      worker_options_left_last.push_back({});
       worker_longest.push_back(0);
     }
     workers_idle.insert(id);
@@ -148,8 +148,8 @@ void Coordinator::give_assignments() {
     message_worker(msg, id);
 
     if (config.statusflag) {
-      worker_optionsleft_start.at(id).resize(0);
-      worker_optionsleft_last.at(id).resize(0);
+      worker_options_left_start.at(id).resize(0);
+      worker_options_left_last.at(id).resize(0);
       worker_longest.at(id) = 0;
     }
 
@@ -264,8 +264,8 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
     worker_startstate.at(msg.worker_id) = msg.start_state;
 
     if (config.statusflag) {
-      worker_optionsleft_start.at(msg.worker_id).resize(0);
-      worker_optionsleft_last.at(msg.worker_id).resize(0);
+      worker_options_left_start.at(msg.worker_id).resize(0);
+      worker_options_left_last.at(msg.worker_id).resize(0);
       worker_longest.at(msg.worker_id) = 0;
     }
   }
@@ -670,9 +670,10 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
   const unsigned int id = msg.worker_id;
   const unsigned int root_pos = worker_rootpos.at(id);
-  const std::vector<unsigned int>& ops = msg.worker_optionsleft;
-  std::vector<unsigned int>& ops_start = worker_optionsleft_start.at(id);
-  std::vector<unsigned int>& ops_last = worker_optionsleft_last.at(id);
+  const std::vector<unsigned int>& ops = msg.worker_options_left;
+  const std::vector<unsigned int>& ds_extra = msg.worker_deadstates_extra;
+  std::vector<unsigned int>& ops_start = worker_options_left_start.at(id);
+  std::vector<unsigned int>& ops_last = worker_options_left_last.at(id);
 
   buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
   buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
@@ -680,12 +681,15 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
       l_max > status_width);
+  const bool show_deadstates = (config.mode == RunMode::NORMAL_SEARCH &&
+      config.graphmode == GraphMode::FULL_GRAPH);
 
-  int printed = 0;
-  bool did_hl_start = false;
+  unsigned int printed = 0;
   bool hl_start = false;
-  bool did_hl_last = false;
+  bool did_hl_start = false;
   bool hl_last = false;
+  bool did_hl_last = false;
+  bool hl_deadstate = false;
   unsigned int rootpos_distance = 1000u;
 
   for (size_t i = 0; i < ops.size(); ++i) {
@@ -697,6 +701,9 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (!hl_last && !did_hl_last && i < ops_last.size() &&
         ops.at(i) != ops_last.at(i)) {
       hl_last = did_hl_last = true;
+    }
+    if (show_deadstates && i < ds_extra.size() && ds_extra.at(i) > 0) {
+      hl_deadstate = true;
     }
 
     if (i < root_pos)
@@ -718,20 +725,32 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
       ch = '0' + ops.at(i);
     }
 
-    if (ch != '\0') {
-      if (hl_start) {
-        buffer << '\x1B' << "[7m" << ch << '\x1B' << "[27m";
-        hl_start = hl_last = false;
-      } else if (hl_last) {
-        buffer << '\x1B' << "[1m" << ch << '\x1B' << "[22m";
-        hl_last = false;
-      } else {
-        buffer << ch;
-      }
-      ++printed;
-    }
+    if (ch == '\0')
+      continue;
 
-    if (printed >= status_width)
+    const bool escape = (hl_start || hl_last || hl_deadstate);
+    if (escape) {
+      buffer << '\x1B' << '[';
+    }
+    if (hl_start) {
+      buffer << "7;";
+    }
+    if (hl_last) {
+      buffer << "1;";
+    }
+    if (hl_deadstate) {
+      buffer << "31";
+    }
+    if (escape) {
+      buffer << 'm';
+    }
+    buffer << ch;
+    if (escape) {
+      buffer << '\x1B' << "[0m";
+    }
+    hl_start = hl_last = hl_deadstate = false;
+
+    if (++printed >= status_width)
       break;
   }
 

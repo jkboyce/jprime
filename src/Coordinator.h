@@ -56,8 +56,8 @@ class Coordinator {
   unsigned int stats_received = 0;
   bool stats_printed = false;
   std::vector<std::string> worker_status;
-  std::vector<std::vector<unsigned int>> worker_optionsleft_start;
-  std::vector<std::vector<unsigned int>> worker_optionsleft_last;
+  std::vector<std::vector<unsigned int>> worker_options_left_start;
+  std::vector<std::vector<unsigned int>> worker_options_left_last;
   std::vector<unsigned int> worker_longest;
 
  public:

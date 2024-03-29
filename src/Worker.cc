@@ -26,6 +26,7 @@
 #include <sstream>
 #include <chrono>
 #include <cassert>
+#include <stdexcept>
 
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
@@ -274,10 +275,14 @@ void Worker::send_stats_to_coordinator() {
 
   if (running) {
     // include a snapshot of the current state of the search
-    msg.worker_throw.resize(pos + 1);
-    msg.worker_optionsleft.resize(pos + 1);
+    msg.worker_throw.assign(pos + 1, 0);
+    msg.worker_options_left.assign(pos + 1, 0);
+    msg.worker_deadstates_extra.assign(pos + 1, 0);
 
-    int tempfrom = start_state;
+    unsigned int tempfrom = start_state;
+    std::vector<bool> u(graph.numstates + 1, false);
+    std::vector<unsigned int> ds(graph.numcycles, 0);
+
     for (size_t i = 0; i <= pos; ++i) {
       msg.worker_throw.at(i) = pattern[i];
 
@@ -285,16 +290,49 @@ void Worker::send_stats_to_coordinator() {
         if (pattern[i] < 0)
           continue;
 
-        if (graph.outthrowval[tempfrom][col] ==
-            static_cast<unsigned int>(pattern[i])) {
+        const unsigned int throwval = graph.outthrowval[tempfrom][col];
+        if (throwval == static_cast<unsigned int>(pattern[i])) {
+          const unsigned int tempto = graph.outmatrix[tempfrom][col];
+          assert(tempto > 0);
+          assert(!u.at(tempto));
+
+          // options remaining at current position
           if (i < root_pos) {
-            msg.worker_optionsleft.at(i) = 0;
+            msg.worker_options_left.at(i) = 0;
           } else if (i == root_pos) {
-            msg.worker_optionsleft.at(i) = root_throwval_options.size();
+            msg.worker_options_left.at(i) = root_throwval_options.size();
           } else {
-            msg.worker_optionsleft.at(i) = graph.outdegree[tempfrom] - col - 1;
+            msg.worker_options_left.at(i) = graph.outdegree[tempfrom] - col - 1;
           }
-          tempfrom = graph.outmatrix[tempfrom][col];
+
+          // number of deadstates induced by current link throw, above the
+          // one-per-shift cycle baseline
+          if (throwval != 0 && throwval != graph.h) {
+            // throw
+            for (size_t j = 0; true; ++j) {
+              unsigned int es = graph.excludestates_throw[tempfrom][j];
+              if (es == 0)
+                break;
+              if (!u.at(es) && ++ds.at(graph.cyclenum[tempfrom]) > 1) {
+                ++msg.worker_deadstates_extra.at(i);
+              }
+              u.at(es) = true;
+            }
+
+            // catch
+            for (size_t j = 0; true; ++j) {
+              unsigned int es = graph.excludestates_catch[tempto][j];
+              if (es == 0)
+                break;
+              if (!u.at(es) && ++ds.at(graph.cyclenum[tempto]) > 1) {
+                ++msg.worker_deadstates_extra.at(i);
+              }
+              u.at(es) = true;
+            }
+          }
+
+          u.at(tempto) = true;
+          tempfrom = tempto;
           break;
         }
       }
