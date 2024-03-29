@@ -683,6 +683,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
       l_max > status_width);
   const bool show_deadstates = (config.mode == RunMode::NORMAL_SEARCH &&
       config.graphmode == GraphMode::FULL_GRAPH);
+  const bool show_shifts = (config.mode == RunMode::SUPER_SEARCH);
 
   unsigned int printed = 0;
   bool hl_start = false;
@@ -690,9 +691,15 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool hl_last = false;
   bool did_hl_last = false;
   bool hl_deadstate = false;
+  bool hl_shift = false;
   unsigned int rootpos_distance = 1000u;
 
+  assert(ops.size() == msg.worker_throw.size());
+  assert(ops.size() == ds_extra.size());
+
   for (size_t i = 0; i < ops.size(); ++i) {
+    const unsigned int throwval = msg.worker_throw.at(i);
+
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {
       hl_start = did_hl_start = true;
@@ -705,6 +712,10 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (show_deadstates && i < ds_extra.size() && ds_extra.at(i) > 0) {
       hl_deadstate = true;
     }
+    if (show_shifts && i < msg.worker_throw.size() && (throwval == 0 ||
+        throwval == config.h)) {
+      hl_shift = true;
+    }
 
     if (i < root_pos)
       continue;
@@ -714,9 +725,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (compressed) {
       if (i == root_pos) {
         ch = '0' + ops.at(i);
-      } else if (msg.worker_throw.at(i) == 0) {
-        // skip
-      } else if (msg.worker_throw.at(i) == config.h) {
+      } else if (throwval == 0 || throwval == config.h) {
         // skip
       } else {
         ch = '0' + ops.at(i);
@@ -728,7 +737,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (ch == '\0')
       continue;
 
-    const bool escape = (hl_start || hl_last || hl_deadstate);
+    const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
     if (escape) {
       buffer << '\x1B' << '[';
     }
@@ -738,8 +747,8 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (hl_last) {
       buffer << "1;";
     }
-    if (hl_deadstate) {
-      buffer << "31";
+    if (hl_deadstate || hl_shift) {
+      buffer << "32";
     }
     if (escape) {
       buffer << 'm';
@@ -748,7 +757,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (escape) {
       buffer << '\x1B' << "[0m";
     }
-    hl_start = hl_last = hl_deadstate = false;
+    hl_start = hl_last = hl_deadstate = hl_shift = false;
 
     if (++printed >= status_width)
       break;

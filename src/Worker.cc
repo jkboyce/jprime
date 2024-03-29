@@ -26,7 +26,6 @@
 #include <sstream>
 #include <chrono>
 #include <cassert>
-#include <stdexcept>
 
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
