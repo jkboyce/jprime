@@ -106,8 +106,8 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
   bool file_output_mode = false;
 
   // defaults for length
-  int l_min = 1;
-  int l_max = -1;
+  unsigned int l_min = 1;
+  unsigned int l_max = 0;
 
   if (config != nullptr) {
     config->n = atoi(argv[1]);
@@ -237,7 +237,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
       if (hyphens == 0) {
         int num = atoi(argv[i]);
         if (num > 0) {
-          l_min = l_max = num;
+          l_min = l_max = static_cast<unsigned int>(num);
           success = true;
         }
       } else if (hyphens == 1) {
@@ -248,14 +248,14 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
         if (s1.size() > 0) {
           int num = atoi(s1.c_str());
           if (num > 0)
-            l_min = num;
+            l_min = static_cast<unsigned int>(num);
           else
             success = false;
         }
         if (s2.size() > 0) {
           int num = atoi(s2.c_str());
           if (num > 0)
-            l_max = num;
+            l_max = static_cast<unsigned int>(num);
           else
             success = false;
         }
@@ -276,8 +276,7 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     config->l_max = l_max;
 
     // graph type
-    if (static_cast<int>(config->l_min) == config->l_max &&
-        config->l_min < config->h) {
+    if (config->l_min == config->l_max && config->l_min < config->h) {
       config->graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
     } else {
       config->graphmode = GraphMode::FULL_GRAPH;
@@ -794,11 +793,12 @@ int main(int argc, char** argv) {
   coordinator.run();
 
   if (context.fileoutputflag) {
-    std::cout << "saving checkpoint file '" << context.outfile << "'"
-              << std::endl;
+    std::cout << "saving checkpoint file '" << context.outfile << "'\n";
     std::sort(context.patterns.begin(), context.patterns.end(),
         pattern_compare);
     save_context(config, context);
   }
+  std::cout << "------------------------------------------------------------"
+            << std::endl;
   return 0;
 }

@@ -68,7 +68,6 @@ struct MessageW2C {
   unsigned int numstates = 0;
   unsigned int numcycles = 0;
   unsigned int numshortcycles = 0;
-  unsigned int l_bound = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;

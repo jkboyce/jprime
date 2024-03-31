@@ -41,8 +41,8 @@ struct SearchConfig {
   // minimum pattern length to find
   unsigned int l_min = 1;
 
-  // maximum pattern length to find
-  int l_max = -1;
+  // maximum pattern length to find; 0 means open-ended range like "5-"
+  unsigned int l_max = 0;
 
   // worker mode
   RunMode mode = RunMode::NORMAL_SEARCH;

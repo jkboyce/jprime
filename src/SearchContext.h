@@ -27,18 +27,23 @@ struct SearchContext {
   // original invocation command line arguments, concatenated
   std::string arglist;
 
-  // number of states in the juggling graph (does not change)
+  // precalculated quantities for the full (n,h) graph
+  std::uint64_t full_numstates = 0;
+  std::uint64_t full_numcycles = 0;
+  std::uint64_t full_numshortcycles = 0;
+
+  // precalculated maximum length possible for a pattern of the type we're
+  // searching for, in the full graph (does not change)
+  unsigned int l_bound = 0;
+
+  // number of states in constructed juggling graph (does not change)
   unsigned int numstates = 0;
 
-  // number of shift cycles in the juggling graph
+  // number of shift cycles in constructed juggling graph
   unsigned int numcycles = 0;
 
-  // number of short (length < h) shift cycles
+  // number of short (period < h) shift cycles in constructed juggling graph
   unsigned int numshortcycles = 0;
-
-  // maximum length possible for a prime pattern of the type we're searching
-  // (does not change)
-  unsigned int l_bound = 0;
 
   // number of patterns found in the range [l_min, l_max]
   std::uint64_t npatterns = 0;

@@ -57,11 +57,6 @@ void Graph::init() {
   // calculate the number of states in the graph
   const std::uint64_t num = (l == 0 ? combinations(h, n) :
       ordered_partitions(n, h, l));
-  if (num > max_states) {
-    std::cerr << "Number of states " << num
-              << " exceeds limit of " << max_states << '\n';
-    std::exit(EXIT_FAILURE);
-  }
   numstates = static_cast<unsigned int>(num);
 
   // enumerate the states

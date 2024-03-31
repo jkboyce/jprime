@@ -37,18 +37,37 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 //------------------------------------------------------------------------------
 
 void Coordinator::run() {
-  // register signal handler for ctrl-c interrupt
-  signal(SIGINT, Coordinator::signal_handler);
+  calc_graph_size();
+
+  bool length_error = (config.l_min > context.l_bound ||
+      l_max > context.l_bound);
+  if (config.infoflag || length_error || context.numstates > MAX_STATES) {
+    if (config.infoflag) {
+      print_preamble();
+    }
+    if (length_error) {
+      std::cout << "No patterns longer than " << context.l_bound
+                << " are possible" << std::endl;
+    }
+    if (context.numstates > MAX_STATES) {
+      std::cout << "Number of states " << context.numstates
+                << " exceeds limit of " << MAX_STATES << std::endl;
+    }
+    return;
+  }
 
   if (config.verboseflag)
     std::cout << "Started on: " << current_time_string();
+
+  // register signal handler for ctrl-c interrupt
+  signal(SIGINT, Coordinator::signal_handler);
 
   // start worker threads
   for (unsigned int id = 0; id < context.num_threads; ++id) {
     if (config.verboseflag) {
       std::cout << "worker " << id << " starting..." << std::endl;
     }
-    worker.push_back(new Worker(config, *this, id));
+    worker.push_back(new Worker(config, *this, id, l_max));
     worker_thread.push_back(new std::thread(&Worker::run, worker.at(id)));
     worker_startstate.push_back(0);
     worker_endstate.push_back(0);
@@ -62,8 +81,8 @@ void Coordinator::run() {
     workers_idle.insert(id);
   }
 
-  constexpr auto nanosecs_wait = std::chrono::nanoseconds(
-      static_cast<long>(nanosecs_per_inbox_check));
+  constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
+      static_cast<long>(NANOSECS_PER_INBOX_CHECK));
   const auto start = std::chrono::high_resolution_clock::now();
 
   while (true) {
@@ -80,7 +99,7 @@ void Coordinator::run() {
       break;
     }
 
-    std::this_thread::sleep_for(nanosecs_wait);
+    std::this_thread::sleep_for(NANOSECS_WAIT);
   }
 
   const auto end = std::chrono::high_resolution_clock::now();
@@ -101,6 +120,7 @@ void Coordinator::run() {
     std::cout << "Finished on: " << current_time_string();
   if (context.assignments.size() > 0)
     std::cout << "\nPARTIAL RESULTS:\n";
+  print_preamble();
   print_summary();
 }
 
@@ -116,7 +136,7 @@ void Coordinator::message_worker(const MessageC2W& msg,
 }
 
 void Coordinator::collect_stats() {
-  if (!config.statusflag || ++stats_counter < waits_per_status)
+  if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
     return;
 
   stats_counter = 0;
@@ -388,6 +408,39 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
 // Helper functions
 //------------------------------------------------------------------------------
 
+// Determine as much as possible about the size of the computation before
+// starting up the workers
+
+void Coordinator::calc_graph_size() {
+  context.full_numstates = Graph::combinations(config.h, config.n);
+  context.full_numcycles = 0;
+  context.full_numshortcycles = 0;
+
+  for (unsigned int p = 1; p <= config.h; ++p) {
+    const std::uint64_t cycles =
+        Graph::shift_cycle_count(config.n, config.h, p);
+    context.full_numcycles += cycles;
+    if (p < config.h) {
+      context.full_numshortcycles += cycles;
+    }
+  }
+
+  if (config.graphmode == GraphMode::FULL_GRAPH) {
+    context.numstates = context.full_numstates;
+    context.numcycles = context.full_numcycles;
+    context.numshortcycles = context.full_numshortcycles;
+  } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+    context.numstates =
+        Graph::ordered_partitions(config.n, config.h, config.l_min);
+    // no precalculation of shift cycles for this case
+  }
+
+  context.l_bound = (config.mode == RunMode::SUPER_SEARCH)
+      ? context.full_numcycles + config.shiftlimit
+      : context.full_numstates - context.full_numcycles;
+  l_max = (config.l_max > 0 ? config.l_max : context.l_bound);
+}
+
 bool Coordinator::is_worker_idle(const unsigned int id) const {
   return (workers_idle.count(id) != 0);
 }
@@ -399,20 +452,23 @@ bool Coordinator::is_worker_splitting(const unsigned int id) const {
 void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.secs_working += msg.secs_working;
-  context.numstates = msg.numstates;
-  context.numcycles = msg.numcycles;
-  context.numshortcycles = msg.numshortcycles;
-  context.l_bound = std::max(context.l_bound, msg.l_bound);
 
-  l_max = (config.l_max > 0 ? config.l_max : context.l_bound);
-  assert(msg.count.size() == static_cast<size_t>(l_max + 1));
+  // the worker returned actual quantities related to the size of the graph;
+  // confirm that these match our precomputed values
+  assert(msg.numstates == context.numstates);
+  if (config.graphmode == GraphMode::FULL_GRAPH) {
+    assert(msg.numcycles == context.numcycles);
+    assert(msg.numshortcycles == context.numshortcycles);
+  }
+
+  assert(msg.count.size() == l_max + 1);
   assert(context.count.size() <= msg.count.size());
   context.count.resize(msg.count.size(), 0);
 
   for (size_t i = 1; i < msg.count.size(); ++i) {
     context.count.at(i) += msg.count.at(i);
     context.ntotal += msg.count.at(i);
-    if (i >= config.l_min && i <= static_cast<size_t>(l_max)) {
+    if (i >= config.l_min && i <= l_max) {
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
@@ -462,7 +518,7 @@ double Coordinator::expected_patterns_at_maxlength() {
   // fit a parabola to the log of pattern count
   double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
   double sy = 0, sxy = 0, sx2y = 0;
-  size_t xstart = std::max<size_t>(max - 10, mode);
+  size_t xstart = std::max(max - 10, mode);
 
   for (size_t i = xstart; i < context.count.size(); ++i) {
     if (context.count.at(i) < 5)
@@ -536,6 +592,46 @@ void Coordinator::signal_handler(int signum) {
 // Handle terminal output
 //------------------------------------------------------------------------------
 
+void Coordinator::print_preamble() {
+  std::cout << "objects: " << (config.dualflag ? config.h - config.n : config.n)
+            << ", max throw: " << config.h << '\n';
+
+  if (config.mode == RunMode::NORMAL_SEARCH) {
+    std::cout << "prime ";
+  } else if (config.mode == RunMode::SUPER_SEARCH) {
+    std::cout << "superprime ";
+    if (config.shiftlimit == 1)
+      std::cout << "(+1 shift) ";
+    else if (config.shiftlimit > 1)
+      std::cout << "(+" << config.shiftlimit << " shifts) ";
+  }
+  std::cout << "search for length: " << config.l_min;
+  if (l_max > config.l_min) {
+    if (l_max == context.l_bound)
+      std::cout << '-';
+    else
+      std::cout << '-' << l_max;
+  }
+  std::cout << " (bound " << context.l_bound << ")";
+  if (config.groundmode == GroundMode::GROUND_SEARCH) {
+    std::cout << ", ground state only\n";
+  } else if (config.groundmode == GroundMode::EXCITED_SEARCH) {
+    std::cout << ", excited states only\n";
+  } else {
+    std::cout << '\n';
+  }
+
+  std::cout << "graph: "
+            << context.full_numstates << " states, "
+            << context.full_numcycles << " shift cycles, "
+            << context.full_numshortcycles << " short cycles" << std::endl;
+
+  if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+    std::cout << "(using period-" << config.l_min << " subgraph: "
+              << context.numstates << " states)" << std::endl;
+  }
+}
+
 void Coordinator::print_pattern(const MessageW2C& msg) {
   erase_status_output();
   if (config.verboseflag) {
@@ -547,76 +643,29 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 }
 
 void Coordinator::print_summary() const {
-  std::cout << "objects: " << (config.dualflag ? config.h - config.n : config.n)
-            << ", max throw: " << config.h << '\n';
+  std::cout << context.npatterns << " patterns found ("
+            << context.ntotal << " seen, "
+            << context.nnodes << " nodes, "
+            << std::fixed << std::setprecision(2)
+            << (static_cast<double>(context.nnodes) / context.secs_elapsed /
+                1000000)
+            << "M nodes/sec)\n";
 
-  std::cout << "length: " << config.l_min;
-  if (l_max > static_cast<int>(config.l_min)) {
-    if (l_max == static_cast<int>(context.l_bound))
-      std::cout << '-';
-    else
-      std::cout << '-' << l_max;
+  std::cout << "running time = "
+            << std::fixed << std::setprecision(4)
+            << context.secs_elapsed << " sec";
+  if (context.num_threads > 1) {
+    std::cout << " (worker util = " << std::setprecision(2)
+              << ((context.secs_working / context.secs_available) * 100)
+              << " %)";
   }
-  std::cout << " (bound " << context.l_bound << "), ";
+  std::cout << '\n';
 
-  switch (config.mode) {
-    case RunMode::NORMAL_SEARCH:
-      std::cout << "normal mode";
-      break;
-    case RunMode::SUPER_SEARCH:
-      std::cout << "super mode (" << config.shiftlimit << " shift limit)";
-      break;
-    default:
-      break;
+  if (config.countflag || l_max > config.l_min) {
+    std::cout << "\nPattern count by length:\n";
+    for (unsigned int i = config.l_min; i <= l_max; ++i)
+      std::cout << i << ", " << context.count.at(i) << '\n';
   }
-
-  if (config.invertflag)
-    std::cout << ", inverse output\n";
-  else
-    std::cout << '\n';
-
-  if (config.groundmode == GroundMode::GROUND_SEARCH)
-    std::cout << "ground state search" << std::endl;
-  if (config.groundmode == GroundMode::EXCITED_SEARCH)
-    std::cout << "excited state search" << std::endl;
-
-  std::cout << "graph: " << context.numstates << " states";
-  if (config.graphmode == GraphMode::FULL_GRAPH) {
-    std::cout << ", " << context.numcycles << " shift cycles, "
-              << context.numshortcycles << " short cycles\n";
-  } else {
-    std::cout << " (" << Graph::combinations(config.n, config.h)
-              << " in full graph)\n";
-  }
-
-  if (!config.infoflag) {
-    std::cout << context.npatterns << " patterns found ("
-              << context.ntotal << " seen, "
-              << context.nnodes << " nodes, "
-              << std::fixed << std::setprecision(2)
-              << (static_cast<double>(context.nnodes) / context.secs_elapsed /
-                  1000000)
-              << "M nodes/sec)\n";
-
-    std::cout << "running time = "
-              << std::fixed << std::setprecision(4)
-              << context.secs_elapsed << " sec";
-    if (context.num_threads > 1) {
-      std::cout << " (worker util = " << std::setprecision(2)
-                << ((context.secs_working / context.secs_available) * 100)
-                << " %)";
-    }
-    std::cout << '\n';
-
-    if (config.countflag || l_max > static_cast<int>(config.l_min)) {
-      std::cout << "\nPattern count by length:\n";
-      for (int i = config.l_min; i <= l_max; ++i)
-        std::cout << i << ", " << context.count.at(i) << '\n';
-    }
-  }
-
-  std::cout << "------------------------------------------------------------"
-            << std::endl;
 }
 
 void Coordinator::erase_status_output() const {
@@ -633,15 +682,15 @@ void Coordinator::print_status_output() {
     return;
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
-      l_max > status_width);
+      l_max > STATUS_WIDTH);
   std::cout << "Status on: " << current_time_string();
   std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
     std::cout << " (compressed view)";
-    for (int i = 47; i < status_width; ++i)
+    for (int i = 47; i < STATUS_WIDTH; ++i)
       std::cout << ' ';
   } else {
-    for (int i = 29; i < status_width; ++i)
+    for (int i = 29; i < STATUS_WIDTH; ++i)
       std::cout << ' ';
   }
   std::cout << "dist  len\n";
@@ -662,7 +711,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
   if (!msg.running) {
     buffer << "   -/   -   - IDLE";
-    for (int i = 1; i < status_width; ++i)
+    for (int i = 1; i < STATUS_WIDTH; ++i)
       buffer << ' ';
     buffer << "-    -";
     return buffer.str();
@@ -680,7 +729,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
 
   const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
-      l_max > status_width);
+      l_max > STATUS_WIDTH);
   const bool show_deadstates = (config.mode == RunMode::NORMAL_SEARCH &&
       config.graphmode == GraphMode::FULL_GRAPH);
   const bool show_shifts = (config.mode == RunMode::SUPER_SEARCH);
@@ -759,11 +808,11 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     }
     hl_start = hl_last = hl_deadstate = hl_shift = false;
 
-    if (++printed >= status_width)
+    if (++printed >= STATUS_WIDTH)
       break;
   }
 
-  while (printed < status_width) {
+  while (printed < STATUS_WIDTH) {
     buffer << ' ';
     ++printed;
   }

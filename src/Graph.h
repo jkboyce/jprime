@@ -45,7 +45,6 @@ class Graph {
   unsigned int numshortcycles = 0;
   unsigned int* cyclenum;
   unsigned int* cycleperiod;
-  static constexpr std::uint64_t max_states = 200000u;
 
   // updated as states are activated/deactivated
   std::vector<bool> state_active;
@@ -73,8 +72,6 @@ class Graph {
     unsigned int h, unsigned int l);
   static void gen_states_for_period_helper(std::vector<State>& s,
     unsigned int pos, unsigned int left, unsigned int h, unsigned int l);
-  static std::uint64_t ordered_partitions(unsigned int n, unsigned int h,
-    unsigned int l);
   static std::uint64_t ordered_partitions_helper(unsigned int pos,
     unsigned int left, const unsigned int h, const unsigned int l,
     std::map<op_key_type, std::uint64_t>& cache);
@@ -85,6 +82,8 @@ class Graph {
   static std::uint64_t combinations(unsigned int a, unsigned int b);
   static std::uint64_t shift_cycle_count(unsigned int n, unsigned int h,
     unsigned int p);
+  static std::uint64_t ordered_partitions(unsigned int n, unsigned int h,
+    unsigned int l);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
   unsigned int get_statenum(const State& s) const;

@@ -30,7 +30,7 @@ class Worker {
  public:
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
-  static constexpr double secs_per_inbox_check_target = 0.01;
+  static constexpr double SECS_PER_INBOX_CHECK_TARGET = 0.01;
 
  private:
   // set during construction and do not change
@@ -38,9 +38,8 @@ class Worker {
   Coordinator& coordinator;
   const unsigned int worker_id;
   Graph graph;
-  unsigned int l_min = 0;
-  unsigned int l_max = 0;
-  unsigned int l_bound = 0;
+  const unsigned int l_min;
+  const unsigned int l_max;
 
   // working variables for search
   unsigned int pos = 0;
@@ -69,15 +68,16 @@ class Worker {
   bool running = false;
 
   // for managing the frequency to check the inbox while running
-  static constexpr int steps_per_inbox_check_initial = 50000;
-  int steps_per_inbox_check = steps_per_inbox_check_initial;
-  static constexpr int calibrations_initial = 10;
-  int calibrations_remaining = calibrations_initial;
-  int steps_taken = 0;
+  static constexpr unsigned int STEPS_PER_INBOX_CHECK_INITIAL = 50000u;
+  unsigned int steps_per_inbox_check = STEPS_PER_INBOX_CHECK_INITIAL;
+  static constexpr unsigned int CALIBRATIONS_INITIAL = 10;
+  unsigned int calibrations_remaining = CALIBRATIONS_INITIAL;
+  unsigned int steps_taken = 0;
   std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
-  Worker(const SearchConfig& config, Coordinator& coord, int id);
+  Worker(const SearchConfig& config, Coordinator& coord, int id,
+    unsigned int l_max);
   Worker(const Worker&) =delete;
   Worker(Worker&&) =delete;
   Worker& operator=(const Worker&) =delete;

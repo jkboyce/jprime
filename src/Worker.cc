@@ -28,28 +28,16 @@
 #include <cassert>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator& coord, int id)
+Worker::Worker(const SearchConfig& config, Coordinator& coord, int id,
+    unsigned int l_max)
     : config(config),
       coordinator(coord),
       worker_id(id),
       graph(config.n, config.h, config.xarray,
         config.mode != RunMode::SUPER_SEARCH,
-        config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0) {
-  if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
-    l_bound = l_max = l_min = static_cast<unsigned int>(config.l_min);
-  } else {
-    l_min = static_cast<unsigned int>(config.l_min);
-    l_bound = (config.mode == RunMode::SUPER_SEARCH)
-        ? graph.superprime_length_bound() + config.shiftlimit
-        : graph.prime_length_bound();
-    l_max = (config.l_max > 0 ? config.l_max : l_bound);
-
-    if (l_min > l_bound || l_max > l_bound) {
-      std::cerr << "No patterns longer than " << l_bound << " are possible\n";
-      std::exit(EXIT_FAILURE);
-    }
-  }
-
+        config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0),
+      l_min(config.l_min),
+      l_max(l_max) {
   count.assign(l_max + 1, 0);
   allocate_arrays();
 }
@@ -216,7 +204,7 @@ void Worker::record_elapsed_time(const
 }
 
 void Worker::calibrate_inbox_check() {
-  if (calibrations_remaining == calibrations_initial) {
+  if (calibrations_remaining == CALIBRATIONS_INITIAL) {
     last_ts = std::chrono::high_resolution_clock::now();
     --calibrations_remaining;
     return;
@@ -230,7 +218,7 @@ void Worker::calibrate_inbox_check() {
 
   steps_per_inbox_check =
       static_cast<int>(static_cast<double>(steps_per_inbox_check) *
-      secs_per_inbox_check_target / time_spent);
+      SECS_PER_INBOX_CHECK_TARGET / time_spent);
 }
 
 void Worker::process_split_work_request(const MessageC2W& msg) {
@@ -348,7 +336,6 @@ void Worker::add_data_to_message(MessageW2C& msg) {
   msg.numstates = graph.numstates;
   msg.numcycles = graph.numcycles;
   msg.numshortcycles = graph.numshortcycles;
-  msg.l_bound = l_bound;
 
   count.assign(count.size(), 0);
   nnodes = 0;
@@ -640,7 +627,7 @@ void Worker::gen_patterns() {
       message_coordinator_text(buffer.str());
     }
 
-    if (max_possible < static_cast<int>(l_min) || config.infoflag) {
+    if (max_possible < static_cast<int>(l_min)) {
       break;
     }
     if (!graph.state_active.at(start_state)) {
