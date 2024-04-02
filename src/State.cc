@@ -27,6 +27,9 @@ State::State(std::string s) {
   }
 }
 
+// Return a new State object that corresponds to the current State advanced by
+// throw `throwval`.
+
 State State::advance_with_throw(unsigned int throwval) const {
   State s = *this;
   unsigned int head = *s.slot.begin();
@@ -49,7 +52,7 @@ State State::advance_with_throw(unsigned int throwval) const {
   return s;
 }
 
-// Return the next state downstream in the state's shift cycle
+// Return the next state downstream in the state's shift cycle.
 
 State State::downstream() const {
   State s = *this;
@@ -59,7 +62,7 @@ State State::downstream() const {
   return s;
 }
 
-// Return the next state upstream in the state's shift cycle
+// Return the next state upstream in the state's shift cycle.
 
 State State::upstream() const {
   State s = *this;
@@ -69,7 +72,7 @@ State State::upstream() const {
   return s;
 }
 
-// Return the reverse of this state
+// Return the reverse of this state.
 
 State State::reverse() const {
   State s = *this;

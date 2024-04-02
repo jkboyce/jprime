@@ -38,7 +38,6 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id,
         config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0),
       l_min(config.l_min),
       l_max(l_max) {
-  count.assign(l_max + 1, 0);
   allocate_arrays();
 }
 
@@ -57,7 +56,6 @@ void Worker::allocate_arrays() {
   deadstates_bystate = new unsigned int*[graph.numstates + 1];
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    beat[i] = {};
     pattern[i] = -1;
     used[i] = 0;
     cycleused[i] = false;
@@ -146,12 +144,16 @@ void Worker::run() {
 // Handle interactions with the Coordinator thread
 //------------------------------------------------------------------------------
 
+// Deliver a message to the coordinator's inbox.
+
 void Worker::message_coordinator(MessageW2C& msg) const {
   msg.worker_id = worker_id;
   coordinator.inbox_lock.lock();
   coordinator.inbox.push(msg);
   coordinator.inbox_lock.unlock();
 }
+
+// Deliver an informational text message to the coordinator's inbox.
 
 void Worker::message_coordinator_text(const std::string& str) const {
   MessageW2C msg;
@@ -192,8 +194,8 @@ void Worker::process_inbox_running() {
   }
 }
 
-// Get a finishing timestamp and record elapsed-time statistics to report to
-// the coordinator later on.
+// Get a finishing timestamp and record elapsed-time statistics to report to the
+// coordinator later on.
 
 void Worker::record_elapsed_time(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
@@ -202,6 +204,9 @@ void Worker::record_elapsed_time(const
   double runtime = diff.count();
   secs_working += runtime;
 }
+
+// Calibrate the number of steps to take in the gen_loops() functions to get the
+// desired frequency of inbox checks.
 
 void Worker::calibrate_inbox_check() {
   if (calibrations_remaining == CALIBRATIONS_INITIAL) {
@@ -220,6 +225,8 @@ void Worker::calibrate_inbox_check() {
       static_cast<int>(static_cast<double>(steps_per_inbox_check) *
       SECS_PER_INBOX_CHECK_TARGET / time_spent);
 }
+
+// Respond to the coordinator's request to split the current work assignment.
 
 void Worker::process_split_work_request(const MessageC2W& msg) {
   if (config.verboseflag) {
@@ -246,6 +253,8 @@ void Worker::process_split_work_request(const MessageC2W& msg) {
   }
 }
 
+// Send a work assignment to the coordinator.
+
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_WORK;
@@ -254,80 +263,88 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   message_coordinator(msg);
 }
 
+// Respond to the coordinator's request to send back search statistics for the
+// live status display.
+
 void Worker::send_stats_to_coordinator() {
   MessageW2C msg;
   msg.type = messages_W2C::RETURN_STATS;
   add_data_to_message(msg);
   msg.running = running;
 
-  if (running) {
-    // include a snapshot of the current state of the search
-    msg.worker_throw.assign(pos + 1, 0);
-    msg.worker_options_left.assign(pos + 1, 0);
-    msg.worker_deadstates_extra.assign(pos + 1, 0);
+  if (!running) {
+    message_coordinator(msg);
+    return;
+  }
 
-    unsigned int tempfrom = start_state;
-    std::vector<bool> u(graph.numstates + 1, false);
-    std::vector<unsigned int> ds(graph.numcycles, 0);
+  // add a snapshot of the current state of the search
+  msg.worker_throw.assign(pos + 1, 0);
+  msg.worker_options_left.assign(pos + 1, 0);
+  msg.worker_deadstates_extra.assign(pos + 1, 0);
 
-    for (size_t i = 0; i <= pos; ++i) {
-      msg.worker_throw.at(i) = pattern[i];
+  unsigned int tempfrom = start_state;
+  std::vector<bool> u(graph.numstates + 1, false);
+  std::vector<unsigned int> ds(graph.numcycles, 0);
 
-      for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
-        if (pattern[i] < 0)
-          continue;
+  for (size_t i = 0; i <= pos; ++i) {
+    assert(pattern[i] >= 0);
+    msg.worker_throw.at(i) = pattern[i];
 
-        const unsigned int throwval = graph.outthrowval[tempfrom][col];
-        if (throwval == static_cast<unsigned int>(pattern[i])) {
-          const unsigned int tempto = graph.outmatrix[tempfrom][col];
-          assert(tempto > 0);
-          assert(!u.at(tempto));
+    for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
+      const unsigned int throwval = graph.outthrowval[tempfrom][col];
+      if (throwval != static_cast<unsigned int>(pattern[i]))
+        continue;
 
-          // options remaining at current position
-          if (i < root_pos) {
-            msg.worker_options_left.at(i) = 0;
-          } else if (i == root_pos) {
-            msg.worker_options_left.at(i) = root_throwval_options.size();
-          } else {
-            msg.worker_options_left.at(i) = graph.outdegree[tempfrom] - col - 1;
+      const unsigned int tempto = graph.outmatrix[tempfrom][col];
+      assert(tempto > 0);
+      assert(!u.at(tempto));
+
+      // options remaining at current position
+      if (i < root_pos) {
+        msg.worker_options_left.at(i) = 0;
+      } else if (i == root_pos) {
+        msg.worker_options_left.at(i) = root_throwval_options.size();
+      } else {
+        msg.worker_options_left.at(i) = graph.outdegree[tempfrom] - col - 1;
+      }
+
+      // number of deadstates induced by current link throw, above the
+      // one-per-shift cycle baseline
+      if (throwval != 0 && throwval != graph.h) {
+        // throw
+        for (size_t j = 0; true; ++j) {
+          unsigned int es = graph.excludestates_throw[tempfrom][j];
+          if (es == 0)
+            break;
+          if (!u.at(es) && ++ds.at(graph.cyclenum[tempfrom]) > 1) {
+            ++msg.worker_deadstates_extra.at(i);
           }
+          u.at(es) = true;
+        }
 
-          // number of deadstates induced by current link throw, above the
-          // one-per-shift cycle baseline
-          if (throwval != 0 && throwval != graph.h) {
-            // throw
-            for (size_t j = 0; true; ++j) {
-              unsigned int es = graph.excludestates_throw[tempfrom][j];
-              if (es == 0)
-                break;
-              if (!u.at(es) && ++ds.at(graph.cyclenum[tempfrom]) > 1) {
-                ++msg.worker_deadstates_extra.at(i);
-              }
-              u.at(es) = true;
-            }
-
-            // catch
-            for (size_t j = 0; true; ++j) {
-              unsigned int es = graph.excludestates_catch[tempto][j];
-              if (es == 0)
-                break;
-              if (!u.at(es) && ++ds.at(graph.cyclenum[tempto]) > 1) {
-                ++msg.worker_deadstates_extra.at(i);
-              }
-              u.at(es) = true;
-            }
+        // catch
+        for (size_t j = 0; true; ++j) {
+          unsigned int es = graph.excludestates_catch[tempto][j];
+          if (es == 0)
+            break;
+          if (!u.at(es) && ++ds.at(graph.cyclenum[tempto]) > 1) {
+            ++msg.worker_deadstates_extra.at(i);
           }
-
-          u.at(tempto) = true;
-          tempfrom = tempto;
-          break;
+          u.at(es) = true;
         }
       }
+
+      u.at(tempto) = true;
+      tempfrom = tempto;
+      break;
     }
   }
 
   message_coordinator(msg);
 }
+
+// Add certain data items to a message for the coordinator. Several message
+// types include these common items.
 
 void Worker::add_data_to_message(MessageW2C& msg) {
   msg.count = count;
@@ -342,6 +359,8 @@ void Worker::add_data_to_message(MessageW2C& msg) {
   secs_working = 0;
 }
 
+// Respond to the coordinator's request to do the given work assignment.
+
 void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(!running);
   loading_work = true;
@@ -352,22 +371,23 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   root_throwval_options = wa.root_throwval_options;
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < wa.partial_pattern.size()) ? wa.partial_pattern.at(i)
-        : -1;
+    pattern[i] = (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i)
+        : -1);
   }
+  count.assign(l_max + 1, 0);
 
   if (start_state == 0) {
     start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
   }
   if (end_state == 0) {
     end_state = (config.groundmode == GroundMode::GROUND_SEARCH ? 1 :
-      graph.numstates);
+        graph.numstates);
   }
 }
 
 // Return the work assignment corresponding to the current state of the worker.
 // Note this is distinct from split_work_assignment(), which splits off a
-// portion of the assignment to give back to the coordinator.
+// portion of the assignment.
 
 WorkAssignment Worker::get_work_assignment() const {
   WorkAssignment wa;
@@ -438,9 +458,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
 //------------------------------------------------------------------------------
 
 // Return a work assignment that corresponds to a portion of the worker's
-// current work assignment, for handing off to another idle worker. There is no
-// single way to do this so we implement a number of strategies and measure
-// performance.
+// current work assignment, for handing off to another idle worker.
 
 WorkAssignment Worker::split_work_assignment(int split_alg) {
   if (end_state > start_state) {
@@ -459,6 +477,9 @@ WorkAssignment Worker::split_work_assignment(int split_alg) {
   }
 }
 
+// Return a work assignment that corresponds to giving away approximately half
+// of the unexplored `start_state` values in the current assignment.
+
 WorkAssignment Worker::split_work_assignment_takestartstates() {
   unsigned int takenum = (end_state - start_state + 1) / 2;
   assert(takenum > 0);
@@ -474,15 +495,22 @@ WorkAssignment Worker::split_work_assignment_takestartstates() {
   return wa;
 }
 
+// Return a work assignment that gives away all of the unexplored throw options
+// at root_pos.
+
 WorkAssignment Worker::split_work_assignment_takeall() {
-  // strategy: take all of the throw options at root_pos
   return split_work_assignment_takefraction(1, false);
 }
 
+// Return a work assignment that gives away approximately half of the unexplored
+// throw options at root_pos.
+
 WorkAssignment Worker::split_work_assignment_takehalf() {
-  // strategy: take half of the throw options at root_pos
   return split_work_assignment_takefraction(0.5, false);
 }
+
+// Return a work assignment that gives away approximately the target fraction of
+// the unexplored throw options at root_pos.
 
 WorkAssignment Worker::split_work_assignment_takefraction(double f,
       bool take_front) {
@@ -599,9 +627,10 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
+  // reset the graph so build_graph() below does a full recalc
   for (size_t i = 1; i <= graph.numstates; ++i) {
     graph.state_active.at(i) = true;
-    graph.outdegree[i] = 0;  // so build_graph() below does a full recalc
+    graph.outdegree[i] = 0;
   }
 
   for (; start_state <= end_state; ++start_state) {
@@ -628,6 +657,8 @@ void Worker::gen_patterns() {
     }
 
     if (max_possible < static_cast<int>(l_min)) {
+      // larger values of `start_state` will have `max_possible` values that are
+      // the same or smaller
       break;
     }
     if (!graph.state_active.at(start_state)) {
@@ -707,7 +738,7 @@ void Worker::set_inactive_states() {
   }
 }
 
-// Initialize all working variables prior to gen_loops()
+// Initialize all working variables prior to gen_loops().
 
 void Worker::initialize_working_variables() {
   pos = 0;
@@ -898,8 +929,8 @@ std::string Worker::get_inverse() const {
           graph.state.at(patternstate.at(i)).downstream().reverse());
     }
 
-    const unsigned int inversethrow = graph.h
-        - static_cast<unsigned int>(pattern[i]);
+    const unsigned int inversethrow = graph.h -
+        static_cast<unsigned int>(pattern[i]);
     inversepattern.push_back(inversethrow);
     inversestate.push_back(
         inversestate.back().advance_with_throw(inversethrow));

@@ -77,14 +77,16 @@ class Coordinator {
   void collect_stats();
   void steal_work();
   unsigned int find_stealing_target_mostremaining() const;
+  bool passes_prechecks();
   void calc_graph_size();
   bool is_worker_idle(const unsigned int id) const;
   bool is_worker_splitting(const unsigned int id) const;
   void record_data_from_message(const MessageW2C& msg);
+  void start_workers();
   void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);
-  void print_preamble();
+  void print_preamble() const;
   void print_pattern(const MessageW2C& msg);
   void print_summary() const;
   void erase_status_output() const;

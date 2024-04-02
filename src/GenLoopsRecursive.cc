@@ -297,6 +297,10 @@ void Worker::gen_loops_super0() {
   ++nnodes;
 }
 
+//------------------------------------------------------------------------------
+// Helper methods
+//------------------------------------------------------------------------------
+
 // Return the column number in the `outmatrix[from]` row vector that
 // corresponds to the throw value at position `pos` in the pattern. This allows
 // us to resume where we left off when loading from a work assignment.

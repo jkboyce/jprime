@@ -2,7 +2,7 @@
 // SearchState.h
 //
 // State variables specific to a particular time step (position) in the pattern,
-// used for the iterative search process.
+// used for the iterative search algorithms.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //

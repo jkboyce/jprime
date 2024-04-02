@@ -265,6 +265,9 @@ std::uint64_t Graph::ordered_partitions(unsigned int n, unsigned int h,
   return ordered_partitions_helper(0, n, h, l, cache);
 }
 
+// Compute the number of ways of filling slot `pos` through slot `l-1`, given
+// `left` remaining objects.
+
 std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
     unsigned int left, const unsigned int h, const unsigned int l,
     std::map<op_key_type, std::uint64_t>& cache) {
@@ -647,19 +650,19 @@ unsigned int Graph::reverse_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).reverse());
 }
 
-// Return the next state downstream in the given state's shift cycle
+// Return the next state downstream in the given state's shift cycle.
 
 unsigned int Graph::downstream_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).downstream());
 }
 
-// Return the next state upstream in the given state's shift cycle
+// Return the next state upstream in the given state's shift cycle.
 
 unsigned int Graph::upstream_state(unsigned int statenum) const {
   return get_statenum(state.at(statenum).upstream());
 }
 
-// Return a text representation of a given state number
+// Return a text representation of a given state number.
 
 std::string Graph::state_string(unsigned int statenum) const {
   return state.at(statenum).to_string();

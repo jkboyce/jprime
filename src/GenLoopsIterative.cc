@@ -631,6 +631,10 @@ void Worker::iterative_gen_loops_super0() {
   assert(pos == 0);
 }
 
+//------------------------------------------------------------------------------
+// Helper methods
+//------------------------------------------------------------------------------
+
 // Set up the SearchState array with initial values.
 //
 // Leaves `pos` pointing to the last beat with loaded data, ready for the

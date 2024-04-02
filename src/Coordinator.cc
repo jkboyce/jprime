@@ -37,49 +37,12 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 //------------------------------------------------------------------------------
 
 void Coordinator::run() {
-  calc_graph_size();
-
-  bool length_error = (config.l_min > context.l_bound ||
-      l_max > context.l_bound);
-  if (config.infoflag || length_error || context.numstates > MAX_STATES) {
-    if (config.infoflag) {
-      print_preamble();
-    }
-    if (length_error) {
-      std::cout << "No patterns longer than " << context.l_bound
-                << " are possible" << std::endl;
-    }
-    if (context.numstates > MAX_STATES) {
-      std::cout << "Number of states " << context.numstates
-                << " exceeds limit of " << MAX_STATES << std::endl;
-    }
+  if (!passes_prechecks())
     return;
-  }
-
-  if (config.verboseflag)
-    std::cout << "Started on: " << current_time_string();
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
-
-  // start worker threads
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
-    if (config.verboseflag) {
-      std::cout << "worker " << id << " starting..." << std::endl;
-    }
-    worker.push_back(new Worker(config, *this, id, l_max));
-    worker_thread.push_back(new std::thread(&Worker::run, worker.at(id)));
-    worker_startstate.push_back(0);
-    worker_endstate.push_back(0);
-    worker_rootpos.push_back(0);
-    if (config.statusflag) {
-      worker_status.push_back("     ");
-      worker_options_left_start.push_back({});
-      worker_options_left_last.push_back({});
-      worker_longest.push_back(0);
-    }
-    workers_idle.insert(id);
-  }
+  start_workers();
 
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
       static_cast<long>(NANOSECS_PER_INBOX_CHECK));
@@ -108,13 +71,6 @@ void Coordinator::run() {
   context.secs_elapsed += runtime;
   context.secs_available += runtime * context.num_threads;
 
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
-    delete worker.at(id);
-    delete worker_thread.at(id);
-    worker.at(id) = nullptr;
-    worker_thread.at(id) = nullptr;
-  }
-
   erase_status_output();
   if (config.verboseflag)
     std::cout << "Finished on: " << current_time_string();
@@ -128,12 +84,16 @@ void Coordinator::run() {
 // Handle interactions with the Worker threads
 //------------------------------------------------------------------------------
 
+// Deliver a message to a given worker's inbox.
+
 void Coordinator::message_worker(const MessageC2W& msg,
     unsigned int worker_id) const {
   worker.at(worker_id)->inbox_lock.lock();
   worker.at(worker_id)->inbox.push(msg);
   worker.at(worker_id)->inbox_lock.unlock();
 }
+
+// Send messages to all workers requesting a status update
 
 void Coordinator::collect_stats() {
   if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
@@ -208,6 +168,9 @@ void Coordinator::process_inbox() {
   inbox_lock.unlock();
 }
 
+// Handle a pattern sent to us by a worker. We store it and optionally print it
+// to the terminal.
+
 void Coordinator::process_search_result(const MessageW2C& msg) {
   // workers will only send patterns in the right length range
   context.patterns.push_back(msg.pattern);
@@ -215,6 +178,8 @@ void Coordinator::process_search_result(const MessageW2C& msg) {
   if (config.printflag)
     print_pattern(msg);
 }
+
+// Handle a notification that a worker is now idle.
 
 void Coordinator::process_worker_idle(const MessageW2C& msg) {
   workers_idle.insert(msg.worker_id);
@@ -240,6 +205,11 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   workers_splitting.erase(msg.worker_id);
 }
 
+// Handle a work assignment sent back from a worker.
+//
+// This happens in two contexts: (a) when the worker is responding to a
+// SPLIT_WORK request, and (b) when the worker is notified to quit.
+
 void Coordinator::process_returned_work(const MessageW2C& msg) {
   workers_splitting.erase(msg.worker_id);
   context.assignments.push_back(msg.assignment);
@@ -253,6 +223,12 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
   }
 }
 
+// Handle a worker's response to a SEND_STATS message, for doing the live status
+// tracker (`-status` option).
+//
+// We create a status string for each worker as their stats return, and once all
+// workers have responded we print it.
+
 void Coordinator::process_returned_stats(const MessageW2C& msg) {
   record_data_from_message(msg);
   if (!config.statusflag)
@@ -264,6 +240,13 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
     print_status_output();
   }
 }
+
+// Handle updates from the worker on the state of its search.
+//
+// There are two main types of updates: (a) informational text updates, which
+// are printed in `-verbose` mode, and (b) updates on `start_state`,
+// `end_state`, and `root_pos`, which are used by the coordinator when it needs
+// to select a worker to send a SPLIT_WORK request to.
 
 void Coordinator::process_worker_update(const MessageW2C& msg) {
   if (msg.meta.size() > 0) {
@@ -284,6 +267,7 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
     worker_startstate.at(msg.worker_id) = msg.start_state;
 
     if (config.statusflag) {
+      // reset certain elements of the status display
       worker_options_left_start.at(msg.worker_id).resize(0);
       worker_options_left_last.at(msg.worker_id).resize(0);
       worker_longest.at(msg.worker_id) = 0;
@@ -408,6 +392,33 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
 // Helper functions
 //------------------------------------------------------------------------------
 
+// Perform checks before starting the workers.
+//
+// Returns true if the computation is cleared to proceed.
+
+bool Coordinator::passes_prechecks() {
+  calc_graph_size();
+
+  bool length_error = (config.l_min > context.l_bound ||
+      l_max > context.l_bound);
+
+  if (config.infoflag || length_error || context.numstates > MAX_STATES) {
+    if (config.infoflag) {
+      print_preamble();
+    }
+    if (length_error) {
+      std::cout << "No patterns longer than " << context.l_bound
+                << " are possible" << std::endl;
+    }
+    if (context.numstates > MAX_STATES) {
+      std::cout << "Number of states " << context.numstates
+                << " exceeds limit of " << MAX_STATES << std::endl;
+    }
+    return false;
+  }
+  return true;
+}
+
 // Determine as much as possible about the size of the computation before
 // starting up the workers
 
@@ -449,18 +460,22 @@ bool Coordinator::is_worker_splitting(const unsigned int id) const {
   return (workers_splitting.count(id) != 0);
 }
 
+// Copy status data out of the worker message, into appropriate data structures
+// in the coordinator.
+
 void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.secs_working += msg.secs_working;
 
-  // the worker returned actual quantities related to the size of the graph;
-  // confirm that these match our precomputed values
+  // the worker returned quantities related to the size of the graph; confirm
+  // that these match our precomputed values
   assert(msg.numstates == context.numstates);
   if (config.graphmode == GraphMode::FULL_GRAPH) {
     assert(msg.numcycles == context.numcycles);
     assert(msg.numshortcycles == context.numshortcycles);
   }
 
+  // pattern counts by length
   assert(msg.count.size() == l_max + 1);
   assert(context.count.size() <= msg.count.size());
   context.count.resize(msg.count.size(), 0);
@@ -472,15 +487,44 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
-      worker_longest.at(msg.worker_id) = std::max<int>(
-          worker_longest.at(msg.worker_id), i);
+      worker_longest.at(msg.worker_id) = std::max(
+          worker_longest.at(msg.worker_id), static_cast<unsigned int>(i));
     }
   }
 }
 
+// Start all of the worker threads into a ready state, and initialize data
+// structures for tracking them.
+
+void Coordinator::start_workers() {
+  if (config.verboseflag)
+    std::cout << "Started on: " << current_time_string();
+
+  for (unsigned int id = 0; id < context.num_threads; ++id) {
+    if (config.verboseflag)
+      std::cout << "worker " << id << " starting..." << std::endl;
+
+    worker.push_back(new Worker(config, *this, id, l_max));
+    worker_thread.push_back(new std::thread(&Worker::run, worker.at(id)));
+    worker_startstate.push_back(0);
+    worker_endstate.push_back(0);
+    worker_rootpos.push_back(0);
+    if (config.statusflag) {
+      worker_status.push_back("     ");
+      worker_options_left_start.push_back({});
+      worker_options_left_last.push_back({});
+      worker_longest.push_back(0);
+    }
+    workers_idle.insert(id);
+  }
+}
+
+// Stop all workers and free resources.
+
 void Coordinator::stop_workers() {
   if (config.verboseflag)
     erase_status_output();
+
   for (unsigned int id = 0; id < context.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::STOP_WORKER;
@@ -488,8 +532,14 @@ void Coordinator::stop_workers() {
 
     if (config.verboseflag)
       std::cout << "worker " << id << " asked to stop" << std::endl;
+
     worker_thread.at(id)->join();
+    delete worker.at(id);
+    delete worker_thread.at(id);
+    worker.at(id) = nullptr;
+    worker_thread.at(id) = nullptr;
   }
+
   if (config.verboseflag)
     print_status_output();
 }
@@ -580,8 +630,11 @@ double Coordinator::expected_patterns_at_maxlength() {
   return exp(lny);
 }
 
-// static variable for indicating the user has interrupted execution
+// Static variable for indicating the user has interrupted execution
+
 bool Coordinator::stopping = false;
+
+// Respond to a SIGINT (ctrl-c) interrupt during program execution.
 
 void Coordinator::signal_handler(int signum) {
   (void)signum;
@@ -592,7 +645,7 @@ void Coordinator::signal_handler(int signum) {
 // Handle terminal output
 //------------------------------------------------------------------------------
 
-void Coordinator::print_preamble() {
+void Coordinator::print_preamble() const {
   std::cout << "objects: " << (config.dualflag ? config.h - config.n : config.n)
             << ", max throw: " << config.h << '\n';
 
@@ -786,26 +839,15 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (ch == '\0')
       continue;
 
+    // use ANSI terminal codes to do inverse, bolding, and color
     const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
-    if (escape) {
-      buffer << '\x1B' << '[';
-    }
-    if (hl_start) {
-      buffer << "7;";
-    }
-    if (hl_last) {
-      buffer << "1;";
-    }
-    if (hl_deadstate || hl_shift) {
-      buffer << "32";
-    }
-    if (escape) {
-      buffer << 'm';
-    }
+    if (escape) { buffer << '\x1B' << '['; }
+    if (hl_start) { buffer << "7;"; }
+    if (hl_last) { buffer << "1;"; }
+    if (hl_deadstate || hl_shift) { buffer << "32"; }
+    if (escape) { buffer << 'm'; }
     buffer << ch;
-    if (escape) {
-      buffer << '\x1B' << "[0m";
-    }
+    if (escape) { buffer << '\x1B' << "[0m"; }
     hl_start = hl_last = hl_deadstate = hl_shift = false;
 
     if (++printed >= STATUS_WIDTH)

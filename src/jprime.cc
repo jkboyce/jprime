@@ -792,13 +792,13 @@ int main(int argc, char** argv) {
   Coordinator coordinator(config, context);
   coordinator.run();
 
+  std::cout << "------------------------------------------------------------"
+            << std::endl;
   if (context.fileoutputflag) {
     std::cout << "saving checkpoint file '" << context.outfile << "'\n";
     std::sort(context.patterns.begin(), context.patterns.end(),
         pattern_compare);
     save_context(config, context);
   }
-  std::cout << "------------------------------------------------------------"
-            << std::endl;
   return 0;
 }

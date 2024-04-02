@@ -16,7 +16,7 @@
 #include <regex>
 
 
-// Initialize from a string; return true on success, false otherwise
+// Initialize from a string; return true on success, false otherwise.
 
 bool WorkAssignment::from_string(std::string str) {
   std::regex rgx(
@@ -60,7 +60,7 @@ bool WorkAssignment::from_string(std::string str) {
   return true;
 }
 
-// Output a text representation
+// Output a text representation of a WorkAssignment.
 
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
   ost << "{ start_state:" << wa.start_state
