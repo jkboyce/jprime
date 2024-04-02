@@ -93,7 +93,7 @@ void Coordinator::message_worker(const MessageC2W& msg,
   worker.at(worker_id)->inbox_lock.unlock();
 }
 
-// Send messages to all workers requesting a status update
+// Send messages to all workers requesting a status update.
 
 void Coordinator::collect_stats() {
   if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
@@ -420,7 +420,7 @@ bool Coordinator::passes_prechecks() {
 }
 
 // Determine as much as possible about the size of the computation before
-// starting up the workers
+// starting up the workers.
 
 void Coordinator::calc_graph_size() {
   context.full_numstates = Graph::combinations(config.h, config.n);
@@ -630,11 +630,11 @@ double Coordinator::expected_patterns_at_maxlength() {
   return exp(lny);
 }
 
-// Static variable for indicating the user has interrupted execution
+// Static variable for indicating the user has interrupted execution.
 
 bool Coordinator::stopping = false;
 
-// Respond to a SIGINT (ctrl-c) interrupt during program execution.
+// Respond to a SIGINT (ctrl-c) interrupt during execution.
 
 void Coordinator::signal_handler(int signum) {
   (void)signum;
