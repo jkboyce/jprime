@@ -1,24 +1,24 @@
 # jprime
-Parallel depth first search (DFS) to find extremely long prime siteswap juggling patterns.
+Parallel depth first search (DFS) to efficiently find prime siteswap juggling patterns.
 
 Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
 
 Because the graph for $N$ objects and maximum throw $H$ is of finite order equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to correct inaccuracies and include more recent findings.
 
-`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. The search is done in parallel using a work-stealing scheme to balance the work across threads.
+`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. The search is done in parallel using a work-stealing scheme to distribute work across threads.
 
 ## Running
 
 After cloning the repository, on a Unix system run `make` to build the `jprime` binary using the included makefile. Run the binary with no arguments to get a help message.
 
-`jprime` has two modes of operation, intended to search for long prime patterns in complementary ways:
+`jprime` has two modes of operation, intended to search for prime patterns in complementary ways:
 
-- Normal mode, the default (slowest speed). This finds patterns by searching the juggling graph directly for long cycles. Specifying a `min. length` value can make the search much faster.
-- Super mode (fastest speed). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
+- Normal mode, the default. This finds patterns by searching the juggling graph directly for cycles.
+- Super mode (faster). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime, for reasons described in the paper. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
 
-## Results
+## Longest patterns in $(N, H)$
 
-The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the length of the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the theoretical upper bound on that length, as discussed in the 1999 paper.
+The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the length of the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the theoretical upper bound on that length.
 
 Table notes:
 - When $L < L_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern has a superprime inverse, and vice versa.) When there are no complete patterns, the count is listed as "{Type I patterns, Type II patterns}" where Type I patterns are those having an inverse.
@@ -108,3 +108,9 @@ Table notes:
 |  9  |  11  |  55  |  50  |  50  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/9_11_50)  |
 |  9  |  12  |  220  |  201  |  200  |  [{28, 2}](https://github.com/jkboyce/jprime/blob/main/runs/9_12_200)  |
 |  9  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0)  |
+
+## Total pattern counts by $N$, $L$
+
+For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$. This formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), it provides an upper bound on the number $P(N,L)$ of prime patterns of length $L$, not treating rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
+
+Counting prime patterns seems to be a more difficult problem than the general case. One set of results comes from Banaian, Butler, Cox, Davis, Landgraf, and Ponce ([_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296), 2015). They find an exact formula for $P(N,L)$ for the case $N=2$, and also establish a lower bound in the general case: $P(N,L) >= N^{L-1}$.
