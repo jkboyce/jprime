@@ -38,6 +38,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id,
         config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0),
       l_min(config.l_min),
       l_max(l_max) {
+  count.assign(l_max + 1, 0);
   allocate_arrays();
 }
 
@@ -374,7 +375,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
     pattern[i] = (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i)
         : -1);
   }
-  count.assign(l_max + 1, 0);
 
   if (start_state == 0) {
     start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
