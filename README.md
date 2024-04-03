@@ -111,8 +111,6 @@ Table notes:
 
 ## Total pattern counts by $N$, $L$
 
-For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by a formula proved by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$.
-
-Note that this formula counts rotations of a single pattern as distinct, e.g., `531`, `315`, and `153` are counted separately as distinct patterns. Since this formula includes all prime patterns (as well as non-prime ones), it provides an upper bound on the number $P(N,L)$ of prime patterns of length $L$, not treating rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
+For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$. This formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), it provides an upper bound on the number $P(N,L)$ of prime patterns of length $L$, not treating rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
 
 Counting prime patterns seems to be a more difficult problem than the general case. One set of results comes from Banaian, Butler, Cox, Davis, Landgraf, and Ponce ([_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296), 2015). They find an exact formula for $P(N,L)$ for the case $N=2$, and also establish a lower bound in the general case: $P(N,L) >= N^{L-1}$.
