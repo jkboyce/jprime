@@ -65,9 +65,9 @@ struct MessageW2C {
   std::vector<std::uint64_t> count;
   std::uint64_t nnodes = 0;
   double secs_working = 0;
-  unsigned int numstates = 0;
-  unsigned int numcycles = 0;
-  unsigned int numshortcycles = 0;
+  std::uint64_t numstates = 0;
+  std::uint64_t numcycles = 0;
+  std::uint64_t numshortcycles = 0;
 
   // for type RETURN_WORK
   WorkAssignment assignment;

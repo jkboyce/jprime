@@ -13,26 +13,27 @@
 //------------------------------------------------------------------------------
 // Version history:
 //
-//    06/98  Version 1.0
-// 07/29/98  Version 2.0 adds the ability to search for block patterns (an idea
-//           due to Johannes Waldmann), and more command line options.
-// 08/02/98  Finds patterns in dual graph, if faster.
-// 01/02/99  Version 3.0 implements a new algorithm for graph trimming. My
-//           machine now solves (3,9) in 10 seconds (vs 24 hours with V2.0)!
-// 02/14/99  Version 5.0 can find superprime (and nearly superprime) patterns.
-//           It also implements an improved algorithm for the standard mode,
-//           which uses shift cycles to speed the search.
-// 02/17/99  Version 5.1 adds -inverse option to print inverses of patterns
-//           found in -super mode.
-// 09/17/23  Version 6.0 implements parallel depth first search in C++, to run
-//           faster on modern multicore machines.
-// 10/03/23  Version 6.1 enables -inverse option for all modes.
-// 12/21/23  Version 6.2 adds many performance improvements.
-// 01/28/24  Version 6.3 adds pattern counting by length, and search status
-//           display in -verbose mode.
-// 03/04/24  Version 6.4 changes command line interface, improves performance,
-//           and adds non-recursive search.
-// 03/14/24  Version 6.5 adds single-period mode, support for throws > 35.
+// 1998.06     Version 1.0
+// 1998.07.29  Version 2.0 adds the ability to search for block patterns (an
+//             idea due to Johannes Waldmann), and more command line options.
+// 1998.08.02  Finds patterns in dual graph, if faster.
+// 1999.01.02  Version 3.0 implements a new algorithm for graph trimming. My
+//             machine now solves (3,9) in 10 seconds (vs 24 hours with V2.0)!
+// 1999.02.14  Version 5.0 can find superprime (and nearly superprime) patterns.
+//             It also implements an improved algorithm for the standard mode,
+//             which uses shift cycles to speed the search.
+// 1999.02.17  Version 5.1 adds -inverse option to print inverses of patterns
+//             found in -super mode.
+// 2023.09.17  Version 6.0 implements parallel depth first search in C++, to run
+//             faster on modern multicore machines.
+// 2023.10.03  Version 6.1 enables -inverse option for all modes.
+// 2023.12.21  Version 6.2 adds many performance improvements.
+// 2024.01.28  Version 6.3 adds pattern counting by length, and search status
+//             display in -verbose mode.
+// 2024.03.04  Version 6.4 changes command line interface, improves performance,
+//             and adds non-recursive search.
+// 2024.03.14  Version 6.5 adds single-period mode, support for throws > 35.
+// 2024.04.03  Version 6.6 adds efficiency improvements.
 
 
 #include "SearchConfig.h"
@@ -51,7 +52,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.5 (2024.03.14)\n"
+    "jprime version 6.6 (2024.04.03)\n"
     "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for long prime async siteswap patterns. For an\n"
@@ -344,17 +345,18 @@ void save_context(const SearchConfig& config, const SearchContext& context) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.5\n"
+  myfile << "version           6.6\n"
          << "command line      " << context.arglist << '\n'
+         << "states            " << context.full_numstates << '\n'
+         << "shift cycles      " << context.full_numcycles << '\n'
+         << "short cycles      " << context.full_numshortcycles << '\n'
          << "length bound      " << context.l_bound << '\n'
-         << "states            " << context.numstates << '\n'
-         << "shift cycles      " << context.numcycles << '\n'
-         << "short cycles      " << context.numshortcycles << '\n'
+         << "states in memory  " << context.numstates << '\n'
          << "patterns          " << context.npatterns << '\n'
          << "patterns (seen)   " << context.ntotal << '\n'
          << "nodes visited     " << context.nnodes << '\n'
          << "threads           " << context.num_threads << '\n'
-         << "hardware threads  " << std::thread::hardware_concurrency() << '\n'
+         << "cores avail       " << std::thread::hardware_concurrency() << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << context.secs_elapsed << '\n'
          << "seconds working   " << context.secs_working << '\n'
@@ -550,9 +552,8 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.5") {
-          error = "file version is not 6.5";
-          break;
+        if (val != "6.6") {
+          error = "file version is not 6.6";
         }
         break;
       case 1:
@@ -565,50 +566,10 @@ bool load_context(const std::string& file, SearchContext& context) {
         context.arglist = val;
         break;
       case 2:
-        if (s.rfind("length bound", 0) != 0) {
-          error = "syntax in line 3";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.l_bound = std::stoi(val);
-        context.count.resize(context.l_bound + 1, 0);
-        break;
       case 3:
-        if (s.rfind("states", 0) != 0) {
-          error = "syntax in line 4";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.numstates = std::stoi(val);
-        break;
       case 4:
-        if (s.rfind("shift cycles", 0) != 0) {
-          error = "syntax in line 5";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.numcycles = std::stoi(val);
-        break;
       case 5:
-        if (s.rfind("short cycles", 0) != 0) {
-          error = "syntax in line 6";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.numshortcycles = std::stoi(val);
-        break;
       case 6:
-        if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 7";
-          break;
-        }
-        val = s.substr(column_start, s.size());
-        trim(val);
-        context.npatterns = std::stol(val);
         break;
       case 7:
         if (s.rfind("patterns", 0) != 0) {
@@ -617,52 +578,61 @@ bool load_context(const std::string& file, SearchContext& context) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.ntotal = std::stol(val);
+        context.npatterns = std::stoull(val);
         break;
       case 8:
-        if (s.rfind("nodes", 0) != 0) {
+        if (s.rfind("patterns (seen)", 0) != 0) {
           error = "syntax in line 9";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        context.nnodes = std::stol(val);
+        context.ntotal = std::stoull(val);
         break;
       case 9:
-      case 10:
+        if (s.rfind("nodes", 0) != 0) {
+          error = "syntax in line 10";
+          break;
+        }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        context.nnodes = std::stoull(val);
         break;
+      case 10:
       case 11:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 12";
+        break;
+      case 12:
+        if (s.rfind("seconds elapsed", 0) != 0) {
+          error = "syntax in line 13";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.secs_elapsed = std::stod(val);
         break;
-      case 12:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 13";
+      case 13:
+        if (s.rfind("seconds working", 0) != 0) {
+          error = "syntax in line 14";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.secs_working = std::stod(val);
         break;
-      case 13:
-        if (s.rfind("seconds", 0) != 0) {
-          error = "syntax in line 14";
+      case 14:
+        if (s.rfind("seconds avail", 0) != 0) {
+          error = "syntax in line 15";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         context.secs_available = std::stod(val);
         break;
-      case 14:
-        break;
       case 15:
+        break;
+      case 16:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 16";
+          error = "syntax in line 17";
           break;
         }
         section = 2;
@@ -675,7 +645,7 @@ bool load_context(const std::string& file, SearchContext& context) {
       return false;
     }
 
-    if (linenum < 16) {
+    if (linenum < 17) {
       ++linenum;
       continue;
     }
@@ -685,7 +655,7 @@ bool load_context(const std::string& file, SearchContext& context) {
 
     if (val.size() == 0) {
       // ignore empty lines
-    } else if (s.rfind("count", 0) == 0) {
+    } else if (s.rfind("counts", 0) == 0) {
       section = 3;
     } else if (s.rfind("work", 0) == 0) {
       section = 4;
@@ -702,7 +672,8 @@ bool load_context(const std::string& file, SearchContext& context) {
       std::string field1 = s.substr(0, commapos);
       std::string field2 = s.substr(commapos + 1, s.size());
       int i = std::stoi(field1);
-      context.count[i] = static_cast<std::uint64_t>(std::stoull(field2));
+      context.count.resize(i + 1, 0);
+      context.count.at(i) = std::stoull(field2);
     } else if (section == 4) {
       // read work assignments
       WorkAssignment wa;
