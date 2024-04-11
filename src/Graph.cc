@@ -13,6 +13,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cassert>
+#include <limits>
 
 
 Graph::Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa,
@@ -54,9 +55,11 @@ Graph::~Graph() {
 //------------------------------------------------------------------------------
 
 void Graph::init() {
-  // calculate the number of states in the graph
+  // calculate the number of states in the graph; fail if the number of states
+  // cannot fit into an unsigned int
   const std::uint64_t num = (l == 0 ? combinations(h, n) :
       ordered_partitions(n, h, l));
+  assert(num <= std::numeric_limits<unsigned int>::max());
   numstates = static_cast<unsigned int>(num);
 
   // enumerate the states
@@ -306,7 +309,7 @@ std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
 //         cycleperiod[cyclenum] --> period
 
 void Graph::find_shift_cycles() {
-  int cycleindex = 0;
+  unsigned int cycleindex = 0;
   std::vector<unsigned int> cyclestates(h);
 
   for (size_t i = 0; i <= numstates; ++i) {

@@ -351,7 +351,7 @@ void save_context(const SearchConfig& config, const SearchContext& context) {
          << "shift cycles      " << context.full_numcycles << '\n'
          << "short cycles      " << context.full_numshortcycles << '\n'
          << "length bound      " << context.l_bound << '\n'
-         << "states in memory  " << context.numstates << '\n'
+         << "states in memory  " << context.memory_numstates << '\n'
          << "patterns          " << context.npatterns << '\n'
          << "patterns (seen)   " << context.ntotal << '\n'
          << "nodes visited     " << context.nnodes << '\n'

@@ -36,14 +36,8 @@ struct SearchContext {
   // searching for, in the full graph (does not change)
   std::uint64_t l_bound = 0;
 
-  // number of states in constructed juggling graph (does not change)
-  std::uint64_t numstates = 0;
-
-  // number of shift cycles in constructed juggling graph
-  std::uint64_t numcycles = 0;
-
-  // number of short (period < h) shift cycles in constructed juggling graph
-  std::uint64_t numshortcycles = 0;
+  // precalculated quantity for the actual graph in memory
+  std::uint64_t memory_numstates = 0;
 
   // number of patterns found in the range [l_min, l_max]
   std::uint64_t npatterns = 0;

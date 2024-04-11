@@ -398,11 +398,13 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
 
 bool Coordinator::passes_prechecks() {
   calc_graph_size();
+  l_max = (config.l_max > 0) ? config.l_max : context.l_bound;
 
   bool length_error = (config.l_min > context.l_bound ||
-      l_max > context.l_bound);
+      config.l_max > context.l_bound);
 
-  if (config.infoflag || length_error || context.numstates > MAX_STATES) {
+  if (config.infoflag || length_error ||
+      context.memory_numstates > MAX_STATES) {
     if (config.infoflag) {
       print_preamble();
     }
@@ -410,8 +412,8 @@ bool Coordinator::passes_prechecks() {
       std::cout << "No patterns longer than " << context.l_bound
                 << " are possible" << std::endl;
     }
-    if (context.numstates > MAX_STATES) {
-      std::cout << "Number of states " << context.numstates
+    if (context.memory_numstates > MAX_STATES) {
+      std::cout << "Number of states " << context.memory_numstates
                 << " exceeds limit of " << MAX_STATES << std::endl;
     }
     return false;
@@ -421,6 +423,8 @@ bool Coordinator::passes_prechecks() {
 
 // Determine as much as possible about the size of the computation before
 // starting up the workers.
+//
+// Note these quantities may be very large so we use uint64s for all of them.
 
 void Coordinator::calc_graph_size() {
   context.full_numstates = Graph::combinations(config.h, config.n);
@@ -436,20 +440,16 @@ void Coordinator::calc_graph_size() {
     }
   }
 
-  if (config.graphmode == GraphMode::FULL_GRAPH) {
-    context.numstates = context.full_numstates;
-    context.numcycles = context.full_numcycles;
-    context.numshortcycles = context.full_numshortcycles;
-  } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
-    context.numstates =
-        Graph::ordered_partitions(config.n, config.h, config.l_min);
-    // no precalculation of shift cycles for this case
-  }
-
   context.l_bound = (config.mode == RunMode::SUPER_SEARCH)
       ? context.full_numcycles + config.shiftlimit
       : context.full_numstates - context.full_numcycles;
-  l_max = (config.l_max > 0 ? config.l_max : context.l_bound);
+
+  if (config.graphmode == GraphMode::FULL_GRAPH) {
+    context.memory_numstates = context.full_numstates;
+  } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+    context.memory_numstates =
+        Graph::ordered_partitions(config.n, config.h, config.l_min);
+  }
 }
 
 bool Coordinator::is_worker_idle(const unsigned int id) const {
@@ -466,14 +466,6 @@ bool Coordinator::is_worker_splitting(const unsigned int id) const {
 void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.secs_working += msg.secs_working;
-
-  // the worker returned quantities related to the size of the graph; confirm
-  // that these match our precomputed values
-  assert(msg.numstates == context.numstates);
-  if (config.graphmode == GraphMode::FULL_GRAPH) {
-    assert(msg.numcycles == context.numcycles);
-    assert(msg.numshortcycles == context.numshortcycles);
-  }
 
   // pattern counts by length
   assert(msg.count.size() == l_max + 1);
@@ -681,7 +673,7 @@ void Coordinator::print_preamble() const {
 
   if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
     std::cout << "(using period-" << config.l_min << " subgraph: "
-              << context.numstates << " states)" << std::endl;
+              << context.memory_numstates << " states)" << std::endl;
   }
 }
 

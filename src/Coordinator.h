@@ -33,7 +33,7 @@ class Coordinator {
  private:
   const SearchConfig& config;
   SearchContext& context;
-  unsigned int l_max = 0;
+  std::uint64_t l_max = 0;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
   std::set<unsigned int> workers_idle;
@@ -42,7 +42,7 @@ class Coordinator {
   std::vector<unsigned int> worker_endstate;
   std::vector<unsigned int> worker_rootpos;
   static bool stopping;
-  static constexpr std::uint64_t MAX_STATES = 200000u;
+  static constexpr unsigned int MAX_STATES = 200000u;
 
   // check inbox 10x more often than workers do
   static constexpr double NANOSECS_PER_INBOX_CHECK =

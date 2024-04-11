@@ -351,9 +351,6 @@ void Worker::add_data_to_message(MessageW2C& msg) {
   msg.count = count;
   msg.nnodes = nnodes;
   msg.secs_working = secs_working;
-  msg.numstates = graph.numstates;
-  msg.numcycles = graph.numcycles;
-  msg.numshortcycles = graph.numshortcycles;
 
   count.assign(count.size(), 0);
   nnodes = 0;
