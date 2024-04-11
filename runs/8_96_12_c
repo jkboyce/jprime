@@ -4,10 +4,10 @@ states            132601016340
 shift cycles      1381262620
 short cycles      4060
 length bound      131219753720
-states in memory  75582
+states (in mem)   75582
 patterns          17664073336
-patterns (seen)   17918900707
-nodes visited     723666501449
+patterns (total)  17918900707
+nodes completed   723666501449
 threads           4
 cores avail       12
 seconds elapsed   1206.5373
