@@ -33,7 +33,7 @@ class Coordinator {
  private:
   const SearchConfig& config;
   SearchContext& context;
-  std::uint64_t l_max = 0;
+  unsigned int l_max = 0;
   std::vector<Worker*> worker;
   std::vector<std::thread*> worker_thread;
   std::set<unsigned int> workers_idle;

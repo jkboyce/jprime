@@ -398,7 +398,6 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
 
 bool Coordinator::passes_prechecks() {
   calc_graph_size();
-  l_max = (config.l_max > 0) ? config.l_max : context.l_bound;
 
   bool length_error = (config.l_min > context.l_bound ||
       config.l_max > context.l_bound);
@@ -418,6 +417,10 @@ bool Coordinator::passes_prechecks() {
     }
     return false;
   }
+
+  // The computation is a go and everything fits into unsigned ints
+  l_max = (config.l_max > 0) ? config.l_max
+      : static_cast<unsigned int>(context.l_bound);
   return true;
 }
 
@@ -651,11 +654,11 @@ void Coordinator::print_preamble() const {
       std::cout << "(+" << config.shiftlimit << " shifts) ";
   }
   std::cout << "search for length: " << config.l_min;
-  if (l_max > config.l_min) {
-    if (l_max == context.l_bound)
+  if (config.l_max != config.l_min) {
+    if (config.l_max == 0)
       std::cout << '-';
     else
-      std::cout << '-' << l_max;
+      std::cout << '-' << config.l_max;
   }
   std::cout << " (bound " << context.l_bound << ")";
   if (config.groundmode == GroundMode::GROUND_SEARCH) {
