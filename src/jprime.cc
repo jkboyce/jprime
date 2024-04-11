@@ -351,10 +351,10 @@ void save_context(const SearchConfig& config, const SearchContext& context) {
          << "shift cycles      " << context.full_numcycles << '\n'
          << "short cycles      " << context.full_numshortcycles << '\n'
          << "length bound      " << context.l_bound << '\n'
-         << "states in memory  " << context.memory_numstates << '\n'
+         << "states (in mem)   " << context.memory_numstates << '\n'
          << "patterns          " << context.npatterns << '\n'
-         << "patterns (seen)   " << context.ntotal << '\n'
-         << "nodes visited     " << context.nnodes << '\n'
+         << "patterns (total)  " << context.ntotal << '\n'
+         << "nodes completed   " << context.nnodes << '\n'
          << "threads           " << context.num_threads << '\n'
          << "cores avail       " << std::thread::hardware_concurrency() << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
@@ -581,7 +581,7 @@ bool load_context(const std::string& file, SearchContext& context) {
         context.npatterns = std::stoull(val);
         break;
       case 8:
-        if (s.rfind("patterns (seen)", 0) != 0) {
+        if (s.rfind("patterns (", 0) != 0) {
           error = "syntax in line 9";
           break;
         }
