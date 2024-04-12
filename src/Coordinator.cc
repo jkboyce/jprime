@@ -36,9 +36,13 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void Coordinator::run() {
+// Execute the calculation specified in `config` and `context`.
+//
+// Returns true on success, false on failure.
+
+bool Coordinator::run() {
   if (!passes_prechecks())
-    return;
+    return false;
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -78,6 +82,7 @@ void Coordinator::run() {
     std::cout << "\nPARTIAL RESULTS:\n";
   print_preamble();
   print_summary();
+  return true;
 }
 
 //------------------------------------------------------------------------------

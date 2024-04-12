@@ -761,11 +761,12 @@ int main(int argc, char** argv) {
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context);
-  coordinator.run();
+  bool success = coordinator.run();
 
   std::cout << "------------------------------------------------------------"
             << std::endl;
-  if (context.fileoutputflag) {
+
+  if (success && context.fileoutputflag) {
     std::cout << "saving checkpoint file '" << context.outfile << "'\n";
     std::sort(context.patterns.begin(), context.patterns.end(),
         pattern_compare);

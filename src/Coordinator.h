@@ -42,7 +42,7 @@ class Coordinator {
   std::vector<unsigned int> worker_endstate;
   std::vector<unsigned int> worker_rootpos;
   static bool stopping;
-  static constexpr unsigned int MAX_STATES = 200000u;
+  static constexpr unsigned int MAX_STATES = 1000000u;
 
   // check inbox 10x more often than workers do
   static constexpr double NANOSECS_PER_INBOX_CHECK =
@@ -63,7 +63,7 @@ class Coordinator {
 
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
-  void run();
+  bool run();
 
  private:
   void message_worker(const MessageC2W& msg, unsigned int worker_id) const;
