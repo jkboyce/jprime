@@ -56,7 +56,7 @@ Table notes:
 |  3  |  22  |  1540  |  1470  |  1469  |  [{18, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_22_1469)  |
 |  3  |  23  |  1771  |  1694  |  1693  |  [{56, 4}](https://github.com/jkboyce/jprime/blob/main/runs/3_23_1693)  |
 |  3  |  24  |  2024  |  1939  |  1938  |  [{44, 3}](https://github.com/jkboyce/jprime/blob/main/runs/3_24_1938)  |
-|  3  |  25  |  2300  |  2208  |  [< 2208](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s0)  |  {[?](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1_g), ?}  |
+|  3  |  25  |  2300  |  2208  |  2207  |  {[0](https://github.com/jkboyce/jprime/blob/main/runs/3_25_s1_g), [>= 2](https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/3_25_2207)}  |
 |  3  |  26  |  2600  |  2500  |  2499  |  {[180](https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g), ?}  |
 |  3  |  27  |  2925  |  2816  |  2816  |  [1](https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g)  |
 |  3  |  28  |  3276  |  3159  |  [< 3159](https://github.com/jkboyce/jprime/blob/main/runs/3_28_s0_g)  |  {?, ?}  |
@@ -111,6 +111,6 @@ Table notes:
 
 ## Total pattern counts by $N$, $L$
 
-For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$. This formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), it provides an upper bound on the number $P(N,L)$ of prime patterns of length $L$, not treating rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
+For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$. This formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), and because each prime pattern occurs exactly $L$ times in the count, we get an upper bound on the number $P(N,L)$ of prime patterns of length $L$ where we do not treat rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
 
 Counting prime patterns seems to be a more difficult problem than the general case. One set of results comes from Banaian, Butler, Cox, Davis, Landgraf, and Ponce ([_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296), 2015). They find an exact formula for $P(N,L)$ for the case $N=2$, and also establish a lower bound in the general case: $P(N,L) >= N^{L-1}$.
