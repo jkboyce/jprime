@@ -311,13 +311,17 @@ std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
 void Graph::find_shift_cycles() {
   unsigned int cycleindex = 0;
   std::vector<unsigned int> cyclestates(h);
+  const unsigned int UNUSED = -1;
 
   for (size_t i = 0; i <= numstates; ++i) {
-    cyclenum[i] = 0;
-    cycleperiod[i] = 0;
+    cyclenum[i] = UNUSED;
+    cycleperiod[i] = UNUSED;
   }
 
   for (size_t i = 1; i <= numstates; ++i) {
+    if (cyclenum[i] != UNUSED)
+      continue;
+
     State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
@@ -413,7 +417,7 @@ void Graph::gen_matrices() {
       continue;
     }
 
-    // each row is calculated once per WorkAssignment
+    // each row is calculated once per execution of gen_patterns()
     if (outdegree[i] == 0) {
       unsigned int outthrownum = 0;
       for (int throwval = h; throwval >= 0; --throwval) {
@@ -633,15 +637,16 @@ unsigned int Graph::get_statenum(const State& s) const {
 
 unsigned int Graph::advance_state(unsigned int statenum,
     unsigned int throwval) const {
-  if (throwval < 0 || throwval > state.at(statenum).h)
+  const State& s = state.at(statenum);
+
+  if (throwval < 0 || throwval > s.h)
     return 0;
-  if (throwval > 0 && state.at(statenum).slot.at(0) == 0)
+  if (throwval > 0 && s.slot.at(0) == 0)
     return 0;
-  if (throwval < state.at(statenum).h &&
-      state.at(statenum).slot.at(throwval) != 0)
+  if (throwval < s.h && s.slot.at(throwval) != 0)
     return 0;
 
-  return get_statenum(state.at(statenum).advance_with_throw(throwval));
+  return get_statenum(s.advance_with_throw(throwval));
 }
 
 // Return the reverse of a given state, where both the input and output are
