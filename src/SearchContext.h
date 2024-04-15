@@ -16,6 +16,7 @@
 #ifndef JPRIME_SEARCHCONTEXT_H_
 #define JPRIME_SEARCHCONTEXT_H_
 
+#include "SearchConfig.h"
 #include "WorkAssignment.h"
 
 #include <string>
@@ -46,26 +47,33 @@ struct SearchContext {
   // total number of patterns seen, of any length
   std::uint64_t ntotal = 0;
 
-  // total number of nodes visited in the search tree
+  // total number of nodes completed in the search tree
   std::uint64_t nnodes = 0;
 
   // wall clock time elapsed
   double secs_elapsed = 0;
 
-  // sum of working (not idle) time for all workers
+  // sum of working (not idle) time for all workers (core-seconds)
   double secs_working = 0;
 
   // sum of available working time for all workers (busy or idle)
   double secs_available = 0;
 
-  // record of patterns found with length in target range
+  // patterns found with length in the range [l_min, l_max]
   std::vector<std::string> patterns;
 
-  // number of patterns found at all lengths
+  // count of patterns found at each length, for all lengths
   std::vector<std::uint64_t> count;
 
   // work assignments remaining not assigned to a worker
   std::list<WorkAssignment> assignments;
+
+  // methods to save and load on disk
+  void to_file(const std::string& file);
+  void from_file(const std::string& file);
 };
+
+// Standard library compliant Compare relation for patterns
+bool pattern_compare(const std::string& pat1, const std::string& pat2);
 
 #endif

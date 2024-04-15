@@ -12,7 +12,7 @@
 
 #include <iostream>
 #include <sstream>
-#include <exception>
+#include <stdexcept>
 
 
 // Initialize SearchConfig from command line arguments.
