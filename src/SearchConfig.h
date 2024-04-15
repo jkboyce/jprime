@@ -1,7 +1,8 @@
 //
 // SearchConfig.h
 //
-// Defines items that are constant during the duration of the search
+// This structure defines the calculation requested by the user, as specified
+// by command line arguments.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
@@ -56,7 +57,7 @@ struct SearchConfig {
   // print patterns to console
   bool printflag = true;
 
-  // print inverses in super mode
+  // also find pattern inverses, to print/save with patterns
   bool invertflag = false;
 
   // find patterns in dual graph
@@ -71,21 +72,27 @@ struct SearchConfig {
   // print info about search, but do not execute
   bool infoflag = false;
 
-  // if 1 then print as letter (a=10, b=11, ...), if >1 then print as an integer
-  // with the given field width
-  unsigned int throwdigits = 1;
-
   // print without using +, - for h and 0 (when throwdigits = 1)
   bool noplusminusflag = false;
 
   // keep a record of patterns seen at each length
   bool countflag = false;
 
-  // for super mode
+  // for super mode, number of shift throws to allow
   unsigned int shiftlimit = 0;
 
   // throw values to exclude from search
   std::vector<bool> xarray;
+
+  // if 1 then print as letter (a=10, b=11, ...), if >1 then print as an integer
+  // with the given field width
+  unsigned int throwdigits = 1;
+
+  // work stealing algorithm to use
+  unsigned int steal_alg = 1;
+
+  // work splitting algorithm to use
+  unsigned int split_alg = 1;
 };
 
 #endif

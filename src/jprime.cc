@@ -181,8 +181,8 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-steal_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        if (context != nullptr)
-          context->steal_alg = atoi(argv[i]);
+        if (config != nullptr)
+          config->steal_alg = atoi(argv[i]);
       } else {
         std::cerr << "No number provided after -steal_alg\n";
         std::exit(EXIT_FAILURE);
@@ -190,8 +190,8 @@ void parse_args(size_t argc, char** argv, SearchConfig* const config,
     } else if (!strcmp(argv[i], "-split_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        if (context != nullptr)
-          context->split_alg = atoi(argv[i]);
+        if (config != nullptr)
+          config->split_alg = atoi(argv[i]);
       } else {
         std::cerr << "No number provided after -split_alg\n";
         std::exit(EXIT_FAILURE);
@@ -761,7 +761,7 @@ int main(int argc, char** argv) {
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context);
-  bool success = coordinator.run();
+  const bool success = coordinator.run();
 
   std::cout << "------------------------------------------------------------"
             << std::endl;

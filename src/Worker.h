@@ -94,7 +94,7 @@ class Worker {
   void record_elapsed_time(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start);
   void calibrate_inbox_check();
-  void process_split_work_request(const MessageC2W& msg);
+  void process_split_work_request();
   void send_work_to_coordinator(const WorkAssignment& wa);
   void send_stats_to_coordinator();
   void add_data_to_message(MessageW2C& msg);
@@ -104,7 +104,7 @@ class Worker {
   void notify_coordinator_update() const;
   void build_rootpos_throw_options(unsigned int from_state,
       unsigned int min_column);
-  WorkAssignment split_work_assignment(int split_alg);
+  WorkAssignment split_work_assignment(unsigned int split_alg);
   WorkAssignment split_work_assignment_takestartstates();
   WorkAssignment split_work_assignment_takeall();
   WorkAssignment split_work_assignment_takehalf();

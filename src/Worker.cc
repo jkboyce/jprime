@@ -180,7 +180,7 @@ void Worker::process_inbox_running() {
     if (msg.type == messages_C2W::DO_WORK) {
       assert(false);
     } else if (msg.type == messages_C2W::SPLIT_WORK) {
-      process_split_work_request(msg);
+      process_split_work_request();
     } else if (msg.type == messages_C2W::SEND_STATS) {
       send_stats_to_coordinator();
     } else if (msg.type == messages_C2W::STOP_WORKER) {
@@ -229,14 +229,14 @@ void Worker::calibrate_inbox_check() {
 
 // Respond to the coordinator's request to split the current work assignment.
 
-void Worker::process_split_work_request(const MessageC2W& msg) {
+void Worker::process_split_work_request() {
   if (config.verboseflag) {
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " splitting work...";
     message_coordinator_text(buffer.str());
   }
 
-  WorkAssignment wa = split_work_assignment(msg.split_alg);
+  WorkAssignment wa = split_work_assignment(config.split_alg);
   send_work_to_coordinator(wa);
 
   // Avoid double counting nodes: Each of the "prefix" nodes up to and
@@ -457,7 +457,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
 // Return a work assignment that corresponds to a portion of the worker's
 // current work assignment, for handing off to another idle worker.
 
-WorkAssignment Worker::split_work_assignment(int split_alg) {
+WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
   if (end_state > start_state) {
     return split_work_assignment_takestartstates();
   }

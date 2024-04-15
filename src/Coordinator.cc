@@ -336,7 +336,7 @@ void Coordinator::steal_work() {
     }
 
     unsigned int id = 0;
-    switch (context.steal_alg) {
+    switch (config.steal_alg) {
       case 1:
         id = find_stealing_target_mostremaining();
         break;
@@ -347,7 +347,6 @@ void Coordinator::steal_work() {
 
     MessageC2W msg;
     msg.type = messages_C2W::SPLIT_WORK;
-    msg.split_alg = context.split_alg;
     message_worker(msg, id);
     workers_splitting.insert(id);
     sent_split_request = true;
