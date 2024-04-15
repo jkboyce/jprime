@@ -58,7 +58,7 @@ bool Coordinator::run() {
     steal_work();
     process_inbox();
 
-    if ((workers_idle.size() == context.num_threads
+    if ((workers_idle.size() == config.num_threads
           && context.assignments.size() == 0) || Coordinator::stopping) {
       stop_workers();
       // any worker that was running will have sent back a RETURN_WORK message
@@ -73,7 +73,7 @@ bool Coordinator::run() {
   std::chrono::duration<double> diff = end - start;
   double runtime = diff.count();
   context.secs_elapsed += runtime;
-  context.secs_available += runtime * context.num_threads;
+  context.secs_available += runtime * config.num_threads;
 
   erase_status_output();
   if (config.verboseflag)
@@ -106,7 +106,7 @@ void Coordinator::collect_stats() {
 
   stats_counter = 0;
   stats_received = 0;
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::SEND_STATS;
     message_worker(msg, id);
@@ -240,7 +240,7 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
     return;
 
   worker_status.at(msg.worker_id) = make_worker_status(msg);
-  if (++stats_received == context.num_threads) {
+  if (++stats_received == config.num_threads) {
     erase_status_output();
     print_status_output();
   }
@@ -325,7 +325,7 @@ void Coordinator::steal_work() {
   while (workers_idle.size() > workers_splitting.size()) {
     // when all of the workers are either idle or queued for splitting, there
     // are no active workers to take work from
-    if (workers_idle.size() + workers_splitting.size() == context.num_threads) {
+    if (workers_idle.size() + workers_splitting.size() == config.num_threads) {
       if (config.verboseflag && sent_split_request) {
         erase_status_output();
         std::cout << "could not steal work (" << workers_idle.size()
@@ -343,7 +343,7 @@ void Coordinator::steal_work() {
       default:
         assert(false);
     }
-    assert(id < context.num_threads);
+    assert(id < config.num_threads);
 
     MessageC2W msg;
     msg.type = messages_C2W::SPLIT_WORK;
@@ -371,7 +371,7 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
   unsigned int max_startstates_remaining = 0;
   unsigned int min_rootpos = 0;
 
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < config.num_threads; ++id) {
     if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
 
@@ -499,7 +499,7 @@ void Coordinator::start_workers() {
   if (config.verboseflag)
     std::cout << "Started on: " << current_time_string();
 
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < config.num_threads; ++id) {
     if (config.verboseflag)
       std::cout << "worker " << id << " starting..." << std::endl;
 
@@ -524,7 +524,7 @@ void Coordinator::stop_workers() {
   if (config.verboseflag)
     erase_status_output();
 
-  for (unsigned int id = 0; id < context.num_threads; ++id) {
+  for (unsigned int id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
     msg.type = messages_C2W::STOP_WORKER;
     message_worker(msg, id);
@@ -706,7 +706,7 @@ void Coordinator::print_summary() const {
   std::cout << "running time = "
             << std::fixed << std::setprecision(4)
             << context.secs_elapsed << " sec";
-  if (context.num_threads > 1) {
+  if (config.num_threads > 1) {
     std::cout << " (worker util = " << std::setprecision(2)
               << ((context.secs_working / context.secs_available) * 100)
               << " %)";
@@ -723,7 +723,7 @@ void Coordinator::print_summary() const {
 void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
-  for (unsigned int i = 0; i < context.num_threads + 2; ++i) {
+  for (unsigned int i = 0; i < config.num_threads + 2; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
@@ -746,7 +746,7 @@ void Coordinator::print_status_output() {
       std::cout << ' ';
   }
   std::cout << "dist  len\n";
-  for (unsigned int i = 0; i < context.num_threads; ++i)
+  for (unsigned int i = 0; i < config.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
   stats_printed = true;

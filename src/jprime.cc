@@ -43,12 +43,15 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <sstream>
 #include <algorithm>
 #include <cstring>
 #include <string>
-#include <stdexcept>
+#include <exception>
 
+
+//------------------------------------------------------------------------------
+// Help message
+//------------------------------------------------------------------------------
 
 void print_help() {
   const std::string helpString =
@@ -99,414 +102,6 @@ void print_help() {
 }
 
 //------------------------------------------------------------------------------
-// Parsing command line arguments
-//------------------------------------------------------------------------------
-
-void parse_args(size_t argc, char** argv, SearchConfig* const config,
-      SearchContext* const context) {
-  bool file_output_mode = false;
-
-  // defaults for length
-  unsigned int l_min = 1;
-  unsigned int l_max = 0;
-
-  if (config != nullptr) {
-    config->n = atoi(argv[1]);
-    if (config->n < 1) {
-      std::cerr << "Must have at least 1 object\n";
-      std::exit(EXIT_FAILURE);
-    }
-    config->h = atoi(argv[2]);
-    if (config->h < config->n) {
-      std::cerr << "Max. throw value must equal or exceed number of objects\n";
-      std::exit(EXIT_FAILURE);
-    }
-
-    // defaults for excluded self-throws
-    config->xarray.assign(config->h + 1, false);
-
-    // defaults for using dual graph
-    if (config->h > (2 * config->n)) {
-      config->dualflag = true;
-      config->n = config->h - config->n;
-    }
-  }
-
-  for (size_t i = 1; i < argc; ++i) {
-    if (!strcmp(argv[i], "-noprint")) {
-      if (config != nullptr)
-        config->printflag = false;
-    } else if (!strcmp(argv[i], "-inverse")) {
-      if (config != nullptr)
-        config->invertflag = true;
-    } else if (!strcmp(argv[i], "-g")) {
-      if (config != nullptr)
-        config->groundmode = GroundMode::GROUND_SEARCH;
-    } else if (!strcmp(argv[i], "-ng")) {
-      if (config != nullptr)
-        config->groundmode = GroundMode::EXCITED_SEARCH;
-    } else if (!strcmp(argv[i], "-noplus")) {
-      if (config != nullptr) {
-        config->noplusminusflag = true;
-      }
-    } else if (!strcmp(argv[i], "-super")) {
-      if ((i + 1) < argc) {
-        if (config != nullptr && config->mode != RunMode::NORMAL_SEARCH) {
-          std::cerr << "Can only select one mode at a time\n";
-          std::exit(EXIT_FAILURE);
-        }
-        ++i;
-        if (config != nullptr) {
-          config->mode = RunMode::SUPER_SEARCH;
-          config->shiftlimit = atoi(argv[i]);
-          if (config->shiftlimit == 0)
-            config->xarray.at(0) = config->xarray.at(config->h) = true;
-        }
-      } else {
-        std::cerr << "Must provide shift limit in -super mode\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (!strcmp(argv[i], "-file")) {
-      if ((i + 1) < argc) {
-        file_output_mode = true;
-        ++i;
-        if (context != nullptr) {
-          context->fileoutputflag = true;
-          context->outfile = std::string(argv[i]);
-        }
-      } else {
-        std::cerr << "No filename provided after -file\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (!strcmp(argv[i], "-steal_alg")) {
-      if ((i + 1) < argc) {
-        ++i;
-        if (config != nullptr)
-          config->steal_alg = atoi(argv[i]);
-      } else {
-        std::cerr << "No number provided after -steal_alg\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (!strcmp(argv[i], "-split_alg")) {
-      if ((i + 1) < argc) {
-        ++i;
-        if (config != nullptr)
-          config->split_alg = atoi(argv[i]);
-      } else {
-        std::cerr << "No number provided after -split_alg\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (!strcmp(argv[i], "-x")) {
-      ++i;
-      while (i < argc && argv[i][0] != '-') {
-        unsigned int j = static_cast<unsigned int>(atoi(argv[i]));
-        if (config != nullptr && j == config->h) {
-          std::cerr << "Cannot exclude max. throw value with -x\n";
-          std::exit(EXIT_FAILURE);
-        }
-        if (config != nullptr && j >= 0 && j < config->h)
-          config->xarray.at(config->dualflag ? (config->h - j) : j) = true;
-        ++i;
-      }
-      --i;
-    } else if (!strcmp(argv[i], "-verbose")) {
-      if (config != nullptr)
-        config->verboseflag = true;
-    } else if (!strcmp(argv[i], "-count")) {
-      if (config != nullptr)
-        config->countflag = true;
-    } else if (!strcmp(argv[i], "-info")) {
-      if (config != nullptr)
-        config->infoflag = true;
-    } else if (!strcmp(argv[i], "-status")) {
-      if (config != nullptr)
-        config->statusflag = true;
-    } else if (!strcmp(argv[i], "-threads")) {
-      if ((i + 1) < argc) {
-        ++i;
-        if (context != nullptr)
-          context->num_threads = static_cast<unsigned int>(atoi(argv[i]));
-      } else {
-        std::cerr << "Missing number of threads after -threads\n";
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (i == 3) {
-      // try to parse argument as a length or length range
-      bool success = false;
-      std::string s{argv[i]};
-      int hyphens = std::count(s.begin(), s.end(), '-');
-      if (hyphens == 0) {
-        int num = atoi(argv[i]);
-        if (num > 0) {
-          l_min = l_max = static_cast<unsigned int>(num);
-          success = true;
-        }
-      } else if (hyphens == 1) {
-        success = true;
-        auto hpos = s.find('-');
-        std::string s1 = s.substr(0, hpos);
-        std::string s2 = s.substr(hpos + 1);
-        if (s1.size() > 0) {
-          int num = atoi(s1.c_str());
-          if (num > 0)
-            l_min = static_cast<unsigned int>(num);
-          else
-            success = false;
-        }
-        if (s2.size() > 0) {
-          int num = atoi(s2.c_str());
-          if (num > 0)
-            l_max = static_cast<unsigned int>(num);
-          else
-            success = false;
-        }
-      }
-
-      if (!success) {
-        std::cerr << "Error parsing length: " << argv[i] << '\n';
-        std::exit(EXIT_FAILURE);
-      }
-    } else if (i > 3) {
-      std::cerr << "Unrecognized input: " << argv[i] << '\n';
-      std::exit(EXIT_FAILURE);
-    }
-  }
-
-  if (config != nullptr) {
-    config->l_min = l_min;
-    config->l_max = l_max;
-
-    // graph type
-    if (config->l_min == config->l_max && config->l_min < config->h) {
-      config->graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
-    } else {
-      config->graphmode = GraphMode::FULL_GRAPH;
-    }
-
-    // output throws as letters (a, b, ...) or numbers (10, 11, ...)
-    unsigned int max_throw_value = config->h;
-    if (l_max > 0) {
-      if (config->dualflag) {
-        max_throw_value = std::min(max_throw_value, (config->h - config->n) *
-            config->l_max);
-      } else {
-        max_throw_value = std::min(max_throw_value, config->n * config->l_max);
-      }
-    }
-    if (max_throw_value < 36) {
-      config->throwdigits = 1;  // 'z' = 35
-    } else {
-      config->noplusminusflag = true;
-      config->throwdigits = 2;
-      for (unsigned int temp = 100; temp <= max_throw_value; temp *= 10) {
-        ++config->throwdigits;
-      }
-    }
-
-    // default to -count mode when -noprint is active and no output file
-    if (!file_output_mode && !config->printflag) {
-      config->countflag = true;
-    }
-  }
-
-  // consistency checks
-  if (context != nullptr && context->num_threads < 1) {
-    std::cerr << "Must have at least one worker thread\n";
-    std::exit(EXIT_FAILURE);
-  }
-}
-
-void parse_args(std::string str, SearchConfig* const config,
-      SearchContext* const context) {
-  // tokenize the argslist string
-  std::stringstream ss(str);
-  std::string s;
-  std::vector<std::string> args;
-  while (std::getline(ss, s, ' '))
-    args.push_back(s);
-
-  const size_t argc = args.size();
-  char** argv = new char*[argc];
-  for (size_t i = 0; i < argc; ++i)
-    argv[i] = &(args[i][0]);
-
-  parse_args(argc, argv, config, context);
-
-  delete[] argv;
-}
-
-//------------------------------------------------------------------------------
-// Saving checkpoint files
-//------------------------------------------------------------------------------
-
-void save_context(const SearchConfig& config, const SearchContext& context) {
-  std::ofstream myfile;
-  myfile.open(context.outfile, std::ios::out | std::ios::trunc);
-  if (!myfile || !myfile.is_open())
-    return;
-
-  myfile << "version           6.6\n"
-         << "command line      " << context.arglist << '\n'
-         << "states            " << context.full_numstates << '\n'
-         << "shift cycles      " << context.full_numcycles << '\n'
-         << "short cycles      " << context.full_numshortcycles << '\n'
-         << "length bound      " << context.l_bound << '\n'
-         << "states (in mem)   " << context.memory_numstates << '\n'
-         << "patterns          " << context.npatterns << '\n'
-         << "patterns (total)  " << context.ntotal << '\n'
-         << "nodes completed   " << context.nnodes << '\n'
-         << "threads           " << context.num_threads << '\n'
-         << "cores avail       " << std::thread::hardware_concurrency() << '\n'
-         << "seconds elapsed   " << std::fixed << std::setprecision(4)
-                                 << context.secs_elapsed << '\n'
-         << "seconds working   " << context.secs_working << '\n'
-         << "seconds avail     " << context.secs_available << '\n';
-
-  myfile << "\npatterns\n";
-  for (const std::string& str : context.patterns)
-    myfile << str << '\n';
-
-  myfile << "\ncounts\n";
-  for (size_t i = 1; i <= (config.l_max > 0 ? config.l_max : context.l_bound);
-      ++i) {
-    myfile << i << ", " << context.count[i] << '\n';
-  }
-
-  if (context.assignments.size() > 0) {
-    myfile << "\nwork assignments remaining\n";
-    for (const WorkAssignment& wa : context.assignments)
-      myfile << "  " << wa << '\n';
-  }
-
-  myfile.close();
-}
-
-//------------------------------------------------------------------------------
-// Sorting patterns
-//------------------------------------------------------------------------------
-
-// Convert a pattern line printed as comma-separated integers into a vector of
-// ints.
-
-std::vector<int> parse_pattern_line(const std::string& p) {
-  std::string pat;
-  std::vector<int> result;
-
-  // remove the first colon and anything beyond
-  pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
-
-  // extract part between first and second '*'s if present
-  auto star = std::find(pat.begin(), pat.end(), '*');
-  if (star != pat.end()) {
-    pat = {star + 1, std::find(star + 1, pat.end(), '*')};
-  }
-
-  auto x = pat.begin();
-  while (true) {
-    auto y = std::find(x, pat.end(), ',');
-    std::string s{x, y};
-    result.push_back(atoi(s.c_str()));
-    if (y == pat.end())
-      break;
-    x = y + 1;
-  }
-
-  return result;
-}
-
-// Compare patterns printed as comma-separated integers
-//
-// Test case: jprime 7 42 6 -file test
-
-bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
-  std::vector<int> vec1 = parse_pattern_line(pat1);
-  std::vector<int> vec2 = parse_pattern_line(pat2);
-
-  if (vec2.size() == 0)
-    return false;
-  if (vec1.size() == 0)
-    return true;
-
-  // shorter patterns sort earlier
-  if (vec1.size() < vec2.size())
-    return true;
-  if (vec1.size() > vec2.size())
-    return false;
-
-  // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
-    return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
-    return false;
-
-  // sort lower leading throws first
-  for (size_t i = 0; i < vec1.size(); ++i) {
-    if (vec1[i] == vec2[i])
-      continue;
-    return vec1[i] < vec2[i];
-  }
-  return false;
-}
-
-// Compare patterns printed with letters (10='a', etc.)
-
-bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
-  if (pat2.size() == 0)
-    return false;
-  if (pat1.size() == 0)
-    return true;
-
-  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
-  unsigned int pat1_end = pat1_start;
-  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
-    ++pat1_end;
-
-  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
-  unsigned int pat2_end = pat2_start;
-  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
-    ++pat2_end;
-
-  // shorter patterns sort earlier
-  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
-    return true;
-  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
-    return false;
-
-  // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
-    return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
-    return false;
-
-  // ascii order, except '+' is higher than any other character
-  for (size_t i = pat1_start; i < pat1_end; ++i) {
-    if (pat1[i] == pat2[i])
-      continue;
-    if (pat1[i] == '+' && pat2[i] != '+')
-      return false;
-    if (pat1[i] != '+' && pat2[i] == '+')
-      return true;
-    return pat1[i] < pat2[i];
-  }
-  return false;
-}
-
-// Standard library compliant Compare relation for patterns.
-//
-// Returns true if the first argument appears before the second in a strict
-// weak ordering, and false otherwise.
-
-bool pattern_compare(const std::string& pat1, const std::string& pat2) {
-  bool has_comma = (std::find(pat1.begin(), pat1.end(), ',') != pat1.end() ||
-      std::find(pat2.begin(), pat2.end(), ',') != pat2.end());
-
-  if (has_comma)
-    return pattern_compare_ints(pat1, pat2);
-  else
-    return pattern_compare_letters(pat1, pat2);
-}
-
-//------------------------------------------------------------------------------
 // Loading checkpoint files
 //------------------------------------------------------------------------------
 
@@ -524,7 +119,10 @@ static inline void trim(std::string& s) {
   );
 }
 
-// return true on success
+// Load a checkpoint file from disk into the SearchContext structure.
+//
+// Returns true on success. In case of any error, print an error message to
+// std::cerr and return false.
 
 bool load_context(const std::string& file, SearchContext& context) {
   std::ifstream myfile;
@@ -694,35 +292,216 @@ bool load_context(const std::string& file, SearchContext& context) {
 }
 
 //------------------------------------------------------------------------------
+// Saving checkpoint files
+//------------------------------------------------------------------------------
+
+void save_context(const SearchConfig& config, const SearchContext& context) {
+  std::ofstream myfile;
+  myfile.open(config.outfile, std::ios::out | std::ios::trunc);
+  if (!myfile || !myfile.is_open())
+    return;
+
+  myfile << "version           6.6\n"
+         << "command line      " << context.arglist << '\n'
+         << "states            " << context.full_numstates << '\n'
+         << "shift cycles      " << context.full_numcycles << '\n'
+         << "short cycles      " << context.full_numshortcycles << '\n'
+         << "length bound      " << context.l_bound << '\n'
+         << "states (in mem)   " << context.memory_numstates << '\n'
+         << "patterns          " << context.npatterns << '\n'
+         << "patterns (total)  " << context.ntotal << '\n'
+         << "nodes completed   " << context.nnodes << '\n'
+         << "threads           " << config.num_threads << '\n'
+         << "cores avail       " << std::thread::hardware_concurrency() << '\n'
+         << "seconds elapsed   " << std::fixed << std::setprecision(4)
+                                 << context.secs_elapsed << '\n'
+         << "seconds working   " << context.secs_working << '\n'
+         << "seconds avail     " << context.secs_available << '\n';
+
+  myfile << "\npatterns\n";
+  for (const std::string& str : context.patterns)
+    myfile << str << '\n';
+
+  myfile << "\ncounts\n";
+  for (size_t i = 1; i <= (config.l_max > 0 ? config.l_max : context.l_bound);
+      ++i) {
+    myfile << i << ", " << context.count[i] << '\n';
+  }
+
+  if (context.assignments.size() > 0) {
+    myfile << "\nwork assignments remaining\n";
+    for (const WorkAssignment& wa : context.assignments)
+      myfile << "  " << wa << '\n';
+  }
+
+  myfile.close();
+}
+
+//------------------------------------------------------------------------------
+// Sorting patterns
+//------------------------------------------------------------------------------
+
+// Convert a pattern line printed as comma-separated integers into a vector of
+// ints.
+
+std::vector<int> parse_pattern_line(const std::string& p) {
+  std::string pat;
+  std::vector<int> result;
+
+  // remove the first colon and anything beyond
+  pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
+
+  // extract part between first and second '*'s if present
+  auto star = std::find(pat.begin(), pat.end(), '*');
+  if (star != pat.end()) {
+    pat = {star + 1, std::find(star + 1, pat.end(), '*')};
+  }
+
+  auto x = pat.begin();
+  while (true) {
+    auto y = std::find(x, pat.end(), ',');
+    std::string s{x, y};
+    result.push_back(atoi(s.c_str()));
+    if (y == pat.end())
+      break;
+    x = y + 1;
+  }
+
+  return result;
+}
+
+// Compare patterns printed as comma-separated integers
+//
+// Test case: jprime 7 42 6 -file test
+
+bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
+  std::vector<int> vec1 = parse_pattern_line(pat1);
+  std::vector<int> vec2 = parse_pattern_line(pat2);
+
+  if (vec2.size() == 0)
+    return false;
+  if (vec1.size() == 0)
+    return true;
+
+  // shorter patterns sort earlier
+  if (vec1.size() < vec2.size())
+    return true;
+  if (vec1.size() > vec2.size())
+    return false;
+
+  // ground state before excited state patterns
+  if (pat1[0] == ' ' && pat2[0] == '*')
+    return true;
+  if (pat1[0] == '*' && pat2[0] == ' ')
+    return false;
+
+  // sort lower leading throws first
+  for (size_t i = 0; i < vec1.size(); ++i) {
+    if (vec1[i] == vec2[i])
+      continue;
+    return vec1[i] < vec2[i];
+  }
+  return false;
+}
+
+// Compare patterns printed with letters (10='a', etc.)
+
+bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
+  if (pat2.size() == 0)
+    return false;
+  if (pat1.size() == 0)
+    return true;
+
+  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  unsigned int pat1_end = pat1_start;
+  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
+    ++pat1_end;
+
+  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  unsigned int pat2_end = pat2_start;
+  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
+    ++pat2_end;
+
+  // shorter patterns sort earlier
+  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
+    return true;
+  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
+    return false;
+
+  // ground state before excited state patterns
+  if (pat1[0] == ' ' && pat2[0] == '*')
+    return true;
+  if (pat1[0] == '*' && pat2[0] == ' ')
+    return false;
+
+  // ascii order, except '+' is higher than any other character
+  for (size_t i = pat1_start; i < pat1_end; ++i) {
+    if (pat1[i] == pat2[i])
+      continue;
+    if (pat1[i] == '+' && pat2[i] != '+')
+      return false;
+    if (pat1[i] != '+' && pat2[i] == '+')
+      return true;
+    return pat1[i] < pat2[i];
+  }
+  return false;
+}
+
+// Standard library compliant Compare relation for patterns.
+//
+// Returns true if the first argument appears before the second in a strict
+// weak ordering, and false otherwise.
+
+bool pattern_compare(const std::string& pat1, const std::string& pat2) {
+  bool has_comma = (std::find(pat1.begin(), pat1.end(), ',') != pat1.end() ||
+      std::find(pat2.begin(), pat2.end(), ',') != pat2.end());
+
+  if (has_comma)
+    return pattern_compare_ints(pat1, pat2);
+  else
+    return pattern_compare_letters(pat1, pat2);
+}
+
+//------------------------------------------------------------------------------
 // Prep `config` and `context` data structures for calculation
 //------------------------------------------------------------------------------
 
 void prepare_calculation(int argc, char** argv, SearchConfig& config,
       SearchContext& context) {
   // first check if the user wants file output mode
-  SearchContext args_context;
-  parse_args(argc, argv, nullptr, &args_context);
+  std::string outfile;
+  for (int i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "-file") && (i + 1) < argc) {
+      outfile = std::string(argv[i + 1]);
+      break;
+    }
+  }
 
-  if (args_context.fileoutputflag) {
-    std::ifstream myfile(args_context.outfile);
+  if (outfile.size() > 0) {
+    std::ifstream myfile(outfile);
     if (myfile.good()) {
       // file exists; try resuming calculation
-      std::cout << "reading checkpoint file '" << args_context.outfile << "'\n";
+      std::cout << "reading checkpoint file '" << outfile << "'\n";
 
-      if (!load_context(args_context.outfile, context))
+      if (!load_context(outfile, context)) {
         std::exit(EXIT_FAILURE);
+      }
       if (context.assignments.size() == 0) {
         std::cout << "calculation is finished" << std::endl;
         std::exit(0);
       }
 
-      // parse the loaded argument list (from the original invocation) to get
-      // the config, plus fill in the elements of context that weren't loaded
-      parse_args(context.arglist, &config, &context);
+      // get config from the original arguments
+      try {
+        config.from_args(context.arglist);
+      } catch (const std::invalid_argument& ie) {
+        std::cerr << ie.what() << '\n';
+        std::exit(EXIT_FAILURE);
+      }
 
-      // in case the user has renamed the checkpoint file since the original
-      // invocation, use current filename
-      context.outfile = args_context.outfile;
+      // in case the user renamed the checkpoint file since the original
+      // invocation, use the current filename
+      config.outfile = outfile;
 
       std::cout << "resuming calculation: " << context.arglist << '\n'
                 << "loaded " << context.npatterns
@@ -732,8 +511,13 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     }
   }
 
-  // if not resuming, then get config and context from args
-  parse_args(argc, argv, &config, &context);
+  // if not resuming, then get config from args
+  try {
+    config.from_args(argc, argv);
+  } catch (const std::invalid_argument& ie) {
+    std::cerr << ie.what() << '\n';
+    std::exit(EXIT_FAILURE);
+  }
 
   // save original argument list
   for (int i = 0; i < argc; ++i) {
@@ -766,8 +550,8 @@ int main(int argc, char** argv) {
   std::cout << "------------------------------------------------------------"
             << std::endl;
 
-  if (success && context.fileoutputflag) {
-    std::cout << "saving checkpoint file '" << context.outfile << "'\n";
+  if (success && config.fileoutputflag) {
+    std::cout << "saving checkpoint file '" << config.outfile << "'\n";
     std::sort(context.patterns.begin(), context.patterns.end(),
         pattern_compare);
     save_context(config, context);

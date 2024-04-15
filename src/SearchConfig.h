@@ -45,7 +45,7 @@ struct SearchConfig {
   // maximum pattern length to find; 0 means open-ended range like "5-"
   unsigned int l_max = 0;
 
-  // worker mode
+  // search type
   RunMode mode = RunMode::NORMAL_SEARCH;
 
   // ground state, excited state, or all
@@ -54,29 +54,39 @@ struct SearchConfig {
   // type of graph to build
   GraphMode graphmode = GraphMode::FULL_GRAPH;
 
-  // print patterns to console
+  // print patterns to console?
   bool printflag = true;
 
-  // also find pattern inverses, to print/save with patterns
+  // also find pattern inverses, to print/save with patterns?
   bool invertflag = false;
 
-  // find patterns in dual graph
+  // find patterns in dual graph?
   bool dualflag = false;
 
-  // print worker diagnostic information
+  // print worker diagnostic information?
   bool verboseflag = false;
 
-  // print live search status
+  // print live search status?
   bool statusflag = false;
 
-  // print info about search, but do not execute
+  // print info about search, but do not execute?
   bool infoflag = false;
 
-  // print without using +, - for h and 0 (when throwdigits = 1)
+  // print without using +, - for h and 0 (when throwdigits = 1)?
   bool noplusminusflag = false;
 
-  // keep a record of patterns seen at each length
+  // keep a record of patterns seen at each length?
   bool countflag = false;
+
+  // use a file to save, resume after interruption, and record the final
+  // results?
+  bool fileoutputflag = false;
+
+  // filename to use when `fileoutputflag`==true
+  std::string outfile;
+
+  // number of worker threads to use
+  unsigned int num_threads = 1;
 
   // for super mode, number of shift throws to allow
   unsigned int shiftlimit = 0;
@@ -93,6 +103,10 @@ struct SearchConfig {
 
   // work splitting algorithm to use
   unsigned int split_alg = 1;
+
+  // methods to initialize from command line arguments
+  void from_args(size_t argc, char** argv);
+  void from_args(std::string str);
 };
 
 #endif

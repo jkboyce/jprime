@@ -1,8 +1,8 @@
 //
 // SearchContext.h
 //
-// This structure captures the progression and results of the search. These
-// items are saved to disk in file output mode, to record results and/or allow
+// This structure captures the progression and results of the search. In file
+// output mode these items are saved to disk, recording results and/or allowing
 // calculations to be interrupted and resumed.
 //
 // Only the Coordinator thread has access to this data structure; the Workers
@@ -25,13 +25,6 @@
 
 
 struct SearchContext {
-  // whether to use a file to save, resume after interruption, and record the
-  // final results
-  bool fileoutputflag = false;
-
-  // filename to use when `fileoutputflag`==true
-  std::string outfile;
-
   // original invocation command line arguments, concatenated
   std::string arglist;
 
@@ -55,9 +48,6 @@ struct SearchContext {
 
   // total number of nodes visited in the search tree
   std::uint64_t nnodes = 0;
-
-  // number of worker threads to use
-  unsigned int num_threads = 1;
 
   // wall clock time elapsed
   double secs_elapsed = 0;
