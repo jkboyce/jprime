@@ -108,8 +108,8 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
       SearchContext& context) {
   // first check if the user wants file output mode
   std::string outfile;
-  for (int i = 1; i < argc; ++i) {
-    if (!strcmp(argv[i], "-file") && (i + 1) < argc) {
+  for (int i = 1; i < argc - 1; ++i) {
+    if (!strcmp(argv[i], "-file")) {
       outfile = std::string(argv[i + 1]);
       break;
     }
@@ -180,12 +180,12 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
+
   Coordinator coordinator(config, context);
   const bool success = coordinator.run();
 
   std::cout << "------------------------------------------------------------"
             << std::endl;
-
   if (success && config.fileoutputflag) {
     std::cout << "saving checkpoint file '" << config.outfile << "'\n";
     context.to_file(config.outfile);

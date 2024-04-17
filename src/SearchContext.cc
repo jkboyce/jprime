@@ -18,6 +18,131 @@
 
 
 //------------------------------------------------------------------------------
+// Sorting patterns
+//------------------------------------------------------------------------------
+
+// Convert a pattern line printed as comma-separated integers into a vector of
+// ints.
+
+std::vector<int> parse_pattern_line(const std::string& p) {
+  std::string pat;
+  std::vector<int> result;
+
+  // remove the first colon and anything beyond
+  pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
+
+  // extract part between first and second '*'s if present
+  auto star = std::find(pat.begin(), pat.end(), '*');
+  if (star != pat.end()) {
+    pat = {star + 1, std::find(star + 1, pat.end(), '*')};
+  }
+
+  auto x = pat.begin();
+  while (true) {
+    auto y = std::find(x, pat.end(), ',');
+    std::string s{x, y};
+    result.push_back(std::stoi(s));
+    if (y == pat.end())
+      break;
+    x = y + 1;
+  }
+
+  return result;
+}
+
+// Compare patterns printed as comma-separated integers
+//
+// Test case: jprime 7 42 6 -file test
+
+bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
+  std::vector<int> vec1 = parse_pattern_line(pat1);
+  std::vector<int> vec2 = parse_pattern_line(pat2);
+
+  if (vec2.size() == 0)
+    return false;
+  if (vec1.size() == 0)
+    return true;
+
+  // shorter patterns sort earlier
+  if (vec1.size() < vec2.size())
+    return true;
+  if (vec1.size() > vec2.size())
+    return false;
+
+  // ground state before excited state patterns
+  if (pat1[0] == ' ' && pat2[0] == '*')
+    return true;
+  if (pat1[0] == '*' && pat2[0] == ' ')
+    return false;
+
+  // sort lower leading throws first
+  for (size_t i = 0; i < vec1.size(); ++i) {
+    if (vec1[i] == vec2[i])
+      continue;
+    return vec1[i] < vec2[i];
+  }
+  return false;
+}
+
+// Compare patterns printed with letters (10='a', etc.)
+
+bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
+  if (pat2.size() == 0)
+    return false;
+  if (pat1.size() == 0)
+    return true;
+
+  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  unsigned int pat1_end = pat1_start;
+  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
+    ++pat1_end;
+
+  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  unsigned int pat2_end = pat2_start;
+  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
+    ++pat2_end;
+
+  // shorter patterns sort earlier
+  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
+    return true;
+  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
+    return false;
+
+  // ground state before excited state patterns
+  if (pat1[0] == ' ' && pat2[0] == '*')
+    return true;
+  if (pat1[0] == '*' && pat2[0] == ' ')
+    return false;
+
+  // ascii order, except '+' is higher than any other character
+  for (size_t i = pat1_start; i < pat1_end; ++i) {
+    if (pat1[i] == pat2[i])
+      continue;
+    if (pat1[i] == '+' && pat2[i] != '+')
+      return false;
+    if (pat1[i] != '+' && pat2[i] == '+')
+      return true;
+    return pat1[i] < pat2[i];
+  }
+  return false;
+}
+
+// Standard library compliant Compare relation for patterns.
+//
+// Returns true if the first argument appears before the second in a strict
+// weak ordering, and false otherwise.
+
+bool pattern_compare(const std::string& pat1, const std::string& pat2) {
+  bool has_comma = (std::find(pat1.begin(), pat1.end(), ',') != pat1.end() ||
+      std::find(pat2.begin(), pat2.end(), ',') != pat2.end());
+
+  if (has_comma)
+    return pattern_compare_ints(pat1, pat2);
+  else
+    return pattern_compare_letters(pat1, pat2);
+}
+
+//------------------------------------------------------------------------------
 // Saving checkpoint files
 //------------------------------------------------------------------------------
 
@@ -251,129 +376,4 @@ void SearchContext::from_file(const std::string& file) {
     ++linenum;
   }
   myfile.close();
-}
-
-//------------------------------------------------------------------------------
-// Sorting patterns
-//------------------------------------------------------------------------------
-
-// Convert a pattern line printed as comma-separated integers into a vector of
-// ints.
-
-std::vector<int> parse_pattern_line(const std::string& p) {
-  std::string pat;
-  std::vector<int> result;
-
-  // remove the first colon and anything beyond
-  pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
-
-  // extract part between first and second '*'s if present
-  auto star = std::find(pat.begin(), pat.end(), '*');
-  if (star != pat.end()) {
-    pat = {star + 1, std::find(star + 1, pat.end(), '*')};
-  }
-
-  auto x = pat.begin();
-  while (true) {
-    auto y = std::find(x, pat.end(), ',');
-    std::string s{x, y};
-    result.push_back(atoi(s.c_str()));
-    if (y == pat.end())
-      break;
-    x = y + 1;
-  }
-
-  return result;
-}
-
-// Compare patterns printed as comma-separated integers
-//
-// Test case: jprime 7 42 6 -file test
-
-bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
-  std::vector<int> vec1 = parse_pattern_line(pat1);
-  std::vector<int> vec2 = parse_pattern_line(pat2);
-
-  if (vec2.size() == 0)
-    return false;
-  if (vec1.size() == 0)
-    return true;
-
-  // shorter patterns sort earlier
-  if (vec1.size() < vec2.size())
-    return true;
-  if (vec1.size() > vec2.size())
-    return false;
-
-  // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
-    return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
-    return false;
-
-  // sort lower leading throws first
-  for (size_t i = 0; i < vec1.size(); ++i) {
-    if (vec1[i] == vec2[i])
-      continue;
-    return vec1[i] < vec2[i];
-  }
-  return false;
-}
-
-// Compare patterns printed with letters (10='a', etc.)
-
-bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
-  if (pat2.size() == 0)
-    return false;
-  if (pat1.size() == 0)
-    return true;
-
-  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
-  unsigned int pat1_end = pat1_start;
-  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
-    ++pat1_end;
-
-  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
-  unsigned int pat2_end = pat2_start;
-  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
-    ++pat2_end;
-
-  // shorter patterns sort earlier
-  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
-    return true;
-  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
-    return false;
-
-  // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
-    return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
-    return false;
-
-  // ascii order, except '+' is higher than any other character
-  for (size_t i = pat1_start; i < pat1_end; ++i) {
-    if (pat1[i] == pat2[i])
-      continue;
-    if (pat1[i] == '+' && pat2[i] != '+')
-      return false;
-    if (pat1[i] != '+' && pat2[i] == '+')
-      return true;
-    return pat1[i] < pat2[i];
-  }
-  return false;
-}
-
-// Standard library compliant Compare relation for patterns.
-//
-// Returns true if the first argument appears before the second in a strict
-// weak ordering, and false otherwise.
-
-bool pattern_compare(const std::string& pat1, const std::string& pat2) {
-  bool has_comma = (std::find(pat1.begin(), pat1.end(), ',') != pat1.end() ||
-      std::find(pat2.begin(), pat2.end(), ',') != pat2.end());
-
-  if (has_comma)
-    return pattern_compare_ints(pat1, pat2);
-  else
-    return pattern_compare_letters(pat1, pat2);
 }

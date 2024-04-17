@@ -16,7 +16,6 @@
 #ifndef JPRIME_SEARCHCONTEXT_H_
 #define JPRIME_SEARCHCONTEXT_H_
 
-#include "SearchConfig.h"
 #include "WorkAssignment.h"
 
 #include <string>
@@ -72,8 +71,5 @@ struct SearchContext {
   void to_file(const std::string& file);
   void from_file(const std::string& file);
 };
-
-// Standard library compliant Compare relation for patterns
-bool pattern_compare(const std::string& pat1, const std::string& pat2);
 
 #endif

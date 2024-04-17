@@ -54,9 +54,13 @@ Graph::~Graph() {
 // Prep core data structures during construction
 //------------------------------------------------------------------------------
 
+// Initialize the Graph object, allocating all needed memory.
+//
+// NOTE: This does not call build_graph(), which must be done afterward to
+// populate the graph arrays with data.
+
 void Graph::init() {
-  // calculate the number of states in the graph; fail if the number of states
-  // cannot fit into an unsigned int
+  // fail if the number of states cannot fit into an unsigned int
   const std::uint64_t num = (l == 0 ? combinations(h, n) :
       ordered_partitions(n, h, l));
   assert(num <= std::numeric_limits<unsigned int>::max());
@@ -81,11 +85,10 @@ void Graph::init() {
     }
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
-  allocate_arrays();
 
+  allocate_arrays();
   find_shift_cycles();
   state_active.assign(numstates + 1, true);
-  build_graph();
 }
 
 // Allocate all arrays used by the graph and initialize to default values.
@@ -461,8 +464,9 @@ void Graph::gen_matrices() {
 // directly to the start state, assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
-  for (size_t i = 0; i <= numstates; ++i)
+  for (size_t i = 0; i <= numstates; ++i) {
     isexitcycle[i] = false;
+  }
 
   unsigned int lowest_active_state = 0;
 
@@ -475,8 +479,9 @@ void Graph::find_exit_cycles() {
     }
 
     for (size_t j = 0; j < outdegree[i]; ++j) {
-      if (outmatrix[i][j] == lowest_active_state)
+      if (outmatrix[i][j] == lowest_active_state) {
         isexitcycle[cyclenum[i]] = true;
+      }
     }
   }
 }
@@ -531,8 +536,9 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
     return 0;
 
   std::uint64_t result = 1;
-  for (unsigned int denom = 1; denom <= std::min(b, a - b); ++denom)
+  for (unsigned int denom = 1; denom <= std::min(b, a - b); ++denom) {
     result = (result * (a - denom + 1)) / denom;
+  }
   return result;
 }
 
@@ -556,36 +562,44 @@ std::uint64_t Graph::shift_cycle_count(unsigned int n, unsigned int h,
   return (val / h);
 }
 
-// Calculate an upper bound on the length of prime patterns in the graph.
+// Calculate an upper bound on the length of prime patterns in the graph, using
+// states that are currently active.
 
 unsigned int Graph::prime_length_bound() const {
-  // when there is more than one shift cycle, a prime pattern has to miss at
-  // least one state in each shift cycle it visits
-
-  unsigned int result = 0;
+  // Case 1: The pattern visits multiple shift cycles; it must miss at least one
+  // state on each cycle it visits.
+  unsigned int result_multicycle = 0;
   std::vector<unsigned int> num_active(numcycles, 0);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
-      ++result;
+      ++result_multicycle;
       ++num_active.at(cyclenum[i]);
     }
   }
 
-  int cycles_active = numcycles -
-      std::count(num_active.begin(), num_active.end(), 0);
-
+  int cycles_active =
+      numcycles - std::count(num_active.begin(), num_active.end(), 0);
   if (cycles_active > 1) {
     for (size_t i = 0; i < numcycles; ++i) {
       if (num_active.at(i) == cycleperiod[i]) {
-        --result;
+        --result_multicycle;
       }
     }
   }
-  return result;
+
+  // Case 2: The pattern stays on a single shift cycle; find the cycle with the
+  // most active states.
+  unsigned int result_onecycle = 0;
+  for (size_t i = 0; i < numcycles; ++i) {
+    result_onecycle = std::max(result_onecycle, num_active.at(i));
+  }
+
+  return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the length of superprime patterns in the graph.
+// Calculate an upper bound on the length of superprime patterns in the graph,
+// using states that are currently active.
 
 unsigned int Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);

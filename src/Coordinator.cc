@@ -1,7 +1,7 @@
 //
 // Coordinator.cc
 //
-// Coordinator thread that manages the overall search.
+// Coordinator that manages the overall search.
 //
 // The computation is depth first search on multiple worker threads using work
 // stealing to keep the workers busy. The business of the coordinator is to
@@ -36,7 +36,7 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 // Execution entry point
 //------------------------------------------------------------------------------
 
-// Execute the calculation specified in `config` and `context`.
+// Execute the calculation specified in `config`, storing results in `context`.
 //
 // Returns true on success, false on failure.
 
@@ -177,11 +177,12 @@ void Coordinator::process_inbox() {
 // to the terminal.
 
 void Coordinator::process_search_result(const MessageW2C& msg) {
-  // workers will only send patterns in the right length range
+  // workers will only send patterns in the target length range
   context.patterns.push_back(msg.pattern);
 
-  if (config.printflag)
+  if (config.printflag) {
     print_pattern(msg);
+  }
 }
 
 // Handle a notification that a worker is now idle.
@@ -190,8 +191,9 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   workers_idle.insert(msg.worker_id);
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
-  if (config.statusflag)
+  if (config.statusflag) {
     worker_longest.at(msg.worker_id) = 0;
+  }
 
   if (config.verboseflag) {
     erase_status_output();
@@ -246,12 +248,12 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
   }
 }
 
-// Handle updates from the worker on the state of its search.
+// Handle an update from a worker on the state of its search.
 //
-// There are two main types of updates: (a) informational text updates, which
-// are printed in `-verbose` mode, and (b) updates on `start_state`,
-// `end_state`, and `root_pos`, which are used by the coordinator when it needs
-// to select a worker to send a SPLIT_WORK request to.
+// There are two types of updates: (a) informational text updates, which are
+// printed in `-verbose` mode, and (b) updates on `start_state`, `end_state`,
+// and `root_pos`, which are used by the coordinator when it needs to select a
+// worker to send a SPLIT_WORK request to.
 
 void Coordinator::process_worker_update(const MessageW2C& msg) {
   if (msg.meta.size() > 0) {
@@ -335,13 +337,11 @@ void Coordinator::steal_work() {
       break;
     }
 
-    unsigned int id = 0;
+    unsigned int id = -1;
     switch (config.steal_alg) {
       case 1:
         id = find_stealing_target_mostremaining();
         break;
-      default:
-        assert(false);
     }
     assert(id < config.num_threads);
 
@@ -375,8 +375,8 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
     if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
 
-    unsigned int startstates_remaining = worker_endstate.at(id) -
-        worker_startstate.at(id);
+    unsigned int startstates_remaining =
+        worker_endstate.at(id) - worker_startstate.at(id);
     if (startstates_remaining > 0 && (id_startstates == -1 ||
         max_startstates_remaining < startstates_remaining)) {
       max_startstates_remaining = startstates_remaining;
@@ -434,9 +434,11 @@ bool Coordinator::passes_prechecks() {
 // Note these quantities may be very large so we use uint64s for all of them.
 
 void Coordinator::calc_graph_size() {
+  // size of the full graph
   context.full_numstates = Graph::combinations(config.h, config.n);
   context.full_numcycles = 0;
   context.full_numshortcycles = 0;
+  unsigned int max_cycle_period = 0;
 
   for (unsigned int p = 1; p <= config.h; ++p) {
     const std::uint64_t cycles =
@@ -445,12 +447,23 @@ void Coordinator::calc_graph_size() {
     if (p < config.h) {
       context.full_numshortcycles += cycles;
     }
+    if (cycles > 0) {
+      max_cycle_period = p;
+    }
   }
 
-  context.l_bound = (config.mode == RunMode::SUPER_SEARCH)
-      ? context.full_numcycles + config.shiftlimit
-      : context.full_numstates - context.full_numcycles;
+  // longest patterns possible of the type selected
+  if (config.mode == RunMode::NORMAL_SEARCH) {
+    // two possibilities: Stay on a single cycle, or use multiple cycles
+    context.l_bound = std::max(
+        static_cast<std::uint64_t>(max_cycle_period),
+        context.full_numstates - context.full_numcycles
+    );
+  } else if (config.mode == RunMode::SUPER_SEARCH) {
+    context.l_bound = context.full_numcycles + config.shiftlimit;
+  }
 
+  // number of states that will be resident in memory if we build the graph
   if (config.graphmode == GraphMode::FULL_GRAPH) {
     context.memory_numstates = context.full_numstates;
   } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {

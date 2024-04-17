@@ -21,11 +21,17 @@
 // relevant error message.
 
 void SearchConfig::from_args(size_t argc, char** argv) {
-  n = atoi(argv[1]);
-  if (n < 1) {
+  int val = std::stoi(argv[1]);
+  if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
   }
-  h = atoi(argv[2]);
+  n = static_cast<unsigned int>(val);
+
+  val = std::stoi(argv[2]);
+  if (val < 1) {
+    throw std::invalid_argument("Max. throw value must be at least 1");
+  }
+  h = static_cast<unsigned int>(val);
   if (h < n) {
     throw std::invalid_argument(
         "Max. throw value must equal or exceed the number of objects");
@@ -57,7 +63,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       if ((i + 1) < argc) {
         ++i;
         mode = RunMode::SUPER_SEARCH;
-        shiftlimit = atoi(argv[i]);
+        val = std::stoi(argv[i]);
+        if (val < 0) {
+          throw std::invalid_argument("Shift limit must be non-negative");
+        }
+        shiftlimit = static_cast<unsigned int>(val);
         if (shiftlimit == 0) {
           xarray.at(0) = xarray.at(h) = true;
         }
@@ -75,21 +85,33 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-steal_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        steal_alg = atoi(argv[i]);
+        val = std::stoi(argv[i]);
+        if (val < 0) {
+          throw std::invalid_argument("Steal_alg must be non-negative");
+        }
+        steal_alg = static_cast<unsigned int>(val);
       } else {
         throw std::invalid_argument("No number provided after -steal_alg");
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
       if ((i + 1) < argc) {
         ++i;
-        split_alg = atoi(argv[i]);
+        val = std::stoi(argv[i]);
+        if (val < 0) {
+          throw std::invalid_argument("Split_alg must be non-negative");
+        }
+        split_alg = static_cast<unsigned int>(val);
       } else {
         throw std::invalid_argument("No number provided after -split_alg");
       }
     } else if (!strcmp(argv[i], "-x")) {
       ++i;
       while (i < argc && argv[i][0] != '-') {
-        unsigned int j = static_cast<unsigned int>(atoi(argv[i]));
+        val = std::stoi(argv[i]);
+        if (val < 0) {
+          throw std::invalid_argument("Excluded throws must be non-negative");
+        }
+        unsigned int j = static_cast<unsigned int>(val);
         if (j == h) {
           throw std::invalid_argument(
               "Cannot exclude max. throw value using -x");
@@ -111,7 +133,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-threads")) {
       if ((i + 1) < argc) {
         ++i;
-        num_threads = static_cast<unsigned int>(atoi(argv[i]));
+        val = std::stoi(argv[i]);
+        if (val < 1) {
+          throw std::invalid_argument("Must have at least one worker thread");
+        }
+        num_threads = static_cast<unsigned int>(val);
       } else {
         throw std::invalid_argument("No number provided after -threads");
       }
@@ -121,7 +147,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       std::string s{argv[i]};
       int hyphens = std::count(s.begin(), s.end(), '-');
       if (hyphens == 0) {
-        int num = atoi(argv[i]);
+        int num = std::stoi(argv[i]);
         if (num > 0) {
           l_min = l_max = static_cast<unsigned int>(num);
           success = true;
@@ -132,14 +158,14 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         std::string s1 = s.substr(0, hpos);
         std::string s2 = s.substr(hpos + 1);
         if (s1.size() > 0) {
-          int num = atoi(s1.c_str());
+          int num = std::stoi(s1);
           if (num > 0)
             l_min = static_cast<unsigned int>(num);
           else
             success = false;
         }
         if (s2.size() > 0) {
-          int num = atoi(s2.c_str());
+          int num = std::stoi(s2);
           if (num > 0)
             l_max = static_cast<unsigned int>(num);
           else
@@ -190,11 +216,6 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (!printflag && !fileoutputflag) {
     countflag = true;
   }
-
-  // consistency checks
-  if (num_threads < 1) {
-    throw std::invalid_argument("Must have at least one worker thread");
-  }
 }
 
 // Initialize SearchConfig from concatenated command line arguments.
@@ -207,15 +228,15 @@ void SearchConfig::from_args(std::string str) {
   std::stringstream ss(str);
   std::string s;
   std::vector<std::string> args;
-  while (std::getline(ss, s, ' '))
+  while (std::getline(ss, s, ' ')) {
     args.push_back(s);
+  }
 
   const size_t argc = args.size();
-  char** argv = new char*[argc];
-  for (size_t i = 0; i < argc; ++i)
-    argv[i] = &(args[i][0]);
+  std::vector<char*> argv;
+  for (size_t i = 0; i < argc; ++i) {
+    argv.push_back(&(args[i][0]));
+  }
 
-  from_args(argc, argv);
-
-  delete[] argv;
+  from_args(argc, argv.data());
 }

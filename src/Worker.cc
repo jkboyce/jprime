@@ -167,8 +167,9 @@ void Worker::message_coordinator_text(const std::string& str) const {
 // worker is running.
 
 void Worker::process_inbox_running() {
-  if (calibrations_remaining > 0)
+  if (calibrations_remaining > 0) {
     calibrate_inbox_check();
+  }
 
   bool stopping_work = false;
 
