@@ -1,0 +1,31 @@
+version           6.7
+command line      jprime 9 117 13 -count -threads 6 -status -file 9_117_13_c
+states            8258898672310
+shift cycles      70588877698
+short cycles      235
+length bound      8188309794612
+states (in mem)   293930
+patterns          572427402861
+patterns (total)  577561079933
+nodes completed   42175887225965
+seconds elapsed   59457.7346
+seconds working   354321.0602
+seconds avail     354488.6787
+cores avail       10
+
+patterns
+
+counts
+1, 1
+2, 6
+3, 49
+4, 372
+5, 2903
+6, 21872
+7, 169850
+8, 1299948
+9, 10025749
+10, 76831351
+11, 589380810
+12, 4455944161
+13, 572427402861
