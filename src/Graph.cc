@@ -647,13 +647,13 @@ unsigned int Graph::get_statenum(const State& s) const {
 }
 
 // Return the state number that comes from advancing a given state by a single
-// throw. Returns 0 if the throw results in a collision.
+// throw. Returns 0 if the throw is not allowed.
 
 unsigned int Graph::advance_state(unsigned int statenum,
     unsigned int throwval) const {
   const State& s = state.at(statenum);
 
-  if (throwval < 0 || throwval > s.h)
+  if (throwval > s.h)
     return 0;
   if (throwval > 0 && s.slot.at(0) == 0)
     return 0;

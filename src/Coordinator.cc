@@ -113,8 +113,8 @@ void Coordinator::collect_stats() {
   }
 }
 
-// Give assignments to idle workers, while there are available assignments and
-// idle workers to take them.
+// Give assignments to workers, while there are available assignments and idle
+// workers to take them.
 
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
