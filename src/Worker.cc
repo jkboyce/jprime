@@ -256,12 +256,12 @@ void Worker::send_stats_to_coordinator() {
   std::vector<unsigned int> ds(graph.numcycles, 0);
 
   for (size_t i = 0; i <= pos; ++i) {
-    assert(pattern[i] >= 0);
-    msg.worker_throw.at(i) = pattern[i];
+    assert(pattern.at(i) >= 0);
+    msg.worker_throw.at(i) = pattern.at(i);
 
     for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
       const unsigned int throwval = graph.outthrowval[tempfrom][col];
-      if (throwval != static_cast<unsigned int>(pattern[i]))
+      if (throwval != static_cast<unsigned int>(pattern.at(i)))
         continue;
 
       const unsigned int tempto = graph.outmatrix[tempfrom][col];
@@ -337,7 +337,7 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   root_throwval_options = wa.root_throwval_options;
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i)
+    pattern.at(i) = (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i)
         : -1);
   }
 
@@ -361,9 +361,9 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    if (pattern[i] == -1)
+    if (pattern.at(i) == -1)
       break;
-    wa.partial_pattern.push_back(pattern[i]);
+    wa.partial_pattern.push_back(pattern.at(i));
   }
   return wa;
 }
@@ -484,15 +484,15 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   wa.end_state = start_state;
   wa.root_pos = root_pos;
   for (size_t i = 0; i < root_pos; ++i) {
-    wa.partial_pattern.push_back(pattern[i]);
+    wa.partial_pattern.push_back(pattern.at(i));
   }
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
   std::list<unsigned int>::iterator iter = root_throwval_options.begin();
   std::list<unsigned int>::iterator end = root_throwval_options.end();
   while (iter != end) {
-    if (pattern[root_pos] >= 0 &&
-        *iter == static_cast<unsigned int>(pattern[root_pos])) {
+    if (pattern.at(root_pos) >= 0 &&
+        *iter == static_cast<unsigned int>(pattern.at(root_pos))) {
       iter = root_throwval_options.erase(iter);
     } else {
       ++iter;
@@ -545,7 +545,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
     for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
-      const unsigned int throwval = static_cast<unsigned int>(pattern[pos2]);
+      const unsigned int throwval = static_cast<unsigned int>(pattern.at(pos2));
       for (col = 0; col < graph.outdegree[from_state]; ++col) {
         if (throwval == graph.outthrowval[from_state][col]) {
           break;
@@ -710,17 +710,17 @@ void Worker::initialize_working_variables() {
   shiftcount = 0;
   exitcyclesleft = 0;
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    used[i] = 0;
-    cycleused[i] = false;
-    deadstates[i] = 0;
-    deadstates_bystate[i] = deadstates.data() + graph.cyclenum[i];
+    used.at(i) = 0;
+    cycleused.at(i) = false;
+    deadstates.at(i) = 0;
+    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum[i];
     if (graph.isexitcycle[i])
       ++exitcyclesleft;
   }
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
     if (!graph.state_active.at(i)) {
-      ++deadstates_bystate[i];
+      ++deadstates_bystate.at(i);
     }
   }
 
@@ -807,8 +807,8 @@ std::string Worker::get_pattern() const {
     if (config.throwdigits > 1 && i != 0)
       buffer << ',';
     const unsigned int throwval = (config.dualflag
-      ? graph.h - static_cast<unsigned int>(pattern[pos - i])
-      : static_cast<unsigned int>(pattern[i]));
+      ? graph.h - static_cast<unsigned int>(pattern.at(pos - i))
+      : static_cast<unsigned int>(pattern.at(i)));
     print_throw(buffer, throwval);
   }
 
@@ -821,8 +821,8 @@ std::string Worker::get_pattern() const {
 std::string Worker::get_inverse() const {
   std::ostringstream buffer;
   std::vector<int> patternstate(graph.numstates + 1);
-  std::vector<bool> stateused(graph.numstates + 1, false);
-  std::vector<bool> cycleused(graph.numstates + 1, false);
+  std::vector<bool> state_used(graph.numstates + 1, false);
+  std::vector<bool> cycle_used(graph.numstates + 1, false);
 
   // Step 1. build a vector of state numbers traversed by the pattern, and
   // determine if an inverse exists.
@@ -838,22 +838,22 @@ std::string Worker::get_inverse() const {
 
   for (size_t i = 0; i <= pos; ++i) {
     patternstate.at(i) = state_current;
-    stateused.at(state_current) = true;
+    state_used.at(state_current) = true;
 
-    const int state_next = graph.advance_state(state_current, pattern[i]);
+    const int state_next = graph.advance_state(state_current, pattern.at(i));
     assert(state_next > 0);
     const unsigned int cycle_next = graph.cyclenum[state_next];
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
-      if (cycleused.at(cycle_current)) {
+      if (cycle_used.at(cycle_current)) {
         // revisited cycle number `cycle_current` --> no inverse
         return buffer.str();
       }
-      cycleused.at(cycle_current) = true;
+      cycle_used.at(cycle_current) = true;
       cycle_multiple = true;
-    } else if (pattern[i] != 0 &&
-        static_cast<unsigned int>(pattern[i]) != graph.h) {
+    } else if (pattern.at(i) != 0 &&
+        static_cast<unsigned int>(pattern.at(i)) != graph.h) {
       // link throw within a single cycle --> no inverse
       return buffer.str();
     }
@@ -894,7 +894,7 @@ std::string Worker::get_inverse() const {
     }
 
     const unsigned int inversethrow = graph.h -
-        static_cast<unsigned int>(pattern[i]);
+        static_cast<unsigned int>(pattern.at(i));
     inversepattern.push_back(inversethrow);
     inversestate.push_back(
         inversestate.back().advance_with_throw(inversethrow));
@@ -905,7 +905,7 @@ std::string Worker::get_inverse() const {
     while (true) {
       State trial_state = inversestate.back().downstream();
       unsigned int trial_statenum = graph.get_statenum(trial_state.reverse());
-      if (trial_statenum > 0 && stateused.at(trial_statenum))
+      if (trial_statenum > 0 && state_used.at(trial_statenum))
         break;
 
       inversepattern.push_back(trial_state.slot.at(graph.h - 1) ? graph.h : 0);
