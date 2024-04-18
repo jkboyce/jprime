@@ -20,6 +20,7 @@
 #include <queue>
 #include <mutex>
 #include <list>
+#include <vector>
 #include <chrono>
 #include <cstdint>
 
@@ -47,12 +48,12 @@ class Worker {
   unsigned int shiftcount = 0;
   unsigned int exitcyclesleft = 0;
   int max_possible = 0;
-  SearchState *beat;  // workspace for search
-  int* pattern;
-  int* used;
-  bool* cycleused;  // whether cycle has been visited, in SUPER mode
-  unsigned int* deadstates;  // indexed by shift cycle number
-  unsigned int** deadstates_bystate;  // indexed by state number
+  std::vector<SearchState> beat;  // workspace for iterative search
+  std::vector<int> pattern;
+  std::vector<int> used;
+  std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
+  std::vector<unsigned int> deadstates;  // indexed by shift cycle number
+  std::vector<unsigned int*> deadstates_bystate;  // indexed by state number
 
   // for loading and sharing work assignments
   unsigned int start_state = 0;
@@ -82,7 +83,6 @@ class Worker {
   Worker(Worker&&) =delete;
   Worker& operator=(const Worker&) =delete;
   Worker& operator=(Worker&&) =delete;
-  ~Worker();
   void run();
 
  private:

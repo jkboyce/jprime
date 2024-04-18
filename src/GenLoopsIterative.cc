@@ -35,7 +35,7 @@ void Worker::iterative_gen_loops_normal() {
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
-  int* const u = used;
+  int* const u = used.data();
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
@@ -126,7 +126,7 @@ void Worker::iterative_gen_loops_normal_counting() {
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
-  int* const u = used;
+  int* const u = used.data();
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
@@ -215,11 +215,11 @@ void Worker::iterative_gen_loops_normal_marking() {
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
-  int* const u = used;
+  int* const u = used.data();
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   unsigned int st_state = start_state;
-  unsigned int** const ds_bystate = deadstates_bystate;
+  unsigned int** const ds_bystate = deadstates_bystate.data();
   unsigned int** const outmatrix = graph.outmatrix;
   unsigned int* const outdegree = graph.outdegree;
   unsigned int** const outthrowval = graph.outthrowval;
@@ -396,11 +396,11 @@ void Worker::iterative_gen_loops_super() {
   int p = pos;
   uint64_t nn = nnodes;
   const int lmax = l_max;
-  int* const u = used;
+  int* const u = used.data();
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
-  bool* const cu = cycleused;
+  int* const cu = cycleused.data();
   unsigned int** const outmatrix = graph.outmatrix;
   unsigned int* const outdegree = graph.outdegree;
   unsigned int** const outthrowval = graph.outthrowval;
@@ -542,7 +542,7 @@ void Worker::iterative_gen_loops_super0() {
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
-  bool* const cu = cycleused;
+  int* const cu = cycleused.data();
   unsigned int** const outmatrix = graph.outmatrix;
   unsigned int* const outdegree = graph.outdegree;
   unsigned int* const cyclenum = graph.cyclenum;

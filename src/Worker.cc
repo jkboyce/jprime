@@ -38,46 +38,13 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, int id,
         config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0),
       l_min(config.l_min),
       l_max(l_max) {
+  beat.resize(graph.numstates + 1);
+  pattern.assign(graph.numstates + 1, -1);
+  used.assign(graph.numstates + 1, 0);
+  cycleused.assign(graph.numstates + 1, 0);
+  deadstates.assign(graph.numstates + 1, 0);
+  deadstates_bystate.assign(graph.numstates + 1, nullptr);
   count.assign(l_max + 1, 0);
-  allocate_arrays();
-}
-
-Worker::~Worker() {
-  delete_arrays();
-}
-
-// Allocate all arrays used by the worker and initialize to default values.
-
-void Worker::allocate_arrays() {
-  beat = new SearchState[graph.numstates + 1];
-  pattern = new int[graph.numstates + 1];
-  used = new int[graph.numstates + 1];
-  cycleused = new bool[graph.numstates + 1];
-  deadstates = new unsigned int[graph.numstates + 1];
-  deadstates_bystate = new unsigned int*[graph.numstates + 1];
-
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern[i] = -1;
-    used[i] = 0;
-    cycleused[i] = false;
-    deadstates[i] = 0;
-    deadstates_bystate[i] = nullptr;
-  }
-}
-
-void Worker::delete_arrays() {
-  delete[] beat;
-  delete[] pattern;
-  delete[] used;
-  delete[] cycleused;
-  delete[] deadstates;
-  delete[] deadstates_bystate;
-  beat = nullptr;
-  pattern = nullptr;
-  used = nullptr;
-  cycleused = nullptr;
-  deadstates = nullptr;
-  deadstates_bystate = nullptr;
 }
 
 //------------------------------------------------------------------------------
@@ -677,7 +644,7 @@ void Worker::gen_patterns() {
 
     // RELEASE THE KRAKEN
 
-    std::vector<int> used_start(used, used + graph.numstates + 1);
+    std::vector<int> used_start(used);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
@@ -702,8 +669,7 @@ void Worker::gen_patterns() {
         assert(false);
         break;
     }
-    std::vector<int> used_finish(used, used + graph.numstates + 1);
-    assert(used_start == used_finish);
+    assert(used == used_start);
     assert(pos == 0);
   }
   assert(pos == 0);
@@ -747,7 +713,7 @@ void Worker::initialize_working_variables() {
     used[i] = 0;
     cycleused[i] = false;
     deadstates[i] = 0;
-    deadstates_bystate[i] = deadstates + graph.cyclenum[i];
+    deadstates_bystate[i] = deadstates.data() + graph.cyclenum[i];
     if (graph.isexitcycle[i])
       ++exitcyclesleft;
   }
