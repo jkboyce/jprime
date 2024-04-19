@@ -713,8 +713,8 @@ void Worker::initialize_working_variables() {
     used.at(i) = 0;
     cycleused.at(i) = false;
     deadstates.at(i) = 0;
-    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum[i];
-    if (graph.isexitcycle[i])
+    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
+    if (graph.isexitcycle.at(i))
       ++exitcyclesleft;
   }
 

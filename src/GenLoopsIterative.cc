@@ -106,7 +106,7 @@ void Worker::iterative_gen_loops_normal() {
     ss->col_limit = graph.outdegree[to_state];
     ss->from_state = to_state;
     ss->to_state = 0;
-    ss->outmatrix = graph.outmatrix[to_state];
+    ss->outmatrix = graph.outmatrix[to_state].data();
     goto skip_unmarking;
   }
 
@@ -130,8 +130,7 @@ void Worker::iterative_gen_loops_normal_counting() {
   unsigned int steps = 0;
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
-  unsigned int** const outmatrix = graph.outmatrix;
-  unsigned int* const outdegree = graph.outdegree;
+  unsigned int* const outdegree = graph.outdegree.data();
 
   SearchState* ss = &beat.at(pos + 1);
 
@@ -195,7 +194,7 @@ void Worker::iterative_gen_loops_normal_counting() {
     ss->col_limit = outdegree[to_state];
     ss->from_state = to_state;
     ss->to_state = 0;
-    ss->outmatrix = outmatrix[to_state];
+    ss->outmatrix = graph.outmatrix[to_state].data();
     goto skip_unmarking;
   }
 
@@ -220,9 +219,8 @@ void Worker::iterative_gen_loops_normal_marking() {
   unsigned int steps_limit = steps_per_inbox_check;
   unsigned int st_state = start_state;
   unsigned int** const ds_bystate = deadstates_bystate.data();
-  unsigned int** const outmatrix = graph.outmatrix;
-  unsigned int* const outdegree = graph.outdegree;
-  unsigned int** const outthrowval = graph.outthrowval;
+  unsigned int* const outdegree = graph.outdegree.data();
+  //unsigned int** const outthrowval = graph.outthrowval.data();
 
   SearchState* ss = &beat.at(pos + 1);
 
@@ -280,14 +278,14 @@ void Worker::iterative_gen_loops_normal_marking() {
       goto skip_unmarking2;
     }
 
-    const unsigned int throwval = outthrowval[ss->from_state][ss->col];
+    const unsigned int throwval = graph.outthrowval[ss->from_state][ss->col];
     if (throwval != 0 && throwval != graph.h) {
       if (ss->excludes_throw == nullptr) {
         // mark states excluded by link throw; only need to do this once since
         // the link throws all come at the end of each row in `outmatrix`
         bool valid1 = true;
         unsigned int* const ds = ds_bystate[ss->from_state];
-        unsigned int* es = graph.excludestates_throw[ss->from_state];
+        unsigned int* es = graph.excludestates_throw[ss->from_state].data();
         ss->excludes_throw = es;  // save to clean up later
         ss->deadstates_throw = ds;
 
@@ -316,7 +314,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       // account for states excluded by link catch
       bool valid2 = true;
       unsigned int* const ds = ds_bystate[to_state];
-      unsigned int* es = graph.excludestates_catch[to_state];
+      unsigned int* es = graph.excludestates_catch[to_state].data();
       ss->excludes_catch = es;
       ss->deadstates_catch = ds;
 
@@ -336,7 +334,7 @@ void Worker::iterative_gen_loops_normal_marking() {
         ss->col_limit = outdegree[to_state];
         ss->from_state = to_state;
         ss->to_state = 0;
-        ss->outmatrix = outmatrix[to_state];
+        ss->outmatrix = graph.outmatrix[to_state].data();
         ss->excludes_throw = nullptr;
         ss->excludes_catch = nullptr;
         goto skip_unmarking2;
@@ -373,7 +371,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = outmatrix[to_state];
+      ss->outmatrix = graph.outmatrix[to_state].data();
       ss->excludes_throw = nullptr;
       ss->excludes_catch = nullptr;
       goto skip_unmarking2;
@@ -401,10 +399,9 @@ void Worker::iterative_gen_loops_super() {
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   int* const cu = cycleused.data();
-  unsigned int** const outmatrix = graph.outmatrix;
-  unsigned int* const outdegree = graph.outdegree;
-  unsigned int** const outthrowval = graph.outthrowval;
-  unsigned int* const cyclenum = graph.cyclenum;
+  unsigned int* const outdegree = graph.outdegree.data();
+  //unsigned int** const outthrowval = graph.outthrowval;
+  unsigned int* const cyclenum = graph.cyclenum.data();
 
   SearchState* ss = &beat.at(pos + 1);
 
@@ -434,7 +431,7 @@ void Worker::iterative_gen_loops_super() {
       goto skip_unmarking;
     }
 
-    const unsigned int throwval = outthrowval[ss->from_state][ss->col];
+    const unsigned int throwval = graph.outthrowval[ss->from_state][ss->col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
     const unsigned int shifts_remaining = ss->shifts_remaining;
 
@@ -485,7 +482,7 @@ void Worker::iterative_gen_loops_super() {
       ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = outmatrix[to_state];
+      ss->outmatrix = graph.outmatrix[to_state].data();
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining;
       goto skip_unmarking;
@@ -516,7 +513,7 @@ void Worker::iterative_gen_loops_super() {
       ss->col_limit = outdegree[to_state];
       ss->from_state = to_state;
       ss->to_state = 0;
-      ss->outmatrix = outmatrix[to_state];
+      ss->outmatrix = graph.outmatrix[to_state].data();
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining - 1;
       goto skip_unmarking;
@@ -543,10 +540,9 @@ void Worker::iterative_gen_loops_super0() {
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   int* const cu = cycleused.data();
-  unsigned int** const outmatrix = graph.outmatrix;
-  unsigned int* const outdegree = graph.outdegree;
-  unsigned int* const cyclenum = graph.cyclenum;
-  bool* const isexitcycle = graph.isexitcycle;
+  unsigned int* const outdegree = graph.outdegree.data();
+  unsigned int* const cyclenum = graph.cyclenum.data();
+  int* const isexitcycle = graph.isexitcycle.data();
 
   SearchState* ss = &beat.at(pos + 1);
 
@@ -619,7 +615,7 @@ void Worker::iterative_gen_loops_super0() {
     ss->col_limit = outdegree[to_state];
     ss->from_state = to_state;
     ss->to_state = 0;
-    ss->outmatrix = outmatrix[to_state];
+    ss->outmatrix = graph.outmatrix[to_state].data();
     ss->to_cycle = -1;
     ss->exitcycles_remaining = exitcycles_remaining;
     goto skip_unmarking;
@@ -652,7 +648,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.col_limit = graph.outdegree[start_state];
     ss.from_state = start_state;
     ss.to_state = 0;
-    ss.outmatrix = graph.outmatrix[start_state];
+    ss.outmatrix = graph.outmatrix[start_state].data();
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
     ss.to_cycle = -1;
@@ -696,7 +692,7 @@ bool Worker::iterative_init_workspace(bool marking) {
       ss.col_limit = ss.col + 1;
 
     ss.to_state = graph.outmatrix[ss.from_state][ss.col];
-    ss.outmatrix = graph.outmatrix[ss.from_state];
+    ss.outmatrix = graph.outmatrix[ss.from_state].data();
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
     ss.to_cycle = graph.cyclenum[ss.to_state];
@@ -706,7 +702,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     if (marking && tv != 0 && tv != graph.h) {
       // mark unreachable states due to link throw
       unsigned int* ds = deadstates_bystate[ss.from_state];
-      unsigned int* es = graph.excludestates_throw[ss.from_state];
+      unsigned int* es = graph.excludestates_throw[ss.from_state].data();
       ss.excludes_throw = es;
       ss.deadstates_throw = ds;
 
@@ -720,7 +716,7 @@ bool Worker::iterative_init_workspace(bool marking) {
 
       // mark unreachable states due to link catch
       ds = deadstates_bystate[ss.to_state];
-      es = graph.excludestates_catch[ss.to_state];
+      es = graph.excludestates_catch[ss.to_state].data();
       ss.excludes_catch = es;
       ss.deadstates_catch = ds;
 
@@ -761,7 +757,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     SearchState& rss = beat.at(root_pos + 1);
     rss.from_state = last_from_state;
     rss.to_state = 0;
-    rss.outmatrix = graph.outmatrix[rss.from_state];
+    rss.outmatrix = graph.outmatrix[rss.from_state].data();
     rss.excludes_throw = nullptr;
     rss.excludes_catch = nullptr;
     rss.to_cycle = -1;

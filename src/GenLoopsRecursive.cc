@@ -24,7 +24,7 @@
 void Worker::gen_loops_normal() {
   unsigned int col = (loading_work ? load_one_throw() : 0);
   const unsigned int limit = graph.outdegree[from];
-  const unsigned int* om = graph.outmatrix[from];
+  const unsigned int* om = graph.outmatrix[from].data();
 
   for (; col < limit; ++col) {
     const unsigned int to = om[col];
@@ -84,7 +84,7 @@ void Worker::gen_loops_normal_marking() {
   bool did_mark_for_throw = false;
   unsigned int col = (loading_work ? load_one_throw() : 0);
   const unsigned int limit = graph.outdegree[from];
-  const unsigned int* om = graph.outmatrix[from];
+  const unsigned int* om = graph.outmatrix[from].data();
 
   for (; col < limit; ++col) {
     const unsigned int to = om[col];
@@ -167,8 +167,8 @@ void Worker::gen_loops_normal_marking() {
 void Worker::gen_loops_super() {
   unsigned int col = (loading_work ? load_one_throw() : 0);
   const unsigned int limit = graph.outdegree[from];
-  const unsigned int* om = graph.outmatrix[from];
-  const unsigned int* ov = graph.outthrowval[from];
+  const unsigned int* om = graph.outmatrix[from].data();
+  const unsigned int* ov = graph.outthrowval[from].data();
 
   for (; col < limit; ++col) {
     const unsigned int to = om[col];
@@ -250,7 +250,7 @@ void Worker::gen_loops_super() {
 void Worker::gen_loops_super0() {
   unsigned int col = (loading_work ? load_one_throw() : 0);
   const unsigned int limit = graph.outdegree[from];
-  const unsigned int* om = graph.outmatrix[from];
+  const unsigned int* om = graph.outmatrix[from].data();
 
   for (; col < limit; ++col) {
     const unsigned int to = om[col];
@@ -418,7 +418,7 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
 inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
   unsigned int* const ds = deadstates_bystate[from];
-  unsigned int* es = graph.excludestates_throw[from];
+  unsigned int* es = graph.excludestates_throw[from].data();
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
@@ -432,7 +432,7 @@ inline bool Worker::mark_unreachable_states_throw() {
 inline bool Worker::mark_unreachable_states_catch(unsigned int to_state) {
   bool valid = true;
   unsigned int* const ds = deadstates_bystate[to_state];
-  unsigned int* es = graph.excludestates_catch[to_state];
+  unsigned int* es = graph.excludestates_catch[to_state].data();
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
@@ -448,7 +448,7 @@ inline bool Worker::mark_unreachable_states_catch(unsigned int to_state) {
 
 inline void Worker::unmark_unreachable_states_throw() {
   unsigned int* const ds = deadstates_bystate[from];
-  unsigned int* es = graph.excludestates_throw[from];
+  unsigned int* es = graph.excludestates_throw[from].data();
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {
@@ -459,7 +459,7 @@ inline void Worker::unmark_unreachable_states_throw() {
 
 inline void Worker::unmark_unreachable_states_catch(unsigned int to_state) {
   unsigned int* const ds = deadstates_bystate[to_state];
-  unsigned int* es = graph.excludestates_catch[to_state];
+  unsigned int* es = graph.excludestates_catch[to_state].data();
   unsigned int statenum = 0;
 
   while ((statenum = *es++)) {

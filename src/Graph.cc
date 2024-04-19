@@ -31,30 +31,11 @@ Graph::Graph(const Graph& g)
     : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle, g.l) {
 }
 
-Graph& Graph::operator=(const Graph& g) {
-  if (this == &g)
-    return *this;
-
-  delete_arrays();
-  n = g.n;
-  h = g.h;
-  l = g.l;
-  xarray = g.xarray;
-  linkthrows_within_cycle = g.linkthrows_within_cycle;
-  init();
-
-  return *this;
-}
-
-Graph::~Graph() {
-  delete_arrays();
-}
-
 //------------------------------------------------------------------------------
 // Prep core data structures during construction
 //------------------------------------------------------------------------------
 
-// Initialize the Graph object, allocating all needed memory.
+// Initialize the Graph object.
 //
 // NOTE: This does not call build_graph(), which must be done afterward to
 // populate the graph arrays with data.
@@ -86,84 +67,24 @@ void Graph::init() {
   }
   maxoutdegree = std::min(maxoutdegree, h - n + 1);
 
-  allocate_arrays();
-  find_shift_cycles();
   state_active.assign(numstates + 1, true);
-}
+  outdegree.assign(numstates + 1, 0);
+  cyclenum.assign(numstates + 1, 0);
+  cycleperiod.assign(numstates + 1, 0);
+  isexitcycle.assign(numstates + 1, false);
 
-// Allocate all arrays used by the graph and initialize to default values.
-
-void Graph::allocate_arrays() {
-  outdegree = new unsigned int[numstates + 1];
-  cyclenum = new unsigned int[numstates + 1];
-  cycleperiod = new unsigned int[numstates + 1];
-  isexitcycle = new bool[numstates + 1];
-
+  outmatrix.resize(numstates + 1);
+  outthrowval.resize(numstates + 1);
+  excludestates_throw.resize(numstates + 1);
+  excludestates_catch.resize(numstates + 1);
   for (size_t i = 0; i <= numstates; ++i) {
-    outdegree[i] = 0;
-    cyclenum[i] = 0;
-    cycleperiod[i] = 0;
-    isexitcycle[i] = false;
+    outmatrix.at(i).assign(maxoutdegree, 0);
+    outthrowval.at(i).assign(maxoutdegree, 0);
+    excludestates_throw.at(i).assign(h, 0);
+    excludestates_catch.at(i).assign(h, 0);
   }
 
-  outmatrix = new unsigned int*[numstates + 1];
-  outthrowval = new unsigned int*[numstates + 1];
-  excludestates_throw = new unsigned int*[numstates + 1];
-  excludestates_catch = new unsigned int*[numstates + 1];
-
-  for (size_t i = 0; i <= numstates; ++i) {
-    outmatrix[i] = new unsigned int[maxoutdegree];
-    outthrowval[i] = new unsigned int[maxoutdegree];
-    excludestates_throw[i] = new unsigned int[h];
-    excludestates_catch[i] = new unsigned int[h];
-
-    for (size_t j = 0; j < maxoutdegree; ++j) {
-      outmatrix[i][j] = 0;
-      outthrowval[i][j] = 0;
-    }
-    for (size_t j = 0; j < h; ++j) {
-      excludestates_throw[i][j] = 0;
-      excludestates_catch[i][j] = 0;
-    }
-  }
-}
-
-void Graph::delete_arrays() {
-  for (size_t i = 0; i <= numstates; ++i) {
-    if (outmatrix) {
-      delete[] outmatrix[i];
-      outmatrix[i] = nullptr;
-    }
-    if (outthrowval) {
-      delete[] outthrowval[i];
-      outthrowval[i] = nullptr;
-    }
-    if (excludestates_throw) {
-      delete[] excludestates_throw[i];
-      excludestates_throw[i] = nullptr;
-    }
-    if (excludestates_catch) {
-      delete[] excludestates_catch[i];
-      excludestates_catch[i] = nullptr;
-    }
-  }
-
-  delete[] outmatrix;
-  delete[] outthrowval;
-  delete[] excludestates_throw;
-  delete[] excludestates_catch;
-  delete[] outdegree;
-  delete[] cyclenum;
-  delete[] cycleperiod;
-  delete[] isexitcycle;
-  outmatrix = nullptr;
-  outthrowval = nullptr;
-  excludestates_throw = nullptr;
-  excludestates_catch = nullptr;
-  outdegree = nullptr;
-  cyclenum = nullptr;
-  cycleperiod = nullptr;
-  isexitcycle = nullptr;
+  find_shift_cycles();
 }
 
 //------------------------------------------------------------------------------

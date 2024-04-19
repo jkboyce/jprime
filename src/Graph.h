@@ -26,10 +26,6 @@ class Graph {
       unsigned int l = 0);
   Graph(unsigned int n, unsigned int h);
   Graph(const Graph& g);
-  Graph(Graph&&) =delete;
-  Graph& operator=(const Graph& g);
-  Graph& operator=(Graph&&) =delete;
-  ~Graph();
 
  public:
   // calculated at construction and do not change
@@ -38,27 +34,25 @@ class Graph {
   unsigned int l = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
   bool linkthrows_within_cycle = true;
-  std::vector<State> state;
   unsigned int numstates = 0;
   unsigned int maxoutdegree = 0;
   unsigned int numcycles = 0;
   unsigned int numshortcycles = 0;
-  unsigned int* cyclenum;
-  unsigned int* cycleperiod;
+  std::vector<State> state;
+  std::vector<unsigned int> cyclenum;
+  std::vector<unsigned int> cycleperiod;
 
   // updated as states are activated/deactivated
   std::vector<bool> state_active;
-  unsigned int** outmatrix;
-  unsigned int* outdegree;
-  unsigned int** outthrowval;
-  unsigned int** excludestates_throw;
-  unsigned int** excludestates_catch;
-  bool* isexitcycle;
+  std::vector<std::vector<unsigned int>> outmatrix;
+  std::vector<unsigned int> outdegree;
+  std::vector<std::vector<unsigned int>> outthrowval;
+  std::vector<std::vector<unsigned int>> excludestates_throw;
+  std::vector<std::vector<unsigned int>> excludestates_catch;
+  std::vector<int> isexitcycle;
 
  private:
   void init();
-  void allocate_arrays();
-  void delete_arrays();
   void find_shift_cycles();
   void gen_matrices();
   void find_exit_cycles();
