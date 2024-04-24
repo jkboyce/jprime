@@ -306,7 +306,7 @@ void Worker::gen_loops_super0() {
 // us to resume where we left off when loading from a work assignment.
 
 unsigned int Worker::load_one_throw() {
-  if (pattern[pos] == -1) {
+  if (pattern.at(pos) == -1) {
     loading_work = false;
     return 0;
   }
@@ -314,31 +314,32 @@ unsigned int Worker::load_one_throw() {
     loading_work = false;
   }
 
-  for (unsigned int col = 0; col < graph.outdegree[from]; ++col) {
-    if (graph.outthrowval[from][col] == static_cast<unsigned int>(pattern[pos]))
+  for (unsigned int col = 0; col < graph.outdegree.at(from); ++col) {
+    if (graph.outthrowval.at(from).at(col) ==
+          static_cast<unsigned int>(pattern.at(pos)))
       return col;
   }
 
   // diagnostic information if there's a problem
   std::ostringstream buffer;
   for (size_t i = 0; i <= pos; ++i)
-    print_throw(buffer, pattern[i]);
+    print_throw(buffer, pattern.at(i));
   std::cerr << "worker: " << worker_id << '\n'
             << "pos: " << pos << '\n'
             << "root_pos: " << root_pos << '\n'
             << "from: " << from << '\n'
-            << "state[from]: " << graph.state[from] << '\n'
+            << "state[from]: " << graph.state.at(from) << '\n'
             << "start_state: " << start_state << '\n'
             << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
   for (size_t i = 0; i < graph.maxoutdegree; ++i)
-    std::cerr << graph.outthrowval[from][i] << ", ";
+    std::cerr << graph.outthrowval.at(from).at(i) << ", ";
   std::cerr << "\noutmatrix[from][]: ";
   for (size_t i = 0; i < graph.maxoutdegree; ++i)
-    std::cerr << graph.outmatrix[from][i] << ", ";
+    std::cerr << graph.outmatrix.at(from).at(i) << ", ";
   std::cerr << "\nstate[outmatrix[from][]]: ";
   for (size_t i = 0; i < graph.maxoutdegree; ++i)
-    std::cerr << graph.state[graph.outmatrix[from][i]] << ", ";
+    std::cerr << graph.state.at(graph.outmatrix.at(from).at(i)) << ", ";
   std::cerr << '\n';
   std::exit(EXIT_FAILURE);
   return 0;
@@ -364,8 +365,8 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
   while (iter != end) {
     // housekeeping: has this root_pos option been pruned from the graph?
     bool pruned = true;
-    for (size_t i = 0; i < graph.outdegree[from]; ++i) {
-      if (graph.outthrowval[from][i] == *iter) {
+    for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
+      if (graph.outthrowval.at(from).at(i) == *iter) {
         pruned = false;
         break;
       }

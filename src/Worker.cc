@@ -259,12 +259,12 @@ void Worker::send_stats_to_coordinator() {
     assert(pattern.at(i) >= 0);
     msg.worker_throw.at(i) = pattern.at(i);
 
-    for (unsigned int col = 0; col < graph.outdegree[tempfrom]; ++col) {
-      const unsigned int throwval = graph.outthrowval[tempfrom][col];
+    for (unsigned int col = 0; col < graph.outdegree.at(tempfrom); ++col) {
+      const unsigned int throwval = graph.outthrowval.at(tempfrom).at(col);
       if (throwval != static_cast<unsigned int>(pattern.at(i)))
         continue;
 
-      const unsigned int tempto = graph.outmatrix[tempfrom][col];
+      const unsigned int tempto = graph.outmatrix.at(tempfrom).at(col);
       assert(tempto > 0);
       assert(!u.at(tempto));
 
@@ -274,7 +274,7 @@ void Worker::send_stats_to_coordinator() {
       } else if (i == root_pos) {
         msg.worker_options_left.at(i) = root_throwval_options.size();
       } else {
-        msg.worker_options_left.at(i) = graph.outdegree[tempfrom] - col - 1;
+        msg.worker_options_left.at(i) = graph.outdegree.at(tempfrom) - col - 1;
       }
 
       // number of deadstates induced by current link throw, above the
@@ -282,10 +282,10 @@ void Worker::send_stats_to_coordinator() {
       if (throwval != 0 && throwval != graph.h) {
         // throw
         for (size_t j = 0; true; ++j) {
-          unsigned int es = graph.excludestates_throw[tempfrom][j];
+          unsigned int es = graph.excludestates_throw.at(tempfrom).at(j);
           if (es == 0)
             break;
-          if (!u.at(es) && ++ds.at(graph.cyclenum[tempfrom]) > 1) {
+          if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempfrom)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
           u.at(es) = true;
@@ -293,10 +293,10 @@ void Worker::send_stats_to_coordinator() {
 
         // catch
         for (size_t j = 0; true; ++j) {
-          unsigned int es = graph.excludestates_catch[tempto][j];
+          unsigned int es = graph.excludestates_catch.at(tempto).at(j);
           if (es == 0)
             break;
-          if (!u.at(es) && ++ds.at(graph.cyclenum[tempto]) > 1) {
+          if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempto)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
           u.at(es) = true;
@@ -399,9 +399,9 @@ void Worker::notify_coordinator_update() const {
 void Worker::build_rootpos_throw_options(unsigned int from_state,
     unsigned int start_column) {
   root_throwval_options.clear();
-  for (unsigned int col = start_column; col < graph.outdegree[from_state];
+  for (unsigned int col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
-    root_throwval_options.push_back(graph.outthrowval[from_state][col]);
+    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
   }
 
   if (config.verboseflag) {
@@ -546,13 +546,13 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // states as we build the pattern
     for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
       const unsigned int throwval = static_cast<unsigned int>(pattern.at(pos2));
-      for (col = 0; col < graph.outdegree[from_state]; ++col) {
-        if (throwval == graph.outthrowval[from_state][col]) {
+      for (col = 0; col < graph.outdegree.at(from_state); ++col) {
+        if (throwval == graph.outthrowval.at(from_state).at(col)) {
           break;
         }
       }
       // diagnostics if there's a problem
-      if (col == graph.outdegree[from_state]) {
+      if (col == graph.outdegree.at(from_state)) {
         std::cerr << "pos2 = " << pos2
                   << ", from_state = " << from_state
                   << ", start_state = " << start_state
@@ -561,14 +561,14 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
                   << ", throwval = " << throwval
                   << '\n';
       }
-      assert(col != graph.outdegree[from_state]);
+      assert(col != graph.outdegree.at(from_state));
 
-      if (pos2 > root_pos && col < graph.outdegree[from_state] - 1) {
+      if (pos2 > root_pos && col < graph.outdegree.at(from_state) - 1) {
         new_root_pos = static_cast<int>(pos2);
         break;
       }
 
-      from_state = graph.outmatrix[from_state][col];
+      from_state = graph.outmatrix.at(from_state).at(col);
     }
     assert(new_root_pos != -1);
     root_pos = static_cast<unsigned int>(new_root_pos);
@@ -595,7 +595,7 @@ void Worker::gen_patterns() {
   // reset the graph so build_graph() below does a full recalc
   for (size_t i = 1; i <= graph.numstates; ++i) {
     graph.state_active.at(i) = true;
-    graph.outdegree[i] = 0;
+    graph.outdegree.at(i) = 0;
   }
 
   for (; start_state <= end_state; ++start_state) {
@@ -833,7 +833,7 @@ std::string Worker::get_inverse() const {
   // - it never does a link throw (0 < t < h) within a single cycle
 
   unsigned int state_current = start_state;
-  unsigned int cycle_current = graph.cyclenum[start_state];
+  unsigned int cycle_current = graph.cyclenum.at(start_state);
   bool cycle_multiple = false;
 
   for (size_t i = 0; i <= pos; ++i) {
@@ -842,7 +842,7 @@ std::string Worker::get_inverse() const {
 
     const int state_next = graph.advance_state(state_current, pattern.at(i));
     assert(state_next > 0);
-    const unsigned int cycle_next = graph.cyclenum[state_next];
+    const unsigned int cycle_next = graph.cyclenum.at(state_next);
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
@@ -881,8 +881,8 @@ std::string Worker::get_inverse() const {
 
   for (size_t i = 0; i <= pos; ++i) {
     // continue until `pattern[i]` is a link throw
-    if (graph.cyclenum[patternstate.at(i)] ==
-        graph.cyclenum[patternstate.at(i + 1)]) {
+    if (graph.cyclenum.at(patternstate.at(i)) ==
+        graph.cyclenum.at(patternstate.at(i + 1))) {
       continue;
     }
 
