@@ -79,10 +79,6 @@ class Worker {
  public:
   Worker(const SearchConfig& config, Coordinator& coord, int id,
     unsigned int l_max);
-  Worker(const Worker&) =delete;
-  Worker(Worker&&) =delete;
-  Worker& operator=(const Worker&) =delete;
-  Worker& operator=(Worker&&) =delete;
   void run();
 
  private:

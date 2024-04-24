@@ -516,8 +516,9 @@ void Coordinator::start_workers() {
     if (config.verboseflag)
       std::cout << "worker " << id << " starting..." << std::endl;
 
-    worker.push_back(new Worker(config, *this, id, l_max));
-    worker_thread.push_back(new std::thread(&Worker::run, worker.at(id)));
+    worker.push_back(std::make_unique<Worker>(config, *this, id, l_max));
+    worker_thread.push_back(
+        std::make_unique<std::thread>(&Worker::run, worker.at(id).get()));
     worker_startstate.push_back(0);
     worker_endstate.push_back(0);
     worker_rootpos.push_back(0);
@@ -546,10 +547,6 @@ void Coordinator::stop_workers() {
       std::cout << "worker " << id << " asked to stop" << std::endl;
 
     worker_thread.at(id)->join();
-    delete worker.at(id);
-    delete worker_thread.at(id);
-    worker.at(id) = nullptr;
-    worker_thread.at(id) = nullptr;
   }
 
   if (config.verboseflag)

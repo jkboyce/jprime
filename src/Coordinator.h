@@ -23,6 +23,7 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <memory>
 
 
 class Coordinator {
@@ -34,8 +35,8 @@ class Coordinator {
   const SearchConfig& config;
   SearchContext& context;
   unsigned int l_max = 0;
-  std::vector<Worker*> worker;
-  std::vector<std::thread*> worker_thread;
+  std::vector<std::unique_ptr<Worker>> worker;
+  std::vector<std::unique_ptr<std::thread>> worker_thread;
   std::set<unsigned int> workers_idle;
   std::set<unsigned int> workers_splitting;
   std::vector<unsigned int> worker_startstate;
