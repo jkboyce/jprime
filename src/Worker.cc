@@ -89,12 +89,12 @@ void Worker::run() {
     // complete the new work assignment
     try {
       gen_patterns();
-      record_elapsed_time(start);
+      record_elapsed_time_from(start);
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
       (void)jpse;
-      record_elapsed_time(start);
+      record_elapsed_time_from(start);
       send_work_to_coordinator(get_work_assignment());
       break;
     }
@@ -109,7 +109,7 @@ void Worker::run() {
 }
 
 //------------------------------------------------------------------------------
-// Handle interactions with the Coordinator thread
+// Handle interactions with the Coordinator
 //------------------------------------------------------------------------------
 
 // Deliver a message to the coordinator's inbox.
@@ -166,7 +166,7 @@ void Worker::process_inbox_running() {
 // Get a finishing timestamp and record elapsed-time statistics to report to the
 // coordinator later on.
 
-void Worker::record_elapsed_time(const
+void Worker::record_elapsed_time_from(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
   const auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end - start;
@@ -268,7 +268,7 @@ void Worker::send_stats_to_coordinator() {
       assert(tempto > 0);
       assert(!u.at(tempto));
 
-      // options remaining at current position
+      // unexplored options remaining at position `i`
       if (i < root_pos) {
         msg.worker_options_left.at(i) = 0;
       } else if (i == root_pos) {
@@ -277,7 +277,7 @@ void Worker::send_stats_to_coordinator() {
         msg.worker_options_left.at(i) = graph.outdegree.at(tempfrom) - col - 1;
       }
 
-      // number of deadstates induced by current link throw, above the
+      // number of deadstates induced by a link throw, above the
       // one-per-shift cycle baseline
       if (throwval != 0 && throwval != graph.h) {
         // throw
@@ -423,7 +423,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
 //------------------------------------------------------------------------------
 
 // Return a work assignment that corresponds to a portion of the worker's
-// current work assignment, for handing off to another idle worker.
+// current work assignment, for handing off to another worker.
 
 WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
   if (end_state > start_state) {
@@ -455,7 +455,7 @@ WorkAssignment Worker::split_work_assignment_takestartstates() {
   wa.end_state = end_state;
   wa.root_pos = 0;
 
-  end_state = end_state - takenum;
+  end_state -= takenum;
   notify_coordinator_update();
   return wa;
 }
@@ -623,7 +623,7 @@ void Worker::gen_patterns() {
 
     if (max_possible < static_cast<int>(l_min)) {
       // larger values of `start_state` will have `max_possible` values that are
-      // the same or smaller
+      // the same or smaller, so we can exit the loop
       break;
     }
     if (!graph.state_active.at(start_state)) {
@@ -681,20 +681,23 @@ void Worker::gen_patterns() {
 // reachability. This routine should never mark states as active!
 
 void Worker::set_inactive_states() {
-  for (size_t i = 0; i < start_state; ++i)
+  for (size_t i = 0; i < start_state; ++i) {
     graph.state_active.at(i) = false;
+  }
 
   if (config.mode == RunMode::SUPER_SEARCH) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
       // number of consecutive '-'s at the start of the state, plus number of
       // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
       unsigned int start0s = 0;
-      while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0)
+      while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0) {
         ++start0s;
+      }
       unsigned int end1s = 0;
-      while (end1s < graph.h && graph.state.at(i).slot.at(graph.h - end1s - 1)
-          != 0)
+      while (end1s < graph.h &&
+          graph.state.at(i).slot.at(graph.h - end1s - 1) != 0) {
         ++end1s;
+      }
       if (start0s + end1s > config.shiftlimit) {
         graph.state_active.at(i) = false;
       }

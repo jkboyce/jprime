@@ -85,7 +85,7 @@ class Worker {
   void message_coordinator(MessageW2C& msg) const;
   void message_coordinator_text(const std::string& str) const;
   void process_inbox_running();
-  void record_elapsed_time(const
+  void record_elapsed_time_from(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start);
   void calibrate_inbox_check();
   void process_split_work_request();
