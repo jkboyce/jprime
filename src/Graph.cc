@@ -48,7 +48,7 @@ void Graph::init() {
   numstates = static_cast<unsigned int>(num);
 
   // enumerate the states
-  state.reserve(numstates + 1);
+  state.reserve(numstates + 2);
   state.push_back({0, h});  // state at index 0 is unused
   if (l == 0) {
     gen_states_all(state, n, h);
