@@ -1,8 +1,7 @@
 //
 // Worker.h
 //
-// Worker thread that executes work assignments given to it by the
-// Coordinator thread.
+// Worker thread that executes work assignments given to it by the Coordinator.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
@@ -77,6 +76,8 @@ class Worker {
   std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
+  // Note that Worker contains a `std::mutex` so its implicit copy and move
+  // constructors are deleted
   Worker(const SearchConfig& config, Coordinator& coord, int id,
     unsigned int l_max);
   void run();
@@ -112,7 +113,7 @@ class Worker {
   std::string get_pattern() const;
   std::string get_inverse() const;
 
-  // core search routines (recursive)
+  // core search routines (recursive versions)
   void gen_loops_normal();
   void gen_loops_normal_marking();
   void gen_loops_super();
@@ -125,7 +126,7 @@ class Worker {
   void unmark_unreachable_states_catch(unsigned int to_state);
   void handle_finished_pattern();
 
-  // core search routines (iterative)
+  // core search routines (iterative versions; identical in function to above)
   void iterative_gen_loops_normal();
   void iterative_gen_loops_normal_counting();
   void iterative_gen_loops_normal_marking();

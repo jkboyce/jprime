@@ -1,8 +1,7 @@
 //
 // Worker.cc
 //
-// Worker thread that executes work assignments given to it by the
-// Coordinator thread.
+// Worker thread that executes work assignments given to it by the Coordinator.
 //
 // The overall computation is depth first search on multiple worker threads,
 // with a work stealing scheme to balance work among the threads. Each worker
@@ -208,7 +207,7 @@ void Worker::process_split_work_request() {
   send_work_to_coordinator(wa);
 
   // Avoid double counting nodes: Each of the "prefix" nodes up to and
-  // including `root_pos` will be reported twice to the Coordinator: by this
+  // including `root_pos` will be reported twice to the coordinator: by this
   // worker, and the worker that does the job we just split off and returned.
   if (wa.start_state == start_state) {
     nnodes -= (wa.root_pos + 1);

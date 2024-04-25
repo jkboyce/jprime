@@ -48,6 +48,7 @@ void Graph::init() {
   numstates = static_cast<unsigned int>(num);
 
   // enumerate the states
+  state.reserve(numstates + 1);
   state.push_back({0, h});  // state at index 0 is unused
   if (l == 0) {
     gen_states_all(state, n, h);
@@ -237,10 +238,8 @@ void Graph::find_shift_cycles() {
   std::vector<unsigned int> cyclestates(h);
   const unsigned int UNUSED = -1;
 
-  for (size_t i = 0; i <= numstates; ++i) {
-    cyclenum.at(i) = UNUSED;
-    cycleperiod.at(i) = UNUSED;
-  }
+  cyclenum.assign(numstates + 1, UNUSED);
+  cycleperiod.assign(numstates + 1, UNUSED);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (cyclenum.at(i) != UNUSED)
