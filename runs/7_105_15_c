@@ -1,0 +1,33 @@
+version           6.7
+command line      jprime 7 105 15 -count -threads 6 -status -file 7_105_15_c
+states            22760723700
+shift cycles      216768798
+short cycles      1
+length bound      22543954902
+states (in mem)   116280
+patterns          1987331381633
+patterns (total)  2066722084631
+nodes completed   125802220731939
+seconds elapsed   156777.7651
+seconds working   940636.8382
+seconds avail     940666.5899
+cores avail       10
+
+patterns
+
+counts
+1, 1
+2, 7
+3, 55
+4, 304
+5, 3163
+6, 14300
+7, 99207
+8, 667942
+9, 4623423
+10, 32418419
+11, 217541904
+12, 1471999954
+13, 10047718293
+14, 67615616026
+15, 1987331381633
