@@ -27,10 +27,6 @@ Graph::Graph(unsigned int n, unsigned int h)
   init();
 }
 
-Graph::Graph(const Graph& g)
-    : Graph(g.n, g.h, g.xarray, g.linkthrows_within_cycle, g.l) {
-}
-
 //------------------------------------------------------------------------------
 // Prep core data structures during construction
 //------------------------------------------------------------------------------

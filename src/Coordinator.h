@@ -1,7 +1,7 @@
 //
 // Coordinator.h
 //
-// Coordinator thread that manages the overall search.
+// Coordinator that manages the overall search.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //

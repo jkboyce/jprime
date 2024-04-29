@@ -1,7 +1,7 @@
 //
 // Worker.h
 //
-// Worker thread that executes work assignments given to it by the Coordinator.
+// Worker that executes work assignments given to it by the Coordinator.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
@@ -76,10 +76,10 @@ class Worker {
   std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
-  // Note that Worker contains a `std::mutex` so its implicit copy and move
-  // constructors are deleted
   Worker(const SearchConfig& config, Coordinator& coord, int id,
     unsigned int l_max);
+  // Note that Worker contains a `std::mutex` so its default copy and move
+  // constructors are deleted
   void run();
 
  private:

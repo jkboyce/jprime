@@ -223,7 +223,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-void SearchConfig::from_args(std::string str) {
+void SearchConfig::from_args(const std::string& str) {
   // tokenize the argslist string
   std::stringstream ss(str);
   std::string s;

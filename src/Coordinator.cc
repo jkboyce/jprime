@@ -177,7 +177,7 @@ void Coordinator::process_inbox() {
 // to the terminal.
 
 void Coordinator::process_search_result(const MessageW2C& msg) {
-  // workers will only send patterns in the target length range
+  // workers only send patterns in the target length range
   context.patterns.push_back(msg.pattern);
 
   if (config.printflag) {
@@ -251,7 +251,7 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
 // Handle an update from a worker on the state of its search.
 //
 // There are two types of updates: (a) informational text updates, which are
-// printed in `-verbose` mode, and (b) updates on `start_state`, `end_state`,
+// printed in `-verbose` mode, and (b) updates to `start_state`, `end_state`,
 // and `root_pos`, which are used by the coordinator when it needs to select a
 // worker to send a SPLIT_WORK request to.
 
@@ -429,7 +429,7 @@ bool Coordinator::passes_prechecks() {
 }
 
 // Determine as much as possible about the size of the computation before
-// starting up the workers.
+// starting up the workers, saving results in `context`.
 //
 // Note these quantities may be very large so we use uint64s for all of them.
 
@@ -532,7 +532,7 @@ void Coordinator::start_workers() {
   }
 }
 
-// Stop all workers and free resources.
+// Stop all workers.
 
 void Coordinator::stop_workers() {
   if (config.verboseflag)

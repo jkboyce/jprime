@@ -1,7 +1,7 @@
 //
 // Worker.cc
 //
-// Worker thread that executes work assignments given to it by the Coordinator.
+// Worker that executes work assignments given to it by the Coordinator.
 //
 // The overall computation is depth first search on multiple worker threads,
 // with a work stealing scheme to balance work among the threads. Each worker
@@ -385,15 +385,15 @@ void Worker::notify_coordinator_idle() {
 void Worker::notify_coordinator_update() const {
   MessageW2C msg;
   msg.type = messages_W2C::WORKER_UPDATE;
-  msg.root_pos = root_pos;
   msg.start_state = start_state;
   msg.end_state = end_state;
+  msg.root_pos = root_pos;
   message_coordinator(msg);
 }
 
-// Determine the set of throw options available at position `root_pos` in
-// the pattern. This list of options is maintained in case we get a request
-// to split work.
+// Enumerate the set of throw options available at position `root_pos` in the
+// pattern. This list of options is maintained in case we get a request to split
+// work.
 
 void Worker::build_rootpos_throw_options(unsigned int from_state,
     unsigned int start_column) {
@@ -421,8 +421,8 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
 // Work-splitting algorithms
 //------------------------------------------------------------------------------
 
-// Return a work assignment that corresponds to a portion of the worker's
-// current work assignment, for handing off to another worker.
+// Return a work assignment that corresponds to a portion of the current work
+// assignment, for handing off to another worker.
 
 WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
   if (end_state > start_state) {
@@ -487,8 +487,8 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   }
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
-  std::list<unsigned int>::iterator iter = root_throwval_options.begin();
-  std::list<unsigned int>::iterator end = root_throwval_options.end();
+  auto iter = root_throwval_options.begin();
+  auto end = root_throwval_options.end();
   while (iter != end) {
     if (pattern.at(root_pos) >= 0 &&
         *iter == static_cast<unsigned int>(pattern.at(root_pos))) {
@@ -499,20 +499,19 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   }
   assert(root_throwval_options.size() > 0);
 
-  typedef std::list<int>::size_type li_size_t;
-  li_size_t take_count =
-      static_cast<li_size_t>(0.51 + f * root_throwval_options.size());
-  take_count = std::min(
-      std::max(static_cast<li_size_t>(1), take_count),
+  // move `take_count` unexplored root_pos options to the new work assignment
+  size_t take_count =
+      static_cast<size_t>(0.51 + f * root_throwval_options.size());
+  take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
       root_throwval_options.size());
 
-  li_size_t take_begin_idx = (take_front ? 0
-        : root_throwval_options.size() - take_count);
-  li_size_t take_end_idx = take_begin_idx + take_count;
+  size_t take_begin_idx = (take_front ?
+        0 : root_throwval_options.size() - take_count);
+  size_t take_end_idx = take_begin_idx + take_count;
 
   iter = root_throwval_options.begin();
   end = root_throwval_options.end();
-  li_size_t index = 0;
+  size_t index = 0;
   while (iter != end) {
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
@@ -523,22 +522,21 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     ++index;
   }
 
+  // did we give away all our throw options at `root_pos`?
   if (root_throwval_options.size() == 0) {
-    // Gave away all our throw options at this `root_pos`.
-    //
-    // We need to find the shallowest depth `new_root_pos` where there are
-    // unexplored throw options. We have no more options at the current
-    // root_pos, so new_root_pos > root_pos.
+    // Find the shallowest depth `new_root_pos` where there are unexplored throw
+    // options. We have no more options at the current root_pos, so
+    // new_root_pos > root_pos.
     //
     // We're also at a point in the search where we know there are unexplored
-    // options remaining at the current value of `pos` (by virtue of how we got
-    // here), and that pos > root_pos.
+    // options remaining somewhere between `root_pos` and `pos`; see e.g.
+    // Worker::iterative_can_split().
     //
     // So we know there must be a value of `new_root_pos` with the properties we
-    // need, in the range root_pos < new_root_pos <= pos.
+    // need in the range root_pos < new_root_pos <= pos.
 
     unsigned int from_state = start_state;
-    int new_root_pos = -1;
+    unsigned int new_root_pos = -1u;
     unsigned int col = 0;
 
     // have to scan from the beginning because we don't record the traversed
@@ -563,14 +561,14 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       assert(col != graph.outdegree.at(from_state));
 
       if (pos2 > root_pos && col < graph.outdegree.at(from_state) - 1) {
-        new_root_pos = static_cast<int>(pos2);
+        new_root_pos = static_cast<unsigned int>(pos2);
         break;
       }
 
       from_state = graph.outmatrix.at(from_state).at(col);
     }
-    assert(new_root_pos != -1);
-    root_pos = static_cast<unsigned int>(new_root_pos);
+    assert(new_root_pos != -1u);
+    root_pos = new_root_pos;
     notify_coordinator_update();
     build_rootpos_throw_options(from_state, col + 1);
     assert(root_throwval_options.size() > 0);
@@ -641,12 +639,14 @@ void Worker::gen_patterns() {
     }
     notify_coordinator_update();
 
-    // RELEASE THE KRAKEN
+    ////////////////////// RELEASE THE KRAKEN //////////////////////
 
     std::vector<int> used_start(used);
     switch (config.mode) {
       case RunMode::NORMAL_SEARCH:
         if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+          // typically these searches are not close to `l_bound` so the
+          // marking version of gen_loops() is not worth the overhead
           if (config.countflag) {
             iterative_gen_loops_normal_counting();
           } else {

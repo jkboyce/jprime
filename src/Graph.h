@@ -25,7 +25,6 @@ class Graph {
   Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa, bool ltwc,
       unsigned int l = 0);
   Graph(unsigned int n, unsigned int h);
-  Graph(const Graph& g);
 
  public:
   // calculated at construction and do not change

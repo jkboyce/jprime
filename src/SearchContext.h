@@ -5,8 +5,8 @@
 // output mode these items are saved to disk, recording results and/or allowing
 // calculations to be interrupted and resumed.
 //
-// Only the Coordinator thread has access to this data structure; the Workers
-// report all results and changes to the coordinator via messages.
+// Only the coordinator has access to this data structure; the workers report
+// all results and changes to the coordinator via messages.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
