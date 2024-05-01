@@ -28,7 +28,7 @@ class Coordinator;
 
 class Worker {
  public:
-  Worker(const SearchConfig& config, Coordinator& coord, int id,
+  Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
     unsigned int l_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted

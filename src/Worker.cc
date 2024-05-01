@@ -27,7 +27,7 @@
 #include <cassert>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator& coord, int id,
+Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
     unsigned int l_max)
     : config(config),
       coordinator(coord),
