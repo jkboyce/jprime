@@ -19,39 +19,39 @@
 #include <cstdint>
 
 
-// Message types from the coordinator to the worker
-
-enum class messages_C2W {
-  NONE,
-  DO_WORK,
-  SPLIT_WORK,
-  SEND_STATS,
-  STOP_WORKER,
-};
+// Message from the coordinator to the worker
 
 struct MessageC2W {
+  enum class Type {
+    NONE,
+    DO_WORK,
+    SPLIT_WORK,
+    SEND_STATS,
+    STOP_WORKER,
+  };
+
   // for all message types
-  messages_C2W type = messages_C2W::NONE;
+  Type type = Type::NONE;
 
   // for type DO_WORK
   WorkAssignment assignment;
 };
 
 
-// Message types from the worker to the coordinator
-
-enum class messages_W2C {
-  NONE,
-  SEARCH_RESULT,
-  WORKER_IDLE,
-  RETURN_WORK,
-  RETURN_STATS,
-  WORKER_UPDATE,
-};
+// Message from the worker to the coordinator
 
 struct MessageW2C {
+  enum class Type {
+    NONE,
+    SEARCH_RESULT,
+    WORKER_IDLE,
+    RETURN_WORK,
+    RETURN_STATS,
+    WORKER_UPDATE,
+  };
+
   // for all message types
-  messages_W2C type = messages_W2C::NONE;
+  Type type = Type::NONE;
   unsigned int worker_id = 0;
 
   // for type SEARCH_RESULT

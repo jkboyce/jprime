@@ -63,14 +63,14 @@ void Worker::run() {
       MessageC2W msg = inbox.front();
       inbox.pop();
 
-      if (msg.type == messages_C2W::DO_WORK) {
+      if (msg.type == MessageC2W::Type::DO_WORK) {
         load_work_assignment(msg.assignment);
         new_assignment = true;
-      } else if (msg.type == messages_C2W::SPLIT_WORK) {
+      } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
         // ignore in idle state
-      } else if (msg.type == messages_C2W::SEND_STATS) {
+      } else if (msg.type == MessageC2W::Type::SEND_STATS) {
         send_stats_to_coordinator();
-      } else if (msg.type == messages_C2W::STOP_WORKER) {
+      } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
         stop_worker = true;
       } else
         assert(false);
@@ -124,7 +124,7 @@ void Worker::message_coordinator(MessageW2C& msg) const {
 
 void Worker::message_coordinator_text(const std::string& str) const {
   MessageW2C msg;
-  msg.type = messages_W2C::WORKER_UPDATE;
+  msg.type = MessageW2C::Type::WORKER_UPDATE;
   msg.meta = str;
   message_coordinator(msg);
 }
@@ -144,13 +144,13 @@ void Worker::process_inbox_running() {
     MessageC2W msg = inbox.front();
     inbox.pop();
 
-    if (msg.type == messages_C2W::DO_WORK) {
+    if (msg.type == MessageC2W::Type::DO_WORK) {
       assert(false);
-    } else if (msg.type == messages_C2W::SPLIT_WORK) {
+    } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
       process_split_work_request();
-    } else if (msg.type == messages_C2W::SEND_STATS) {
+    } else if (msg.type == MessageC2W::Type::SEND_STATS) {
       send_stats_to_coordinator();
-    } else if (msg.type == messages_C2W::STOP_WORKER) {
+    } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
       stopping_work = true;
     }
   }
@@ -225,7 +225,7 @@ void Worker::process_split_work_request() {
 
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
   MessageW2C msg;
-  msg.type = messages_W2C::RETURN_WORK;
+  msg.type = MessageW2C::Type::RETURN_WORK;
   msg.assignment = wa;
   add_data_to_message(msg);
   message_coordinator(msg);
@@ -236,7 +236,7 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 
 void Worker::send_stats_to_coordinator() {
   MessageW2C msg;
-  msg.type = messages_W2C::RETURN_STATS;
+  msg.type = MessageW2C::Type::RETURN_STATS;
   add_data_to_message(msg);
   msg.running = running;
 
@@ -372,7 +372,7 @@ WorkAssignment Worker::get_work_assignment() const {
 
 void Worker::notify_coordinator_idle() {
   MessageW2C msg;
-  msg.type = messages_W2C::WORKER_IDLE;
+  msg.type = MessageW2C::Type::WORKER_IDLE;
   add_data_to_message(msg);
   message_coordinator(msg);
   running = false;
@@ -384,7 +384,7 @@ void Worker::notify_coordinator_idle() {
 
 void Worker::notify_coordinator_update() const {
   MessageW2C msg;
-  msg.type = messages_W2C::WORKER_UPDATE;
+  msg.type = MessageW2C::Type::WORKER_UPDATE;
   msg.start_state = start_state;
   msg.end_state = end_state;
   msg.root_pos = root_pos;
@@ -763,7 +763,7 @@ void Worker::report_pattern() const {
   }
 
   MessageW2C msg;
-  msg.type = messages_W2C::SEARCH_RESULT;
+  msg.type = MessageW2C::Type::SEARCH_RESULT;
   msg.pattern = buffer.str();
   msg.length = pos + 1;
   message_coordinator(msg);
@@ -772,13 +772,13 @@ void Worker::report_pattern() const {
 // Return a character for a given integer throw value (0 = '0', 1 = '1',
 // 10 = 'a', 11 = 'b', ...
 
-char Worker::throw_char(int val) {
-  if (val < 0 || val > 35) {
-    return '?';
-  } else if (val < 10) {
+char Worker::throw_char(unsigned int val) {
+  if (val < 10) {
     return static_cast<char>(val + '0');
-  } else {
+  } else if (val < 36) {
     return static_cast<char>(val - 10 + 'a');
+  } else {
+    return '?';
   }
 }
 
@@ -875,8 +875,8 @@ std::string Worker::get_inverse() const {
   // Iterate through the link throws in the pattern to build up a list of
   // states and throws for the inverse.
   //
-  // The inverse may go through states that aren't in the graph so we can't
-  // refer to them by state number.
+  // The inverse may go through states that aren't in memory so we can't refer
+  // to them by state number.
 
   std::vector<unsigned int> inversepattern;
   std::vector<State> inversestate;

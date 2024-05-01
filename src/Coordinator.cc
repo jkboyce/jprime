@@ -108,7 +108,7 @@ void Coordinator::collect_stats() {
   stats_received = 0;
   for (unsigned int id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
-    msg.type = messages_C2W::SEND_STATS;
+    msg.type = MessageC2W::Type::SEND_STATS;
     message_worker(msg, id);
   }
 }
@@ -125,7 +125,7 @@ void Coordinator::give_assignments() {
     context.assignments.pop_front();
 
     MessageC2W msg;
-    msg.type = messages_C2W::DO_WORK;
+    msg.type = MessageC2W::Type::DO_WORK;
     msg.assignment = wa;
     worker_startstate.at(id) = wa.start_state;
     worker_endstate.at(id) = wa.end_state;
@@ -156,15 +156,15 @@ void Coordinator::process_inbox() {
     MessageW2C msg = inbox.front();
     inbox.pop();
 
-    if (msg.type == messages_W2C::SEARCH_RESULT) {
+    if (msg.type == MessageW2C::Type::SEARCH_RESULT) {
       process_search_result(msg);
-    } else if (msg.type == messages_W2C::WORKER_IDLE) {
+    } else if (msg.type == MessageW2C::Type::WORKER_IDLE) {
       process_worker_idle(msg);
-    } else if (msg.type == messages_W2C::RETURN_WORK) {
+    } else if (msg.type == MessageW2C::Type::RETURN_WORK) {
       process_returned_work(msg);
-    } else if (msg.type == messages_W2C::RETURN_STATS) {
+    } else if (msg.type == MessageW2C::Type::RETURN_STATS) {
       process_returned_stats(msg);
-    } else if (msg.type == messages_W2C::WORKER_UPDATE) {
+    } else if (msg.type == MessageW2C::Type::WORKER_UPDATE) {
       process_worker_update(msg);
     } else {
       assert(false);
@@ -346,7 +346,7 @@ void Coordinator::steal_work() {
     assert(id < config.num_threads);
 
     MessageC2W msg;
-    msg.type = messages_C2W::SPLIT_WORK;
+    msg.type = MessageC2W::Type::SPLIT_WORK;
     message_worker(msg, id);
     workers_splitting.insert(id);
     sent_split_request = true;
@@ -540,7 +540,7 @@ void Coordinator::stop_workers() {
 
   for (unsigned int id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
-    msg.type = messages_C2W::STOP_WORKER;
+    msg.type = MessageC2W::Type::STOP_WORKER;
     message_worker(msg, id);
 
     if (config.verboseflag)
