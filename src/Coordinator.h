@@ -28,6 +28,9 @@
 
 class Coordinator {
  public:
+  Coordinator(const SearchConfig& config, SearchContext& context);
+
+ public:
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
 
@@ -63,7 +66,6 @@ class Coordinator {
   std::vector<unsigned int> worker_longest;
 
  public:
-  Coordinator(const SearchConfig& config, SearchContext& context);
   bool run();
 
  private:

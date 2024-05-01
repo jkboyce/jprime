@@ -28,6 +28,12 @@ class Coordinator;
 
 class Worker {
  public:
+  Worker(const SearchConfig& config, Coordinator& coord, int id,
+    unsigned int l_max);
+  // Note that Worker contains a `std::mutex` so its default copy and move
+  // constructors are deleted
+
+ public:
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
   static constexpr double SECS_PER_INBOX_CHECK_TARGET = 0.01;
@@ -76,10 +82,6 @@ class Worker {
   std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
-  Worker(const SearchConfig& config, Coordinator& coord, int id,
-    unsigned int l_max);
-  // Note that Worker contains a `std::mutex` so its default copy and move
-  // constructors are deleted
   void run();
 
  private:
