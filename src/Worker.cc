@@ -722,7 +722,7 @@ void Worker::initialize_working_variables() {
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
     if (!graph.state_active.at(i)) {
-      ++deadstates_bystate.at(i);
+      ++*deadstates_bystate.at(i);
     }
   }
 
