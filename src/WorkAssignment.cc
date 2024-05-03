@@ -18,7 +18,7 @@
 
 // Initialize from a string; return true on success, false otherwise.
 
-bool WorkAssignment::from_string(std::string str) {
+bool WorkAssignment::from_string(const std::string& str) {
   std::regex rgx(
       "\\{ start_state:([0-9]+), end_state:([0-9]+), root_pos:([0-9]+), "
       "root_options:\\[([0-9,]+)\\], current:\\\"([0-9,]*)\\\" \\}"

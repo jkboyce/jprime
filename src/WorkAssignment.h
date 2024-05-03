@@ -37,7 +37,7 @@ struct WorkAssignment {
   // sequence of throws comprising the current position in the search tree
   std::vector<unsigned int> partial_pattern;
 
-  bool from_string(std::string str);
+  bool from_string(const std::string& str);
 };
 
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa);

@@ -403,7 +403,7 @@ unsigned int Coordinator::find_stealing_target_mostremaining() const {
 bool Coordinator::passes_prechecks() {
   calc_graph_size();
 
-  bool length_error = (config.l_min > context.l_bound ||
+  const bool length_error = (config.l_min > context.l_bound ||
       config.l_max > context.l_bound);
 
   if (config.infoflag || length_error ||
