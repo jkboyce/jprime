@@ -29,22 +29,8 @@
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
     unsigned int l_max)
-    : config(config),
-      coordinator(coord),
-      worker_id(id),
-      graph(config.n, config.h, config.xarray,
-        config.mode != RunMode::SUPER_SEARCH,
-        config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0),
-      l_min(config.l_min),
-      l_max(l_max) {
-  beat.resize(graph.numstates + 1);
-  pattern.assign(graph.numstates + 1, -1);
-  used.assign(graph.numstates + 1, 0);
-  cycleused.assign(graph.numstates + 1, 0);
-  deadstates.assign(graph.numstates + 1, 0);
-  deadstates_bystate.assign(graph.numstates + 1, nullptr);
-  count.assign(l_max + 1, 0);
-}
+    : config(config), coordinator(coord), worker_id(id), l_min(config.l_min),
+      l_max(l_max) {}
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -54,6 +40,8 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
 // assignment from the coordinator.
 
 void Worker::run() {
+  initialize_graph();
+
   while (true) {
     bool new_assignment = false;
     bool stop_worker = false;
@@ -105,6 +93,22 @@ void Worker::run() {
 
     notify_coordinator_idle();
   }
+}
+
+// Initialize the juggling graph and associated arrays used during search.
+
+void Worker::initialize_graph() {
+  graph = {config.n, config.h, config.xarray,
+    config.mode != RunMode::SUPER_SEARCH,
+    config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0};
+
+  beat.resize(graph.numstates + 1);
+  pattern.assign(graph.numstates + 1, -1);
+  used.assign(graph.numstates + 1, 0);
+  cycleused.assign(graph.numstates + 1, 0);
+  deadstates.assign(graph.numstates + 1, 0);
+  deadstates_bystate.assign(graph.numstates + 1, nullptr);
+  count.assign(l_max + 1, 0);
 }
 
 //------------------------------------------------------------------------------

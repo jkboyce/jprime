@@ -43,22 +43,22 @@ class Worker {
   const SearchConfig config;
   Coordinator& coordinator;
   const unsigned int worker_id;
-  Graph graph;
   const unsigned int l_min;
   const unsigned int l_max;
 
   // working variables for search
+  Graph graph;
+  std::vector<SearchState> beat;  // workspace for iterative search
+  std::vector<int> pattern;  // throw value at each position
+  std::vector<int> used;  // whether a state has been visited
+  std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
+  std::vector<unsigned int> deadstates;  // indexed by shift cycle number
+  std::vector<unsigned int*> deadstates_bystate;  // indexed by state number
   unsigned int pos = 0;
   unsigned int from = 1;
   unsigned int shiftcount = 0;
   unsigned int exitcyclesleft = 0;
   int max_possible = 0;
-  std::vector<SearchState> beat;  // workspace for iterative search
-  std::vector<int> pattern;
-  std::vector<int> used;
-  std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
-  std::vector<unsigned int> deadstates;  // indexed by shift cycle number
-  std::vector<unsigned int*> deadstates_bystate;  // indexed by state number
 
   // for loading and sharing work assignments
   unsigned int start_state = 0;
@@ -85,6 +85,7 @@ class Worker {
   void run();
 
  private:
+  void initialize_graph();
   void message_coordinator(MessageW2C& msg) const;
   void message_coordinator_text(const std::string& str) const;
   void process_inbox_running();
