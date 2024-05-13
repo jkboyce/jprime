@@ -12,7 +12,9 @@
 
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <stdexcept>
+#include <cstring>
 
 
 // Initialize SearchConfig from command line arguments.
@@ -116,7 +118,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           throw std::invalid_argument(
               "Cannot exclude max. throw value using -x");
         }
-        if (j >= 0 && j < h) {
+        if (j < h) {
           xarray.at(dualflag ? (h - j) : j) = true;
         }
         ++i;
