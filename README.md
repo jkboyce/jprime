@@ -1,22 +1,17 @@
 # jprime
-Parallel depth first search (DFS) to efficiently find prime siteswap juggling patterns.
+Parallel depth first search (DFS) to find prime siteswap juggling patterns.
 
 Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
 
-Because the graph for $N$ objects and maximum throw $H$ is of finite order equal to the number of states ($H$ choose $N$), there exists a longest prime siteswap pattern(s) for that case. The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf). Here we update the table of results in the paper to correct inaccuracies and include more recent findings.
+`jprime` searches the juggling state graph for patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
-`jprime` searches the juggling state graph to find patterns, exploiting the structure of the graph to speed up the search. The search is done in parallel using a work-stealing scheme to distribute work across threads.
+Using `jprime` I have carried out some investigations into prime siteswap patterns, and summarize my findings here.
 
-## Running
+## Finding the longest patterns in $(N, H)$
 
-After cloning the repository, on a Unix system run `make` to build the `jprime` binary using the included makefile. Run the binary with no arguments to get a help message.
+The first investigation is to find the longest prime patterns for a given number of objects ($N$) and maximum throwing value ($H$). Since the graph for $N$ objects and maximum throw $H$ is finite in size – with a number of vertices equal to the number of states ($H$ choose $N$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall again that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on the length of prime patterns.)
 
-`jprime` has two modes of operation, intended to search for prime patterns in complementary ways:
-
-- Normal mode, the default. This finds patterns by searching the juggling graph directly for cycles.
-- Super mode (faster). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime, for reasons described in the paper. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
-
-## Longest patterns in $(N, H)$
+The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
 
 The table below summarizes everything known about the longest prime siteswap patterns. $L$ is the length of the longest prime pattern for the given $(N, H)$, and $L_{bound}$ is the theoretical upper bound on that length.
 
@@ -109,8 +104,205 @@ Table notes:
 |  9  |  12  |  220  |  201  |  200  |  [{28, 2}](https://github.com/jkboyce/jprime/blob/main/runs/9_12_200)  |
 |  9  |  13  |  715  |  660  |  660  |  [16317](https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0)  |
 
-## Total pattern counts by $N$, $L$
+## Counting prime patterns
 
-For a given number of objects $N$, the total number of periodic siteswap patterns of length $L$ is given by Buhler, Eisenbud, Graham, and Wright ([_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf), 1994): $(N+1)^L - N^L$. This formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), and because each prime pattern occurs exactly $L$ times in the count, we get an upper bound on the number $P(N,L)$ of prime patterns of length $L$ where we do not treat rotations as distinct: $P(N,L) <= [(N+1)^L - N^L] / L$.
+As a second investigation, we use `jprime` to count the total number of prime patterns for a given number of objects ($N$) and pattern period ($L$).
 
-Counting prime patterns seems to be a more difficult problem than the general case. One set of results comes from Banaian, Butler, Cox, Davis, Landgraf, and Ponce ([_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296), 2015). They find an exact formula for $P(N,L)$ for the case $N=2$, and also establish a lower bound in the general case: $P(N,L) >= N^{L-1}$.
+The counting problem has been solved analytically for siteswap patterns in general. In [_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf) (Buhler, Eisenbud, Graham, and Wright, 1994) the following formula is derived for the total number of periodic siteswap patterns with $N$ objects and period (length) $L$: $(N+1)^L - N^L$.
+
+Note this formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), and because each prime pattern occurs exactly $L$ times in the count, it follows that an upper bound on the number of prime patterns of length $L$, where we do not treat rotations as distinct, is $P(N,L) <= [(N+1)^L - N^L] / L$.
+
+Counting prime patterns specifically is a more difficult problem than the general case. One set of results comes from [_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296) (Banaian, Butler, Cox, Davis, Landgraf, and Ponce, 2015). They find an exact formula for $P(N,L)$ for the case $N=2$, and also establish the lower bound $P(N,L) >= N^{L-1}$.
+
+The table below shows exact counts for the number of prime patterns at each period. For the cases $N = 2, 3, 4, 5$ these are OEIS sequences [A260744](https://oeis.org/A260744), [A260745](https://oeis.org/A260745), [A260746](https://oeis.org/A260746), and [A260752](https://oeis.org/A260752) respectively.
+<pre>
+2 OBJECTS
+1, 1
+2, 2
+3, 5
+4, 10
+5, 23
+6, 48
+7, 105
+8, 216
+9, 467
+10, 958
+11, 2021
+12, 4146
+13, 8631
+14, 17604
+15, 36377
+16, 73876
+17, 151379
+18, 306882
+19, 625149
+20, 1263294
+21, 2563895
+22, 5169544
+23, 10454105
+24, 21046800
+25, 42451179
+26, 85334982
+27, 171799853
+28, 344952010
+29, 693368423
+30, 1391049900
+31, 2792734257
+32, 5598733260
+33, 11230441259
+34, 22501784458
+35, 45103949933
+36, 90335055318
+37, 180975948735
+38, 362339965776
+39, 725616088097
+40, 1452416238568
+
+3 OBJECTS
+1, 1
+2, 3
+3, 11
+4, 36
+5, 127
+6, 405
+7, 1409
+8, 4561
+9, 15559
+10, 50294
+11, 169537
+12, 551001
+13, 1835073
+14, 5947516
+15, 19717181
+16, 63697526
+17, 209422033
+18, 676831026
+19, 2208923853
+20, 7112963260
+21, 23127536979
+22, 74225466424
+23, 239962004807
+24, 768695233371
+25, 2473092566267
+26, 7896286237030
+27, 25316008015581
+28, 80572339461372
+
+4 OBJECTS
+1, 1
+2, 4
+3, 19
+4, 83
+5, 391
+6, 1663
+7, 7739
+8, 33812
+9, 153575
+10, 677901
+11, 3075879
+12, 13586581
+13, 61458267
+14, 272367077
+15, 1228519987
+16, 5456053443
+17, 24547516939
+18, 109153816505
+19, 490067180301
+20, 2180061001275
+21, 9772927018285
+
+5 OBJECTS
+1, 1
+2, 5
+3, 29
+4, 157
+5, 901
+6, 4822
+7, 27447
+8, 149393
+9, 836527
+10, 4610088
+11, 25846123
+12, 142296551
+13, 799268609
+14, 4426204933
+15, 24808065829
+16, 137945151360
+17, 773962487261
+18, 4310815784117
+
+6 OBJECTS
+1, 1
+2, 6
+3, 41
+4, 264
+5, 1777
+6, 11378
+7, 76191
+8, 493550
+9, 3263843
+10, 21373408
+11, 141617885
+12, 926949128
+13, 6157491321
+14, 40536148951
+15, 268893316363
+16, 1777319903383
+
+7 OBJECTS
+1, 1
+2, 7
+3, 55
+4, 410
+5, 3163
+6, 23511
+7, 180477
+8, 1353935
+9, 10297769
+10, 77849603
+11, 593258483
+12, 4486556303
+13, 34267633327
+14, 260349728028
+15, 1987331381633
+
+8 OBJECTS
+1, 1
+2, 8
+3, 71
+4, 601
+5, 5227
+6, 44181
+7, 382221
+8, 3254240
+9, 27976325
+10, 239491149
+11, 2061545183
+12, 17664073336
+13, 152326783983
+14, 1309746576182
+
+9 OBJECTS
+1, 1
+2, 9
+3, 89
+4, 843
+5, 8161
+6, 77248
+7, 743823
+8, 7081367
+9, 67880511
+10, 648866014
+11, 6225810713
+12, 59574064361
+13, 572427402861
+</pre>
+
+## Running jprime
+
+After cloning the repository, on a Unix system run `make` to build the `jprime` binary using the included makefile. Run the binary with no arguments to get a help message.
+
+`jprime` has two modes of operation, intended to search for prime patterns in complementary ways:
+
+- Normal mode, the default. This finds patterns by searching the juggling graph directly for cycles.
+- Super mode (faster). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime, for reasons described in the paper. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
