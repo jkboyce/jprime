@@ -88,8 +88,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       if ((i + 1) < argc) {
         ++i;
         val = std::stoi(argv[i]);
-        if (val < 0) {
-          throw std::invalid_argument("Steal_alg must be non-negative");
+        if (val < 1 || val > 1) {
+          throw std::invalid_argument("Steal_alg out of range");
         }
         steal_alg = static_cast<unsigned int>(val);
       } else {
@@ -99,8 +99,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       if ((i + 1) < argc) {
         ++i;
         val = std::stoi(argv[i]);
-        if (val < 0) {
-          throw std::invalid_argument("Split_alg must be non-negative");
+        if (val < 1 || val > 2) {
+          throw std::invalid_argument("Split_alg out of range");
         }
         split_alg = static_cast<unsigned int>(val);
       } else {
@@ -147,7 +147,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       // try to parse argument as a length or length range
       bool success = false;
       std::string s{argv[i]};
-      int hyphens = std::count(s.begin(), s.end(), '-');
+      int hyphens = static_cast<int>(std::count(s.begin(), s.end(), '-'));
       if (hyphens == 0) {
         int num = std::stoi(argv[i]);
         if (num > 0) {

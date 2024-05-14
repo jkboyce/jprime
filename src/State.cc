@@ -18,7 +18,7 @@ State::State(unsigned int balls, unsigned int height)
     : n(balls), h(height), slot(height, 0) {}
 
 State::State(std::string s) {
-  h = s.size();
+  h = static_cast<unsigned int>(s.size());
   n = 0;
   for (size_t i = 0; i < h; ++i) {
     int val = (s.at(i) == 'x' || s.at(i) == '1') ? 1 : 0;

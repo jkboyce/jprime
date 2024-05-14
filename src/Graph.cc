@@ -254,7 +254,7 @@ void Graph::find_shift_cycles() {
         continue;
 
       if (k == i && !periodfound) {
-        cycleper = j + 1;
+        cycleper = static_cast<unsigned int>(j + 1);
         periodfound = true;
       } else if (k < i) {
         newshiftcycle = false;
@@ -344,7 +344,7 @@ void Graph::gen_matrices() {
         if (xarray.at(tv))
           continue;
 
-        unsigned int k = advance_state(i, tv);
+        unsigned int k = advance_state(static_cast<unsigned int>(i), tv);
         if (k == 0)
           continue;
         if (!state_active.at(k))
@@ -390,7 +390,7 @@ void Graph::find_exit_cycles() {
     if (!state_active.at(i))
       continue;
     if (lowest_active_state == 0) {
-      lowest_active_state = i;
+      lowest_active_state = static_cast<unsigned int>(i);
       continue;
     }
 
@@ -494,8 +494,8 @@ unsigned int Graph::prime_length_bound() const {
     }
   }
 
-  int cycles_active =
-      numcycles - std::count(num_active.begin(), num_active.end(), 0);
+  int cycles_active = numcycles -
+      static_cast<int>(std::count(num_active.begin(), num_active.end(), 0));
   if (cycles_active > 1) {
     for (size_t i = 0; i < numcycles; ++i) {
       if (num_active.at(i) == cycleperiod.at(i)) {
@@ -526,7 +526,8 @@ unsigned int Graph::superprime_length_bound() const {
     }
   }
 
-  return std::count(any_active.begin(), any_active.end(), true);
+  return static_cast<unsigned int>(
+      std::count(any_active.begin(), any_active.end(), true));
 }
 
 // Return the index in the `state` array that corresponds to a given state.
@@ -552,7 +553,7 @@ unsigned int Graph::get_statenum(const State& s) const {
   while (below < above - 1) {
     size_t mid = (below + above) / 2;
     if (state.at(mid) == s)
-      return mid;
+      return static_cast<unsigned int>(mid);
     if (state_compare(state.at(mid), s)) {
       below = mid;
     } else {

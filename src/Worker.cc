@@ -275,7 +275,8 @@ void Worker::send_stats_to_coordinator() {
       if (i < root_pos) {
         msg.worker_options_left.at(i) = 0;
       } else if (i == root_pos) {
-        msg.worker_options_left.at(i) = root_throwval_options.size();
+        msg.worker_options_left.at(i) =
+            static_cast<unsigned int>(root_throwval_options.size());
       } else {
         msg.worker_options_left.at(i) = graph.outdegree.at(tempfrom) - col - 1;
       }
@@ -437,11 +438,9 @@ WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
     case 1:
       return split_work_assignment_takeall();
       break;
-    case 2:
+    default:
       return split_work_assignment_takehalf();
       break;
-    default:
-      assert(false);
   }
 }
 
@@ -540,7 +539,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // need in the range root_pos < new_root_pos <= pos.
 
     unsigned int from_state = start_state;
-    unsigned int new_root_pos = -1u;
+    unsigned int new_root_pos = -1;
     unsigned int col = 0;
 
     // have to scan from the beginning because we don't record the traversed
@@ -610,8 +609,9 @@ void Worker::gen_patterns() {
     initialize_working_variables();
 
     if (config.verboseflag) {
-      int num_inactive = std::count(graph.state_active.begin() + 1,
-          graph.state_active.end(), false);
+      int num_inactive = static_cast<int>(
+          std::count(graph.state_active.begin() + 1,
+          graph.state_active.end(), false));
       std::ostringstream buffer;
       buffer << "worker " << worker_id
              << " starting at state " << graph.state_string(start_state)

@@ -707,7 +707,7 @@ bool Worker::iterative_init_workspace(bool marking) {
   unsigned int exitcycles_remaining = exitcyclesleft;
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
-    pos = i;
+    pos = static_cast<unsigned int>(i);
     SearchState& ss = beat.at(i + 1);
     ss.from_state = last_from_state;
     ss.col_limit = graph.outdegree.at(ss.from_state);
@@ -811,7 +811,7 @@ bool Worker::iterative_init_workspace(bool marking) {
       unsigned int throwval = graph.outthrowval.at(rss.from_state).at(i);
       if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
           throwval) != root_throwval_options.end()) {
-        rss.col = std::min<unsigned int>(rss.col, i);
+        rss.col = std::min(rss.col, static_cast<unsigned int>(i));
       }
     }
 
@@ -825,7 +825,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     unsigned int throwval = graph.outthrowval.at(rss.from_state).at(i);
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
-      rss.col_limit = std::max<unsigned int>(rss.col_limit, i + 1);
+      rss.col_limit = std::max(rss.col_limit, static_cast<unsigned int>(i + 1));
     }
   }
   assert(rss.col < rss.col_limit);
@@ -903,7 +903,7 @@ void Worker::iterative_update_after_split() {
     unsigned int throwval = graph.outthrowval.at(ss.from_state).at(i);
     if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
         throwval) != root_throwval_options.end()) {
-      new_col_limit = i + 1;
+      new_col_limit = static_cast<unsigned int>(i + 1);
     }
   }
   ss.col_limit = new_col_limit;

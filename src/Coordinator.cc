@@ -814,7 +814,8 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {
       hl_start = did_hl_start = true;
-      rootpos_distance = (i > root_pos ? i - root_pos : 0);
+      rootpos_distance =
+          static_cast<unsigned int>(i > root_pos ? i - root_pos : 0);
     }
     if (!hl_last && !did_hl_last && i < ops_last.size() &&
         ops.at(i) != ops_last.at(i)) {
