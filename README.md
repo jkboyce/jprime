@@ -5,7 +5,7 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 `jprime` searches the juggling state graph for patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
-## Finding the longest patterns in $(N, H)$
+## Finding the longest prime patterns in $(N, H)$
 
 Using `jprime` I have carried out some research into prime siteswap patterns. The first investigation is to identify the longest prime patterns for a given number of objects ($N$) and maximum throwing value ($H$).
 
