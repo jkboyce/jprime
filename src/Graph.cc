@@ -401,7 +401,9 @@ void Graph::find_exit_cycles() {
     }
   }
 
-  isexitcycle.at(cyclenum.at(lowest_active_state)) = false;
+  if (lowest_active_state != 0) {
+    isexitcycle.at(cyclenum.at(lowest_active_state)) = false;
+  }
 }
 
 // Generate arrays that are used for marking excluded states during NORMAL
