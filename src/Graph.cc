@@ -380,9 +380,7 @@ void Graph::gen_matrices() {
 // directly to the start state, assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
-  for (size_t i = 0; i <= numstates; ++i) {
-    isexitcycle.at(i) = false;
-  }
+  isexitcycle.assign(numstates + 1, false);
 
   unsigned int lowest_active_state = 0;
 

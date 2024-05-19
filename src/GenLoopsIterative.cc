@@ -441,6 +441,7 @@ void Worker::iterative_gen_loops_super() {
   int* const cu = cycleused.data();
   unsigned int* const outdegree = graph.outdegree.data();
   unsigned int* const cyclenum = graph.cyclenum.data();
+  int* const isexitcycle = graph.isexitcycle.data();
 
   SearchState* ss = &beat.at(pos + 1);
 
@@ -486,6 +487,12 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
+      // new
+      if (shifts_remaining == 0 && ss->exitcycles_remaining == 0) {
+        ++ss->col;
+        goto skip_unmarking;
+      }
+
       if (p + 1 == lmax) {
         ++ss->col;
         goto skip_unmarking;
@@ -512,6 +519,8 @@ void Worker::iterative_gen_loops_super() {
       cu[to_cycle] = true;
       ss->to_state = to_state;
       ss->to_cycle = to_cycle;
+      const int next_exitcycles_remaining = (isexitcycle[to_cycle] ?
+          ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);  // new
       ++p;
       ++ss;
       ss->col = 0;
@@ -521,6 +530,7 @@ void Worker::iterative_gen_loops_super() {
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining;
+      ss->exitcycles_remaining = next_exitcycles_remaining;  // new
       goto skip_unmarking;
     } else {  // shift throw
       if (shifts_remaining == 0) {
@@ -543,6 +553,7 @@ void Worker::iterative_gen_loops_super() {
       u[to_state] = 1;
       ss->to_state = to_state;
       // ss->to_cycle = -1;
+      const int next_exitcycles_remaining = ss->exitcycles_remaining;  // new
       ++p;
       ++ss;
       ss->col = 0;
@@ -552,6 +563,7 @@ void Worker::iterative_gen_loops_super() {
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining - 1;
+      ss->exitcycles_remaining = next_exitcycles_remaining;  // new
       goto skip_unmarking;
     }
   }
@@ -729,8 +741,9 @@ bool Worker::iterative_init_workspace(bool marking) {
       std::cerr << '\n';
     }
     assert(ss.col < ss.col_limit);
-    if (pos < root_pos)
+    if (pos < root_pos) {
       ss.col_limit = ss.col + 1;
+    }
 
     ss.to_state = graph.outmatrix.at(ss.from_state).at(ss.col);
     ss.outmatrix = graph.outmatrix.at(ss.from_state).data();
@@ -774,8 +787,9 @@ bool Worker::iterative_init_workspace(bool marking) {
       if (tv != 0 && tv != graph.h) {
         assert(!cycleused.at(ss.to_cycle));
         cycleused.at(ss.to_cycle) = true;
-        if (graph.isexitcycle.at(ss.to_cycle))
+        if (graph.isexitcycle.at(ss.to_cycle)) {
           --exitcycles_remaining;
+        }
       } else {
         if (shifts_remaining == 0)
           return false;

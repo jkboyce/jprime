@@ -709,6 +709,8 @@ void Worker::set_inactive_states() {
 }
 
 // Initialize all working variables prior to gen_loops().
+//
+// Need to execute Graph::build_graph() before calling this method.
 
 void Worker::initialize_working_variables() {
   pos = 0;
