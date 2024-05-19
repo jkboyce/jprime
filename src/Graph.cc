@@ -377,7 +377,9 @@ void Graph::gen_matrices() {
 }
 
 // Fill in array `isexitcycle` that indicates which shift cycles can exit
-// directly to the start state, assumed to be the lowest active state number.
+// directly to the start state with a link throw.
+//
+// The start state is assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
   isexitcycle.assign(numstates + 1, false);
@@ -398,6 +400,8 @@ void Graph::find_exit_cycles() {
       }
     }
   }
+
+  isexitcycle.at(cyclenum.at(lowest_active_state)) = false;
 }
 
 // Generate arrays that are used for marking excluded states during NORMAL
