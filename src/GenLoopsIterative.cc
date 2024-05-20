@@ -552,7 +552,7 @@ void Worker::iterative_gen_loops_super() {
       u[to_state] = 1;
       ss->to_state = to_state;
       // ss->to_cycle = -1;
-      const int next_exitcycles_remaining = ss->exitcycles_remaining;  // new
+      const int next_exitcycles_remaining = ss->exitcycles_remaining;
       ++p;
       ++ss;
       ss->col = 0;
@@ -562,7 +562,7 @@ void Worker::iterative_gen_loops_super() {
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining - 1;
-      ss->exitcycles_remaining = next_exitcycles_remaining;  // new
+      ss->exitcycles_remaining = next_exitcycles_remaining;
       goto skip_unmarking;
     }
   }
