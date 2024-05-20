@@ -715,8 +715,8 @@ bool Worker::iterative_init_workspace(bool marking) {
 
   loading_work = false;
   unsigned int last_from_state = start_state;
-  unsigned int shifts_remaining = config.shiftlimit;
-  unsigned int exitcycles_remaining = exitcyclesleft;
+  int shifts_remaining = static_cast<int>(config.shiftlimit);
+  int exitcycles_remaining = static_cast<int>(exitcyclesleft);
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
     pos = static_cast<unsigned int>(i);
@@ -745,13 +745,22 @@ bool Worker::iterative_init_workspace(bool marking) {
       ss.col_limit = ss.col + 1;
     }
 
+    if (shifts_remaining < 0) {
+      std::cerr << "shifts_remaining went negative during init\n";
+      return false;
+    }
+    if (exitcycles_remaining < 0) {
+      std::cerr << "exitcycles_remaining went negative during init\n";
+      return false;
+    }
+
     ss.to_state = graph.outmatrix.at(ss.from_state).at(ss.col);
     ss.outmatrix = graph.outmatrix.at(ss.from_state).data();
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
     ss.to_cycle = graph.cyclenum.at(ss.to_state);
-    ss.shifts_remaining = shifts_remaining;
-    ss.exitcycles_remaining = exitcycles_remaining;
+    ss.shifts_remaining = static_cast<unsigned int>(shifts_remaining);
+    ss.exitcycles_remaining = static_cast<unsigned int>(exitcycles_remaining);
 
     if (marking && tv != 0 && tv != graph.h) {
       // mark unreachable states due to link throw
