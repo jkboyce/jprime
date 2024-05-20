@@ -181,14 +181,18 @@ void Worker::gen_loops_super() {
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
 
     if (linkthrow) {
-      // going to a shift cycle that's already been visited?
-      const unsigned int to_cycle = graph.cyclenum[to];
-      if (cycleused[to_cycle])
-        continue;
-
       pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
+        continue;
+      }
+
+      // going to a shift cycle that's already been visited?
+      const unsigned int to_cycle = graph.cyclenum[to];
+      if (cycleused[to_cycle]) {
+        continue;
+      } else if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
+        continue;
       } else if (pos + 1 == l_max) {
         continue;
       } else {
@@ -199,6 +203,9 @@ void Worker::gen_loops_super() {
           steps_taken = 0;
         }
 
+        const int old_exitcyclesleft = exitcyclesleft;
+        if (graph.isexitcycle[to_cycle])
+          --exitcyclesleft;
         cycleused[to_cycle] = true;
         ++used[to];
         ++pos;
@@ -209,6 +216,7 @@ void Worker::gen_loops_super() {
         --pos;
         --used[to];
         cycleused[to_cycle] = false;
+        exitcyclesleft = old_exitcyclesleft;
       }
     } else {
       // check for shift throw limits
@@ -257,16 +265,19 @@ void Worker::gen_loops_super0() {
     if (pos == root_pos &&
         !mark_off_rootpos_option(graph.outthrowval[from][col], to))
       continue;
-    const unsigned int to_cycle = graph.cyclenum[to];
-    if (cycleused[to_cycle])
-      continue;
 
     pattern[pos] = graph.outthrowval[from][col];
     if (to == start_state) {
       handle_finished_pattern();
-    } else if (pos + 1 == l_max) {
+      continue;
+    }
+
+    const unsigned int to_cycle = graph.cyclenum[to];
+    if (cycleused[to_cycle]) {
       continue;
     } else if (exitcyclesleft == 0) {
+      continue;
+    } else if (pos + 1 == l_max) {
       continue;
     } else {
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos

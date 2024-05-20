@@ -487,7 +487,6 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
-      // new
       if (shifts_remaining == 0 && ss->exitcycles_remaining == 0) {
         ++ss->col;
         goto skip_unmarking;
@@ -520,7 +519,7 @@ void Worker::iterative_gen_loops_super() {
       ss->to_state = to_state;
       ss->to_cycle = to_cycle;
       const int next_exitcycles_remaining = (isexitcycle[to_cycle] ?
-          ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);  // new
+          ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);
       ++p;
       ++ss;
       ss->col = 0;
@@ -530,7 +529,7 @@ void Worker::iterative_gen_loops_super() {
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       ss->shifts_remaining = shifts_remaining;
-      ss->exitcycles_remaining = next_exitcycles_remaining;  // new
+      ss->exitcycles_remaining = next_exitcycles_remaining;
       goto skip_unmarking;
     } else {  // shift throw
       if (shifts_remaining == 0) {
