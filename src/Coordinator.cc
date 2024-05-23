@@ -135,7 +135,8 @@ void Coordinator::give_assignments() {
     if (config.statusflag) {
       worker_options_left_start.at(id).resize(0);
       worker_options_left_last.at(id).resize(0);
-      worker_longest.at(id) = 0;
+      worker_longest_start.at(id) = 0;
+      worker_longest_last.at(id) = 0;
     }
 
     if (config.verboseflag) {
@@ -192,7 +193,8 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
   if (config.statusflag) {
-    worker_longest.at(msg.worker_id) = 0;
+    worker_longest_start.at(msg.worker_id) = 0;
+    worker_longest_last.at(msg.worker_id) = 0;
   }
 
   if (config.verboseflag) {
@@ -277,7 +279,8 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
       // reset certain elements of the status display
       worker_options_left_start.at(msg.worker_id).resize(0);
       worker_options_left_last.at(msg.worker_id).resize(0);
-      worker_longest.at(msg.worker_id) = 0;
+      worker_longest_start.at(msg.worker_id) = 0;
+      worker_longest_last.at(msg.worker_id) = 0;
     }
   }
   if (msg.end_state != worker_endstate.at(msg.worker_id)) {
@@ -499,8 +502,10 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
-      worker_longest.at(msg.worker_id) = std::max(
-          worker_longest.at(msg.worker_id), static_cast<unsigned int>(i));
+      worker_longest_start.at(msg.worker_id) = std::max(
+          worker_longest_start.at(msg.worker_id), static_cast<unsigned int>(i));
+      worker_longest_last.at(msg.worker_id) = std::max(
+          worker_longest_last.at(msg.worker_id), static_cast<unsigned int>(i));
     }
   }
 }
@@ -526,7 +531,8 @@ void Coordinator::start_workers() {
       worker_status.push_back("     ");
       worker_options_left_start.push_back({});
       worker_options_left_last.push_back({});
-      worker_longest.push_back(0);
+      worker_longest_start.push_back(0);
+      worker_longest_last.push_back(0);
     }
     workers_idle.insert(id);
   }
@@ -755,7 +761,7 @@ void Coordinator::print_status_output() {
     for (int i = 29; i < STATUS_WIDTH; ++i)
       std::cout << ' ';
   }
-  std::cout << "dist  len\n";
+  std::cout << "    length\n";
   for (unsigned int i = 0; i < config.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
@@ -803,7 +809,6 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   bool did_hl_last = false;
   bool hl_deadstate = false;
   bool hl_shift = false;
-  unsigned int rootpos_distance = 1000u;
 
   assert(ops.size() == msg.worker_throw.size());
   assert(ops.size() == ds_extra.size());
@@ -814,8 +819,6 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {
       hl_start = did_hl_start = true;
-      rootpos_distance =
-          static_cast<unsigned int>(i > root_pos ? i - root_pos : 0);
     }
     if (!hl_last && !did_hl_last && i < ops_last.size() &&
         ops.at(i) != ops_last.at(i)) {
@@ -869,16 +872,14 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     ++printed;
   }
 
-  if (rootpos_distance < 1000u)
-    buffer << std::setw(4) << rootpos_distance;
-  else
-    buffer << " ---";
-  buffer << std::setw(5) << worker_longest.at(id);
+  buffer << std::setw(5) << worker_longest_last.at(id)
+         << std::setw(5) << worker_longest_start.at(id);
 
   ops_last = ops;
   if (ops_start.size() == 0) {
     ops_start = ops;
   }
+  worker_longest_last.at(id) = 0;
 
   return buffer.str();
 }

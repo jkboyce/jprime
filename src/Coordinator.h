@@ -56,14 +56,15 @@ class Coordinator {
   static constexpr double SECS_PER_STATUS = 1;
   static constexpr int WAITS_PER_STATUS = static_cast<int>(1e9 *
       SECS_PER_STATUS / NANOSECS_PER_INBOX_CHECK);
-  static constexpr int STATUS_WIDTH = 56;
+  static constexpr int STATUS_WIDTH = 55;
   unsigned int stats_counter = 0;
   unsigned int stats_received = 0;
   bool stats_printed = false;
   std::vector<std::string> worker_status;
   std::vector<std::vector<unsigned int>> worker_options_left_start;
   std::vector<std::vector<unsigned int>> worker_options_left_last;
-  std::vector<unsigned int> worker_longest;
+  std::vector<unsigned int> worker_longest_start;
+  std::vector<unsigned int> worker_longest_last;
 
  public:
   bool run();
