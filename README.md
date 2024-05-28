@@ -3,7 +3,7 @@ Parallel depth first search (DFS) to find prime siteswap juggling patterns.
 
 Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. (The Wikipedia article shows an example state graph for 3 objects and maximum throw value of 5.) Valid siteswaps are closed paths (circuits) in the associated state graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
 
-`jprime` searches the juggling state graph for patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
+`jprime` searches the juggling state graph for prime patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
 ## Finding the longest prime patterns in $(N, H)$
 
@@ -75,7 +75,7 @@ H     L (L_bound)  Pattern count
 11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_11_300">144</a>
 12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0">45</a>
 13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0_g">16317</a>
-14,   928  (928),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>= 2054</a>
+14,   928  (928),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=2054</a>
 
   
          5 OBJECTS
@@ -87,7 +87,7 @@ H     L (L_bound)  Pattern count
 9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_9_112">5</a>
 10,   225  (226),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_10_225">{752, 86}</a>
 11,   420  (420),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0">59346</a>
-12,   726  (726),   <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>= 81870</a>
+12,   726  (726),   <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=81870</a>
 
   
          6 OBJECTS
@@ -255,6 +255,7 @@ The table below shows exact counts for the number of prime patterns at each peri
 16, 137945151360
 17, 773962487261
 18, 4310815784117
+19, 24208263855765
 
 6 OBJECTS
 1, 1
@@ -329,5 +330,5 @@ After cloning the repository, on a Unix system run `make` to build the `jprime` 
 
 `jprime` has two modes of operation, intended to search for prime patterns in complementary ways:
 
-- Normal mode, the default. This finds patterns by searching the juggling graph directly for cycles.
+- Normal mode, the default. This finds prime patterns by searching the juggling graph directly for cycles.
 - Super mode (faster). This searches the juggling graph for _superprime_ patterns, which visit no _shift cycle_ more than once. The significance here is that many of the longest prime patterns have inverses that are superprime, or nearly superprime, for reasons described in the paper. So a quick way to find these patterns is to search for long superprime patterns, and find their inverses. Invoke super mode with `-super <shifts>` on the command line, where `<shifts>` is how many shift throws to allow (e.g., `shifts = 0` corresponds to true superprime patterns). The `-inverse` option prints the inverse of each pattern found, if the inverse exists. The limitation of this method of finding patterns is that it cannot find Type II incomplete patterns as defined in the paper.
