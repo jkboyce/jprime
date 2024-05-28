@@ -59,7 +59,7 @@ H     L (L_bound)  Pattern count
 25,   2207 (2208),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_25_2207">{0, 4}</a>
 26,   2499 (2500),   <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g">{180, ?}</a>
 27,   2816 (2816),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g">1</a>
-28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=10, ?}</a>
+28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=14, ?}</a>
 29,  <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0"><3528</a> (3528),     {?, ?}
 
   
@@ -75,7 +75,7 @@ H     L (L_bound)  Pattern count
 11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_11_300">144</a>
 12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0">45</a>
 13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_s0_g">16317</a>
-14,   928  (928),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=2054</a>
+14,   928  (928),     <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=5838</a>
 
   
          5 OBJECTS
@@ -87,7 +87,7 @@ H     L (L_bound)  Pattern count
 9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_9_112">5</a>
 10,   225  (226),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_10_225">{752, 86}</a>
 11,   420  (420),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0">59346</a>
-12,   726  (726),   <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=81870</a>
+12,   726  (726),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=211240</a>
 
   
          6 OBJECTS
@@ -107,7 +107,7 @@ H     L (L_bound)  Pattern count
 9,    32   (32),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_9_32">1</a>
 10,   108  (108),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_10_s0">1</a>
 11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0">144</a>
-12,   726  (726),   >= 81870
+12,   726  (726),    >=211240
 
   
          8 OBJECTS
