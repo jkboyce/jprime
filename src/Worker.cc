@@ -16,6 +16,7 @@
 #include "Coordinator.h"
 #include "Messages.h"
 #include "Graph.h"
+#include "Pattern.h"
 
 #include <iostream>
 #include <iomanip>
@@ -415,7 +416,8 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
     for (unsigned int v : root_throwval_options) {
       if (config.throwdigits > 1 && v != root_throwval_options.front())
         buffer << ',';
-      print_throw(buffer, v);
+      Pattern::print_throw(buffer, v, config.throwdigits,
+          config.noplusminusflag ? 0 : config.h);
     }
     buffer << "]";
     message_coordinator_text(buffer.str());
@@ -754,17 +756,29 @@ void Worker::report_pattern() const {
       buffer << "* ";
   }
 
-  buffer << get_pattern();
+  Pattern pat(pattern);
+  const unsigned int display_h = config.noplusminusflag ? 0 : config.h;
+
+  if (config.dualflag) {
+    buffer << pat.dual(config.h).to_string(config.throwdigits, display_h);
+  } else {
+    buffer << pat.to_string(config.throwdigits, display_h);
+  }
 
   if (start_state != 1)
     buffer << " *";
 
   if (config.invertflag) {
-    const std::string inverse = get_inverse();
-    if (inverse.length() > 0) {
+    Pattern inverse = graph.invert(pat);
+    if (inverse.is_valid()) {
       if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
         buffer << "  ";
-      buffer << " : " << inverse;
+      if (config.dualflag) {
+        buffer << " : " << inverse.dual(config.h).to_string(config.throwdigits,
+            display_h);
+      } else {
+        buffer << " : " << inverse.to_string(config.throwdigits, display_h);
+      }
     }
   }
 
@@ -773,183 +787,4 @@ void Worker::report_pattern() const {
   msg.pattern = buffer.str();
   msg.length = pos + 1;
   message_coordinator(msg);
-}
-
-// Return a character for a given integer throw value (0 = '0', 1 = '1',
-// 10 = 'a', 11 = 'b', ...
-
-char Worker::throw_char(unsigned int val) {
-  if (val < 10) {
-    return static_cast<char>(val + '0');
-  } else if (val < 36) {
-    return static_cast<char>(val - 10 + 'a');
-  } else {
-    return '?';
-  }
-}
-
-// Output a single throw to a string buffer.
-
-void Worker::print_throw(std::ostringstream& buffer, unsigned int val) const {
-  if (!config.noplusminusflag && val == 0) {
-    buffer << '-';
-    return;
-  } else if (!config.noplusminusflag && val == graph.h) {
-    buffer << '+';
-    return;
-  }
-
-  if (config.throwdigits == 1) {
-    buffer << throw_char(val);
-  } else {
-    buffer << std::setw(config.throwdigits) << val;
-  }
-}
-
-// Return the current pattern as a string.
-
-std::string Worker::get_pattern() const {
-  std::ostringstream buffer;
-
-  for (size_t i = 0; i <= pos; ++i) {
-    if (config.throwdigits > 1 && i != 0)
-      buffer << ',';
-    const unsigned int throwval = (config.dualflag
-      ? graph.h - static_cast<unsigned int>(pattern.at(pos - i))
-      : static_cast<unsigned int>(pattern.at(i)));
-    print_throw(buffer, throwval);
-  }
-
-  return buffer.str();
-}
-
-// Return the inverse of the current pattern as a string. If the pattern has
-// no inverse, return an empty string.
-
-std::string Worker::get_inverse() const {
-  std::ostringstream buffer;
-  std::vector<int> patternstate(graph.numstates + 1);
-  std::vector<bool> state_used(graph.numstates + 1, false);
-  std::vector<bool> cycle_used(graph.numstates + 1, false);
-
-  // Step 1. build a vector of state numbers traversed by the pattern, and
-  // determine if an inverse exists.
-  //
-  // a pattern has an inverse if and only if:
-  // - it visits more than one shift cycle on the state graph, and
-  // - it never revisits a shift cycle, and
-  // - it never does a link throw (0 < t < h) within a single cycle
-
-  unsigned int state_current = start_state;
-  unsigned int cycle_current = graph.cyclenum.at(start_state);
-  bool cycle_multiple = false;
-
-  for (size_t i = 0; i <= pos; ++i) {
-    patternstate.at(i) = state_current;
-    state_used.at(state_current) = true;
-
-    const int state_next = graph.advance_state(state_current, pattern.at(i));
-    assert(state_next > 0);
-    const unsigned int cycle_next = graph.cyclenum.at(state_next);
-
-    if (cycle_next != cycle_current) {
-      // mark a shift cycle as used only when we transition off it
-      if (cycle_used.at(cycle_current)) {
-        // revisited cycle number `cycle_current` --> no inverse
-        return buffer.str();
-      }
-      cycle_used.at(cycle_current) = true;
-      cycle_multiple = true;
-    } else if (pattern.at(i) != 0 &&
-        static_cast<unsigned int>(pattern.at(i)) != graph.h) {
-      // link throw within a single cycle --> no inverse
-      return buffer.str();
-    }
-
-    state_current = state_next;
-    cycle_current = cycle_next;
-  }
-  patternstate.at(pos + 1) = start_state;
-
-  if (!cycle_multiple) {
-    // never left starting shift cycle --> no inverse
-    return buffer.str();
-  }
-
-  // Step 2. Find the inverse pattern.
-  //
-  // Iterate through the link throws in the pattern to build up a list of
-  // states and throws for the inverse.
-  //
-  // The inverse may go through states that aren't in memory so we can't refer
-  // to them by state number.
-
-  std::vector<unsigned int> inversepattern;
-  std::vector<State> inversestate;
-
-  for (size_t i = 0; i <= pos; ++i) {
-    // continue until `pattern[i]` is a link throw
-    if (graph.cyclenum.at(patternstate.at(i)) ==
-        graph.cyclenum.at(patternstate.at(i + 1))) {
-      continue;
-    }
-
-    if (inversestate.size() == 0) {
-      // the inverse pattern starts at the (reversed version of) the next state
-      // 'downstream' from `patternstate[i]`
-      inversestate.push_back(
-          graph.state.at(patternstate.at(i)).downstream().reverse());
-    }
-
-    const unsigned int inversethrow = graph.h -
-        static_cast<unsigned int>(pattern.at(i));
-    inversepattern.push_back(inversethrow);
-    inversestate.push_back(
-        inversestate.back().advance_with_throw(inversethrow));
-
-    // advance the inverse pattern along the shift cycle until it gets to a
-    // state whose reverse is used by the original pattern
-
-    while (true) {
-      State trial_state = inversestate.back().downstream();
-      unsigned int trial_statenum = graph.get_statenum(trial_state.reverse());
-      if (trial_statenum > 0 && state_used.at(trial_statenum))
-        break;
-
-      inversepattern.push_back(trial_state.slot.at(graph.h - 1) ? graph.h : 0);
-      inversestate.push_back(trial_state);
-    }
-
-    if (inversestate.back() == inversestate.front())
-      break;
-  }
-  assert(inversestate.size() > 0);
-  assert(inversestate.back() == inversestate.front());
-
-  // Step 3. Output the inverse pattern.
-  //
-  // By convention we output all patterns starting with the smallest state.
-
-  size_t min_index = 0;
-  for (size_t i = 1; i < inversestate.size(); ++i) {
-    if (inversestate.at(i) < inversestate.at(min_index)) {
-      min_index = i;
-    }
-  }
-
-  const size_t inverselength = inversepattern.size();
-  if (config.dualflag)
-    min_index = inverselength - min_index;
-
-  for (size_t i = 0; i < inverselength; ++i) {
-    size_t j = (i + min_index) % inverselength;
-    const unsigned int throwval = (config.dualflag
-        ? graph.h - inversepattern.at(inverselength - j - 1)
-        : inversepattern.at(j));
-    if (config.throwdigits > 1 && i != 0)
-      buffer << ',';
-    print_throw(buffer, throwval);
-  }
-
-  return buffer.str();
 }

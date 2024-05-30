@@ -12,6 +12,7 @@
 #define JPRIME_GRAPH_H_
 
 #include "State.h"
+#include "Pattern.h"
 
 #include <string>
 #include <vector>
@@ -80,6 +81,7 @@ class Graph {
     unsigned int l);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;
+  Pattern invert(const Pattern& p) const;
   unsigned int get_statenum(const State& s) const;
   unsigned int advance_state(unsigned int statenum, unsigned int throwval)
     const;

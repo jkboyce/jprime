@@ -534,6 +534,139 @@ unsigned int Graph::superprime_length_bound() const {
       std::count(any_active.begin(), any_active.end(), true));
 }
 
+// Return the inverse of the given pattern on the juggling graph. If the inverse
+// does not exist, return an empty pattern.
+
+Pattern Graph::invert(const Pattern& pat) const {
+  std::vector<int> patternstate(numstates + 1);
+  std::vector<bool> state_used(numstates + 1, false);
+  std::vector<bool> cycle_used(numstates + 1, false);
+
+  // `start_state` is assumed to be the lowest active state in the graph
+  unsigned int start_state = 1;
+  for (; start_state <= numstates; ++start_state) {
+    if (state_active.at(start_state))
+      break;
+  }
+  if (start_state > numstates)
+    return {};
+
+  // Step 1. build a vector of state numbers traversed by the pattern, and
+  // determine if an inverse exists.
+  //
+  // a pattern has an inverse if and only if:
+  // - it visits more than one shift cycle on the state graph, and
+  // - it never revisits a shift cycle, and
+  // - it never does a link throw (0 < t < h) within a single cycle
+
+  unsigned int state_current = start_state;
+  unsigned int cycle_current = cyclenum.at(start_state);
+  bool cycle_multiple = false;
+
+  for (size_t i = 0; i < pat.throwval.size(); ++i) {
+    patternstate.at(i) = state_current;
+    state_used.at(state_current) = true;
+
+    const int state_next = advance_state(state_current, pat.throwval.at(i));
+    assert(state_next > 0);
+    const unsigned int cycle_next = cyclenum.at(state_next);
+
+    if (cycle_next != cycle_current) {
+      // mark a shift cycle as used only when we transition off it
+      if (cycle_used.at(cycle_current)) {
+        // revisited cycle number `cycle_current` --> no inverse
+        return {};
+      }
+      cycle_used.at(cycle_current) = true;
+      cycle_multiple = true;
+    } else if (pat.throwval.at(i) != 0 &&
+        static_cast<unsigned int>(pat.throwval.at(i)) != h) {
+      // link throw within a single cycle --> no inverse
+      return {};
+    }
+
+    state_current = state_next;
+    cycle_current = cycle_next;
+  }
+  patternstate.at(pat.throwval.size()) = start_state;
+
+  if (!cycle_multiple) {
+    // never left starting shift cycle --> no inverse
+    return {};
+  }
+
+  // Step 2. Find the states and throws of the inverse.
+  //
+  // Iterate through the link throws in the pattern to build up a list of
+  // states and throws for the inverse.
+  //
+  // Note the inverse may go through states that aren't in memory so we can't
+  // refer to them by state number.
+
+  std::vector<unsigned int> inversepattern;
+  std::vector<State> inversestate;
+
+  for (size_t i = 0; i < pat.throwval.size(); ++i) {
+    // continue until `throwval[i]` is a link throw
+    if (cyclenum.at(patternstate.at(i)) ==
+        cyclenum.at(patternstate.at(i + 1))) {
+      continue;
+    }
+
+    if (inversestate.size() == 0) {
+      // the inverse pattern starts at the (reversed version of) the next state
+      // 'downstream' from `patternstate[i]`
+      inversestate.push_back(
+          state.at(patternstate.at(i)).downstream().reverse());
+    }
+
+    const unsigned int inversethrow = h -
+        static_cast<unsigned int>(pat.throwval.at(i));
+    inversepattern.push_back(inversethrow);
+    inversestate.push_back(
+        inversestate.back().advance_with_throw(inversethrow));
+
+    // advance the inverse pattern along the shift cycle until it gets to a
+    // state whose reverse is used by the original pattern
+
+    while (true) {
+      State trial_state = inversestate.back().downstream();
+      unsigned int trial_statenum = get_statenum(trial_state.reverse());
+      if (trial_statenum > 0 && state_used.at(trial_statenum))
+        break;
+
+      inversepattern.push_back(trial_state.slot.at(h - 1) ? h : 0);
+      inversestate.push_back(trial_state);
+    }
+
+    if (inversestate.back() == inversestate.front())
+      break;
+  }
+  assert(inversestate.size() > 0);
+  assert(inversestate.back() == inversestate.front());
+
+  // Step 3. Create the final inverse pattern.
+  //
+  // By convention we start all patterns with their smallest state.
+
+  std::vector<int> inverse_final;
+
+  size_t min_index = 0;
+  for (size_t i = 1; i < inversestate.size(); ++i) {
+    if (inversestate.at(i) < inversestate.at(min_index)) {
+      min_index = i;
+    }
+  }
+
+  const size_t inverselength = inversepattern.size();
+  for (size_t i = 0; i < inverselength; ++i) {
+    size_t j = (i + min_index) % inverselength;
+    inverse_final.push_back(inversepattern.at(j));
+  }
+
+  return {inverse_final};
+}
+
 // Return the index in the `state` array that corresponds to a given state.
 // Returns 0 if not found.
 //

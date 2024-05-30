@@ -25,11 +25,8 @@
 // ints.
 
 std::vector<int> parse_pattern_line(const std::string& p) {
-  std::string pat;
-  std::vector<int> result;
-
   // remove the first colon and anything beyond
-  pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
+  std::string pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
 
   // extract part between first and second '*'s if present
   auto star = std::find(pat.begin(), pat.end(), '*');
@@ -37,6 +34,7 @@ std::vector<int> parse_pattern_line(const std::string& p) {
     pat = {star + 1, std::find(star + 1, pat.end(), '*')};
   }
 
+  std::vector<int> result;
   auto x = pat.begin();
   while (true) {
     auto y = std::find(x, pat.end(), ',');
@@ -217,7 +215,7 @@ void SearchContext::from_file(const std::string& file) {
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
   if (!myfile || !myfile.is_open()) {
-    throw std::invalid_argument("error reading file: could not open");
+    throw std::invalid_argument("Error reading file: could not open");
   }
 
   std::string s;
@@ -325,7 +323,7 @@ void SearchContext::from_file(const std::string& file) {
 
     if (error.size() > 0) {
       myfile.close();
-      std::string msg("error reading file: ");
+      std::string msg("Error reading file: ");
       msg.append(error);
       throw std::invalid_argument(msg);
     }
@@ -351,7 +349,7 @@ void SearchContext::from_file(const std::string& file) {
       size_t commapos = s.find(",");
       if (commapos == std::string::npos) {
         myfile.close();
-        std::string msg("error reading count in line ");
+        std::string msg("Error reading count in line ");
         msg.append(std::to_string(linenum + 1));
         throw std::invalid_argument(msg);
       }
@@ -367,7 +365,7 @@ void SearchContext::from_file(const std::string& file) {
         assignments.push_back(wa);
       } else {
         myfile.close();
-        std::string msg("error reading work assignment in line ");
+        std::string msg("Error reading work assignment in line ");
         msg.append(std::to_string(linenum + 1));
         throw std::invalid_argument(msg);
       }

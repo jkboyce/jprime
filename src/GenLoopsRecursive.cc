@@ -333,8 +333,11 @@ unsigned int Worker::load_one_throw() {
 
   // diagnostic information if there's a problem
   std::ostringstream buffer;
-  for (size_t i = 0; i <= pos; ++i)
-    print_throw(buffer, pattern.at(i));
+  for (size_t i = 0; i <= pos; ++i) {
+    if (i != 0)
+      buffer << ',';
+    buffer << pattern.at(i);
+  }
   std::cerr << "worker: " << worker_id << '\n'
             << "pos: " << pos << '\n'
             << "root_pos: " << root_pos << '\n'
@@ -385,9 +388,8 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
 
     if (pruned && config.verboseflag) {
       std::ostringstream buffer;
-      buffer << "worker " << worker_id << " option ";
-      print_throw(buffer, throwval);
-      buffer << " at root_pos " << root_pos << " was pruned; removing";
+      buffer << "worker " << worker_id << " option " << throwval
+             << " at root_pos " << root_pos << " was pruned; removing";
       message_coordinator_text(buffer.str());
     }
 
@@ -396,9 +398,8 @@ bool Worker::mark_off_rootpos_option(unsigned int throwval,
 
       if (config.verboseflag) {
         std::ostringstream buffer;
-        buffer << "worker " << worker_id << " starting option ";
-        print_throw(buffer, throwval);
-        buffer << " at root_pos " << root_pos;
+        buffer << "worker " << worker_id << " starting option " << throwval
+               << " at root_pos " << root_pos;
         message_coordinator_text(buffer.str());
       }
     }
@@ -484,6 +485,7 @@ inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
   if ((pos + 1) >= l_min && !config.countflag) {
+    pattern.at(pos + 1) = -1;
     report_pattern();
   }
 }

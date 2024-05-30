@@ -23,13 +23,26 @@
 // relevant error message.
 
 void SearchConfig::from_args(size_t argc, char** argv) {
-  int val = std::stoi(argv[1]);
+  int val;
+  try {
+    val = std::stoi(argv[1]);
+  } catch (const std::invalid_argument& ie) {
+    std::string msg("Error parsing number of objects: ");
+    msg.append(argv[1]);
+    throw std::invalid_argument(msg);
+  }
   if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
   }
   n = static_cast<unsigned int>(val);
 
-  val = std::stoi(argv[2]);
+  try {
+    val = std::stoi(argv[2]);
+  } catch (const std::invalid_argument& ie) {
+    std::string msg("Error parsing max. throw value: ");
+    msg.append(argv[2]);
+    throw std::invalid_argument(msg);
+  }
   if (val < 1) {
     throw std::invalid_argument("Max. throw value must be at least 1");
   }
@@ -65,7 +78,13 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       if ((i + 1) < argc) {
         ++i;
         mode = RunMode::SUPER_SEARCH;
-        val = std::stoi(argv[i]);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument& ie) {
+          std::string msg("Error parsing shift limit: ");
+          msg.append(argv[i]);
+          throw std::invalid_argument(msg);
+        }
         if (val < 0) {
           throw std::invalid_argument("Shift limit must be non-negative");
         }
@@ -109,7 +128,13 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-x")) {
       ++i;
       while (i < argc && argv[i][0] != '-') {
-        val = std::stoi(argv[i]);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument& ie) {
+          std::string msg("Error parsing excluded throw value: ");
+          msg.append(argv[i]);
+          throw std::invalid_argument(msg);
+        }
         if (val < 0) {
           throw std::invalid_argument("Excluded throws must be non-negative");
         }
@@ -135,7 +160,13 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-threads")) {
       if ((i + 1) < argc) {
         ++i;
-        val = std::stoi(argv[i]);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument& ie) {
+          std::string msg("Error parsing number of threads: ");
+          msg.append(argv[i]);
+          throw std::invalid_argument(msg);
+        }
         if (val < 1) {
           throw std::invalid_argument("Must have at least one worker thread");
         }
@@ -149,9 +180,15 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       std::string s{argv[i]};
       int hyphens = static_cast<int>(std::count(s.begin(), s.end(), '-'));
       if (hyphens == 0) {
-        int num = std::stoi(argv[i]);
-        if (num > 0) {
-          l_min = l_max = static_cast<unsigned int>(num);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument& ie) {
+          std::string msg("Error parsing pattern length: ");
+          msg.append(argv[i]);
+          throw std::invalid_argument(msg);
+        }
+        if (val > 0) {
+          l_min = l_max = static_cast<unsigned int>(val);
           success = true;
         }
       } else if (hyphens == 1) {
@@ -160,23 +197,35 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         std::string s1 = s.substr(0, hpos);
         std::string s2 = s.substr(hpos + 1);
         if (s1.size() > 0) {
-          int num = std::stoi(s1);
-          if (num > 0)
-            l_min = static_cast<unsigned int>(num);
+          try {
+            val = std::stoi(s1);
+          } catch (const std::invalid_argument& ie) {
+            std::string msg("Error parsing pattern length: ");
+            msg.append(s1);
+            throw std::invalid_argument(msg);
+          }
+          if (val > 0)
+            l_min = static_cast<unsigned int>(val);
           else
             success = false;
         }
         if (s2.size() > 0) {
-          int num = std::stoi(s2);
-          if (num > 0)
-            l_max = static_cast<unsigned int>(num);
+          try {
+            val = std::stoi(s2);
+          } catch (const std::invalid_argument& ie) {
+            std::string msg("Error parsing pattern length: ");
+            msg.append(s2);
+            throw std::invalid_argument(msg);
+          }
+          if (val > 0)
+            l_max = static_cast<unsigned int>(val);
           else
             success = false;
         }
       }
 
       if (!success) {
-        std::string msg("Error parsing length: ");
+        std::string msg("Error parsing pattern length: ");
         msg.append(argv[i]);
         throw std::invalid_argument(msg);
       }

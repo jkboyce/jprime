@@ -735,8 +735,11 @@ bool Worker::iterative_init_workspace(bool marking) {
                 << " (" << graph.state.at(start_state) << ")\n"
                 << "pos: " << pos << '\n'
                 << "pattern: ";
-      for (size_t j = 0; pattern.at(j) != -1; ++j)
-        std::cerr << throw_char(pattern.at(j));
+      for (size_t j = 0; pattern.at(j) != -1; ++j) {
+        if (j != 0)
+          std::cerr << ',';
+        std::cerr << pattern.at(j);
+      }
       std::cerr << '\n';
     }
     assert(ss.col < ss.col_limit);
@@ -939,6 +942,7 @@ inline void Worker::iterative_handle_finished_pattern() {
       pattern.at(i) = graph.outthrowval.at(beat.at(i + 1).from_state)
                                        .at(beat.at(i + 1).col);
     }
+    pattern.at(pos + 1) = -1;
     report_pattern();
   }
 }

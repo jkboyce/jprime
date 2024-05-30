@@ -111,10 +111,6 @@ class Worker {
   void set_inactive_states();
   void initialize_working_variables();
   void report_pattern() const;
-  static char throw_char(unsigned int val);
-  void print_throw(std::ostringstream& buffer, unsigned int val) const;
-  std::string get_pattern() const;
-  std::string get_inverse() const;
 
   // core search routines (recursive versions)
   void gen_loops_normal();

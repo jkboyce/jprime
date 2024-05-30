@@ -40,6 +40,7 @@
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "Coordinator.h"
+#include "Pattern.h"
 
 #include <iostream>
 #include <fstream>
@@ -57,19 +58,21 @@ void print_help() {
     "jprime version 6.7 (2024.04.15)\n"
     "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
-    "This program searches for long prime async siteswap patterns. For an\n"
-    "explanation of these terms, consult the page:\n"
-    "   http://www.juggling.org/help/siteswap/\n"
+    "This program searches for prime siteswap juggling patterns. For an explanation\n"
+    "of these terms please consult:\n"
+    "   http://wikipedia.org/wiki/Siteswap\n"
     "\n"
-    "Command line format:\n"
+    "Recognized command line formats:\n"
     "   jprime <# objects> <max. throw> [<length>] [options]\n"
+    "   jprime -analyze <pattern>\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
     "   <max. throw>      = largest allowed throw value\n"
-    "   <length>          = pattern length(s) to find\n"
+    "   <length>          = pattern length(s) to find, assumed all if omitted\n"
+    "   <pattern>         = pattern to analyze\n"
     "\n"
-    "Recognized options:\n"
+    "Recognized search options:\n"
     "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
     "                        specified number of shift throws\n"
     "   -g                find ground-state patterns only\n"
@@ -92,16 +95,39 @@ void print_help() {
     "\n"
     "Examples:\n"
     "   jprime 5 7 -noplus\n"
-    "   jprime 6 10 187-\n"
+    "   jprime 6 10 187-188\n"
     "   jprime 4 9 14- -super 0 -inverse\n"
     "   jprime 7 42 6 -g -file 7_42_6_g\n"
-    "   jprime 2 60 30 -count -threads 4 -status";
+    "   jprime 2 60 30 -count -threads 4 -status\n"
+    "   jprime -analyze ++3--+-+1+--+-6-+--+4--++-6---\n";
 
   std::cout << helpString << std::endl;
 }
 
 //------------------------------------------------------------------------------
-// Prep `config` and `context` data structures for calculation
+// Analyze an input pattern
+//------------------------------------------------------------------------------
+
+void analyze_pattern(int argc, char** argv) {
+  if (argc < 3)
+    return;
+
+  std::string input(argv[2]);
+  for (int i = 3; i < argc; ++i) {
+    input.append(",").append(argv[i]);
+  }
+
+  try {
+    Pattern pattern(input);
+    std::cout << pattern.do_analysis() << std::endl;
+  } catch (const std::invalid_argument& ie) {
+    std::cerr << ie.what() << '\n';
+    std::exit(EXIT_FAILURE);
+  }
+}
+
+//------------------------------------------------------------------------------
+// Prep `config` and `context` data structures for search
 //------------------------------------------------------------------------------
 
 void prepare_calculation(int argc, char** argv, SearchConfig& config,
@@ -120,11 +146,11 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     if (myfile.good()) {
       try {
         // file exists; try resuming calculation
-        std::cout << "reading checkpoint file '" << outfile << "'\n";
+        std::cout << "Reading checkpoint file '" << outfile << "'\n";
         context.from_file(outfile);
 
         if (context.assignments.size() == 0) {
-          std::cout << "calculation is finished" << std::endl;
+          std::cout << "Calculation is finished" << std::endl;
           std::exit(0);
         }
 
@@ -135,8 +161,8 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
         // invocation, use the current filename
         config.outfile = outfile;
 
-        std::cout << "resuming calculation: " << context.arglist << '\n'
-                  << "loaded " << context.npatterns
+        std::cout << "Resuming calculation: " << context.arglist << '\n'
+                  << "Loaded " << context.npatterns
                   << " patterns and " << context.assignments.size()
                   << " work assignments" << std::endl;
         return;
@@ -177,6 +203,11 @@ int main(int argc, char** argv) {
     return 0;
   }
 
+  if (!strcmp(argv[1], "-analyze")) {
+    analyze_pattern(argc, argv);
+    return 0;
+  }
+
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
@@ -187,7 +218,7 @@ int main(int argc, char** argv) {
   std::cout << "------------------------------------------------------------"
             << std::endl;
   if (success && config.fileoutputflag) {
-    std::cout << "saving checkpoint file '" << config.outfile << "'\n";
+    std::cout << "Saving checkpoint file '" << config.outfile << "'\n";
     context.to_file(config.outfile);
   }
   return 0;
