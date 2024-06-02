@@ -41,6 +41,7 @@
 #include "SearchContext.h"
 #include "Coordinator.h"
 #include "Pattern.h"
+#include "Graph.h"
 
 #include <iostream>
 #include <fstream>
@@ -105,29 +106,70 @@ void print_help() {
 }
 
 //------------------------------------------------------------------------------
-// Analyze an input pattern
+// Pattern analysis
 //------------------------------------------------------------------------------
 
-void analyze_pattern(int argc, char** argv) {
-  if (argc < 3)
-    return;
-
-  std::string input(argv[2]);
-  for (int i = 3; i < argc; ++i) {
-    input.append(",").append(argv[i]);
-  }
+std::string make_analysis(const std::string& input) {
+  std::ostringstream buffer;
 
   try {
-    Pattern pattern(input);
-    std::cout << pattern.do_analysis() << std::endl;
+    Pattern pat(input);
+
+    int maxval = 0;
+    for (int val : pat.throwval) {
+      maxval = std::max(val, maxval);
+    }
+    int throwdigits = 1;
+    for (int temp = 10; temp <= maxval; temp *= 10) {
+      ++throwdigits;
+
+    }
+
+    buffer << "Pattern:" << pat.to_string(throwdigits + 1) << '\n';
+
+    if (pat.is_valid()) {
+      buffer << "Pattern is VALID\n\n";
+    } else {
+      buffer << "Pattern is NOT VALID\n\n";
+    }
+
+    if (throwdigits == 1) {
+      buffer << "Alternate forms:\n"
+             << "  " << pat.to_string(throwdigits) << '\n'
+             << "  " << pat.to_string(throwdigits, maxval) << "\n\n";
+    }
+
+    buffer << "Properties:\n"
+           << "  objects        " << pat.objects() << '\n'
+           << "  length         " << pat.length() << '\n';
+    buffer << "  max. throw     " << maxval << '\n';
+    buffer << "  is_prime       " << std::boolalpha << pat.is_valid() << '\n'
+           << "  is_superprime  " << "TBD" << "\n\n";
+
+    Graph graph(pat.objects(), maxval);
+
+    buffer << "Graph (" << pat.objects() << ',' << maxval << "):\n"
+           << "  states         " << graph.numstates << '\n'
+           << "  shift cycles   " << graph.numcycles << '\n'
+           << "  short cycles   " << graph.numshortcycles << '\n';
+
+    // is_prime
+    // is_superprime
+    // list of states traversed, with duplicates shown
+    // list of states missed, if short
+    // table of shift cycles: number, representative state, period, pattern states on it
+    // inverse, if it exists
+
   } catch (const std::invalid_argument& ie) {
-    std::cerr << ie.what() << '\n';
-    std::exit(EXIT_FAILURE);
+    buffer << "Error parsing input: " << input << '\n'
+           << ie.what();
   }
+
+  return buffer.str();
 }
 
 //------------------------------------------------------------------------------
-// Prep `config` and `context` data structures for search
+// Search: Prep `config` and `context` data structures
 //------------------------------------------------------------------------------
 
 void prepare_calculation(int argc, char** argv, SearchConfig& config,
@@ -204,7 +246,11 @@ int main(int argc, char** argv) {
   }
 
   if (!strcmp(argv[1], "-analyze")) {
-    analyze_pattern(argc, argv);
+    std::string input(argv[2]);
+    for (int i = 3; i < argc; ++i) {
+      input.append(",").append(argv[i]);
+    }
+    std::cout << make_analysis(input) << std::endl;
     return 0;
   }
 

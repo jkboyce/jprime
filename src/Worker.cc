@@ -47,24 +47,25 @@ void Worker::run() {
     bool new_assignment = false;
     bool stop_worker = false;
 
-    inbox_lock.lock();
-    if (!inbox.empty()) {
-      MessageC2W msg = inbox.front();
-      inbox.pop();
+    {
+      std::unique_lock<std::mutex> lck {inbox_lock};
+      if (!inbox.empty()) {
+        MessageC2W msg = inbox.front();
+        inbox.pop();
 
-      if (msg.type == MessageC2W::Type::DO_WORK) {
-        load_work_assignment(msg.assignment);
-        new_assignment = true;
-      } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
-        // ignore in idle state
-      } else if (msg.type == MessageC2W::Type::SEND_STATS) {
-        send_stats_to_coordinator();
-      } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
-        stop_worker = true;
-      } else
-        assert(false);
+        if (msg.type == MessageC2W::Type::DO_WORK) {
+          load_work_assignment(msg.assignment);
+          new_assignment = true;
+        } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
+          // ignore in idle state
+        } else if (msg.type == MessageC2W::Type::SEND_STATS) {
+          send_stats_to_coordinator();
+        } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
+          stop_worker = true;
+        } else
+          assert(false);
+      }
     }
-    inbox_lock.unlock();
 
     if (stop_worker)
       break;
@@ -87,10 +88,11 @@ void Worker::run() {
       break;
     }
 
-    // empty the inbox
-    inbox_lock.lock();
-    inbox = std::queue<MessageC2W>();
-    inbox_lock.unlock();
+    {
+      // empty the inbox
+      std::unique_lock<std::mutex> lck {inbox_lock};
+      inbox = std::queue<MessageC2W>();
+    }
 
     notify_coordinator_idle();
   }
@@ -120,9 +122,8 @@ void Worker::initialize_graph() {
 
 void Worker::message_coordinator(MessageW2C& msg) const {
   msg.worker_id = worker_id;
-  coordinator.inbox_lock.lock();
+  std::unique_lock<std::mutex> lck {coordinator.inbox_lock};
   coordinator.inbox.push(msg);
-  coordinator.inbox_lock.unlock();
 }
 
 // Deliver an informational text message to the coordinator's inbox.
@@ -144,22 +145,24 @@ void Worker::process_inbox_running() {
 
   bool stopping_work = false;
 
-  inbox_lock.lock();
-  while (!inbox.empty()) {
-    MessageC2W msg = inbox.front();
-    inbox.pop();
+  {
+    std::unique_lock<std::mutex> lck {inbox_lock};
 
-    if (msg.type == MessageC2W::Type::DO_WORK) {
-      assert(false);
-    } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
-      process_split_work_request();
-    } else if (msg.type == MessageC2W::Type::SEND_STATS) {
-      send_stats_to_coordinator();
-    } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
-      stopping_work = true;
+    while (!inbox.empty()) {
+      MessageC2W msg = inbox.front();
+      inbox.pop();
+
+      if (msg.type == MessageC2W::Type::DO_WORK) {
+        assert(false);
+      } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
+        process_split_work_request();
+      } else if (msg.type == MessageC2W::Type::SEND_STATS) {
+        send_stats_to_coordinator();
+      } else if (msg.type == MessageC2W::Type::STOP_WORKER) {
+        stopping_work = true;
+      }
     }
   }
-  inbox_lock.unlock();
 
   if (stopping_work) {
     // unwind back to Worker::run()
@@ -769,7 +772,7 @@ void Worker::report_pattern() const {
     buffer << " *";
 
   if (config.invertflag) {
-    Pattern inverse = graph.invert(pat);
+    Pattern inverse = pat.inverse(graph);
     if (inverse.is_valid()) {
       if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
         buffer << "  ";

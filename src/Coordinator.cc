@@ -93,9 +93,8 @@ bool Coordinator::run() {
 
 void Coordinator::message_worker(const MessageC2W& msg,
     unsigned int worker_id) const {
-  worker.at(worker_id)->inbox_lock.lock();
+  std::unique_lock<std::mutex> lck {worker.at(worker_id)->inbox_lock};
   worker.at(worker_id)->inbox.push(msg);
-  worker.at(worker_id)->inbox_lock.unlock();
 }
 
 // Send messages to all workers requesting a status update.
@@ -152,7 +151,7 @@ void Coordinator::give_assignments() {
 // Receive and handle messages from the worker threads.
 
 void Coordinator::process_inbox() {
-  inbox_lock.lock();
+  std::unique_lock<std::mutex> lck {inbox_lock};
   while (!inbox.empty()) {
     MessageW2C msg = inbox.front();
     inbox.pop();
@@ -171,7 +170,6 @@ void Coordinator::process_inbox() {
       assert(false);
     }
   }
-  inbox_lock.unlock();
 }
 
 // Handle a pattern sent to us by a worker. We store it and optionally print it

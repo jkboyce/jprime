@@ -11,6 +11,8 @@
 #ifndef JPRIME_PATTERN_H_
 #define JPRIME_PATTERN_H_
 
+#include "Graph.h"
+
 #include <vector>
 #include <string>
 #include <memory>
@@ -33,15 +35,13 @@ class Pattern {
 
   // pattern transformations
   Pattern dual(int h = 0) const;
+  Pattern inverse(const Graph& graph) const;
 
   // string output
   std::string to_string(unsigned int throwdigits = 1, unsigned int h = 0) const;
   static void print_throw(std::ostringstream& buffer, unsigned int val,
       unsigned int throwdigits = 1, unsigned int h = 0);
   static char throw_char(unsigned int val);
-
-  // pattern analysis
-  std::string do_analysis() const;
 };
 
 #endif
