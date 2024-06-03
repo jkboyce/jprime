@@ -19,19 +19,40 @@
 
 
 // Initialize from a vector of throw values.
+//
+// Parameter `hmax` determines the number of beats to use in each state; it
+// must be at least as large as the largest throw value. If omitted then the
+// number of beats per state is set equal to the largest throw value.
 
-Pattern::Pattern(const std::vector<int>& p) {
+Pattern::Pattern(const std::vector<int>& p, int hmax) {
+  int maxval = 0;
   for (int val : p) {
     if (val < 0)
       break;
     throwval.push_back(val);
+    maxval = std::max(val, maxval);
+  }
+
+  if (hmax > 0) {
+    assert(hmax >= maxval);
+    h = hmax;
+  } else {
+    h = maxval;
   }
 }
 
 // Initialize from a string representation.
+//
+// Parameter `hmax` determines the number of beats to use in each state; it
+// must be at least as large as the largest throw value. If omitted then the
+// number of beats per state is set equal to the largest throw value.
+//
+// In the event of an error, throw a `std::invalid_argument` exception with a
+// relevant error message.
 
-Pattern::Pattern(const std::string& p) {
+Pattern::Pattern(const std::string& p, int hmax) {
   const bool has_comma = (std::find(p.begin(), p.end(), ',') != p.end());
+  int maxval = 0;
 
   if (has_comma) {
     auto x = p.begin();
@@ -48,16 +69,23 @@ Pattern::Pattern(const std::string& p) {
         throw std::invalid_argument("Disallowed throw value: " + s);
       }
       throwval.push_back(val);
+      maxval = std::max(val, maxval);
       if (y == p.end())
         break;
       x = y + 1;
+    }
+
+    if (hmax > 0) {
+      assert(hmax >= maxval);
+      h = hmax;
+    } else {
+      h = maxval;
     }
     return;
   }
 
   int plusses = 0;
   int sum = 0;
-  int maxval = 0;
 
   for (char ch : p) {
     if (ch == ' ') {
@@ -85,30 +113,41 @@ Pattern::Pattern(const std::string& p) {
     }
   }
 
-  if (plusses > 0) {
+  if (plusses > 0) {  // pattern was in block form
     // solve the equation: plusses * h + sum = n * length
     // for minimal values of `n` and `h`
     //
     // `h` must be at least as large as ceiling(sum / (length - plusses))
 
-    int h = 1;
-    if (length() > plusses) {
-      h = 1 + std::max(maxval, (sum - 1) / (length() - plusses));
+    h = 1;
+    int len = static_cast<int>(length());
+    if (len > plusses) {
+      h = 1 + std::max(maxval, (sum - 1) / (len - plusses));
       while (true) {
-        if ((plusses * h + sum) % length() == 0) {
+        if ((plusses * h + sum) % len == 0) {
           assert(h > maxval);
-          assert((plusses * h + sum) / length() <= h);
+          assert((plusses * h + sum) / len <= h);
           break;
         }
         ++h;
       }
     }
+    assert(hmax == 0 || hmax == h);
 
+    // fill in throw values of `h`
     for (size_t i = 0; i < throwval.size(); ++i) {
       if (throwval.at(i) < 0) {
         throwval.at(i) = h;
       }
     }
+    return;
+  }
+
+  if (hmax > 0) {
+    assert(hmax >= maxval);
+    h = hmax;
+  } else {
+    h = maxval;
   }
 }
 
@@ -117,8 +156,13 @@ Pattern::Pattern(const std::string& p) {
 //------------------------------------------------------------------------------
 
 // Return the number of objects in the pattern.
+//
+// If the pattern is not valid, return 0.
 
 int Pattern::objects() const {
+  if (!is_valid())
+    return 0;
+
   int sum = 0;
   for (int val : throwval)
     sum += val;
@@ -127,32 +171,45 @@ int Pattern::objects() const {
 
 // Return the pattern length (period).
 
-int Pattern::length() const {
+size_t Pattern::length() const {
   return throwval.size();
+}
+
+// Return the throw value on beat `index`.
+
+int Pattern::throwvalue(size_t index) const {
+  assert(index >= 0 && index < length());
+  return throwval.at(index);
 }
 
 // Return true if the pattern is a valid siteswap, false otherwise.
 
 bool Pattern::is_valid() const {
-  if (throwval.size() == 0)
+  if (length() == 0)
     return false;
 
-  // collisions in the pattern?
+  // look for collisions
   std::vector<bool> taken(length(), false);
-  for (int i = 0; i < length(); ++i) {
-    int index = (i + throwval.at(i)) % length();
+  for (size_t i = 0; i < length(); ++i) {
+    size_t index = (i + static_cast<size_t>(throwval.at(i))) % length();
     if (taken.at(index))
       return false;
     taken.at(index) = true;
   }
 
-  // sanity check (should always pass): integer average?
+  // confirm integer average (should always pass)
   int sum = 0;
   for (int val : throwval)
     sum += val;
   assert(sum % length() == 0);
-
   return true;
+}
+
+// Return the State value immediately before the throw on beat `index`.
+
+State Pattern::state_before(size_t index) {
+  check_have_states();
+  return states.at(index);
 }
 
 //------------------------------------------------------------------------------
@@ -165,18 +222,13 @@ bool Pattern::is_valid() const {
 // taken to be the greater of the supplied parameter `h`, and the throw values
 // in the pattern.
 
-Pattern Pattern::dual(int h) const {
-  const size_t l = throwval.size();
-  if (l == 0)
+Pattern Pattern::dual() const {
+  if (length() == 0)
     return {};
 
-  for (int val : throwval) {
-    h = std::max(h, val);
-  }
-
-  std::vector<int> dual_throws(l);
-  for (size_t i = 0; i < l; ++i) {
-    dual_throws[i] = h - throwval[l - 1 - i];
+  std::vector<int> dual_throws(length());
+  for (size_t i = 0; i < length(); ++i) {
+    dual_throws.at(i) = h - throwval.at(length() - 1 - i);
   }
   return {dual_throws};
 }
@@ -315,6 +367,47 @@ Pattern Pattern::inverse(const Graph& graph) const {
 }
 
 //------------------------------------------------------------------------------
+// Helper methods
+//------------------------------------------------------------------------------
+
+// Ensure the `states` vector is populated with the states in the pattern. If it
+// isn't then generate them.
+//
+// This should only be called for a valid pattern!
+
+void Pattern::check_have_states() {
+  if (states.size() == length())
+    return;
+  assert(states.size() == 0);
+
+  // find the starting state
+  State start_state{static_cast<unsigned int>(objects()),
+      static_cast<unsigned int>(h)};
+  for (size_t i = 0; i < length(); ++i) {
+    int fillslot = throwval.at(i) - static_cast<int>(length()) +
+        static_cast<int>(i);
+    while (fillslot >= 0) {
+      if (fillslot < static_cast<int>(h)) {
+        assert(start_state.slot.at(fillslot) == 0);
+        start_state.slot.at(fillslot) = 1;
+      }
+      fillslot -= length();
+    }
+  }
+
+  states.push_back(start_state);
+  State state = start_state;
+  for (size_t i = 0; i < length(); ++i) {
+    state = state.advance_with_throw(throwval.at(i));
+    if (i != length() - 1) {
+      states.push_back(state);
+    }
+  }
+  assert(state == start_state);
+  assert(states.size() == length());
+}
+
+//------------------------------------------------------------------------------
 // Pattern output
 //------------------------------------------------------------------------------
 
@@ -323,17 +416,18 @@ Pattern Pattern::inverse(const Graph& graph) const {
 // Parameter `throwdigits` determines the field width to use, and whether to
 // print as single-character alphanumeric or as a number.
 //
-// Parameter `h`, if nonzero, causes throws of value 0 and `h` to be output as
-// `-` and `+` respectively.
+// Parameter `hmax`, if nonzero, causes throws of value 0 and `h` to be output
+// as `-` and `+` respectively.
 
-std::string Pattern::to_string(unsigned int throwdigits, unsigned int h) const {
+std::string Pattern::to_string(unsigned int throwdigits,
+      unsigned int hmax) const {
   std::ostringstream buffer;
 
   for (size_t i = 0; i < throwval.size(); ++i) {
     if (throwdigits > 1 && i != 0)
       buffer << ',';
     const unsigned int val = static_cast<unsigned int>(throwval.at(i));
-    print_throw(buffer, val, throwdigits, h);
+    print_throw(buffer, val, throwdigits, hmax);
   }
 
   return buffer.str();
@@ -344,11 +438,11 @@ std::string Pattern::to_string(unsigned int throwdigits, unsigned int h) const {
 // For a parameter description see Pattern::to_string().
 
 void Pattern::print_throw(std::ostringstream& buffer, unsigned int val,
-    unsigned int throwdigits, unsigned int h) {
-  if (h > 0 && val == 0) {
+    unsigned int throwdigits, unsigned int hmax) {
+  if (hmax > 0 && val == 0) {
     buffer << '-';
     return;
-  } else if (h > 0 && val == h) {
+  } else if (hmax > 0 && val == hmax) {
     buffer << '+';
     return;
   }
@@ -371,4 +465,102 @@ char Pattern::throw_char(unsigned int val) {
   } else {
     return '?';
   }
+}
+
+//------------------------------------------------------------------------------
+// Pattern analysis
+//------------------------------------------------------------------------------
+
+// Return an analysis of the pattern in string format.
+
+std::string Pattern::make_analysis() {
+  std::ostringstream buffer;
+
+  int maxval = 0;
+  for (size_t i = 0; i < length(); ++i) {
+    maxval = std::max(throwvalue(i), maxval);
+  }
+  int throwdigits = 1;
+  for (int temp = 10; temp <= maxval; temp *= 10) {
+    ++throwdigits;
+  }
+  std::string patstring = to_string(throwdigits + 1);
+
+  // buffer << "------------------------------------------------------------\n";
+
+  if (is_valid()) {
+    buffer << "\nValid sitewap\n\n";
+  } else {
+    buffer << "\nInput is not a valid siteswap due to collision:\n  ";
+
+    int collision_start = -1;
+    int collision_end = -1;
+    std::vector<int> landing_index(length(), -1);
+    for (size_t i = 0; i < length(); ++i) {
+      size_t index = (i + static_cast<size_t>(throwvalue(i))) % length();
+      if (landing_index[index] != -1) {
+        collision_start = landing_index[index];
+        collision_end = i;
+        break;
+      }
+      landing_index[index] = i;
+    }
+    assert(collision_start != -1 && collision_end != -1);
+
+    int index = 0;
+    auto x = patstring.begin();
+    while (true) {
+      auto y = std::find(x, patstring.end(), ',');
+      std::string s{x, y};
+      if (index == collision_start || index == collision_end) {
+        buffer << '[' << s << ']';
+      } else {
+        buffer << s;
+      }
+      if (y == patstring.end())
+        break;
+      buffer << ',';
+      x = y + 1;
+      ++index;
+    }
+    buffer << '\n';
+    return buffer.str();
+  }
+
+  if (maxval < 36) {
+    buffer << "Short form:\n  " << to_string(1) << "\n\n";
+    buffer << "Block form:\n  " << to_string(1, maxval) << "\n\n";
+  }
+  buffer << "Standard form:\n " << patstring << "\n\n";
+
+  buffer << "Properties:\n"
+         << "  objects        " << objects() << '\n'
+         << "  length         " << length() << '\n'
+         << "  max. throw     " << maxval << '\n'
+         << "  is_prime       " << std::boolalpha << is_valid() << '\n'
+         << "  is_superprime  " << "TBD" << "\n\n";
+
+  buffer << "States:\n";
+  for (size_t i = 0; i < length(); ++i) {
+    buffer << "  " << state_before(i)
+           << "    -- " << std::setw(throwdigits) << throwvalue(i)
+           << " -->\n";
+  }
+  buffer << "  " << state_before(0) << "\n\n";
+
+  Graph graph(objects(), maxval);
+
+  buffer << "Graph (" << objects() << ',' << maxval << "):\n"
+         << "  states         " << graph.numstates << '\n'
+         << "  shift cycles   " << graph.numcycles << '\n'
+         << "  short cycles   " << graph.numshortcycles << '\n';
+
+  // is_prime
+  // is_superprime
+  // list of states traversed, with duplicates shown
+  // list of states missed, if short
+  // table of shift cycles: number, representative state, period, pattern states on it
+  // inverse, if it exists
+
+  return buffer.str();
 }

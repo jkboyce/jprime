@@ -12,6 +12,7 @@
 #define JPRIME_PATTERN_H_
 
 #include "Graph.h"
+#include "State.h"
 
 #include <vector>
 #include <string>
@@ -21,27 +22,39 @@
 
 class Pattern {
  public:
-  Pattern(const std::vector<int>& p);
-  Pattern(const std::string& p);
+  Pattern(const std::vector<int>& p, int hmax = 0);
+  Pattern(const std::string& p, int hmax = 0);
   Pattern() = default;
 
- public:
+ private:
   std::vector<int> throwval;
+  std::vector<State> states;
+  int h = 0;  // number of beats in a state (max. throw value)
 
  public:
   int objects() const;
-  int length() const;
+  size_t length() const;
+  int throwvalue(size_t index) const;
   bool is_valid() const;
+  State state_before(size_t index);
 
   // pattern transformations
-  Pattern dual(int h = 0) const;
+  Pattern dual() const;
   Pattern inverse(const Graph& graph) const;
 
   // string output
-  std::string to_string(unsigned int throwdigits = 1, unsigned int h = 0) const;
+  std::string to_string(unsigned int throwdigits = 1,
+      unsigned int hmax = 0) const;
   static void print_throw(std::ostringstream& buffer, unsigned int val,
-      unsigned int throwdigits = 1, unsigned int h = 0);
+      unsigned int throwdigits = 1, unsigned int hmax = 0);
   static char throw_char(unsigned int val);
+
+  // analysis
+  std::string make_analysis();
+
+ private:
+  // helper methods
+  void check_have_states();
 };
 
 #endif

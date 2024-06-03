@@ -759,11 +759,11 @@ void Worker::report_pattern() const {
       buffer << "* ";
   }
 
-  Pattern pat(pattern);
+  Pattern pat(pattern, config.h);
   const unsigned int display_h = config.noplusminusflag ? 0 : config.h;
 
   if (config.dualflag) {
-    buffer << pat.dual(config.h).to_string(config.throwdigits, display_h);
+    buffer << pat.dual().to_string(config.throwdigits, display_h);
   } else {
     buffer << pat.to_string(config.throwdigits, display_h);
   }
@@ -777,7 +777,7 @@ void Worker::report_pattern() const {
       if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
         buffer << "  ";
       if (config.dualflag) {
-        buffer << " : " << inverse.dual(config.h).to_string(config.throwdigits,
+        buffer << " : " << inverse.dual().to_string(config.throwdigits,
             display_h);
       } else {
         buffer << " : " << inverse.to_string(config.throwdigits, display_h);
