@@ -592,11 +592,13 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 void Worker::gen_patterns() {
   running = true;
 
-  // reset the graph so build_graph() below does a full recalc
-  for (size_t i = 1; i <= graph.numstates; ++i) {
-    graph.state_active.at(i) = true;
-    graph.outdegree.at(i) = 0;
+  // build the initial graph
+  graph.state_active.assign(graph.numstates + 1, true);
+  for (size_t i = 0; i < start_state; ++i) {
+    graph.state_active.at(i) = false;
   }
+  graph.build_graph();
+  customize_graph();
 
   for (; start_state <= end_state; ++start_state) {
     if (!graph.state_active.at(start_state)) {
@@ -604,8 +606,11 @@ void Worker::gen_patterns() {
       continue;
     }
 
-    set_inactive_states();
-    graph.build_graph();
+    // turn off unneeded states and reduce graph accordingly
+    for (size_t i = 0; i < start_state; ++i) {
+      graph.state_active.at(i) = false;
+    }
+    graph.reduce_graph();
     initialize_working_variables();
 
     if (config.verboseflag) {
@@ -678,20 +683,19 @@ void Worker::gen_patterns() {
   assert(pos == 0);
 }
 
-// Set which states are inactive for the upcoming search.
+// Edit the graph after its initial build. This is an opportunity to apply some
+// optimizations depending on search mode, etc. This is executed once,
+// immediately after the graph is built.
 //
-// Note that Graph::build_graph() may deactivate additional states based on
-// reachability. This routine should never mark states as active!
+// Note this routine should never set states as active!
 
-void Worker::set_inactive_states() {
-  for (size_t i = 0; i < start_state; ++i) {
-    graph.state_active.at(i) = false;
-  }
+void Worker::customize_graph() {
+  // In SUPER mode, number of consecutive '-'s at the start of the state, plus
+  // number of consecutive 'x's at the end of the state, cannot exceed
+  // `shiftlimit`.
 
   if (config.mode == RunMode::SUPER_SEARCH) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      // number of consecutive '-'s at the start of the state, plus number of
-      // consecutive 'x's at the end of the state, cannot exceed `shiftlimit`
       unsigned int start0s = 0;
       while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0) {
         ++start0s;
@@ -706,11 +710,68 @@ void Worker::set_inactive_states() {
       }
     }
   }
+
+  // Some special cases for (n,h) = (n,2n) due to the special properties of the
+  // period-2 shift cycle (x-)^n.
+
+  if (config.h == (2 * config.n) && config.mode == RunMode::SUPER_SEARCH &&
+      config.l_min > 2) {
+    State per2state{config.n, config.h};
+    for (size_t i = 0; i < config.h; i += 2) {
+      per2state.slot.at(i) = 1;
+    }
+    unsigned int k = graph.get_statenum(per2state);
+    assert(k != 0);
+
+    if (config.shiftlimit == 0) {
+      // in this case (x-)^n is excluded
+      graph.state_active.at(k) = false;
+    } else if (config.shiftlimit == 1 && config.l_min == graph.numcycles + 1) {
+      // in this case (x-)^n is required to be in the pattern, and the one shift
+      // throw has to be in the cycle immediately preceding or following (x-)^n
+      for (size_t i = 1; i <= graph.numstates; ++i) {
+        bool allowed = false;
+
+        // does i's downstream state have a throw to (x-)^n ?
+        unsigned int s = graph.downstream_state(i);
+        if (s != 0) {
+          for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
+            if (graph.outmatrix.at(s).at(j) == k)
+              allowed = true;
+          }
+        }
+
+        // does (x-)^n have a throw into i ?
+        for (size_t j = 0; j < graph.outdegree.at(k); ++j) {
+          if (graph.outmatrix.at(k).at(j) == i)
+            allowed = true;
+        }
+
+        // if neither of the above is true, remove all shift throws out of `i`
+        if (!allowed) {
+          unsigned int outthrownum = 0;
+          for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
+            if (graph.outthrowval.at(i).at(j) != 0 &&
+                graph.outthrowval.at(i).at(j) != config.h) {
+              if (outthrownum != j) {
+                graph.outmatrix.at(i).at(outthrownum) =
+                    graph.outmatrix.at(i).at(j);
+                graph.outthrowval.at(i).at(outthrownum) =
+                    graph.outthrowval.at(i).at(j);
+              }
+              ++outthrownum;
+            }
+          }
+          graph.outdegree.at(i) = outthrownum;
+        }
+      }
+    }
+  }
 }
 
 // Initialize all working variables prior to gen_loops().
 //
-// Need to execute Graph::build_graph() before calling this method.
+// Need to execute Graph::reduce_graph() before calling this method.
 
 void Worker::initialize_working_variables() {
   pos = 0;

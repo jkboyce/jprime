@@ -108,7 +108,7 @@ class Worker {
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
-  void set_inactive_states();
+  void customize_graph();
   void initialize_working_variables();
   void report_pattern() const;
   static char throw_char(unsigned int val);
