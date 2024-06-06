@@ -131,7 +131,7 @@ H     N (N_bound)  Pattern count
 
 ## Counting prime patterns
 
-As a second investigation, we use `jprime` to count the total number of prime patterns for a given number of objects ($b$) and pattern period ($n$).
+As a second investigation, we use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
 
 The counting problem has been solved analytically for siteswap patterns in general. In [_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf) (Buhler, Eisenbud, Graham, and Wright, 1994) the following formula is derived for the total number of periodic siteswap patterns with $b$ objects and period (length) $n$: $(b+1)^n - b^n$.
 
