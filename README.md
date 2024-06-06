@@ -18,6 +18,7 @@ Table notes:
 - There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
 - The table for $b=2$ is truncated; the observed pattern appears to continue.
 
+The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of this pattern!
 <pre>
          2 OBJECTS
 H     N (N_bound)  Pattern count
