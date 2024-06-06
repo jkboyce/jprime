@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <ios>
+#include <set>
 #include <cassert>
 #include <stdexcept>
 
@@ -114,8 +115,8 @@ Pattern::Pattern(const std::string& p, int hmax) {
   }
 
   if (plusses > 0) {  // pattern was in block form
-    // solve the equation: plusses * h + sum = n * length
-    // for minimal values of `n` and `h`
+    // solve the equation: plusses * h + sum = b * length
+    // for minimal values of `b` and `h`
     //
     // `h` must be at least as large as ceiling(sum / (length - plusses))
 
@@ -182,6 +183,13 @@ int Pattern::throwvalue(size_t index) const {
   return throwval.at(index);
 }
 
+// Return the State value immediately before the throw on beat `index`.
+
+State Pattern::state_before(size_t index) {
+  check_have_states();
+  return states.at(index);
+}
+
 // Return true if the pattern is a valid siteswap, false otherwise.
 
 bool Pattern::is_valid() const {
@@ -205,11 +213,41 @@ bool Pattern::is_valid() const {
   return true;
 }
 
-// Return the State value immediately before the throw on beat `index`.
+// Return true if the pattern is prime, false otherwise.
 
-State Pattern::state_before(size_t index) {
+bool Pattern::is_prime() {
   check_have_states();
-  return states.at(index);
+  std::set<State> s(states.begin(), states.end());
+  return (s.size() == states.size());
+}
+
+// Return true if the pattern is superprime, false otherwise.
+
+bool Pattern::is_superprime() {
+  if (length() == 0)
+    return true;
+  check_have_states();
+
+  std::vector<State> deduped;
+  deduped.push_back(cyclestates.at(0));
+  for (size_t i = 1; i < cyclestates.size(); ++i) {
+    // check for link throw within a cycle
+    if (cyclestates.at(i) == cyclestates.at((i + 1) % length()) &&
+        throwval.at(i) != 0 && throwval.at(i) != h)
+      return false;
+    // remove runs of the same cyclestate
+    if (cyclestates.at(i) != deduped.back()) {
+      deduped.push_back(cyclestates.at(i));
+    }
+  }
+
+  // remove the ones at the end that are duplicates of the start
+  while (deduped.size() != 0 && deduped.back() == deduped.front()) {
+    deduped.pop_back();
+  }
+
+  std::set<State> s(deduped.begin(), deduped.end());
+  return (s.size() == deduped.size());
 }
 
 //------------------------------------------------------------------------------
@@ -371,7 +409,8 @@ Pattern Pattern::inverse(const Graph& graph) const {
 //------------------------------------------------------------------------------
 
 // Ensure the `states` vector is populated with the states in the pattern. If it
-// isn't then generate them.
+// isn't then generate them, along with the `cyclestates` vector describing the
+// shift cycles traversed.
 //
 // This should only be called for a valid pattern!
 
@@ -379,6 +418,7 @@ void Pattern::check_have_states() {
   if (states.size() == length())
     return;
   assert(states.size() == 0);
+  assert(cyclestates.size() == 0);
 
   // find the starting state
   State start_state{static_cast<unsigned int>(objects()),
@@ -404,7 +444,20 @@ void Pattern::check_have_states() {
     }
   }
   assert(state == start_state);
+
+  for (State s : states) {
+    State cyclestate = s;
+    State s2 = s.downstream();
+    while (s2 != s) {
+      if (s2 < cyclestate)
+        cyclestate = s2;
+      s2 = s2.downstream();
+    }
+    cyclestates.push_back(cyclestate);
+  }
+
   assert(states.size() == length());
+  assert(cyclestates.size() == length());
 }
 
 //------------------------------------------------------------------------------
@@ -486,12 +539,8 @@ std::string Pattern::make_analysis() {
   }
   std::string patstring = to_string(throwdigits + 1);
 
-  // buffer << "------------------------------------------------------------\n";
-
-  if (is_valid()) {
-    buffer << "\nValid sitewap\n\n";
-  } else {
-    buffer << "\nInput is not a valid siteswap due to collision:\n  ";
+  if (!is_valid()) {
+    buffer << "Input is not a valid siteswap due to collision:\n  ";
 
     int collision_start = -1;
     int collision_end = -1;
@@ -524,29 +573,56 @@ std::string Pattern::make_analysis() {
       ++index;
     }
     buffer << '\n';
+    buffer << "------------------------------------------------------------";
     return buffer.str();
   }
 
+  buffer << "Pattern representations:\n";
   if (maxval < 36) {
-    buffer << "Short form:\n  " << to_string(1) << "\n\n";
-    buffer << "Block form:\n  " << to_string(1, maxval) << "\n\n";
+    buffer << "  short form     " << to_string(1) << '\n'
+           << "  block form     " << to_string(1, maxval) << '\n';
   }
-  buffer << "Standard form:\n " << patstring << "\n\n";
+  buffer << "  standard form " << patstring << "\n\n";
 
   buffer << "Properties:\n"
          << "  objects        " << objects() << '\n'
          << "  length         " << length() << '\n'
          << "  max. throw     " << maxval << '\n'
-         << "  is_prime       " << std::boolalpha << is_valid() << '\n'
-         << "  is_superprime  " << "TBD" << "\n\n";
+         << "  is_prime       " << std::boolalpha << is_prime() << '\n'
+         << "  is_superprime  " << std::boolalpha << is_superprime() << "\n\n";
 
-  buffer << "States:\n";
+  buffer << "States and shift cycles:\n";
+  check_have_states();
+
+  std::vector<State> shiftcycles_visited;
   for (size_t i = 0; i < length(); ++i) {
-    buffer << "  " << state_before(i)
-           << "    -- " << std::setw(throwdigits) << throwvalue(i)
-           << " -->\n";
+    if (throwvalue(i) != 0 && throwvalue(i) != h) {
+      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length()));
+    }
   }
-  buffer << "  " << state_before(0) << "\n\n";
+  for (size_t i = 0; i < length(); ++i) {
+    if (std::count(states.begin(), states.end(), states.at(i)) == 1) {
+      buffer << "  ";
+    } else {
+      buffer << "R ";
+    }
+    buffer << states.at(i) << "  "
+           << std::setw(throwdigits) << throwvalue(i) << "   ";
+    int prev_throwvalue = throwvalue(i == 0 ? length() - 1 : i - 1);
+    bool print_cyclestate = (prev_throwvalue != 0 && prev_throwvalue != h);
+    if (!print_cyclestate) {
+      buffer << "   .\n";
+      continue;
+    }
+    buffer << "  (" << cyclestates.at(i) << ')';
+    if (std::count(shiftcycles_visited.begin(), shiftcycles_visited.end(),
+        cyclestates.at(i)) == 1) {
+      buffer << '\n';
+    } else {
+      buffer << " R\n";
+    }
+  }
+  buffer << '\n';
 
   Graph graph(objects(), maxval);
 
@@ -562,5 +638,6 @@ std::string Pattern::make_analysis() {
   // table of shift cycles: number, representative state, period, pattern states on it
   // inverse, if it exists
 
+  buffer << "------------------------------------------------------------";
   return buffer.str();
 }

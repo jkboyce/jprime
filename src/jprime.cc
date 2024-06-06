@@ -117,15 +117,13 @@ void print_analysis(int argc, char** argv) {
     input.append(",").append(argv[i]);
   }
 
-  std::ostringstream buffer;
   try {
     Pattern pat(input);
-    buffer << pat.make_analysis();
+    std::cout << pat.make_analysis() << std::endl;
   } catch (const std::invalid_argument& ie) {
-    buffer << "Error parsing input: " << input << '\n'
-           << ie.what();
+    std::cout << "Error parsing input: " << input << '\n'
+              << ie.what() << std::endl;
   }
-  std::cout << buffer.str() << std::endl;
 }
 
 //------------------------------------------------------------------------------

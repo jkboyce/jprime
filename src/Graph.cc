@@ -16,14 +16,14 @@
 #include <limits>
 
 
-Graph::Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa,
+Graph::Graph(unsigned int b, unsigned int h, const std::vector<bool>& xa,
     bool ltwc, unsigned int l)
-    : n(n), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
+    : b(b), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
 
-Graph::Graph(unsigned int n, unsigned int h)
-    : n(n), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
+Graph::Graph(unsigned int b, unsigned int h)
+    : b(b), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
   init();
 }
 
@@ -38,8 +38,8 @@ Graph::Graph(unsigned int n, unsigned int h)
 
 void Graph::init() {
   // fail if the number of states cannot fit into an unsigned int
-  const std::uint64_t num = (l == 0 ? combinations(h, n) :
-      ordered_partitions(n, h, l));
+  const std::uint64_t num = (l == 0 ? combinations(h, b) :
+      ordered_partitions(b, h, l));
   assert(num <= std::numeric_limits<unsigned int>::max());
   numstates = static_cast<unsigned int>(num);
 
@@ -47,10 +47,10 @@ void Graph::init() {
   state.reserve(numstates + 2);
   state.push_back({0, h});  // state at index 0 is unused
   if (l == 0) {
-    gen_states_all(state, n, h);
+    gen_states_all(state, b, h);
     // states are generated in sorted order
   } else {
-    gen_states_for_period(state, n, h, l);
+    gen_states_for_period(state, b, h, l);
     if (state.size() > 1) {
       std::sort(state.begin() + 1, state.end(), state_compare);
     }
@@ -62,7 +62,7 @@ void Graph::init() {
       ++maxoutdegree;
     }
   }
-  maxoutdegree = std::min(maxoutdegree, h - n + 1);
+  maxoutdegree = std::min(maxoutdegree, h - b + 1);
 
   state_active.assign(numstates + 1, true);
   outdegree.assign(numstates + 1, 0);
@@ -90,10 +90,10 @@ void Graph::init() {
 
 // Generate all possible states into the vector `s`.
 
-void Graph::gen_states_all(std::vector<State>& s, unsigned int n,
+void Graph::gen_states_all(std::vector<State>& s, unsigned int b,
     unsigned int h) {
-  s.push_back({n, h});
-  gen_states_all_helper(s, h - 1, n);
+  s.push_back({b, h});
+  gen_states_all_helper(s, h - 1, b);
   s.pop_back();
 }
 
@@ -126,15 +126,15 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
 
 // Generate all possible states that can be part of a pattern of period `l`.
 
-void Graph::gen_states_for_period(std::vector<State>& s, unsigned int n,
+void Graph::gen_states_for_period(std::vector<State>& s, unsigned int b,
     unsigned int h, unsigned int l) {
-  s.push_back({n, h});
-  gen_states_for_period_helper(s, 0, n, h, l);
+  s.push_back({b, h});
+  gen_states_for_period_helper(s, 0, b, h, l);
   s.pop_back();
 }
 
 // Helper function to generate states in the single-period case. The states are
-// enumerated by partitioning the `n` objects into `l` different buckets.
+// enumerated by partitioning the `b` objects into `l` different buckets.
 
 void Graph::gen_states_for_period_helper(std::vector<State>& s,
     unsigned int pos, unsigned int left, const unsigned int h,
@@ -183,10 +183,10 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
 // state positions must be filled from the bottom up in order to be part of a
 // period `l` pattern.
 
-std::uint64_t Graph::ordered_partitions(unsigned int n, unsigned int h,
+std::uint64_t Graph::ordered_partitions(unsigned int b, unsigned int h,
     unsigned int l) {
   std::map<op_key_type, std::uint64_t> cache;
-  return ordered_partitions_helper(0, n, h, l, cache);
+  return ordered_partitions_helper(0, b, h, l, cache);
 }
 
 // Compute the number of ways of filling slot `pos` through slot `l-1`, given
@@ -462,7 +462,7 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
   return result;
 }
 
-// Compute the number of shift cycles with `n` objects, max throw `h`, with
+// Compute the number of shift cycles with `b` objects, max throw `h`, with
 // exact period `p`.
 
 std::uint64_t Graph::shift_cycle_count(unsigned int n, unsigned int h,

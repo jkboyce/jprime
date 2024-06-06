@@ -22,15 +22,15 @@
 
 class Graph {
  public:
-  Graph(unsigned int n, unsigned int h, const std::vector<bool>& xa, bool ltwc,
+  Graph(unsigned int b, unsigned int h, const std::vector<bool>& xa, bool ltwc,
       unsigned int l = 0);
-  Graph(unsigned int n, unsigned int h);
+  Graph(unsigned int b, unsigned int h);
   Graph() = default;
 
  public:
   // calculated at construction and do not change
-  unsigned int n = 0;
-  unsigned int h = 0;
+  unsigned int b = 0;  // number of objects
+  unsigned int h = 0;  // maximum throw value
   unsigned int l = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
   bool linkthrows_within_cycle = true;

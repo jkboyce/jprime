@@ -22,7 +22,7 @@ class State {
   State(std::string s);
 
  public:
-  unsigned int n;  // number of objects
+  unsigned int b;  // number of objects
   unsigned int h;  // max throw height
   std::vector<unsigned int> slot;  // 0 or 1
 
@@ -32,6 +32,7 @@ class State {
   State reverse() const;
   unsigned int& operator[](size_t i);
   bool operator==(const State& s2) const;
+  bool operator!=(const State& s2) const;
   bool operator<(const State& s2) const;
   std::string to_string() const;
 };

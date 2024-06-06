@@ -436,14 +436,14 @@ bool Coordinator::passes_prechecks() {
 
 void Coordinator::calc_graph_size() {
   // size of the full graph
-  context.full_numstates = Graph::combinations(config.h, config.n);
+  context.full_numstates = Graph::combinations(config.h, config.b);
   context.full_numcycles = 0;
   context.full_numshortcycles = 0;
   unsigned int max_cycle_period = 0;
 
   for (unsigned int p = 1; p <= config.h; ++p) {
     const std::uint64_t cycles =
-        Graph::shift_cycle_count(config.n, config.h, p);
+        Graph::shift_cycle_count(config.b, config.h, p);
     context.full_numcycles += cycles;
     if (p < config.h) {
       context.full_numshortcycles += cycles;
@@ -469,7 +469,7 @@ void Coordinator::calc_graph_size() {
     context.memory_numstates = context.full_numstates;
   } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
     context.memory_numstates =
-        Graph::ordered_partitions(config.n, config.h, config.l_min);
+        Graph::ordered_partitions(config.b, config.h, config.l_min);
   }
 }
 
@@ -659,7 +659,7 @@ void Coordinator::signal_handler(int signum) {
 //------------------------------------------------------------------------------
 
 void Coordinator::print_preamble() const {
-  std::cout << "objects: " << (config.dualflag ? config.h - config.n : config.n)
+  std::cout << "objects: " << (config.dualflag ? config.h - config.b : config.b)
             << ", max throw: " << config.h << '\n';
 
   if (config.mode == RunMode::NORMAL_SEARCH) {

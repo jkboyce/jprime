@@ -34,7 +34,7 @@ enum class GraphMode {
 
 struct SearchConfig {
   // number of objects
-  unsigned int n = 0;
+  unsigned int b = 0;
 
   // maximum throw value
   unsigned int h = 0;

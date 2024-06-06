@@ -101,7 +101,7 @@ void Worker::run() {
 // Initialize the juggling graph and associated arrays used during search.
 
 void Worker::initialize_graph() {
-  graph = {config.n, config.h, config.xarray,
+  graph = {config.b, config.h, config.xarray,
     config.mode != RunMode::SUPER_SEARCH,
     config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0};
 

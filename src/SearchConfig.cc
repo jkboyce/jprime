@@ -34,7 +34,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
   }
-  n = static_cast<unsigned int>(val);
+  b = static_cast<unsigned int>(val);
 
   try {
     val = std::stoi(argv[2]);
@@ -47,7 +47,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     throw std::invalid_argument("Max. throw value must be at least 1");
   }
   h = static_cast<unsigned int>(val);
-  if (h < n) {
+  if (h < b) {
     throw std::invalid_argument(
         "Max. throw value must equal or exceed the number of objects");
   }
@@ -58,9 +58,9 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   xarray.assign(h + 1, false);
 
   // default for using dual graph
-  if (h > (2 * n)) {
+  if (h > (2 * b)) {
     dualflag = true;
-    n = h - n;
+    b = h - b;
   }
 
   for (size_t i = 1; i < argc; ++i) {
@@ -247,9 +247,9 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   unsigned int max_throw_value = h;
   if (l_max > 0) {
     if (dualflag) {
-      max_throw_value = std::min(max_throw_value, (h - n) * l_max);
+      max_throw_value = std::min(max_throw_value, (h - b) * l_max);
     } else {
-      max_throw_value = std::min(max_throw_value, n * l_max);
+      max_throw_value = std::min(max_throw_value, b * l_max);
     }
   }
   if (max_throw_value < 36) {

@@ -15,15 +15,15 @@
 
 
 State::State(unsigned int balls, unsigned int height)
-    : n(balls), h(height), slot(height, 0) {}
+    : b(balls), h(height), slot(height, 0) {}
 
 State::State(std::string s) {
   h = static_cast<unsigned int>(s.size());
-  n = 0;
+  b = 0;
   for (size_t i = 0; i < h; ++i) {
     int val = (s.at(i) == 'x' || s.at(i) == '1') ? 1 : 0;
     slot.push_back(val);
-    n += val;
+    b += val;
   }
 }
 
@@ -85,7 +85,11 @@ unsigned int& State::operator[](size_t i) {
 }
 
 bool State::operator==(const State& s2) const {
-  return (n == s2.n && h == s2.h && slot == s2.slot);
+  return (b == s2.b && h == s2.h && slot == s2.slot);
+}
+
+bool State::operator!=(const State& s2) const {
+  return (b != s2.b || h != s2.h || slot != s2.slot);
 }
 
 bool State::operator<(const State& s2) const {
@@ -111,9 +115,9 @@ std::ostream& operator<<(std::ostream& ost, const State& s) {
 // weak ordering, and false otherwise.
 
 bool state_compare(const State& s1, const State& s2) {
-  if (s1.n < s2.n)
+  if (s1.b < s2.b)
     return true;
-  if (s1.n > s2.n)
+  if (s1.b > s2.b)
     return false;
   if (s1.h < s2.h)
     return true;

@@ -28,15 +28,18 @@ class Pattern {
 
  private:
   std::vector<int> throwval;
-  std::vector<State> states;
   int h = 0;  // number of beats in a state (max. throw value)
+  std::vector<State> states;
+  std::vector<State> cyclestates;
 
  public:
   int objects() const;
   size_t length() const;
   int throwvalue(size_t index) const;
-  bool is_valid() const;
   State state_before(size_t index);
+  bool is_valid() const;
+  bool is_prime();
+  bool is_superprime();
 
   // pattern transformations
   Pattern dual() const;
