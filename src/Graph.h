@@ -54,7 +54,6 @@ class Graph {
  private:
   void init();
   void find_shift_cycles();
-  void gen_matrices();
   void find_exit_cycles();
 
   using op_key_type = std::tuple<unsigned int, unsigned int>;
@@ -72,6 +71,7 @@ class Graph {
 
  public:
   void build_graph();
+  void reduce_graph();
   void find_exclude_states();
   static std::uint64_t combinations(unsigned int a, unsigned int b);
   static std::uint64_t shift_cycle_count(unsigned int n, unsigned int h,

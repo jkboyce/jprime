@@ -276,18 +276,83 @@ void Graph::find_shift_cycles() {
   numcycles = cycleindex;
 }
 
-// Build the core data structures used during pattern search. This takes into
-// account whether states are active; transitions in and out of inactive states
-// are pruned from the graph.
+// Construct matrices describing the structure of the juggling graph, for the
+// states that are currently active.
+//
+// - Outward degree from each state (vertex) in the graph:
+//         outdegree[statenum] --> degree
+// - Outward connections from each state:
+//         outmatrix[statenum][col] --> statenum  (where col < outdegree)
+// - Throw values corresponding to outward connections from each state:
+//         outthrowval[statenum][col] --> throw
+//
+// outmatrix[][] == 0 indicates no connection.
 
 void Graph::build_graph() {
-  while (true) {
-    gen_matrices();
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (!state_active.at(i)) {
+      outdegree.at(i) = 0;
+      continue;
+    }
 
-    // deactivate any states with 0 outdegree or indegree
-    std::vector<unsigned int> indegree(numstates + 1, 0);
+    unsigned int outthrownum = 0;
+    for (int throwval = h; throwval >= 0; --throwval) {
+      const unsigned int tv = static_cast<unsigned int>(throwval);
+      if (xarray.at(tv))
+        continue;
+
+      unsigned int k = advance_state(static_cast<unsigned int>(i), tv);
+      if (k == 0)
+        continue;
+      if (!state_active.at(k))
+        continue;
+      if (tv > 0 && tv < h && !linkthrows_within_cycle &&
+          cyclenum.at(i) == cyclenum.at(k)) {
+        continue;
+      }
+
+      outmatrix.at(i).at(outthrownum) = k;
+      outthrowval.at(i).at(outthrownum) = tv;
+      ++outthrownum;
+    }
+    outdegree.at(i) = outthrownum;
+  }
+}
+
+// Remove unusable links and states from the graph. Apply two transformations
+// until no further reductions are possible:
+// - Remove links to inactive states
+// - Deactivate states with zero outdegree or indegree
+//
+// Finally call find_exit_cycles() to update those data structures based on the
+// current graph.
+
+void Graph::reduce_graph() {
+  while (true) {
     bool changed = false;
 
+    // Remove links to inactive states
+    for (size_t i = 1; i <= numstates; ++i) {
+      if (!state_active.at(i))
+        continue;
+      unsigned int outthrownum = 0;
+      for (size_t j = 0; j < outdegree.at(i); ++j) {
+        if (state_active.at(outmatrix.at(i).at(j))) {
+          if (outthrownum != j) {
+            outmatrix.at(i).at(outthrownum) = outmatrix.at(i).at(j);
+            outthrowval.at(i).at(outthrownum) = outthrowval.at(i).at(j);
+          }
+          ++outthrownum;
+        }
+      }
+      if (outdegree.at(i) != outthrownum) {
+        outdegree.at(i) = outthrownum;
+        changed = true;
+      }
+    }
+
+    // Deactivate states with zero outdegree or indegree
+    std::vector<unsigned int> indegree(numstates + 1, 0);
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
@@ -316,64 +381,6 @@ void Graph::build_graph() {
   }
 
   find_exit_cycles();
-}
-
-// Generate matrices describing the structure of the juggling graph:
-//
-// - Outward degree from each state (vertex) in the graph:
-//         outdegree[statenum] --> degree
-// - Outward connections from each state:
-//         outmatrix[statenum][col] --> statenum  (where col < outdegree)
-// - Throw values corresponding to outward connections from each state:
-//         outthrowval[statenum][col] --> throw
-//
-// outmatrix[][] == 0 indicates no connection.
-
-void Graph::gen_matrices() {
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active.at(i)) {
-      outdegree.at(i) = 0;
-      continue;
-    }
-
-    // each row is calculated once per execution of gen_patterns()
-    if (outdegree.at(i) == 0) {
-      unsigned int outthrownum = 0;
-      for (int throwval = h; throwval >= 0; --throwval) {
-        const unsigned int tv = static_cast<unsigned int>(throwval);
-        if (xarray.at(tv))
-          continue;
-
-        unsigned int k = advance_state(static_cast<unsigned int>(i), tv);
-        if (k == 0)
-          continue;
-        if (!state_active.at(k))
-          continue;
-        if (tv > 0 && tv < h && !linkthrows_within_cycle &&
-            cyclenum.at(i) == cyclenum.at(k))
-          continue;
-
-        outmatrix.at(i).at(outthrownum) = k;
-        outthrowval.at(i).at(outthrownum) = tv;
-        ++outthrownum;
-      }
-      outdegree.at(i) = outthrownum;
-      continue;
-    }
-
-    // remove inactive states from row
-    unsigned int outthrownum = 0;
-    for (size_t j = 0; j < outdegree.at(i); ++j) {
-      if (state_active.at(outmatrix.at(i).at(j))) {
-        if (outthrownum != j) {
-          outmatrix.at(i).at(outthrownum) = outmatrix.at(i).at(j);
-          outthrowval.at(i).at(outthrownum) = outthrowval.at(i).at(j);
-        }
-        ++outthrownum;
-      }
-    }
-    outdegree.at(i) = outthrownum;
-  }
 }
 
 // Fill in array `isexitcycle` that indicates which shift cycles can exit
@@ -408,6 +415,8 @@ void Graph::find_exit_cycles() {
 
 // Generate arrays that are used for marking excluded states during NORMAL
 // mode search with marking.
+//
+// This should be called immediately before gen_loops().
 
 void Graph::find_exclude_states() {
   for (size_t i = 1; i <= numstates; ++i) {
