@@ -432,7 +432,7 @@ void Graph::find_exclude_states() {
     unsigned int j = 0;
     while (s.slot.at(s.h - 1) != 0 && j < h) {
       unsigned int statenum = get_statenum(s);
-      if (statenum == 0 || !state_active.at(statenum))
+      if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_throw.at(i).at(j++) = statenum;
       s = s.downstream();
