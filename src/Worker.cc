@@ -772,7 +772,27 @@ void Worker::report_pattern() const {
     buffer << " *";
 
   if (config.invertflag) {
-    Pattern inverse = pat.inverse(graph);
+    Pattern inverse = pat.inverse();
+
+    if ((inverse.length() != 0) != pat.is_superprime()) {
+      std::cerr << "error with inverse of:\n"
+                << "  " << pat << " :\n"
+                << "  " << inverse << '\n'
+                << "inverse.length() = " << inverse.length() << '\n'
+                << "pat.is_superprime() = " << pat.is_superprime()
+                << '\n';
+    }
+    if (pat.is_superprime() != inverse.is_superprime()) {
+      std::cerr << "error with inverse of:\n"
+                << "  " << pat << " :\n"
+                << "  " << inverse << '\n'
+                << "pat.is_superprime() = " << pat.is_superprime() << '\n'
+                << "inverse.is_superprime() = " << inverse.is_superprime()
+                << '\n';
+    }
+    assert((inverse.length() != 0) == pat.is_superprime());
+    assert(pat.is_superprime() == inverse.is_superprime());
+
     if (inverse.is_valid()) {
       if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
         buffer << "  ";

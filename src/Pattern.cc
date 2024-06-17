@@ -9,6 +9,7 @@
 //
 
 #include "Pattern.h"
+#include "Graph.h"
 
 #include <iostream>
 #include <algorithm>
@@ -176,13 +177,6 @@ size_t Pattern::length() const {
   return throwval.size();
 }
 
-// Return the throw value on beat `index`.
-
-int Pattern::throwvalue(size_t index) const {
-  assert(index >= 0 && index < length());
-  return throwval.at(index);
-}
-
 // Return the State value immediately before the throw on beat `index`.
 
 State Pattern::state_before(size_t index) {
@@ -225,7 +219,7 @@ bool Pattern::is_prime() {
 
 bool Pattern::is_superprime() {
   if (length() == 0)
-    return true;
+    return false;
   check_have_states();
 
   std::vector<State> deduped;
@@ -247,7 +241,7 @@ bool Pattern::is_superprime() {
   }
 
   std::set<State> s(deduped.begin(), deduped.end());
-  return (s.size() == deduped.size());
+  return (deduped.size() > 1 && s.size() == deduped.size());
 }
 
 //------------------------------------------------------------------------------
@@ -257,130 +251,104 @@ bool Pattern::is_superprime() {
 // Return the dual of the pattern.
 //
 // The duality transform is with respect to a maximum throw value, which is
-// taken to be the greater of the supplied parameter `h`, and the throw values
-// in the pattern.
+// taken to be the larger of `h` and the largest throw value in the pattern.
 
 Pattern Pattern::dual() const {
-  if (length() == 0)
-    return {};
-
-  std::vector<int> dual_throws(length());
-  for (size_t i = 0; i < length(); ++i) {
-    dual_throws.at(i) = h - throwval.at(length() - 1 - i);
+  if (length() == 0) {
+    std::vector<int> empty_throwval;
+    return {empty_throwval, h};
   }
-  return {dual_throws};
+
+  std::vector<int> dual_throwval(length());
+  for (size_t i = 0; i < length(); ++i) {
+    dual_throwval.at(i) = h - throwval.at(length() - 1 - i);
+  }
+  return {dual_throwval, h};
 }
 
-// Return the inverse of the given pattern on the juggling graph. If the inverse
-// does not exist, return an empty pattern.
+// Return the inverse of the pattern.
+//
+// If the inverse does not exist, return an empty pattern.
 
-Pattern Pattern::inverse(const Graph& graph) const {
-  std::vector<int> patternstate(graph.numstates + 1);
-  std::vector<bool> state_used(graph.numstates + 1, false);
-  std::vector<bool> cycle_used(graph.numstates + 1, false);
+Pattern Pattern::inverse() {
+  check_have_states();
 
-  // `start_state` is assumed to be the lowest active state in the graph
-  unsigned int start_state = 1;
-  for (; start_state <= graph.numstates; ++start_state) {
-    if (graph.state_active.at(start_state))
-      break;
-  }
-  if (start_state > graph.numstates)
-    return {};
-
-  // Step 1. build a vector of state numbers traversed by the pattern, and
-  // determine if an inverse exists.
+  // Step 1. Determine if an inverse exists.
   //
-  // a pattern has an inverse if and only if:
+  // A pattern has an inverse if and only if:
   // - it visits more than one shift cycle on the state graph, and
   // - it never revisits a shift cycle, and
   // - it never does a link throw (0 < t < h) within a single cycle
 
-  unsigned int state_current = start_state;
-  unsigned int cycle_current = graph.cyclenum.at(start_state);
-  bool cycle_multiple = false;
+  std::set<State> states_used;
+  std::set<State> cycles_used;
+  std::vector<int> empty_throwval;
+  State cycle_current = cyclestates.at(0);
+  bool cycles_multiple = false;
 
   for (size_t i = 0; i < throwval.size(); ++i) {
-    patternstate.at(i) = state_current;
-    state_used.at(state_current) = true;
-
-    const int state_next = graph.advance_state(state_current, throwval.at(i));
-    assert(state_next > 0);
-    const unsigned int cycle_next = graph.cyclenum.at(state_next);
+    states_used.insert(states.at(i));
+    const State cycle_next = cyclestates.at((i + 1) % length());
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
-      if (cycle_used.at(cycle_current)) {
+      if (cycles_used.count(cycle_current) != 0) {
         // revisited cycle number `cycle_current` --> no inverse
-        return {};
+        return {empty_throwval, h};
       }
-      cycle_used.at(cycle_current) = true;
-      cycle_multiple = true;
-    } else if (throwval.at(i) != 0 &&
-        static_cast<unsigned int>(throwval.at(i)) != graph.h) {
+      cycles_used.insert(cycle_current);
+      cycles_multiple = true;
+    } else if (throwval.at(i) != 0 && throwval.at(i) != h) {
       // link throw within a single cycle --> no inverse
-      return {};
+      return {empty_throwval, h};
     }
 
-    state_current = state_next;
     cycle_current = cycle_next;
   }
-  patternstate.at(throwval.size()) = start_state;
 
-  if (!cycle_multiple) {
+  if (!cycles_multiple) {
     // never left starting shift cycle --> no inverse
-    return {};
+    return {empty_throwval, h};
   }
 
   // Step 2. Find the states and throws of the inverse.
   //
   // Iterate through the link throws in the pattern to build up a list of
   // states and throws for the inverse.
-  //
-  // Note the inverse may go through states that aren't in memory so we can't
-  // refer to them by state number.
 
-  std::vector<unsigned int> inversepattern;
-  std::vector<State> inversestate;
+  std::vector<int> inverse_throwval;
+  std::vector<State> inverse_states;
 
   for (size_t i = 0; i < throwval.size(); ++i) {
     // continue until `throwval[i]` is a link throw
-    if (graph.cyclenum.at(patternstate.at(i)) ==
-        graph.cyclenum.at(patternstate.at(i + 1))) {
+    if (cyclestates.at(i) == cyclestates.at((i + 1) % length()))
       continue;
-    }
 
-    if (inversestate.size() == 0) {
+    if (inverse_states.size() == 0) {
       // the inverse pattern starts at the (reversed version of) the next state
       // 'downstream' from `patternstate[i]`
-      inversestate.push_back(
-          graph.state.at(patternstate.at(i)).downstream().reverse());
+      inverse_states.push_back(states.at(i).downstream().reverse());
     }
 
-    const unsigned int inversethrow = graph.h -
-        static_cast<unsigned int>(throwval.at(i));
-    inversepattern.push_back(inversethrow);
-    inversestate.push_back(
-        inversestate.back().advance_with_throw(inversethrow));
+    const int inverse_throw = h - throwval.at(i);
+    inverse_throwval.push_back(inverse_throw);
+    inverse_states.push_back(
+        inverse_states.back().advance_with_throw(inverse_throw));
 
     // advance the inverse pattern along the shift cycle until it gets to a
     // state whose reverse is used by the original pattern
 
     while (true) {
-      State trial_state = inversestate.back().downstream();
-      unsigned int trial_statenum = graph.get_statenum(trial_state.reverse());
-      if (trial_statenum > 0 && state_used.at(trial_statenum))
+      State trial_state = inverse_states.back().downstream();
+      if (states_used.count(trial_state.reverse()) != 0)
         break;
 
-      inversepattern.push_back(trial_state.slot.at(graph.h - 1) ? graph.h : 0);
-      inversestate.push_back(trial_state);
+      inverse_throwval.push_back(trial_state.slot.at(h - 1) ? h : 0);
+      inverse_states.push_back(trial_state);
     }
-
-    if (inversestate.back() == inversestate.front())
-      break;
   }
-  assert(inversestate.size() > 0);
-  assert(inversestate.back() == inversestate.front());
+  assert(inverse_states.size() > 0);
+  assert(inverse_states.back() == inverse_states.front());
 
   // Step 3. Create the final inverse pattern.
   //
@@ -389,19 +357,19 @@ Pattern Pattern::inverse(const Graph& graph) const {
   std::vector<int> inverse_final;
 
   size_t min_index = 0;
-  for (size_t i = 1; i < inversestate.size(); ++i) {
-    if (inversestate.at(i) < inversestate.at(min_index)) {
+  for (size_t i = 1; i < inverse_states.size(); ++i) {
+    if (inverse_states.at(i) < inverse_states.at(min_index)) {
       min_index = i;
     }
   }
 
-  const size_t inverselength = inversepattern.size();
-  for (size_t i = 0; i < inverselength; ++i) {
-    size_t j = (i + min_index) % inverselength;
-    inverse_final.push_back(inversepattern.at(j));
+  const size_t inverse_length = inverse_throwval.size();
+  for (size_t i = 0; i < inverse_length; ++i) {
+    size_t j = (i + min_index) % inverse_length;
+    inverse_final.push_back(inverse_throwval.at(j));
   }
 
-  return {inverse_final};
+  return {inverse_final, h};
 }
 
 //------------------------------------------------------------------------------
@@ -458,6 +426,25 @@ void Pattern::check_have_states() {
 
   assert(states.size() == length());
   assert(cyclestates.size() == length());
+}
+
+//------------------------------------------------------------------------------
+// Operator overrides
+//------------------------------------------------------------------------------
+
+// Return the throw value on beat `index`.
+
+int Pattern::operator[](size_t index) const {
+  assert(index < length());
+  return throwval.at(index);
+}
+
+bool Pattern::operator==(const Pattern& p2) const {
+  return (h == p2.h && throwval == p2.throwval);
+}
+
+bool Pattern::operator!=(const Pattern& p2) const {
+  return (h != p2.h || throwval != p2.throwval);
 }
 
 //------------------------------------------------------------------------------
@@ -529,12 +516,8 @@ char Pattern::throw_char(unsigned int val) {
 std::string Pattern::make_analysis() {
   std::ostringstream buffer;
 
-  int maxval = 0;
-  for (size_t i = 0; i < length(); ++i) {
-    maxval = std::max(throwvalue(i), maxval);
-  }
   int throwdigits = 1;
-  for (int temp = 10; temp <= maxval; temp *= 10) {
+  for (int temp = 10; temp <= h; temp *= 10) {
     ++throwdigits;
   }
   std::string patstring = to_string(throwdigits + 1);
@@ -546,7 +529,7 @@ std::string Pattern::make_analysis() {
     int collision_end = -1;
     std::vector<int> landing_index(length(), -1);
     for (size_t i = 0; i < length(); ++i) {
-      size_t index = (i + static_cast<size_t>(throwvalue(i))) % length();
+      size_t index = (i + static_cast<size_t>(throwval.at(i))) % length();
       if (landing_index[index] != -1) {
         collision_start = landing_index[index];
         collision_end = i;
@@ -577,67 +560,154 @@ std::string Pattern::make_analysis() {
     return buffer.str();
   }
 
-  buffer << "Pattern representations:\n";
-  if (maxval < 36) {
-    buffer << "  short form     " << to_string(1) << '\n'
-           << "  block form     " << to_string(1, maxval) << '\n';
+  buffer << "Pattern:\n"
+         << "  standard form      " << patstring << '\n';
+  if (h < 36) {
+    buffer << "  short form          " << to_string(1) << '\n'
+           << "  block form          " << to_string(1, h) << '\n';
   }
-  buffer << "  standard form " << patstring << "\n\n";
+  buffer << '\n';
 
   buffer << "Properties:\n"
-         << "  objects        " << objects() << '\n'
-         << "  length         " << length() << '\n'
-         << "  max. throw     " << maxval << '\n'
-         << "  is_prime       " << std::boolalpha << is_prime() << '\n'
-         << "  is_superprime  " << std::boolalpha << is_superprime() << "\n\n";
+         << "  objects             " << objects() << '\n'
+         << "  length              " << length() << '\n'
+         << "  max. throw          " << h << '\n'
+         << "  is_prime            " << std::boolalpha << is_prime() << '\n'
+         << "  is_superprime       " << std::boolalpha << is_superprime()
+         << "\n\n";
 
-  buffer << "States and shift cycles:\n";
-  check_have_states();
+  std::uint64_t full_numstates = Graph::combinations(h, objects());
+  std::uint64_t full_numcycles = 0;
+  std::uint64_t full_numshortcycles = 0;
 
-  std::vector<State> shiftcycles_visited;
-  for (size_t i = 0; i < length(); ++i) {
-    if (throwvalue(i) != 0 && throwvalue(i) != h) {
-      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length()));
+  for (int p = 1; p <= h; ++p) {
+    const std::uint64_t cycles =
+        Graph::shift_cycle_count(objects(), h, p);
+    full_numcycles += cycles;
+    if (p < h) {
+      full_numshortcycles += cycles;
     }
   }
+
+  // graph info
+
+  buffer << "Graph (" << objects() << ',' << h << "):\n"
+         << "  states              " << full_numstates << '\n'
+         << "  shift cycles        " << full_numcycles << '\n'
+         << "  short cycles        " << full_numshortcycles << '\n'
+         << "  prime length bound  "
+         << (full_numstates - full_numcycles) << "\n\n";
+
+  // table of states, shift cycles, and excluded states
+
+  bool show_sc = is_prime();
+  int separation = std::max(15, 4 + h + 4);
+
+  if (show_sc) {
+    buffer << "States:";
+    for (int j = 0; j < (h + throwdigits + 1); ++j) {
+      buffer << ' ';
+    }
+    buffer << "Shift cycles:";
+    for (int j = 0; j < (separation - 13); ++j) {
+      buffer << ' ';
+    }
+    buffer << "Excluded states:\n";
+  } else {
+    buffer << "States:\n";
+  }
+
+  check_have_states();
+  std::vector<State> shiftcycles_visited;
+  bool any_linkthrow = false;
   for (size_t i = 0; i < length(); ++i) {
+    if (throwval.at(i) != 0 && throwval.at(i) != h) {
+      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length()));
+    }
+    if (throwval.at(i) != 0 && throwval.at(i) != h) {
+      any_linkthrow = true;
+    }
+  }
+  std::set<State> printed;
+
+  for (size_t i = 0; i < length(); ++i) {
+    // state and throw value out of it
     if (std::count(states.begin(), states.end(), states.at(i)) == 1) {
       buffer << "  ";
     } else {
       buffer << "R ";
     }
     buffer << states.at(i) << "  "
-           << std::setw(throwdigits) << throwvalue(i) << "   ";
-    int prev_throwvalue = throwvalue(i == 0 ? length() - 1 : i - 1);
-    bool print_cyclestate = (prev_throwvalue != 0 && prev_throwvalue != h);
-    if (!print_cyclestate) {
-      buffer << "   .\n";
+           << std::setw(throwdigits) << throwval.at(i);
+
+    if (!show_sc) {
+      buffer << '\n';
       continue;
     }
-    buffer << "  (" << cyclestates.at(i) << ')';
-    if (std::count(shiftcycles_visited.begin(), shiftcycles_visited.end(),
-        cyclestates.at(i)) == 1) {
-      buffer << '\n';
+
+    // print shift cycle
+    int prev_throwvalue = throwval.at(i == 0 ? length() - 1 : i - 1);
+    int curr_throwvalue = throwval.at(i);
+    bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
+    bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
+
+    if (prev_linkthrow) {
+      if (std::count(shiftcycles_visited.begin(), shiftcycles_visited.end(),
+          cyclestates.at(i)) == 1) {
+        buffer << "      ";
+      } else {
+        buffer << "    R ";
+      }
+      buffer << '(' << cyclestates.at(i) << ") ";
+    } else if (!any_linkthrow && i == 0) {
+      buffer << "      (" << cyclestates.at(i) << ") ";
     } else {
-      buffer << " R\n";
+      buffer << "         .";
+      for (int j = 0; j < (h - 1); ++j) {
+        buffer << ' ';
+      }
     }
+    for (int j = 0; j < (separation - (h + 3)); ++j) {
+      buffer << ' ';
+    }
+
+    // excluded states, if any
+    bool es_printed = false;
+    if (prev_linkthrow) {
+      State excluded = states.at(i).upstream();
+      if (printed.count(excluded) == 0) {
+        buffer << excluded;
+        printed.insert(excluded);
+        es_printed = true;
+      }
+    }
+    if (curr_linkthrow) {
+      State excluded = states.at(i).downstream();
+      if (printed.count(excluded) == 0) {
+        if (es_printed) {
+          buffer << ", ";
+        }
+        buffer << excluded;
+        printed.insert(excluded);
+      }
+    }
+    buffer << '\n';
   }
-  buffer << '\n';
 
-  Graph graph(objects(), maxval);
+  // inverse pattern, if one exists
 
-  buffer << "Graph (" << objects() << ',' << maxval << "):\n"
-         << "  states         " << graph.numstates << '\n'
-         << "  shift cycles   " << graph.numcycles << '\n'
-         << "  short cycles   " << graph.numshortcycles << '\n';
-
-  // is_prime
-  // is_superprime
-  // list of states traversed, with duplicates shown
-  // list of states missed, if short
-  // table of shift cycles: number, representative state, period, pattern states on it
-  // inverse, if it exists
+  Pattern inverse_pattern = inverse();
+  assert((inverse_pattern.length() != 0) == is_superprime());
+  assert(is_superprime() == inverse_pattern.is_superprime());
+  if (inverse_pattern.length() != 0) {
+    buffer << "\nInverse pattern:\n  " << inverse_pattern.to_string() << '\n';
+  }
 
   buffer << "------------------------------------------------------------";
   return buffer.str();
+}
+
+std::ostream& operator<<(std::ostream& ost, const Pattern& p) {
+  ost << p.to_string();
+  return ost;
 }

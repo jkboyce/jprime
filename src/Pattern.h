@@ -11,7 +11,6 @@
 #ifndef JPRIME_PATTERN_H_
 #define JPRIME_PATTERN_H_
 
-#include "Graph.h"
 #include "State.h"
 
 #include <vector>
@@ -28,14 +27,13 @@ class Pattern {
 
  private:
   std::vector<int> throwval;
-  int h = 0;  // number of beats in a state (max. throw value)
+  int h = 0;  // number of beats in a state (>= max. throw value)
   std::vector<State> states;
   std::vector<State> cyclestates;
 
  public:
   int objects() const;
   size_t length() const;
-  int throwvalue(size_t index) const;
   State state_before(size_t index);
   bool is_valid() const;
   bool is_prime();
@@ -43,7 +41,12 @@ class Pattern {
 
   // pattern transformations
   Pattern dual() const;
-  Pattern inverse(const Graph& graph) const;
+  Pattern inverse();
+
+  // operator overrides
+  int operator[](size_t index) const;
+  bool operator==(const Pattern& s2) const;
+  bool operator!=(const Pattern& s2) const;
 
   // string output
   std::string to_string(unsigned int throwdigits = 1,
@@ -59,5 +62,7 @@ class Pattern {
   // helper methods
   void check_have_states();
 };
+
+std::ostream& operator<<(std::ostream& ost, const Pattern& p);
 
 #endif
