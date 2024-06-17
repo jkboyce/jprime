@@ -579,6 +579,7 @@ std::string Pattern::make_analysis() {
   std::uint64_t full_numstates = Graph::combinations(h, objects());
   std::uint64_t full_numcycles = 0;
   std::uint64_t full_numshortcycles = 0;
+  int max_cycle_period = 0;
 
   for (int p = 1; p <= h; ++p) {
     const std::uint64_t cycles =
@@ -586,6 +587,9 @@ std::string Pattern::make_analysis() {
     full_numcycles += cycles;
     if (p < h) {
       full_numshortcycles += cycles;
+    }
+    if (cycles > 0) {
+      max_cycle_period = p;
     }
   }
 
@@ -596,7 +600,9 @@ std::string Pattern::make_analysis() {
          << "  shift cycles        " << full_numcycles << '\n'
          << "  short cycles        " << full_numshortcycles << '\n'
          << "  prime length bound  "
-         << (full_numstates - full_numcycles) << "\n\n";
+         << std::max(static_cast<std::uint64_t>(max_cycle_period),
+              full_numstates - full_numcycles)
+         << "\n\n";
 
   // table of states, shift cycles, and excluded states
 

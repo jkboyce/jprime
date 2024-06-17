@@ -461,7 +461,8 @@ void Coordinator::calc_graph_size() {
         context.full_numstates - context.full_numcycles
     );
   } else if (config.mode == RunMode::SUPER_SEARCH) {
-    context.l_bound = context.full_numcycles + config.shiftlimit;
+    context.l_bound = (context.full_numcycles < 2 ) ? 0 :
+        context.full_numcycles + config.shiftlimit;
   }
 
   // number of states that will be resident in memory if we build the graph

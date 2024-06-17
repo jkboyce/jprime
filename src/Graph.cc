@@ -515,6 +515,8 @@ unsigned int Graph::prime_length_bound() const {
         --result_multicycle;
       }
     }
+  } else {
+    result_multicycle = 0;
   }
 
   // Case 2: The pattern stays on a single shift cycle; find the cycle with the
@@ -527,8 +529,8 @@ unsigned int Graph::prime_length_bound() const {
   return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the length of superprime patterns in the graph,
-// using states that are currently active.
+// Calculate an upper bound on the length of superprime patterns without shift
+// throws, using states in the graph that are currently active.
 
 unsigned int Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
@@ -538,6 +540,9 @@ unsigned int Graph::superprime_length_bound() const {
       any_active.at(cyclenum.at(i)) = true;
     }
   }
+
+  if (std::count(any_active.begin(), any_active.end(), true) < 2)
+    return 0;
 
   return static_cast<unsigned int>(
       std::count(any_active.begin(), any_active.end(), true));
