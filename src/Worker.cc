@@ -716,12 +716,12 @@ void Worker::customize_graph() {
     }
   }
 
-  // Some special cases for (n,h) = (n,2n) due to the special properties of the
-  // period-2 shift cycle (x-)^n.
+  // Some special cases for (b,h) = (b,2b) due to the special properties of the
+  // period-2 shift cycle (x-)^b.
 
-  if (config.h == (2 * config.n) && config.mode == RunMode::SUPER_SEARCH &&
+  if (config.h == (2 * config.b) && config.mode == RunMode::SUPER_SEARCH &&
       config.l_min > 2) {
-    State per2state{config.n, config.h};
+    State per2state{config.b, config.h};
     for (size_t i = 0; i < config.h; i += 2) {
       per2state.slot.at(i) = 1;
     }
@@ -729,15 +729,15 @@ void Worker::customize_graph() {
     assert(k != 0);
 
     if (config.shiftlimit == 0) {
-      // in this case (x-)^n is excluded
+      // in this case (x-)^b is excluded
       graph.state_active.at(k) = false;
     } else if (config.shiftlimit == 1 && config.l_min == graph.numcycles + 1) {
-      // in this case (x-)^n is required to be in the pattern, and the one shift
-      // throw has to be in the cycle immediately preceding or following (x-)^n
+      // in this case (x-)^b is required to be in the pattern, and the one shift
+      // throw has to be in the cycle immediately preceding or following (x-)^b
       for (size_t i = 1; i <= graph.numstates; ++i) {
         bool allowed = false;
 
-        // does i's downstream state have a throw to (x-)^n ?
+        // does i's downstream state have a throw to (x-)^b ?
         unsigned int s = graph.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
@@ -746,7 +746,7 @@ void Worker::customize_graph() {
           }
         }
 
-        // does (x-)^n have a throw into i ?
+        // does (x-)^b have a throw into i ?
         for (size_t j = 0; j < graph.outdegree.at(k); ++j) {
           if (graph.outmatrix.at(k).at(j) == i)
             allowed = true;

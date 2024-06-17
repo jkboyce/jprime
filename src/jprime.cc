@@ -32,9 +32,10 @@
 //             display in -verbose mode.
 // 2024.03.04  Version 6.4 changes command line interface, improves performance,
 //             and adds non-recursive search.
-// 2024.03.14  Version 6.5 adds single-period mode, support for throws > 35.
+// 2024.03.14  Version 6.5 adds single-period mode and support for throws > 35.
 // 2024.04.03  Version 6.6 adds efficiency improvements.
 // 2024.04.15  Version 6.7 code refactoring.
+// 2024.06.16  Version 6.8 adds analyzer and efficiency improvements for (b,2b).
 
 
 #include "SearchConfig.h"
@@ -55,7 +56,7 @@
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.7 (2024.04.15)\n"
+    "jprime version 6.8 (2024.06.16)\n"
     "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for prime siteswap juggling patterns. For an explanation\n"

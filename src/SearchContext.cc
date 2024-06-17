@@ -152,7 +152,7 @@ void SearchContext::to_file(const std::string& file) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.7\n"
+  myfile << "version           6.8\n"
          << "command line      " << arglist << '\n'
          << "states            " << full_numstates << '\n'
          << "shift cycles      " << full_numcycles << '\n'
@@ -236,8 +236,8 @@ void SearchContext::from_file(const std::string& file) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.7") {
-          error = "file version is not 6.7";
+        if (val != "6.7" && val != "6.8") {
+          error = "file version below 6.7 not supported";
         }
         break;
       case 1:

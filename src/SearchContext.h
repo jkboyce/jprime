@@ -28,7 +28,7 @@ struct SearchContext {
   // original invocation command line arguments, concatenated
   std::string arglist;
 
-  // precalculated quantities for the full (n,h) graph
+  // precalculated quantities for the full (b,h) graph
   std::uint64_t full_numstates = 0;
   std::uint64_t full_numcycles = 0;
   std::uint64_t full_numshortcycles = 0;
