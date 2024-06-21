@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <numeric>
 #include <iomanip>
 #include <ios>
 #include <set>
@@ -115,42 +116,64 @@ Pattern::Pattern(const std::string& p, int hmax) {
     }
   }
 
-  if (plusses > 0) {  // pattern was in block form
-    // solve the equation: plusses * h + sum = b * length
-    // for minimal values of `b` and `h`
-    //
-    // `h` must be at least as large as ceiling(sum / (length - plusses))
-
-    h = 1;
-    int len = static_cast<int>(length());
-    if (len > plusses) {
-      h = 1 + std::max(maxval, (sum - 1) / (len - plusses));
-      while (true) {
-        if ((plusses * h + sum) % len == 0) {
-          assert(h > maxval);
-          assert((plusses * h + sum) / len <= h);
-          break;
-        }
-        ++h;
-      }
-    }
-    assert(hmax == 0 || hmax == h);
-
-    // fill in throw values of `h`
-    for (size_t i = 0; i < throwval.size(); ++i) {
-      if (throwval.at(i) < 0) {
-        throwval.at(i) = h;
-      }
+  if (plusses == 0) {
+    if (hmax > 0) {
+      assert(hmax >= maxval);
+      h = hmax;
+    } else {
+      h = maxval;
     }
     return;
   }
 
-  if (hmax > 0) {
-    assert(hmax >= maxval);
-    h = hmax;
-  } else {
-    h = maxval;
+  // pattern is in block form.
+  //
+  // we need to solve the equation: plusses * h + sum = b * length
+  // for minimal values of `b` and `h`.
+  //
+  // from Bizout's identity this has a solution if and only if `sum` is
+  // divisible by gcd(plusses, length).
+  //
+  // `h` must be at least as large as ceiling(sum / (length - plusses))
+
+  int len = static_cast<int>(length());
+  if (sum % std::gcd(plusses, len) != 0) {
+    throw std::invalid_argument("No solution for `+` value in pattern");
   }
+
+  h = (len > plusses) ? 1 + std::max(maxval, (sum - 1) / (len - plusses)) : 1;
+
+  while (h <= len + maxval) {
+    if ((plusses * h + sum) % len == 0) {
+      assert(h > maxval);
+      assert((plusses * h + sum) / len <= h);
+
+      // fill in throw values for + placeholders
+      for (size_t i = 0; i < throwval.size(); ++i) {
+        if (throwval.at(i) < 0) {
+          throwval.at(i) = h;
+        }
+      }
+
+      // Validity check here catches cases like ++4+--++4-+-++2-++-+1+-++-3-
+      // where the minimal solution h=5,b=3 is not valid due to collisions
+      // between link throws and + throws --> correct solution is h=7,b=4
+      if (is_valid()) {
+        assert(hmax == 0 || hmax == h);
+        return;
+      }
+
+      // didn't work; revert back
+      for (size_t i = 0; i < throwval.size(); ++i) {
+        if (throwval.at(i) == h) {
+          throwval.at(i) = -1;
+        }
+      }
+    }
+    ++h;
+  }
+
+  throw std::invalid_argument("Collision between link throws in pattern");
 }
 
 //------------------------------------------------------------------------------
