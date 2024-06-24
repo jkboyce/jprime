@@ -814,23 +814,23 @@ void Worker::report_pattern() const {
   std::ostringstream buffer;
 
   if (config.groundmode != GroundMode::GROUND_SEARCH) {
-    if (start_state == 1)
+    if (start_state == 1) {
       buffer << "  ";
-    else
+    } else {
       buffer << "* ";
+    }
   }
 
   Pattern pat(pattern, config.h);
-  const unsigned int display_h = config.noplusminusflag ? 0 : config.h;
-
   if (config.dualflag) {
-    buffer << pat.dual().to_string(config.throwdigits, display_h);
+    buffer << pat.dual().to_string(config.throwdigits, !config.noplusminusflag);
   } else {
-    buffer << pat.to_string(config.throwdigits, display_h);
+    buffer << pat.to_string(config.throwdigits, !config.noplusminusflag);
   }
 
-  if (start_state != 1)
+  if (start_state != 1) {
     buffer << " *";
+  }
 
   if (config.invertflag) {
     Pattern inverse = pat.inverse();
@@ -855,13 +855,15 @@ void Worker::report_pattern() const {
     assert(pat.is_superprime() == inverse.is_superprime());
 
     if (inverse.is_valid()) {
-      if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1)
+      if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1) {
         buffer << "  ";
+      }
       if (config.dualflag) {
         buffer << " : " << inverse.dual().to_string(config.throwdigits,
-            display_h);
+            !config.noplusminusflag);
       } else {
-        buffer << " : " << inverse.to_string(config.throwdigits, display_h);
+        buffer << " : " << inverse.to_string(config.throwdigits,
+            !config.noplusminusflag);
       }
     }
   }

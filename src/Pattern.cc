@@ -26,6 +26,9 @@
 // Parameter `hmax` determines the number of beats to use in each state; it
 // must be at least as large as the largest throw value. If omitted then the
 // number of beats per state is set equal to the largest throw value.
+//
+// In the event of an error, throw a `std::invalid_argument` exception with a
+// relevant error message.
 
 Pattern::Pattern(const std::vector<int>& p, int hmax) {
   int maxval = 0;
@@ -37,7 +40,10 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
   }
 
   if (hmax > 0) {
-    assert(hmax >= maxval);
+    if (hmax < maxval) {
+      throw std::invalid_argument("Supplied `hmax` value is too small: " +
+          std::to_string(hmax));
+    }
     h = hmax;
   } else {
     h = maxval;
@@ -66,7 +72,7 @@ Pattern::Pattern(const std::string& p, int hmax) {
       try {
         val = std::stoi(s);
       } catch (const std::invalid_argument& ie) {
-        throw std::invalid_argument("Could not parse as number: " + s);
+        throw std::invalid_argument("Not a number: " + s);
       }
       if (val < 0) {
         throw std::invalid_argument("Disallowed throw value: " + s);
@@ -79,7 +85,10 @@ Pattern::Pattern(const std::string& p, int hmax) {
     }
 
     if (hmax > 0) {
-      assert(hmax >= maxval);
+      if (hmax < maxval) {
+        throw std::invalid_argument("Supplied `hmax` value is too small: " +
+            std::to_string(hmax));
+      }
       h = hmax;
     } else {
       h = maxval;
@@ -118,7 +127,10 @@ Pattern::Pattern(const std::string& p, int hmax) {
 
   if (plusses == 0) {
     if (hmax > 0) {
-      assert(hmax >= maxval);
+      if (hmax < maxval) {
+        throw std::invalid_argument("Supplied `hmax` value is too small: " +
+            std::to_string(hmax));
+      }
       h = hmax;
     } else {
       h = maxval;
@@ -250,15 +262,16 @@ bool Pattern::is_superprime() {
   for (size_t i = 1; i < cyclestates.size(); ++i) {
     // check for link throw within a cycle
     if (cyclestates.at(i) == cyclestates.at((i + 1) % length()) &&
-        throwval.at(i) != 0 && throwval.at(i) != h)
+        throwval.at(i) != 0 && throwval.at(i) != h) {
       return false;
+    }
     // remove runs of the same cyclestate
     if (cyclestates.at(i) != deduped.back()) {
       deduped.push_back(cyclestates.at(i));
     }
   }
 
-  // remove the ones at the end that are duplicates of the start
+  // remove the states at the end that are duplicates of the start
   while (deduped.size() != 0 && deduped.back() == deduped.front()) {
     deduped.pop_back();
   }
@@ -272,9 +285,6 @@ bool Pattern::is_superprime() {
 //------------------------------------------------------------------------------
 
 // Return the dual of the pattern.
-//
-// The duality transform is with respect to a maximum throw value, which is
-// taken to be the larger of `h` and the largest throw value in the pattern.
 
 Pattern Pattern::dual() const {
   if (length() == 0) {
@@ -366,8 +376,8 @@ Pattern Pattern::inverse() {
       if (states_used.count(trial_state.reverse()) != 0)
         break;
 
-      inverse_throwval.push_back(trial_state.slot.at(h - 1) ? h : 0);
       inverse_states.push_back(trial_state);
+      inverse_throwval.push_back(trial_state.slot.at(h - 1) ? h : 0);
     }
   }
   assert(inverse_states.size() > 0);
@@ -476,21 +486,37 @@ bool Pattern::operator!=(const Pattern& p2) const {
 
 // Return the string representation of the pattern.
 //
-// Parameter `throwdigits` determines the field width to use, and whether to
-// print as single-character alphanumeric or as a number.
+// Parameter `throwdigits` determines the field width to use when printing.
+// When equal to 1, each throw is printed as a single character without
+// separating commas. When > 1, each throw is printed as an integer using the
+// given field width (with padding spaces), including separating commas. If the
+// supplied value of `throwdigits` is too small to print each throw without
+// loss of information, it is set to the smallest possible value.
 //
-// Parameter `hmax`, if nonzero, causes throws of value 0 and `h` to be output
-// as `-` and `+` respectively.
+// Parameter `plusminus`, if true, causes throws of value 0 and `h` to be output
+// as `-` and `+` respectively. This is only active when `throwdigits` == 1.
 
-std::string Pattern::to_string(unsigned int throwdigits,
-      unsigned int hmax) const {
+std::string Pattern::to_string(int throwdigits, bool plusminus) const {
   std::ostringstream buffer;
 
+  int min_throwdigits = 1;
+  int maxval = 0;
+  for (int val : throwval) {
+    maxval = std::max(maxval, val);
+  }
+  if (maxval > 35) {  // 'z' = 35
+    for (int temp = 10; temp <= maxval; temp *= 10) {
+      ++min_throwdigits;
+    }
+  }
+  throwdigits = std::max(throwdigits, min_throwdigits);
+
   for (size_t i = 0; i < throwval.size(); ++i) {
-    if (throwdigits > 1 && i != 0)
+    if (throwdigits > 1 && i != 0) {
       buffer << ',';
-    const unsigned int val = static_cast<unsigned int>(throwval.at(i));
-    print_throw(buffer, val, throwdigits, hmax);
+    }
+    print_throw(buffer, throwval.at(i), throwdigits,
+        (throwdigits == 1 && plusminus) ? h : 0);
   }
 
   return buffer.str();
@@ -500,18 +526,16 @@ std::string Pattern::to_string(unsigned int throwdigits,
 //
 // For a parameter description see Pattern::to_string().
 
-void Pattern::print_throw(std::ostringstream& buffer, unsigned int val,
-    unsigned int throwdigits, unsigned int hmax) {
-  if (hmax > 0 && val == 0) {
-    buffer << '-';
-    return;
-  } else if (hmax > 0 && val == hmax) {
-    buffer << '+';
-    return;
-  }
-
+void Pattern::print_throw(std::ostringstream& buffer, int val, int throwdigits,
+    int plusval) {
   if (throwdigits == 1) {
-    buffer << throw_char(val);
+    if (plusval > 0 && val == 0) {
+      buffer << '-';
+    } else if (plusval > 0 && val == plusval) {
+      buffer << '+';
+    } else {
+      buffer << throw_char(val);
+    }
   } else {
     buffer << std::setw(throwdigits) << val;
   }
@@ -520,7 +544,7 @@ void Pattern::print_throw(std::ostringstream& buffer, unsigned int val,
 // Return a character for a given integer throw value (0 = '0', 1 = '1',
 // 10 = 'a', 11 = 'b', ...
 
-char Pattern::throw_char(unsigned int val) {
+char Pattern::throw_char(int val) {
   if (val < 10) {
     return static_cast<char>(val + '0');
   } else if (val < 36) {
@@ -583,6 +607,8 @@ std::string Pattern::make_analysis() {
     return buffer.str();
   }
 
+  // basic information
+
   buffer << "Pattern:\n"
          << "  standard form      " << patstring << '\n';
   if (h < 36) {
@@ -598,6 +624,8 @@ std::string Pattern::make_analysis() {
          << "  is_prime            " << std::boolalpha << is_prime() << '\n'
          << "  is_superprime       " << std::boolalpha << is_superprime()
          << "\n\n";
+
+  // graph information
 
   std::uint64_t full_numstates = Graph::combinations(h, objects());
   std::uint64_t full_numcycles = 0;
@@ -615,8 +643,6 @@ std::string Pattern::make_analysis() {
       max_cycle_period = p;
     }
   }
-
-  // graph info
 
   buffer << "Graph (" << objects() << ',' << h << "):\n"
          << "  states              " << full_numstates << '\n'
@@ -674,7 +700,7 @@ std::string Pattern::make_analysis() {
       continue;
     }
 
-    // print shift cycle
+    // shift cycle visited
     int prev_throwvalue = throwval.at(i == 0 ? length() - 1 : i - 1);
     int curr_throwvalue = throwval.at(i);
     bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
@@ -729,12 +755,14 @@ std::string Pattern::make_analysis() {
   assert((inverse_pattern.length() != 0) == is_superprime());
   assert(is_superprime() == inverse_pattern.is_superprime());
   if (inverse_pattern.length() != 0) {
-    buffer << "\nInverse pattern:\n  " << inverse_pattern.to_string() << '\n';
+    buffer << "\nInverse pattern:\n  " << inverse_pattern << '\n';
   }
 
   buffer << "------------------------------------------------------------";
   return buffer.str();
 }
+
+// Print the pattern to an output stream using the default output format.
 
 std::ostream& operator<<(std::ostream& ost, const Pattern& p) {
   ost << p.to_string();

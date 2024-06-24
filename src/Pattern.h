@@ -15,7 +15,6 @@
 
 #include <vector>
 #include <string>
-#include <memory>
 #include <sstream>
 
 
@@ -49,11 +48,10 @@ class Pattern {
   bool operator!=(const Pattern& s2) const;
 
   // string output
-  std::string to_string(unsigned int throwdigits = 1,
-      unsigned int hmax = 0) const;
-  static void print_throw(std::ostringstream& buffer, unsigned int val,
-      unsigned int throwdigits = 1, unsigned int hmax = 0);
-  static char throw_char(unsigned int val);
+  std::string to_string(int throwdigits = 0, bool plusminus = false) const;
+  static void print_throw(std::ostringstream& buffer, int val,
+      int throwdigits = 1, int plusval = 0);
+  static char throw_char(int val);
 
   // analysis
   std::string make_analysis();
