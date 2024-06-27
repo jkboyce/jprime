@@ -72,7 +72,7 @@ struct SearchConfig {
   // print info about search, but do not execute?
   bool infoflag = false;
 
-  // print without using +, - for h and 0 (when throwdigits = 1)?
+  // print without using +, - for h and 0 (when throwdigits == 0)?
   bool noplusminusflag = false;
 
   // keep a record of patterns seen at each length?
@@ -94,9 +94,9 @@ struct SearchConfig {
   // throw values to exclude from search
   std::vector<bool> xarray;
 
-  // if 1 then print as letter (a=10, b=11, ...), if >1 then print as an integer
+  // if 0 then print as letter (a=10, b=11, ...), if >0 then print as an integer
   // with the given field width
-  unsigned int throwdigits = 1;
+  unsigned int throwdigits = 0;
 
   // work stealing algorithm to use
   unsigned int steal_alg = 1;

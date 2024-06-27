@@ -41,8 +41,9 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 
   if (hmax > 0) {
     if (hmax < maxval) {
-      throw std::invalid_argument("Supplied `hmax` value is too small: " +
-          std::to_string(hmax));
+      std::string err = "Supplied `hmax` value (" + std::to_string(hmax)
+          + ") is too small";
+      throw std::invalid_argument(err);
     }
     h = hmax;
   } else {
@@ -52,21 +53,45 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 
 // Initialize from a string representation.
 //
-// Parameter `hmax` determines the number of beats to use in each state; it
-// must be at least as large as the largest throw value. If omitted then the
-// number of beats per state is set equal to the largest throw value.
+// The input string can be a comma-separated list of integer throw values or a
+// pattern in compressed format with one alphanumeric character per throw. It
+// accepts the +/- substitutions for h and 0. It also looks for an optional
+// suffix in the form "/<h>" where <h> is an integer; this allows one to set
+// the graph (n,h) that is used for e.g. determining superprimality and finding
+// an inverse.
 //
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-Pattern::Pattern(const std::string& p, int hmax) {
-  const bool has_comma = (std::find(p.begin(), p.end(), ',') != p.end());
+Pattern::Pattern(const std::string& p) {
   int maxval = 0;
+  int hmax = 0;
+  const bool has_slash = (std::find(p.begin(), p.end(), '/') != p.end());
+  const bool has_comma = (std::find(p.begin(), p.end(), ',') != p.end());
+  std::string pat;
+
+  if (has_slash) {
+    auto x = std::find(p.begin(), p.end(), '/');
+    std::string hstr{x + 1, p.end()};
+    int val;
+    try {
+      val = std::stoi(hstr);
+    } catch (const std::invalid_argument& ie) {
+      throw std::invalid_argument("Not a number: " + hstr);
+    }
+    if (val < 1) {
+      throw std::invalid_argument("Disallowed `h` value: " + hstr);
+    }
+    hmax = val;
+    pat = {p.begin(), x};
+  } else {
+    pat = {p};
+  }
 
   if (has_comma) {
-    auto x = p.begin();
+    auto x = pat.begin();
     while (true) {
-      auto y = std::find(x, p.end(), ',');
+      auto y = std::find(x, pat.end(), ',');
       std::string s{x, y};
       int val;
       try {
@@ -79,15 +104,16 @@ Pattern::Pattern(const std::string& p, int hmax) {
       }
       throwval.push_back(val);
       maxval = std::max(val, maxval);
-      if (y == p.end())
+      if (y == pat.end())
         break;
       x = y + 1;
     }
 
     if (hmax > 0) {
       if (hmax < maxval) {
-        throw std::invalid_argument("Supplied `hmax` value is too small: " +
-            std::to_string(hmax));
+        std::string err = "Supplied `h` value (" + std::to_string(hmax)
+            + ") is too small";
+        throw std::invalid_argument(err);
       }
       h = hmax;
     } else {
@@ -99,7 +125,7 @@ Pattern::Pattern(const std::string& p, int hmax) {
   int plusses = 0;
   int sum = 0;
 
-  for (char ch : p) {
+  for (char ch : pat) {
     if (ch == ' ') {
     } else if (ch == '-') {
       throwval.push_back(0);
@@ -128,8 +154,9 @@ Pattern::Pattern(const std::string& p, int hmax) {
   if (plusses == 0) {
     if (hmax > 0) {
       if (hmax < maxval) {
-        throw std::invalid_argument("Supplied `hmax` value is too small: " +
-            std::to_string(hmax));
+        std::string err = "Supplied `h` value (" + std::to_string(hmax)
+            + ") is too small";
+        throw std::invalid_argument(err);
       }
       h = hmax;
     } else {
@@ -171,7 +198,12 @@ Pattern::Pattern(const std::string& p, int hmax) {
       // where the minimal solution h=5,b=3 is not valid due to collisions
       // between link throws and + throws --> correct solution is h=7,b=4
       if (is_valid()) {
-        assert(hmax == 0 || hmax == h);
+        if (hmax > 0 && hmax != h) {
+          std::string err = "Solution for `+` value (" + std::to_string(h)
+              + ") does not match the supplied `h` value ("
+              + std::to_string(hmax) + ")";
+          throw std::invalid_argument(err);
+        }
         return;
       }
 
@@ -450,8 +482,9 @@ void Pattern::check_have_states() {
     State cyclestate = s;
     State s2 = s.downstream();
     while (s2 != s) {
-      if (s2 < cyclestate)
+      if (s2 < cyclestate) {
         cyclestate = s2;
+      }
       s2 = s2.downstream();
     }
     cyclestates.push_back(cyclestate);
@@ -487,14 +520,14 @@ bool Pattern::operator!=(const Pattern& p2) const {
 // Return the string representation of the pattern.
 //
 // Parameter `throwdigits` determines the field width to use when printing.
-// When equal to 1, each throw is printed as a single character without
-// separating commas. When > 1, each throw is printed as an integer using the
+// When equal to 0, each throw is printed as a single character without
+// separating commas. When > 0, each throw is printed as an integer using the
 // given field width (with padding spaces), including separating commas. If the
-// supplied value of `throwdigits` is too small to print each throw without
-// loss of information, it is set to the smallest possible value.
+// supplied value of `throwdigits` cannot print each throw without truncation,
+// it defaults to a value that avoids truncation.
 //
 // Parameter `plusminus`, if true, causes throws of value 0 and `h` to be output
-// as `-` and `+` respectively. This is only active when `throwdigits` == 1.
+// as `-` and `+` respectively. This is only active when `throwdigits` == 0.
 
 std::string Pattern::to_string(int throwdigits, bool plusminus) const {
   std::ostringstream buffer;
@@ -504,19 +537,24 @@ std::string Pattern::to_string(int throwdigits, bool plusminus) const {
   for (int val : throwval) {
     maxval = std::max(maxval, val);
   }
-  if (maxval > 35) {  // 'z' = 35
-    for (int temp = 10; temp <= maxval; temp *= 10) {
-      ++min_throwdigits;
-    }
+  for (int temp = 10; temp <= maxval; temp *= 10) {
+    ++min_throwdigits;
   }
-  throwdigits = std::max(throwdigits, min_throwdigits);
+
+  if (throwdigits == 0) {
+    if (maxval > 35) {  // 'z' = 35
+      throwdigits = min_throwdigits;
+    }
+  } else {
+    throwdigits = std::max(throwdigits, min_throwdigits);
+  }
 
   for (size_t i = 0; i < throwval.size(); ++i) {
-    if (throwdigits > 1 && i != 0) {
+    if (throwdigits > 0 && i != 0) {
       buffer << ',';
     }
     print_throw(buffer, throwval.at(i), throwdigits,
-        (throwdigits == 1 && plusminus) ? h : 0);
+        (throwdigits == 0 && plusminus) ? h : 0);
   }
 
   return buffer.str();
@@ -528,7 +566,7 @@ std::string Pattern::to_string(int throwdigits, bool plusminus) const {
 
 void Pattern::print_throw(std::ostringstream& buffer, int val, int throwdigits,
     int plusval) {
-  if (throwdigits == 1) {
+  if (throwdigits == 0) {
     if (plusval > 0 && val == 0) {
       buffer << '-';
     } else if (plusval > 0 && val == plusval) {
@@ -567,7 +605,7 @@ std::string Pattern::make_analysis() {
   for (int temp = 10; temp <= h; temp *= 10) {
     ++throwdigits;
   }
-  std::string patstring = to_string(throwdigits + 1);
+  std::string patstring = to_string(throwdigits);
 
   if (!is_valid()) {
     buffer << "Input is not a valid siteswap due to collision:\n  ";
@@ -609,18 +647,25 @@ std::string Pattern::make_analysis() {
 
   // basic information
 
-  buffer << "Pattern:\n"
-         << "  standard form      " << patstring << '\n';
-  if (h < 36) {
-    buffer << "  short form          " << to_string(1) << '\n'
-           << "  block form          " << to_string(1, h) << '\n';
+  int maxval = 0;
+  for (int val : throwval) {
+    maxval = std::max(maxval, val);
   }
-  buffer << '\n';
+
+  buffer << "Pattern:\n";
+  if (h < 36) {
+    buffer << "  short form          " << to_string(0) << '\n';
+    if (maxval == h) {
+      buffer << "  block form          " << to_string(0, true) << '\n';
+    }
+  }
+  buffer << "  standard form       " << patstring << "\n\n";
 
   buffer << "Properties:\n"
          << "  objects             " << objects() << '\n'
          << "  length              " << length() << '\n'
-         << "  max. throw          " << h << '\n'
+         << "  maximum throw       " << maxval << '\n'
+         << "  beats in state      " << h << '\n'
          << "  is_prime            " << std::boolalpha << is_prime() << '\n'
          << "  is_superprime       " << std::boolalpha << is_superprime()
          << "\n\n";
@@ -746,6 +791,7 @@ std::string Pattern::make_analysis() {
         printed.insert(excluded);
       }
     }
+
     buffer << '\n';
   }
 
@@ -755,7 +801,8 @@ std::string Pattern::make_analysis() {
   assert((inverse_pattern.length() != 0) == is_superprime());
   assert(is_superprime() == inverse_pattern.is_superprime());
   if (inverse_pattern.length() != 0) {
-    buffer << "\nInverse pattern:\n  " << inverse_pattern << '\n';
+    buffer << "\nInverse pattern:\n  " << inverse_pattern.to_string(0, true)
+           << " /" << h << '\n';
   }
 
   buffer << "------------------------------------------------------------";

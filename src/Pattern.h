@@ -21,7 +21,7 @@
 class Pattern {
  public:
   Pattern(const std::vector<int>& p, int hmax = 0);
-  Pattern(const std::string& p, int hmax = 0);
+  Pattern(const std::string& p);
   Pattern() = default;
 
  private:

@@ -417,8 +417,9 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
     buffer << "worker " << worker_id << " options at root_pos " << root_pos
            << ": [";
     for (unsigned int v : root_throwval_options) {
-      if (config.throwdigits > 1 && v != root_throwval_options.front())
+      if (config.throwdigits > 0 && v != root_throwval_options.front()) {
         buffer << ',';
+      }
       Pattern::print_throw(buffer, v, config.throwdigits,
           config.noplusminusflag ? 0 : config.h);
     }

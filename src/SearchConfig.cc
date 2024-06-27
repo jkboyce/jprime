@@ -253,11 +253,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     }
   }
   if (max_throw_value < 36) {
-    throwdigits = 1;  // 'z' = 35
+    throwdigits = 0;  // 'z' = 35
   } else {
     noplusminusflag = true;
-    throwdigits = 2;
-    for (unsigned int temp = 100; temp <= max_throw_value; temp *= 10) {
+    throwdigits = 1;
+    for (unsigned int temp = 10; temp <= max_throw_value; temp *= 10) {
       ++throwdigits;
     }
   }

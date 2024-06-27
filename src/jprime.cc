@@ -65,17 +65,18 @@ void print_help() {
     "\n"
     "Recognized command line formats:\n"
     "   jprime <# objects> <max. throw> [<length>] [options]\n"
-    "   jprime -analyze <pattern>\n"
+    "   jprime -analyze <pattern> [/<h>]\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
     "   <max. throw>      = largest allowed throw value\n"
     "   <length>          = pattern length(s) to find, assumed all if omitted\n"
-    "   <pattern>         = pattern to analyze\n"
+    "   <pattern> [/<h>]  = pattern to analyze, with optional suffix indicating\n"
+    "                          beats per state\n"
     "\n"
     "Recognized search options:\n"
-    "   -super <shifts>   find (nearly) superprime patterns, allowing the\n"
-    "                        specified number of shift throws\n"
+    "   -super <shifts>   find superprime patterns, allowing at most the given\n"
+    "                        number of shift throws\n"
     "   -g                find ground-state patterns only\n"
     "   -ng               find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
@@ -113,16 +114,16 @@ void print_analysis(int argc, char** argv) {
   if (argc < 3)
     return;
 
-  std::string input(argv[2]);
-  for (int i = 3; i < argc; ++i) {
-    input.append(",").append(argv[i]);
+  std::string input;
+  for (int i = 2; i < argc; ++i) {
+    input += argv[i];
   }
 
   try {
     Pattern pat(input);
     std::cout << pat.make_analysis() << std::endl;
   } catch (const std::invalid_argument& ie) {
-    std::cout << "Error parsing input: " << input << '\n'
+    std::cout << "Error analyzing input: " << input << '\n'
               << ie.what() << std::endl;
   }
 }
