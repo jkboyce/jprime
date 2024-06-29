@@ -1,7 +1,7 @@
 //
 // Graph.h
 //
-// Data structures related to the juggling graph for N objects, max throw H.
+// Data structures related to the juggling graph for B objects, max throw H.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
@@ -57,11 +57,11 @@ class Graph {
   void find_exit_cycles();
 
   using op_key_type = std::tuple<unsigned int, unsigned int>;
-  static void gen_states_all(std::vector<State>& s, unsigned int n,
+  static void gen_states_all(std::vector<State>& s, unsigned int b,
     unsigned int h);
   static void gen_states_all_helper(std::vector<State>& s, unsigned int pos,
     unsigned int left);
-  static void gen_states_for_period(std::vector<State>& s, unsigned int n,
+  static void gen_states_for_period(std::vector<State>& s, unsigned int b,
     unsigned int h, unsigned int l);
   static void gen_states_for_period_helper(std::vector<State>& s,
     unsigned int pos, unsigned int left, unsigned int h, unsigned int l);
@@ -74,9 +74,9 @@ class Graph {
   void reduce_graph();
   void find_exclude_states();
   static std::uint64_t combinations(unsigned int a, unsigned int b);
-  static std::uint64_t shift_cycle_count(unsigned int n, unsigned int h,
+  static std::uint64_t shift_cycle_count(unsigned int b, unsigned int h,
     unsigned int p);
-  static std::uint64_t ordered_partitions(unsigned int n, unsigned int h,
+  static std::uint64_t ordered_partitions(unsigned int b, unsigned int h,
     unsigned int l);
   unsigned int prime_length_bound() const;
   unsigned int superprime_length_bound() const;

@@ -1,7 +1,7 @@
 //
 // Graph.cc
 //
-// Data structures related to the juggling graph for N objects, max throw H.
+// Data structures related to the juggling graph for B objects, max throw H.
 //
 // Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
 //
@@ -474,18 +474,18 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
 // Compute the number of shift cycles with `b` objects, max throw `h`, with
 // exact period `p`.
 
-std::uint64_t Graph::shift_cycle_count(unsigned int n, unsigned int h,
+std::uint64_t Graph::shift_cycle_count(unsigned int b, unsigned int h,
     unsigned int p) {
   if (h % p != 0)
     return 0;
-  if (n % (h / p) != 0)
+  if (b % (h / p) != 0)
     return 0;
   if (p < h)
-    return shift_cycle_count(n * p / h, p, p);
+    return shift_cycle_count(b * p / h, p, p);
 
-  std::uint64_t val = combinations(h, n);
+  std::uint64_t val = combinations(h, b);
   for (unsigned int p2 = 1; p2 <= h / 2; ++p2) {
-    val -= p2 * shift_cycle_count(n, h, p2);
+    val -= p2 * shift_cycle_count(b, h, p2);
   }
   assert(val % h == 0);
   return (val / h);
