@@ -107,19 +107,19 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
     return;  // no way to succeed
 
   if (pos == 0) {
-    s.back().slot.at(0) = left;
+    s.back().slot(0) = left;
     // success: duplicate state at the end and continue
     s.push_back(s.back());
     return;
   }
 
   // try a '-' at position `pos`
-  s.back().slot.at(pos) = 0;
+  s.back().slot(pos) = 0;
   gen_states_all_helper(s, pos - 1, left);
 
   // then try a 'x' at position `pos`
   if (left > 0) {
-    s.back().slot.at(pos) = 1;
+    s.back().slot(pos) = 1;
     gen_states_all_helper(s, pos - 1, left - 1);
   }
 }
@@ -149,7 +149,7 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
 
   // empty all the slots at position `pos`
   for (size_t i = pos; i < h; i += l) {
-    s.back().slot.at(i) = 0;
+    s.back().slot(i) = 0;
   }
 
   // work out the maximum number that can go into later slots, and the min
@@ -168,7 +168,7 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
   // successively fill slots at `pos`
   unsigned int filled = 0;
   for (size_t i = pos; i < h && filled < left; i += l) {
-    s.back().slot.at(i) = 1;
+    s.back().slot(i) = 1;
     ++filled;
     if (filled >= min_fill)
       gen_states_for_period_helper(s, pos + 1, left - filled, h, l);
@@ -430,7 +430,7 @@ void Graph::find_exclude_states() {
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     unsigned int j = 0;
-    while (s.slot.at(s.h - 1) != 0 && j < h) {
+    while (s.slot(s.h - 1) != 0 && j < h) {
       unsigned int statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
@@ -443,7 +443,7 @@ void Graph::find_exclude_states() {
     // the states upstream in i's shift cycle that start with '-'.
     s = state.at(i).upstream();
     j = 0;
-    while (s.slot.at(0) == 0 && j < h) {
+    while (s.slot(0) == 0 && j < h) {
       unsigned int statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum))
         break;
@@ -590,9 +590,9 @@ unsigned int Graph::advance_state(unsigned int statenum,
 
   if (throwval > s.h)
     return 0;
-  if (throwval > 0 && s.slot.at(0) == 0)
+  if (throwval > 0 && s.slot(0) == 0)
     return 0;
-  if (throwval < s.h && s.slot.at(throwval) != 0)
+  if (throwval < s.h && s.slot(throwval) != 0)
     return 0;
 
   return get_statenum(s.advance_with_throw(throwval));

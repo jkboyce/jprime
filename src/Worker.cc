@@ -703,12 +703,12 @@ void Worker::customize_graph() {
   if (config.mode == RunMode::SUPER_SEARCH) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
       unsigned int start0s = 0;
-      while (start0s < graph.h && graph.state.at(i).slot.at(start0s) == 0) {
+      while (start0s < graph.h && graph.state.at(i).slot(start0s) == 0) {
         ++start0s;
       }
       unsigned int end1s = 0;
       while (end1s < graph.h &&
-          graph.state.at(i).slot.at(graph.h - end1s - 1) != 0) {
+          graph.state.at(i).slot(graph.h - end1s - 1) != 0) {
         ++end1s;
       }
       if (start0s + end1s > config.shiftlimit) {
@@ -724,7 +724,7 @@ void Worker::customize_graph() {
       config.l_min > 2) {
     State per2state{config.b, config.h};
     for (size_t i = 0; i < config.h; i += 2) {
-      per2state.slot.at(i) = 1;
+      per2state.slot(i) = 1;
     }
     unsigned int k = graph.get_statenum(per2state);
     assert(k != 0);

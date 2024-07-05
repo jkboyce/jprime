@@ -409,7 +409,7 @@ Pattern Pattern::inverse() {
         break;
 
       inverse_states.push_back(trial_state);
-      inverse_throwval.push_back(trial_state.slot.at(h - 1) ? h : 0);
+      inverse_throwval.push_back(trial_state.slot(h - 1) ? h : 0);
     }
   }
   assert(inverse_states.size() > 0);
@@ -461,8 +461,8 @@ void Pattern::check_have_states() {
         static_cast<int>(i);
     while (fillslot >= 0) {
       if (fillslot < static_cast<int>(h)) {
-        assert(start_state.slot.at(fillslot) == 0);
-        start_state.slot.at(fillslot) = 1;
+        assert(start_state.slot(fillslot) == 0);
+        start_state.slot(fillslot) = 1;
       }
       fillslot -= length();
     }
