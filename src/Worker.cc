@@ -722,7 +722,7 @@ void Worker::customize_graph() {
 
   if (config.h == (2 * config.b) && config.mode == RunMode::SUPER_SEARCH &&
       config.l_min > 2) {
-    State per2state{config.b, config.h};
+    State per2state{config.h};
     for (size_t i = 0; i < config.h; i += 2) {
       per2state.slot(i) = 1;
     }

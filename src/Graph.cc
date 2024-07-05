@@ -45,7 +45,7 @@ void Graph::init() {
 
   // enumerate the states
   state.reserve(numstates + 2);
-  state.push_back({0, h});  // state at index 0 is unused
+  state.push_back({h});  // state at index 0 is unused
   if (l == 0) {
     gen_states_all(state, b, h);
     // states are generated in sorted order
@@ -92,7 +92,7 @@ void Graph::init() {
 
 void Graph::gen_states_all(std::vector<State>& s, unsigned int b,
     unsigned int h) {
-  s.push_back({b, h});
+  s.push_back({h});
   gen_states_all_helper(s, h - 1, b);
   s.pop_back();
 }
@@ -128,7 +128,7 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
 
 void Graph::gen_states_for_period(std::vector<State>& s, unsigned int b,
     unsigned int h, unsigned int l) {
-  s.push_back({b, h});
+  s.push_back({h});
   gen_states_for_period_helper(s, 0, b, h, l);
   s.pop_back();
 }
@@ -430,7 +430,7 @@ void Graph::find_exclude_states() {
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     unsigned int j = 0;
-    while (s.slot(s.h - 1) != 0 && j < h) {
+    while (s.slot(s.size() - 1) != 0 && j < h) {
       unsigned int statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
@@ -588,11 +588,11 @@ unsigned int Graph::advance_state(unsigned int statenum,
     unsigned int throwval) const {
   const State& s = state.at(statenum);
 
-  if (throwval > s.h)
+  if (throwval > s.size())
     return 0;
   if (throwval > 0 && s.slot(0) == 0)
     return 0;
-  if (throwval < s.h && s.slot(throwval) != 0)
+  if (throwval < s.size() && s.slot(throwval) != 0)
     return 0;
 
   return get_statenum(s.advance_with_throw(throwval));

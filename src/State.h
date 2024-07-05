@@ -18,17 +18,14 @@
 
 class State {
  public:
-  State(unsigned int b, unsigned int h);
+  State(unsigned int h);
   State(std::string s);
-
- public:
-  unsigned int b;  // number of objects
-  unsigned int h;  // max throw height
 
  private:
   std::vector<unsigned int> _slot;  // 0 or 1
 
  public:
+  size_t size() const;
   unsigned int& slot(size_t i);
   const unsigned int& slot(size_t i) const;
   State advance_with_throw(unsigned int throwval) const;
