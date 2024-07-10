@@ -36,6 +36,7 @@ class Pattern {
   State state_before(size_t index);
   bool is_valid() const;
   bool is_prime();
+  bool is_composite();
   bool is_superprime();
 
   // pattern transformations

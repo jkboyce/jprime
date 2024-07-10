@@ -54,11 +54,11 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 // Initialize from a string representation.
 //
 // The input string can be a comma-separated list of integer throw values or a
-// pattern in compressed format with one alphanumeric character per throw. It
-// accepts the +/- substitutions for h and 0. It also looks for an optional
-// suffix in the form "/<h>" where <h> is an integer; this allows one to set
-// the graph (n,h) that is used for e.g. determining superprimality and finding
-// an inverse.
+// pattern in short form with one alphanumeric character per throw. It accepts
+// the +/- substitutions for h and 0. It also looks for an optional suffix in
+// the form "/<h>" where <h> is an integer; this allows one to set the
+// graph (n,h) that is used for e.g. determining superprimality and finding an
+// inverse.
 //
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
@@ -168,12 +168,13 @@ Pattern::Pattern(const std::string& p) {
   // pattern is in block form.
   //
   // we need to solve the equation: plusses * h + sum = b * length
-  // for minimal values of `b` and `h`.
+  // for minimal (integer) values of `h` and `b`, where h >= b.
   //
   // from Bizout's identity this has a solution if and only if `sum` is
   // divisible by gcd(plusses, length).
   //
-  // `h` must be at least as large as ceiling(sum / (length - plusses))
+  // also since h >= b, then `h` must be at least as large as
+  // ceiling(sum / (length - plusses))
 
   int len = static_cast<int>(length());
   if (sum % std::gcd(plusses, len) != 0) {
@@ -185,7 +186,7 @@ Pattern::Pattern(const std::string& p) {
   while (h <= len + maxval) {
     if ((plusses * h + sum) % len == 0) {
       assert(h > maxval);
-      assert((plusses * h + sum) / len <= h);
+      assert(h >= (plusses * h + sum) / len);
 
       // fill in throw values for + placeholders
       for (size_t i = 0; i < throwval.size(); ++i) {
@@ -194,7 +195,7 @@ Pattern::Pattern(const std::string& p) {
         }
       }
 
-      // Validity check here catches cases like ++4+--++4-+-++2-++-+1+-++-3-
+      // validity check here catches cases like ++4+--++4-+-++2-++-+1+-++-3-
       // where the minimal solution h=5,b=3 is not valid due to collisions
       // between link throws and + throws --> correct solution is h=7,b=4
       if (is_valid()) {
@@ -233,8 +234,10 @@ int Pattern::objects() const {
     return 0;
 
   int sum = 0;
-  for (int val : throwval)
+  for (int val : throwval) {
     sum += val;
+  }
+  assert(sum % length() == 0);  // always true if no collisions
   return (sum / length());
 }
 
@@ -266,26 +269,32 @@ bool Pattern::is_valid() const {
     taken.at(index) = true;
   }
 
-  // confirm integer average (should always pass)
-  int sum = 0;
-  for (int val : throwval)
-    sum += val;
-  assert(sum % length() == 0);
   return true;
 }
 
 // Return true if the pattern is prime, false otherwise.
 
 bool Pattern::is_prime() {
+  if (!is_valid())
+    return false;
   check_have_states();
+
   std::set<State> s(states.begin(), states.end());
   return (s.size() == states.size());
+}
+
+// Return true if the pattern is composite, false otherwise.
+
+bool Pattern::is_composite() {
+  if (!is_valid())
+    return false;
+  return !is_prime();
 }
 
 // Return true if the pattern is superprime, false otherwise.
 
 bool Pattern::is_superprime() {
-  if (length() == 0)
+  if (!is_valid())
     return false;
   check_have_states();
 
@@ -438,62 +447,6 @@ Pattern Pattern::inverse() {
 }
 
 //------------------------------------------------------------------------------
-// Helper methods
-//------------------------------------------------------------------------------
-
-// Ensure the `states` vector is populated with the states in the pattern. If it
-// isn't then generate them, along with the `cyclestates` vector describing the
-// shift cycles traversed.
-//
-// This should only be called for a valid pattern!
-
-void Pattern::check_have_states() {
-  if (states.size() == length())
-    return;
-  assert(states.size() == 0);
-  assert(cyclestates.size() == 0);
-
-  // find the starting state
-  State start_state{static_cast<unsigned int>(h)};
-  for (size_t i = 0; i < length(); ++i) {
-    int fillslot = throwval.at(i) - static_cast<int>(length()) +
-        static_cast<int>(i);
-    while (fillslot >= 0) {
-      if (fillslot < static_cast<int>(h)) {
-        assert(start_state.slot(fillslot) == 0);
-        start_state.slot(fillslot) = 1;
-      }
-      fillslot -= length();
-    }
-  }
-
-  states.push_back(start_state);
-  State state = start_state;
-  for (size_t i = 0; i < length(); ++i) {
-    state = state.advance_with_throw(throwval.at(i));
-    if (i != length() - 1) {
-      states.push_back(state);
-    }
-  }
-  assert(state == start_state);
-
-  for (State s : states) {
-    State cyclestate = s;
-    State s2 = s.downstream();
-    while (s2 != s) {
-      if (s2 < cyclestate) {
-        cyclestate = s2;
-      }
-      s2 = s2.downstream();
-    }
-    cyclestates.push_back(cyclestate);
-  }
-
-  assert(states.size() == length());
-  assert(cyclestates.size() == length());
-}
-
-//------------------------------------------------------------------------------
 // Operator overrides
 //------------------------------------------------------------------------------
 
@@ -582,12 +535,12 @@ void Pattern::print_throw(std::ostringstream& buffer, int val, int throwdigits,
 // 10 = 'a', 11 = 'b', ...
 
 char Pattern::throw_char(int val) {
-  if (val < 10) {
-    return static_cast<char>(val + '0');
-  } else if (val < 36) {
-    return static_cast<char>(val - 10 + 'a');
-  } else {
+  if (val < 0 || val > 35) {
     return '?';
+  } else if (val < 10) {
+    return static_cast<char>(val + '0');
+  } else {
+    return static_cast<char>(val - 10 + 'a');
   }
 }
 
@@ -600,14 +553,8 @@ char Pattern::throw_char(int val) {
 std::string Pattern::make_analysis() {
   std::ostringstream buffer;
 
-  int throwdigits = 1;
-  for (int temp = 10; temp <= h; temp *= 10) {
-    ++throwdigits;
-  }
-  std::string patstring = to_string(throwdigits);
-
   if (!is_valid()) {
-    buffer << "Input is not a valid siteswap due to collision:\n  ";
+    buffer << "Input is not a valid siteswap due to colliding throws:\n  ";
 
     int collision_start = -1;
     int collision_end = -1;
@@ -624,6 +571,7 @@ std::string Pattern::make_analysis() {
     assert(collision_start != -1 && collision_end != -1);
 
     int index = 0;
+    std::string patstring = to_string(1);
     auto x = patstring.begin();
     while (true) {
       auto y = std::find(x, patstring.end(), ',');
@@ -658,8 +606,9 @@ std::string Pattern::make_analysis() {
       buffer << "  block form          " << to_string(0, true) << '\n';
     }
   }
-  buffer << "  standard form       " << patstring << "\n\n";
+  buffer << "  standard form       " << to_string(1) << "\n\n";
 
+  check_have_states();
   buffer << "Properties:\n"
          << "  objects             " << objects() << '\n'
          << "  length              " << length() << '\n'
@@ -702,6 +651,11 @@ std::string Pattern::make_analysis() {
   bool show_sc = is_prime();
   int separation = std::max(15, 4 + h + 4);
 
+  int throwdigits = 1;
+  for (int temp = 10; temp <= h; temp *= 10) {
+    ++throwdigits;
+  }
+
   if (show_sc) {
     buffer << "States:";
     for (int j = 0; j < (h + throwdigits + 1); ++j) {
@@ -716,7 +670,6 @@ std::string Pattern::make_analysis() {
     buffer << "States:\n";
   }
 
-  check_have_states();
   std::vector<State> shiftcycles_visited;
   bool any_linkthrow = false;
   for (size_t i = 0; i < length(); ++i) {
@@ -806,6 +759,62 @@ std::string Pattern::make_analysis() {
 
   buffer << "------------------------------------------------------------";
   return buffer.str();
+}
+
+//------------------------------------------------------------------------------
+// Helper methods
+//------------------------------------------------------------------------------
+
+// Ensure the `states` vector is populated with the states in the pattern. If it
+// isn't then generate them, along with the `cyclestates` vector describing the
+// shift cycles traversed.
+//
+// This should only be called for a valid pattern!
+
+void Pattern::check_have_states() {
+  if (states.size() == length())
+    return;
+  assert(states.size() == 0);
+  assert(cyclestates.size() == 0);
+
+  // find the starting state
+  State start_state{static_cast<unsigned int>(h)};
+  for (size_t i = 0; i < length(); ++i) {
+    int fillslot = throwval.at(i) - static_cast<int>(length()) +
+        static_cast<int>(i);
+    while (fillslot >= 0) {
+      if (fillslot < static_cast<int>(h)) {
+        assert(start_state.slot(fillslot) == 0);
+        start_state.slot(fillslot) = 1;
+      }
+      fillslot -= length();
+    }
+  }
+
+  states.push_back(start_state);
+  State state = start_state;
+  for (size_t i = 0; i < length(); ++i) {
+    state = state.advance_with_throw(throwval.at(i));
+    if (i != length() - 1) {
+      states.push_back(state);
+    }
+  }
+  assert(state == start_state);
+
+  for (State s : states) {
+    State cyclestate = s;
+    State s2 = s.downstream();
+    while (s2 != s) {
+      if (s2 < cyclestate) {
+        cyclestate = s2;
+      }
+      s2 = s2.downstream();
+    }
+    cyclestates.push_back(cyclestate);
+  }
+
+  assert(states.size() == length());
+  assert(cyclestates.size() == length());
 }
 
 // Print the pattern to an output stream using the default output format.
