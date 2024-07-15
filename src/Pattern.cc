@@ -47,7 +47,7 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
     }
     h = hmax;
   } else {
-    h = maxval;
+    h = std::max(maxval, 1);
   }
 }
 
@@ -117,7 +117,7 @@ Pattern::Pattern(const std::string& p) {
       }
       h = hmax;
     } else {
-      h = maxval;
+      h = std::max(maxval, 1);
     }
     return;
   }
@@ -160,7 +160,7 @@ Pattern::Pattern(const std::string& p) {
       }
       h = hmax;
     } else {
-      h = maxval;
+      h = std::max(maxval, 1);
     }
     return;
   }
