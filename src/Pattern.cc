@@ -482,13 +482,11 @@ bool Pattern::operator!=(const Pattern& p2) const {
 // as `-` and `+` respectively. This is only active when `throwdigits` == 0.
 
 std::string Pattern::to_string(int throwdigits, bool plusminus) const {
-  std::ostringstream buffer;
-
-  int min_throwdigits = 1;
   int maxval = 0;
   for (int val : throwval) {
     maxval = std::max(maxval, val);
   }
+  int min_throwdigits = 1;
   for (int temp = 10; temp <= maxval; temp *= 10) {
     ++min_throwdigits;
   }
@@ -501,6 +499,7 @@ std::string Pattern::to_string(int throwdigits, bool plusminus) const {
     throwdigits = std::max(throwdigits, min_throwdigits);
   }
 
+  std::ostringstream buffer;
   for (size_t i = 0; i < throwval.size(); ++i) {
     if (throwdigits > 0 && i != 0) {
       buffer << ',';
@@ -508,7 +507,6 @@ std::string Pattern::to_string(int throwdigits, bool plusminus) const {
     print_throw(buffer, throwval.at(i), throwdigits,
         (throwdigits == 0 && plusminus) ? h : 0);
   }
-
   return buffer.str();
 }
 
