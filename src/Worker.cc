@@ -663,9 +663,9 @@ void Worker::gen_patterns() {
           // typically these searches are not close to `l_bound` so the
           // marking version of gen_loops() is not worth the overhead
           if (config.countflag) {
-            iterative_gen_loops_normal_counting();
+            iterative_gen_loops_normal<false>();
           } else {
-            iterative_gen_loops_normal();
+            iterative_gen_loops_normal<true>();
           }
         } else {
           graph.find_exclude_states();

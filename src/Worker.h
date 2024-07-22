@@ -126,8 +126,7 @@ class Worker {
   void handle_finished_pattern();
 
   // core search routines (iterative versions; identical in function to above)
-  void iterative_gen_loops_normal();
-  void iterative_gen_loops_normal_counting();
+  template<bool REPORT = true> void iterative_gen_loops_normal();
   void iterative_gen_loops_normal_marking();
   void iterative_gen_loops_super();
   void iterative_gen_loops_super0();

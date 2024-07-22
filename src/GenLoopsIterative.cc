@@ -24,7 +24,11 @@
 //
 // It is slightly faster than the recursive version and also avoids potential
 // stack overflow on deeper searches.
+//
+// Template parameter `REPORT` specifies whether the patterns found are reported
+// to the Coordinator (true), or merely counted (false).
 
+template<bool REPORT>
 void Worker::iterative_gen_loops_normal() {
   if (!iterative_init_workspace(false)) {
     assert(false);
@@ -46,6 +50,7 @@ void Worker::iterative_gen_loops_normal() {
   unsigned int steps_limit = steps_per_inbox_check;
   const unsigned int st_state = start_state;
   unsigned int* const outdegree = graph.outdegree.data();
+  std::uint64_t* const c = count.data();
 
   // Note that beat 0 is stored at index 1 in the `beat` array. We do this to
   // provide a guard since beat[0].col is modified at the end of the search.
@@ -69,8 +74,12 @@ void Worker::iterative_gen_loops_normal() {
 
     const unsigned int to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
-      pos = p;
-      iterative_handle_finished_pattern();
+      if (REPORT) {
+        pos = p;
+        iterative_handle_finished_pattern();
+      } else {
+        ++c[p + 1];
+      }
       ++ss->col;
       goto skip_unmarking;
     }
@@ -123,100 +132,11 @@ void Worker::iterative_gen_loops_normal() {
   assert(pos == 0);
 }
 
-// Version of gen_loops_normal() specific to the case `countflag` == true
+// Explicit template instantiations since template method definition is not
+// in `.h` file
 
-void Worker::iterative_gen_loops_normal_counting() {
-  if (!iterative_init_workspace(false)) {
-    assert(false);
-  }
-
-  std::vector<unsigned int*> om_row(graph.numstates + 1, nullptr);
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    om_row.at(i) = graph.outmatrix.at(i).data();
-  }
-  unsigned int** const outmatrix = om_row.data();
-
-  int p = pos;
-  uint64_t nn = nnodes;
-  const int lmax = l_max;
-  int* const u = used.data();
-  unsigned int steps = 0;
-  unsigned int steps_limit = steps_per_inbox_check;
-  const unsigned int st_state = start_state;
-  unsigned int* const outdegree = graph.outdegree.data();
-  std::uint64_t* const c = count.data();
-
-  SearchState* ss = &beat.at(pos + 1);
-
-  while (p >= 0) {
-    // begin with any necessary cleanup from previous marking operations
-    if (ss->to_state != 0) {
-      u[ss->to_state] = 0;
-      ss->to_state = 0;
-    }
-
-    skip_unmarking:
-    if (ss->col == ss->col_limit) {
-      --p;
-      --ss;
-      ++ss->col;
-      ++nn;
-      continue;
-    }
-
-    const unsigned int to_state = ss->outmatrix[ss->col];
-    if (to_state == st_state) {
-      ++c[p + 1];
-      ++ss->col;
-      goto skip_unmarking;
-    }
-
-    if (u[to_state]) {
-      ++ss->col;
-      goto skip_unmarking;
-    }
-
-    if (p + 1 == lmax) {
-      ++ss->col;
-      goto skip_unmarking;
-    }
-
-    if (++steps >= steps_limit) {
-      steps = 0;
-
-      pos = p;
-      if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
-        for (size_t i = 0; i <= pos; ++i) {
-          pattern.at(i) = graph.outthrowval.at(beat.at(i + 1).from_state)
-                                           .at(beat.at(i + 1).col);
-        }
-        pattern.at(pos + 1) = -1;
-        nnodes = nn;
-        process_inbox_running();
-        iterative_update_after_split();
-        nn = nnodes;
-        steps_limit = steps_per_inbox_check;
-      }
-    }
-
-    // advance to next beat
-    u[to_state] = 1;
-    ss->to_state = to_state;
-    ++p;
-    ++ss;
-    ss->col = 0;
-    ss->col_limit = outdegree[to_state];
-    ss->from_state = to_state;
-    ss->to_state = 0;
-    ss->outmatrix = outmatrix[to_state];
-    goto skip_unmarking;
-  }
-
-  ++p;
-  pos = p;
-  nnodes = nn;
-  assert(pos == 0);
-}
+template void Worker::iterative_gen_loops_normal<true>();
+template void Worker::iterative_gen_loops_normal<false>();
 
 // Non-recursive version of get_loops_normal_marking()
 
