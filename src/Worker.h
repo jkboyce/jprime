@@ -126,10 +126,9 @@ class Worker {
   void handle_finished_pattern();
 
   // core search routines (iterative versions; identical in function to above)
-  template<bool REPORT = true> void iterative_gen_loops_normal();
+  template<bool REPORT> void iterative_gen_loops_normal();
   void iterative_gen_loops_normal_marking();
-  void iterative_gen_loops_super();
-  void iterative_gen_loops_super0();
+  template<bool SUPER0> void iterative_gen_loops_super();
   bool iterative_init_workspace(bool marking);
   bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();

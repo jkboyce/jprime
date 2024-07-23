@@ -674,9 +674,9 @@ void Worker::gen_patterns() {
         break;
       case RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0) {
-          iterative_gen_loops_super0();
+          iterative_gen_loops_super<true>();
         } else {
-          iterative_gen_loops_super();
+          iterative_gen_loops_super<false>();
         }
         break;
       default:
