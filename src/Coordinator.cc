@@ -92,7 +92,7 @@ bool Coordinator::run() {
 // Deliver a message to a given worker's inbox.
 
 void Coordinator::message_worker(const MessageC2W& msg,
-    unsigned int worker_id) const {
+    unsigned worker_id) const {
   std::unique_lock<std::mutex> lck {worker.at(worker_id)->inbox_lock};
   worker.at(worker_id)->inbox.push(msg);
 }
@@ -105,7 +105,7 @@ void Coordinator::collect_stats() {
 
   stats_counter = 0;
   stats_received = 0;
-  for (unsigned int id = 0; id < config.num_threads; ++id) {
+  for (unsigned id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
     msg.type = MessageC2W::Type::SEND_STATS;
     message_worker(msg, id);
@@ -118,7 +118,7 @@ void Coordinator::collect_stats() {
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     auto it = workers_idle.begin();
-    unsigned int id = *it;
+    unsigned id = *it;
     workers_idle.erase(it);
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
@@ -338,7 +338,7 @@ void Coordinator::steal_work() {
       break;
     }
 
-    unsigned int id = -1;
+    unsigned id = -1;
     switch (config.steal_alg) {
       case 1:
         id = find_stealing_target_mostremaining();
@@ -366,17 +366,17 @@ void Coordinator::steal_work() {
 // First look at most remaining `start_state` values, and if no workers have
 // unexplored start states then find the lowest `root_pos` value.
 
-unsigned int Coordinator::find_stealing_target_mostremaining() const {
+unsigned Coordinator::find_stealing_target_mostremaining() const {
   int id_startstates = -1;
   int id_rootpos = -1;
-  unsigned int max_startstates_remaining = 0;
-  unsigned int min_rootpos = 0;
+  unsigned max_startstates_remaining = 0;
+  unsigned min_rootpos = 0;
 
-  for (unsigned int id = 0; id < config.num_threads; ++id) {
+  for (unsigned id = 0; id < config.num_threads; ++id) {
     if (is_worker_idle(id) || is_worker_splitting(id))
       continue;
 
-    unsigned int startstates_remaining =
+    unsigned startstates_remaining =
         worker_endstate.at(id) - worker_startstate.at(id);
     if (startstates_remaining > 0 && (id_startstates == -1 ||
         max_startstates_remaining < startstates_remaining)) {
@@ -425,7 +425,7 @@ bool Coordinator::passes_prechecks() {
 
   // The computation is a go and everything fits into unsigned ints
   l_max = (config.l_max > 0) ? config.l_max
-      : static_cast<unsigned int>(context.l_bound);
+      : static_cast<unsigned>(context.l_bound);
   return true;
 }
 
@@ -439,9 +439,9 @@ void Coordinator::calc_graph_size() {
   context.full_numstates = Graph::combinations(config.h, config.b);
   context.full_numcycles = 0;
   context.full_numshortcycles = 0;
-  unsigned int max_cycle_period = 0;
+  unsigned max_cycle_period = 0;
 
-  for (unsigned int p = 1; p <= config.h; ++p) {
+  for (unsigned p = 1; p <= config.h; ++p) {
     const std::uint64_t cycles =
         Graph::shift_cycle_count(config.b, config.h, p);
     context.full_numcycles += cycles;
@@ -454,31 +454,31 @@ void Coordinator::calc_graph_size() {
   }
 
   // longest patterns possible of the type selected
-  if (config.mode == RunMode::NORMAL_SEARCH) {
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     // two possibilities: Stay on a single cycle, or use multiple cycles
     context.l_bound = std::max(
         static_cast<std::uint64_t>(max_cycle_period),
         context.full_numstates - context.full_numcycles
     );
-  } else if (config.mode == RunMode::SUPER_SEARCH) {
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     context.l_bound = (context.full_numcycles < 2 ) ? 0 :
         context.full_numcycles + config.shiftlimit;
   }
 
   // number of states that will be resident in memory if we build the graph
-  if (config.graphmode == GraphMode::FULL_GRAPH) {
+  if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH) {
     context.memory_numstates = context.full_numstates;
-  } else if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+  } else if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
     context.memory_numstates =
         Graph::ordered_partitions(config.b, config.h, config.l_min);
   }
 }
 
-bool Coordinator::is_worker_idle(const unsigned int id) const {
+bool Coordinator::is_worker_idle(const unsigned id) const {
   return (workers_idle.count(id) != 0);
 }
 
-bool Coordinator::is_worker_splitting(const unsigned int id) const {
+bool Coordinator::is_worker_splitting(const unsigned id) const {
   return (workers_splitting.count(id) != 0);
 }
 
@@ -502,9 +502,9 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
     }
     if (config.statusflag && msg.count.at(i) > 0) {
       worker_longest_start.at(msg.worker_id) = std::max(
-          worker_longest_start.at(msg.worker_id), static_cast<unsigned int>(i));
+          worker_longest_start.at(msg.worker_id), static_cast<unsigned>(i));
       worker_longest_last.at(msg.worker_id) = std::max(
-          worker_longest_last.at(msg.worker_id), static_cast<unsigned int>(i));
+          worker_longest_last.at(msg.worker_id), static_cast<unsigned>(i));
     }
   }
 }
@@ -516,7 +516,7 @@ void Coordinator::start_workers() {
   if (config.verboseflag)
     std::cout << "Started on: " << current_time_string();
 
-  for (unsigned int id = 0; id < config.num_threads; ++id) {
+  for (unsigned id = 0; id < config.num_threads; ++id) {
     if (config.verboseflag)
       std::cout << "worker " << id << " starting..." << std::endl;
 
@@ -543,7 +543,7 @@ void Coordinator::stop_workers() {
   if (config.verboseflag)
     erase_status_output();
 
-  for (unsigned int id = 0; id < config.num_threads; ++id) {
+  for (unsigned id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
     msg.type = MessageC2W::Type::STOP_WORKER;
     message_worker(msg, id);
@@ -663,9 +663,9 @@ void Coordinator::print_preamble() const {
   std::cout << "objects: " << (config.dualflag ? config.h - config.b : config.b)
             << ", max throw: " << config.h << '\n';
 
-  if (config.mode == RunMode::NORMAL_SEARCH) {
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     std::cout << "prime ";
-  } else if (config.mode == RunMode::SUPER_SEARCH) {
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     std::cout << "superprime ";
     if (config.shiftlimit == 1)
       std::cout << "(+1 shift) ";
@@ -680,9 +680,9 @@ void Coordinator::print_preamble() const {
       std::cout << '-' << config.l_max;
   }
   std::cout << " (bound " << context.l_bound << ")";
-  if (config.groundmode == GroundMode::GROUND_SEARCH) {
+  if (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH) {
     std::cout << ", ground state only\n";
-  } else if (config.groundmode == GroundMode::EXCITED_SEARCH) {
+  } else if (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH) {
     std::cout << ", excited states only\n";
   } else {
     std::cout << '\n';
@@ -693,7 +693,7 @@ void Coordinator::print_preamble() const {
             << context.full_numcycles << " shift cycles, "
             << context.full_numshortcycles << " short cycles" << std::endl;
 
-  if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+  if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
     std::cout << "(using period-" << config.l_min << " subgraph: "
               << context.memory_numstates << " states)" << std::endl;
   }
@@ -730,7 +730,7 @@ void Coordinator::print_summary() const {
 
   if (config.countflag || l_max > config.l_min) {
     std::cout << "\nPattern count by length:\n";
-    for (unsigned int i = config.l_min; i <= l_max; ++i)
+    for (unsigned i = config.l_min; i <= l_max; ++i)
       std::cout << i << ", " << context.count.at(i) << '\n';
   }
 }
@@ -738,7 +738,7 @@ void Coordinator::print_summary() const {
 void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
-  for (unsigned int i = 0; i < config.num_threads + 2; ++i) {
+  for (unsigned i = 0; i < config.num_threads + 2; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
@@ -748,8 +748,8 @@ void Coordinator::print_status_output() {
   if (!config.statusflag)
     return;
 
-  const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
-      l_max > STATUS_WIDTH);
+  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
+      && l_max > STATUS_WIDTH);
   std::cout << "Status on: " << current_time_string();
   std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
@@ -761,7 +761,7 @@ void Coordinator::print_status_output() {
       std::cout << ' ';
   }
   std::cout << "    length\n";
-  for (unsigned int i = 0; i < config.num_threads; ++i)
+  for (unsigned i = 0; i < config.num_threads; ++i)
     std::cout << worker_status.at(i) << std::endl;
 
   stats_printed = true;
@@ -784,24 +784,25 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
     return buffer.str();
   }
 
-  const unsigned int id = msg.worker_id;
-  const unsigned int root_pos = worker_rootpos.at(id);
-  const std::vector<unsigned int>& ops = msg.worker_options_left;
-  const std::vector<unsigned int>& ds_extra = msg.worker_deadstates_extra;
-  std::vector<unsigned int>& ops_start = worker_options_left_start.at(id);
-  std::vector<unsigned int>& ops_last = worker_options_left_last.at(id);
+  const unsigned id = msg.worker_id;
+  const unsigned root_pos = worker_rootpos.at(id);
+  const std::vector<unsigned>& ops = msg.worker_options_left;
+  const std::vector<unsigned>& ds_extra = msg.worker_deadstates_extra;
+  std::vector<unsigned>& ops_start = worker_options_left_start.at(id);
+  std::vector<unsigned>& ops_last = worker_options_left_last.at(id);
 
   buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
   buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
 
-  const bool compressed = (config.mode == RunMode::NORMAL_SEARCH &&
-      l_max > STATUS_WIDTH);
-  const bool show_deadstates = (config.mode == RunMode::NORMAL_SEARCH &&
-      config.graphmode == GraphMode::FULL_GRAPH);
-  const bool show_shifts = (config.mode == RunMode::SUPER_SEARCH);
+  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
+      && l_max > STATUS_WIDTH);
+  const bool show_deadstates =
+      (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
+      config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
+  const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH);
 
-  unsigned int printed = 0;
+  unsigned printed = 0;
   bool hl_start = false;
   bool did_hl_start = false;
   bool hl_last = false;
@@ -813,7 +814,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   assert(ops.size() == ds_extra.size());
 
   for (size_t i = 0; i < ops.size(); ++i) {
-    const unsigned int throwval = msg.worker_throw.at(i);
+    const unsigned throwval = msg.worker_throw.at(i);
 
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {

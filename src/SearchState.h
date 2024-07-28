@@ -14,18 +14,18 @@
 
 
 struct SearchState {
-  unsigned int col = 0;
-  unsigned int col_limit = 0;
-  unsigned int from_state = 0;
-  unsigned int to_state = 0;
-  unsigned int* outmatrix = nullptr;
-  unsigned int* excludes_throw = nullptr;
-  unsigned int* deadstates_throw = nullptr;
-  unsigned int* excludes_catch = nullptr;
-  unsigned int* deadstates_catch = nullptr;
+  unsigned col = 0;
+  unsigned col_limit = 0;
+  unsigned from_state = 0;
+  unsigned to_state = 0;
+  unsigned* outmatrix = nullptr;
+  unsigned* excludes_throw = nullptr;
+  unsigned* deadstates_throw = nullptr;
+  unsigned* excludes_catch = nullptr;
+  unsigned* deadstates_catch = nullptr;
   int to_cycle = -1;
-  unsigned int shifts_remaining = 0;
-  unsigned int exitcycles_remaining = 0;
+  unsigned shifts_remaining = 0;
+  unsigned exitcycles_remaining = 0;
 };
 
 #endif

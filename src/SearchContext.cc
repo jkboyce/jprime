@@ -90,13 +90,13 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
   if (pat1.size() == 0)
     return true;
 
-  unsigned int pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
-  unsigned int pat1_end = pat1_start;
+  unsigned pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  unsigned pat1_end = pat1_start;
   while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
     ++pat1_end;
 
-  unsigned int pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
-  unsigned int pat2_end = pat2_start;
+  unsigned pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  unsigned pat2_end = pat2_start;
   while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
     ++pat2_end;
 

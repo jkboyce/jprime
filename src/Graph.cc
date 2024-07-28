@@ -16,13 +16,13 @@
 #include <limits>
 
 
-Graph::Graph(unsigned int b, unsigned int h, const std::vector<bool>& xa,
-    bool ltwc, unsigned int l)
+Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa,
+    bool ltwc, unsigned l)
     : b(b), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
 
-Graph::Graph(unsigned int b, unsigned int h)
+Graph::Graph(unsigned b, unsigned h)
     : b(b), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
   init();
 }
@@ -37,11 +37,11 @@ Graph::Graph(unsigned int b, unsigned int h)
 // populate the graph arrays with data.
 
 void Graph::init() {
-  // fail if the number of states cannot fit into an unsigned int
+  // fail if the number of states cannot fit into an unsigned
   const std::uint64_t num = (l == 0 ? combinations(h, b) :
       ordered_partitions(b, h, l));
-  assert(num <= std::numeric_limits<unsigned int>::max());
-  numstates = static_cast<unsigned int>(num);
+  assert(num <= std::numeric_limits<unsigned>::max());
+  numstates = static_cast<unsigned>(num);
 
   // enumerate the states
   state.reserve(numstates + 2);
@@ -90,8 +90,8 @@ void Graph::init() {
 
 // Generate all possible states into the vector `s`.
 
-void Graph::gen_states_all(std::vector<State>& s, unsigned int b,
-    unsigned int h) {
+void Graph::gen_states_all(std::vector<State>& s, unsigned b,
+    unsigned h) {
   s.push_back({h});
   gen_states_all_helper(s, h - 1, b);
   s.pop_back();
@@ -101,8 +101,8 @@ void Graph::gen_states_all(std::vector<State>& s, unsigned int b,
 // 1s into successive slots, and when all 1s are used up append a new state
 // to the list.
 
-void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
-    unsigned int left) {
+void Graph::gen_states_all_helper(std::vector<State>& s, unsigned pos,
+    unsigned left) {
   if (left > (pos + 1))
     return;  // no way to succeed
 
@@ -126,8 +126,8 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned int pos,
 
 // Generate all possible states that can be part of a pattern of period `l`.
 
-void Graph::gen_states_for_period(std::vector<State>& s, unsigned int b,
-    unsigned int h, unsigned int l) {
+void Graph::gen_states_for_period(std::vector<State>& s, unsigned b,
+    unsigned h, unsigned l) {
   s.push_back({h});
   gen_states_for_period_helper(s, 0, b, h, l);
   s.pop_back();
@@ -137,8 +137,8 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned int b,
 // enumerated by partitioning the `b` objects into `l` different buckets.
 
 void Graph::gen_states_for_period_helper(std::vector<State>& s,
-    unsigned int pos, unsigned int left, const unsigned int h,
-    const unsigned int l) {
+    unsigned pos, unsigned left, const unsigned h,
+    const unsigned l) {
   if (pos == l) {
     if (left == 0) {
       // success: duplicate state at the end and continue
@@ -154,19 +154,19 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
 
   // work out the maximum number that can go into later slots, and the min
   // for this slot
-  unsigned int max_later = 0;
+  unsigned max_later = 0;
   for (size_t pos2 = pos + 1; pos2 < l; ++pos2) {
     for (size_t i = pos2; i < h; i += l) {
       ++max_later;
     }
   }
-  unsigned int min_fill = (left > max_later ? left - max_later : 0);
+  unsigned min_fill = (left > max_later ? left - max_later : 0);
 
   if (min_fill == 0)
     gen_states_for_period_helper(s, pos + 1, left, h, l);
 
   // successively fill slots at `pos`
-  unsigned int filled = 0;
+  unsigned filled = 0;
   for (size_t i = pos; i < h && filled < left; i += l) {
     s.back().slot(i) = 1;
     ++filled;
@@ -183,8 +183,8 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
 // state positions must be filled from the bottom up in order to be part of a
 // period `l` pattern.
 
-std::uint64_t Graph::ordered_partitions(unsigned int b, unsigned int h,
-    unsigned int l) {
+std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
+    unsigned l) {
   std::map<op_key_type, std::uint64_t> cache;
   return ordered_partitions_helper(0, b, h, l, cache);
 }
@@ -192,15 +192,15 @@ std::uint64_t Graph::ordered_partitions(unsigned int b, unsigned int h,
 // Compute the number of ways of filling slot `pos` through slot `l-1`, given
 // `left` remaining objects.
 
-std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
-    unsigned int left, const unsigned int h, const unsigned int l,
+std::uint64_t Graph::ordered_partitions_helper(unsigned pos,
+    unsigned left, const unsigned h, const unsigned l,
     std::map<op_key_type, std::uint64_t>& cache) {
   op_key_type key{pos, left};
   if (cache.find(key) != cache.end())
     return cache[key];
 
-  unsigned int max_fill = 0;
-  for (unsigned int i = pos; i < h; i += l) {
+  unsigned max_fill = 0;
+  for (unsigned i = pos; i < h; i += l) {
     ++max_fill;
   }
   max_fill = std::min(max_fill, left);
@@ -209,7 +209,7 @@ std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
   if (pos == l - 1) {
     result = (left <= max_fill ? 1 : 0);
   } else {
-    for (unsigned int i = 0; i <= max_fill; ++i) {
+    for (unsigned i = 0; i <= max_fill; ++i) {
       result += ordered_partitions_helper(pos + 1, left - i, h, l, cache);
     }
   }
@@ -230,9 +230,9 @@ std::uint64_t Graph::ordered_partitions_helper(unsigned int pos,
 //         cycleperiod[cyclenum] --> period
 
 void Graph::find_shift_cycles() {
-  unsigned int cycleindex = 0;
-  std::vector<unsigned int> cyclestates(h);
-  const unsigned int UNUSED = -1;
+  unsigned cycleindex = 0;
+  std::vector<unsigned> cyclestates(h);
+  const unsigned UNUSED = -1;
 
   cyclenum.assign(numstates + 1, UNUSED);
   cycleperiod.assign(numstates + 1, UNUSED);
@@ -244,17 +244,17 @@ void Graph::find_shift_cycles() {
     State s = state.at(i);
     bool periodfound = false;
     bool newshiftcycle = true;
-    unsigned int cycleper = h;
+    unsigned cycleper = h;
 
     for (size_t j = 0; j < h; ++j) {
       s = s.upstream();
-      unsigned int k = get_statenum(s);
+      unsigned k = get_statenum(s);
       cyclestates.at(j) = k;
       if (k == 0)
         continue;
 
       if (k == i && !periodfound) {
-        cycleper = static_cast<unsigned int>(j + 1);
+        cycleper = static_cast<unsigned>(j + 1);
         periodfound = true;
       } else if (k < i) {
         newshiftcycle = false;
@@ -295,13 +295,13 @@ void Graph::build_graph() {
       continue;
     }
 
-    unsigned int outthrownum = 0;
+    unsigned outthrownum = 0;
     for (int throwval = h; throwval >= 0; --throwval) {
-      const unsigned int tv = static_cast<unsigned int>(throwval);
+      const unsigned tv = static_cast<unsigned>(throwval);
       if (xarray.at(tv))
         continue;
 
-      unsigned int k = advance_state(static_cast<unsigned int>(i), tv);
+      unsigned k = advance_state(static_cast<unsigned>(i), tv);
       if (k == 0)
         continue;
       if (!state_active.at(k))
@@ -335,7 +335,7 @@ void Graph::reduce_graph() {
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
-      unsigned int outthrownum = 0;
+      unsigned outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
         if (state_active.at(outmatrix.at(i).at(j))) {
           if (outthrownum != j) {
@@ -352,7 +352,7 @@ void Graph::reduce_graph() {
     }
 
     // Deactivate states with zero outdegree or indegree
-    std::vector<unsigned int> indegree(numstates + 1, 0);
+    std::vector<unsigned> indegree(numstates + 1, 0);
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
@@ -391,13 +391,13 @@ void Graph::reduce_graph() {
 void Graph::find_exit_cycles() {
   isexitcycle.assign(numstates + 1, false);
 
-  unsigned int lowest_active_state = 0;
+  unsigned lowest_active_state = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (!state_active.at(i))
       continue;
     if (lowest_active_state == 0) {
-      lowest_active_state = static_cast<unsigned int>(i);
+      lowest_active_state = static_cast<unsigned>(i);
       continue;
     }
 
@@ -429,9 +429,9 @@ void Graph::find_exclude_states() {
     // Find states that are excluded by a link throw from state `i`. These are
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
-    unsigned int j = 0;
+    unsigned j = 0;
     while (s.slot(s.size() - 1) != 0 && j < h) {
-      unsigned int statenum = get_statenum(s);
+      unsigned statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_throw.at(i).at(j++) = statenum;
@@ -444,7 +444,7 @@ void Graph::find_exclude_states() {
     s = state.at(i).upstream();
     j = 0;
     while (s.slot(0) == 0 && j < h) {
-      unsigned int statenum = get_statenum(s);
+      unsigned statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum))
         break;
       excludestates_catch.at(i).at(j++) = statenum;
@@ -460,12 +460,12 @@ void Graph::find_exclude_states() {
 
 // Compute (a choose b).
 
-std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
+std::uint64_t Graph::combinations(unsigned a, unsigned b) {
   if (a < b)
     return 0;
 
   std::uint64_t result = 1;
-  for (unsigned int denom = 1; denom <= std::min(b, a - b); ++denom) {
+  for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
     result = (result * (a - denom + 1)) / denom;
   }
   return result;
@@ -474,8 +474,8 @@ std::uint64_t Graph::combinations(unsigned int a, unsigned int b) {
 // Compute the number of shift cycles with `b` objects, max throw `h`, with
 // exact period `p`.
 
-std::uint64_t Graph::shift_cycle_count(unsigned int b, unsigned int h,
-    unsigned int p) {
+std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
+    unsigned p) {
   if (h % p != 0)
     return 0;
   if (b % (h / p) != 0)
@@ -484,7 +484,7 @@ std::uint64_t Graph::shift_cycle_count(unsigned int b, unsigned int h,
     return shift_cycle_count(b * p / h, p, p);
 
   std::uint64_t val = combinations(h, b);
-  for (unsigned int p2 = 1; p2 <= h / 2; ++p2) {
+  for (unsigned p2 = 1; p2 <= h / 2; ++p2) {
     val -= p2 * shift_cycle_count(b, h, p2);
   }
   assert(val % h == 0);
@@ -494,11 +494,11 @@ std::uint64_t Graph::shift_cycle_count(unsigned int b, unsigned int h,
 // Calculate an upper bound on the length of prime patterns in the graph, using
 // states that are currently active.
 
-unsigned int Graph::prime_length_bound() const {
+unsigned Graph::prime_length_bound() const {
   // Case 1: The pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
-  unsigned int result_multicycle = 0;
-  std::vector<unsigned int> num_active(numcycles, 0);
+  unsigned result_multicycle = 0;
+  std::vector<unsigned> num_active(numcycles, 0);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
@@ -521,7 +521,7 @@ unsigned int Graph::prime_length_bound() const {
 
   // Case 2: The pattern stays on a single shift cycle; find the cycle with the
   // most active states.
-  unsigned int result_onecycle = 0;
+  unsigned result_onecycle = 0;
   for (size_t i = 0; i < numcycles; ++i) {
     result_onecycle = std::max(result_onecycle, num_active.at(i));
   }
@@ -532,7 +532,7 @@ unsigned int Graph::prime_length_bound() const {
 // Calculate an upper bound on the length of superprime patterns without shift
 // throws, using states in the graph that are currently active.
 
-unsigned int Graph::superprime_length_bound() const {
+unsigned Graph::superprime_length_bound() const {
   std::vector<bool> any_active(numcycles, false);
 
   for (size_t i = 1; i <= numstates; ++i) {
@@ -544,7 +544,7 @@ unsigned int Graph::superprime_length_bound() const {
   if (std::count(any_active.begin(), any_active.end(), true) < 2)
     return 0;
 
-  return static_cast<unsigned int>(
+  return static_cast<unsigned>(
       std::count(any_active.begin(), any_active.end(), true));
 }
 
@@ -553,7 +553,7 @@ unsigned int Graph::superprime_length_bound() const {
 //
 // Note this assumes the `state` vector is sorted!
 
-unsigned int Graph::get_statenum(const State& s) const {
+unsigned Graph::get_statenum(const State& s) const {
   if (state_compare(s, state.at(1)))
     return 0;
   if (state_compare(state.at(numstates), s))
@@ -571,7 +571,7 @@ unsigned int Graph::get_statenum(const State& s) const {
   while (below < above - 1) {
     size_t mid = (below + above) / 2;
     if (state.at(mid) == s)
-      return static_cast<unsigned int>(mid);
+      return static_cast<unsigned>(mid);
     if (state_compare(state.at(mid), s)) {
       below = mid;
     } else {
@@ -584,8 +584,8 @@ unsigned int Graph::get_statenum(const State& s) const {
 // Return the state number that comes from advancing a given state by a single
 // throw. Returns 0 if the throw is not allowed.
 
-unsigned int Graph::advance_state(unsigned int statenum,
-    unsigned int throwval) const {
+unsigned Graph::advance_state(unsigned statenum,
+    unsigned throwval) const {
   const State& s = state.at(statenum);
 
   if (throwval > s.size())
@@ -603,24 +603,24 @@ unsigned int Graph::advance_state(unsigned int statenum,
 //
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
-unsigned int Graph::reverse_state(unsigned int statenum) const {
+unsigned Graph::reverse_state(unsigned statenum) const {
   return get_statenum(state.at(statenum).reverse());
 }
 
 // Return the next state downstream in the given state's shift cycle.
 
-unsigned int Graph::downstream_state(unsigned int statenum) const {
+unsigned Graph::downstream_state(unsigned statenum) const {
   return get_statenum(state.at(statenum).downstream());
 }
 
 // Return the next state upstream in the given state's shift cycle.
 
-unsigned int Graph::upstream_state(unsigned int statenum) const {
+unsigned Graph::upstream_state(unsigned statenum) const {
   return get_statenum(state.at(statenum).upstream());
 }
 
 // Return a text representation of a given state number.
 
-std::string Graph::state_string(unsigned int statenum) const {
+std::string Graph::state_string(unsigned statenum) const {
   return state.at(statenum).to_string();
 }

@@ -52,11 +52,11 @@ struct MessageW2C {
 
   // for all message types
   Type type = Type::NONE;
-  unsigned int worker_id = 0;
+  unsigned worker_id = 0;
 
   // for type SEARCH_RESULT
   std::string pattern;
-  unsigned int length = 0;
+  unsigned length = 0;
 
   // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
   std::vector<std::uint64_t> count;
@@ -68,15 +68,15 @@ struct MessageW2C {
 
   // for type RETURN_STATS
   bool running = false;
-  std::vector<unsigned int> worker_throw;
-  std::vector<unsigned int> worker_options_left;
-  std::vector<unsigned int> worker_deadstates_extra;
+  std::vector<unsigned> worker_throw;
+  std::vector<unsigned> worker_options_left;
+  std::vector<unsigned> worker_deadstates_extra;
 
   // for type WORKER_UPDATE
   std::string meta;
-  unsigned int start_state = 0;
-  unsigned int end_state = 0;
-  unsigned int root_pos = 0;
+  unsigned start_state = 0;
+  unsigned end_state = 0;
+  unsigned root_pos = 0;
 };
 
 #endif

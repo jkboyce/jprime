@@ -34,7 +34,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
   }
-  b = static_cast<unsigned int>(val);
+  b = static_cast<unsigned>(val);
 
   try {
     val = std::stoi(argv[2]);
@@ -46,7 +46,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (val < 1) {
     throw std::invalid_argument("Max. throw value must be at least 1");
   }
-  h = static_cast<unsigned int>(val);
+  h = static_cast<unsigned>(val);
   if (h < b) {
     throw std::invalid_argument(
         "Max. throw value must equal or exceed the number of objects");
@@ -88,7 +88,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         if (val < 0) {
           throw std::invalid_argument("Shift limit must be non-negative");
         }
-        shiftlimit = static_cast<unsigned int>(val);
+        shiftlimit = static_cast<unsigned>(val);
         if (shiftlimit == 0) {
           xarray.at(0) = xarray.at(h) = true;
         }
@@ -110,7 +110,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         if (val < 1 || val > 1) {
           throw std::invalid_argument("Steal_alg out of range");
         }
-        steal_alg = static_cast<unsigned int>(val);
+        steal_alg = static_cast<unsigned>(val);
       } else {
         throw std::invalid_argument("No number provided after -steal_alg");
       }
@@ -121,7 +121,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         if (val < 1 || val > 2) {
           throw std::invalid_argument("Split_alg out of range");
         }
-        split_alg = static_cast<unsigned int>(val);
+        split_alg = static_cast<unsigned>(val);
       } else {
         throw std::invalid_argument("No number provided after -split_alg");
       }
@@ -138,7 +138,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         if (val < 0) {
           throw std::invalid_argument("Excluded throws must be non-negative");
         }
-        unsigned int j = static_cast<unsigned int>(val);
+        unsigned j = static_cast<unsigned>(val);
         if (j == h) {
           throw std::invalid_argument(
               "Cannot exclude max. throw value using -x");
@@ -170,7 +170,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         if (val < 1) {
           throw std::invalid_argument("Must have at least one worker thread");
         }
-        num_threads = static_cast<unsigned int>(val);
+        num_threads = static_cast<unsigned>(val);
       } else {
         throw std::invalid_argument("No number provided after -threads");
       }
@@ -188,7 +188,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           throw std::invalid_argument(msg);
         }
         if (val > 0) {
-          l_min = l_max = static_cast<unsigned int>(val);
+          l_min = l_max = static_cast<unsigned>(val);
           success = true;
         }
       } else if (hyphens == 1) {
@@ -205,7 +205,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
             throw std::invalid_argument(msg);
           }
           if (val > 0)
-            l_min = static_cast<unsigned int>(val);
+            l_min = static_cast<unsigned>(val);
           else
             success = false;
         }
@@ -218,7 +218,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
             throw std::invalid_argument(msg);
           }
           if (val > 0)
-            l_max = static_cast<unsigned int>(val);
+            l_max = static_cast<unsigned>(val);
           else
             success = false;
         }
@@ -244,7 +244,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   }
 
   // output throws as letters (a, b, ...) or numbers (10, 11, ...)?
-  unsigned int max_throw_value = h;
+  unsigned max_throw_value = h;
   if (l_max > 0) {
     if (dualflag) {
       max_throw_value = std::min(max_throw_value, (h - b) * l_max);
@@ -257,7 +257,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   } else {
     noplusminusflag = true;
     throwdigits = 1;
-    for (unsigned int temp = 10; temp <= max_throw_value; temp *= 10) {
+    for (unsigned temp = 10; temp <= max_throw_value; temp *= 10) {
       ++throwdigits;
     }
   }

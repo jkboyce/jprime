@@ -18,17 +18,17 @@
 
 class State {
  public:
-  State(unsigned int h);
+  State(unsigned h);
   State(std::string s);
 
  private:
-  std::vector<unsigned int> _slot;  // 0 or 1
+  std::vector<unsigned> _slot;  // 0 or 1
 
  public:
   size_t size() const;
-  unsigned int& slot(size_t i);
-  const unsigned int& slot(size_t i) const;
-  State advance_with_throw(unsigned int throwval) const;
+  unsigned& slot(size_t i);
+  const unsigned& slot(size_t i) const;
+  State advance_with_throw(unsigned throwval) const;
   State downstream() const;
   State upstream() const;
   State reverse() const;

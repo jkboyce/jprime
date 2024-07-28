@@ -28,8 +28,8 @@ class Coordinator;
 
 class Worker {
  public:
-  Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
-    unsigned int l_max);
+  Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
+    unsigned l_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
 
@@ -42,9 +42,9 @@ class Worker {
   // set during construction and do not change
   const SearchConfig config;
   Coordinator& coordinator;
-  const unsigned int worker_id;
-  const unsigned int l_min;
-  const unsigned int l_max;
+  const unsigned worker_id;
+  const unsigned l_min;
+  const unsigned l_max;
 
   // working variables for search
   Graph graph;
@@ -52,19 +52,19 @@ class Worker {
   std::vector<int> pattern;  // throw value at each position
   std::vector<int> used;  // whether a state has been visited
   std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
-  std::vector<unsigned int> deadstates;  // indexed by shift cycle number
-  std::vector<unsigned int*> deadstates_bystate;  // indexed by state number
-  unsigned int pos = 0;
-  unsigned int from = 1;
-  unsigned int shiftcount = 0;
-  unsigned int exitcyclesleft = 0;
+  std::vector<unsigned> deadstates;  // indexed by shift cycle number
+  std::vector<unsigned*> deadstates_bystate;  // indexed by state number
+  unsigned pos = 0;
+  unsigned from = 1;
+  unsigned shiftcount = 0;
+  unsigned exitcyclesleft = 0;
   int max_possible = 0;
 
   // for loading and sharing work assignments
-  unsigned int start_state = 0;
-  unsigned int end_state = 0;
-  unsigned int root_pos = 0;
-  std::list<unsigned int> root_throwval_options;
+  unsigned start_state = 0;
+  unsigned end_state = 0;
+  unsigned root_pos = 0;
+  std::list<unsigned> root_throwval_options;
   bool loading_work = false;
 
   // status data to report to Coordinator
@@ -74,11 +74,11 @@ class Worker {
   bool running = false;
 
   // for managing the frequency to check the inbox while running
-  static constexpr unsigned int STEPS_PER_INBOX_CHECK_INITIAL = 50000u;
-  unsigned int steps_per_inbox_check = STEPS_PER_INBOX_CHECK_INITIAL;
-  static constexpr unsigned int CALIBRATIONS_INITIAL = 10;
-  unsigned int calibrations_remaining = CALIBRATIONS_INITIAL;
-  unsigned int steps_taken = 0;
+  static constexpr unsigned STEPS_PER_INBOX_CHECK_INITIAL = 50000u;
+  unsigned steps_per_inbox_check = STEPS_PER_INBOX_CHECK_INITIAL;
+  static constexpr unsigned CALIBRATIONS_INITIAL = 10;
+  unsigned calibrations_remaining = CALIBRATIONS_INITIAL;
+  unsigned steps_taken = 0;
   std::chrono::time_point<std::chrono::high_resolution_clock> last_ts;
 
  public:
@@ -100,9 +100,9 @@ class Worker {
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
-  void build_rootpos_throw_options(unsigned int from_state,
-      unsigned int min_column);
-  WorkAssignment split_work_assignment(unsigned int split_alg);
+  void build_rootpos_throw_options(unsigned from_state,
+      unsigned min_column);
+  WorkAssignment split_work_assignment(unsigned split_alg);
   WorkAssignment split_work_assignment_takestartstates();
   WorkAssignment split_work_assignment_takeall();
   WorkAssignment split_work_assignment_takehalf();
@@ -117,12 +117,12 @@ class Worker {
   void gen_loops_normal_marking();
   void gen_loops_super();
   void gen_loops_super0();
-  unsigned int load_one_throw();
-  bool mark_off_rootpos_option(unsigned int throwval, unsigned int to_state);
+  unsigned load_one_throw();
+  bool mark_off_rootpos_option(unsigned throwval, unsigned to_state);
   bool mark_unreachable_states_throw();
-  bool mark_unreachable_states_catch(unsigned int to_state);
+  bool mark_unreachable_states_catch(unsigned to_state);
   void unmark_unreachable_states_throw();
-  void unmark_unreachable_states_catch(unsigned int to_state);
+  void unmark_unreachable_states_catch(unsigned to_state);
   void handle_finished_pattern();
 
   // core search routines (iterative versions; identical in function to above)

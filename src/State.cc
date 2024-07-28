@@ -16,7 +16,7 @@
 
 // Initialize an empty state with `h` slots.
 
-State::State(unsigned int h)
+State::State(unsigned h)
     : _slot(h, 0) {}
 
 // Initialize from a string representation.
@@ -35,11 +35,11 @@ size_t State::size() const {
 
 // Return a reference to the i'th slot in the state, indexing from 0.
 
-unsigned int& State::slot(size_t i) {
+unsigned& State::slot(size_t i) {
   return _slot.at(i);
 }
 
-const unsigned int& State::slot(size_t i) const {
+const unsigned& State::slot(size_t i) const {
   return _slot.at(i);
 }
 
@@ -49,9 +49,9 @@ const unsigned int& State::slot(size_t i) const {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-State State::advance_with_throw(unsigned int throwval) const {
+State State::advance_with_throw(unsigned throwval) const {
   State s = *this;
-  unsigned int head = *s._slot.begin();
+  unsigned head = *s._slot.begin();
 
   s._slot.erase(s._slot.begin());
   s._slot.push_back(0);
@@ -81,7 +81,7 @@ State State::advance_with_throw(unsigned int throwval) const {
 
 State State::downstream() const {
   State s = *this;
-  unsigned int head = *s._slot.begin();
+  unsigned head = *s._slot.begin();
   s._slot.erase(s._slot.begin());
   s._slot.push_back(head);
   return s;
@@ -91,7 +91,7 @@ State State::downstream() const {
 
 State State::upstream() const {
   State s = *this;
-  unsigned int tail = s._slot.back();
+  unsigned tail = s._slot.back();
   s._slot.pop_back();
   s._slot.insert(s._slot.begin(), tail);
   return s;

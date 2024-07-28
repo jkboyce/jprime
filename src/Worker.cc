@@ -28,8 +28,8 @@
 #include <cassert>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned int id,
-    unsigned int l_max)
+Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
+    unsigned l_max)
     : config(config), coordinator(coord), worker_id(id), l_min(config.l_min),
       l_max(l_max) {}
 
@@ -102,8 +102,9 @@ void Worker::run() {
 
 void Worker::initialize_graph() {
   graph = {config.b, config.h, config.xarray,
-    config.mode != RunMode::SUPER_SEARCH,
-    config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH ? config.l_min : 0};
+    config.mode != SearchConfig::RunMode::SUPER_SEARCH,
+    config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH ?
+    config.l_min : 0};
 
   beat.resize(graph.numstates + 1);
   pattern.assign(graph.numstates + 1, -1);
@@ -258,20 +259,20 @@ void Worker::send_stats_to_coordinator() {
   msg.worker_options_left.assign(pos + 1, 0);
   msg.worker_deadstates_extra.assign(pos + 1, 0);
 
-  unsigned int tempfrom = start_state;
+  unsigned tempfrom = start_state;
   std::vector<bool> u(graph.numstates + 1, false);
-  std::vector<unsigned int> ds(graph.numcycles, 0);
+  std::vector<unsigned> ds(graph.numcycles, 0);
 
   for (size_t i = 0; i <= pos; ++i) {
     assert(pattern.at(i) >= 0);
     msg.worker_throw.at(i) = pattern.at(i);
 
-    for (unsigned int col = 0; col < graph.outdegree.at(tempfrom); ++col) {
-      const unsigned int throwval = graph.outthrowval.at(tempfrom).at(col);
-      if (throwval != static_cast<unsigned int>(pattern.at(i)))
+    for (unsigned col = 0; col < graph.outdegree.at(tempfrom); ++col) {
+      const unsigned throwval = graph.outthrowval.at(tempfrom).at(col);
+      if (throwval != static_cast<unsigned>(pattern.at(i)))
         continue;
 
-      const unsigned int tempto = graph.outmatrix.at(tempfrom).at(col);
+      const unsigned tempto = graph.outmatrix.at(tempfrom).at(col);
       assert(tempto > 0);
       assert(!u.at(tempto));
 
@@ -280,7 +281,7 @@ void Worker::send_stats_to_coordinator() {
         msg.worker_options_left.at(i) = 0;
       } else if (i == root_pos) {
         msg.worker_options_left.at(i) =
-            static_cast<unsigned int>(root_throwval_options.size());
+            static_cast<unsigned>(root_throwval_options.size());
       } else {
         msg.worker_options_left.at(i) = graph.outdegree.at(tempfrom) - col - 1;
       }
@@ -290,7 +291,7 @@ void Worker::send_stats_to_coordinator() {
       if (throwval != 0 && throwval != graph.h) {
         // throw
         for (size_t j = 0; true; ++j) {
-          unsigned int es = graph.excludestates_throw.at(tempfrom).at(j);
+          unsigned es = graph.excludestates_throw.at(tempfrom).at(j);
           if (es == 0)
             break;
           if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempfrom)) > 1) {
@@ -301,7 +302,7 @@ void Worker::send_stats_to_coordinator() {
 
         // catch
         for (size_t j = 0; true; ++j) {
-          unsigned int es = graph.excludestates_catch.at(tempto).at(j);
+          unsigned es = graph.excludestates_catch.at(tempto).at(j);
           if (es == 0)
             break;
           if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempto)) > 1) {
@@ -350,11 +351,12 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   }
 
   if (start_state == 0) {
-    start_state = (config.groundmode == GroundMode::EXCITED_SEARCH ? 2 : 1);
+    start_state = (config.groundmode ==
+      SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
   }
   if (end_state == 0) {
-    end_state = (config.groundmode == GroundMode::GROUND_SEARCH ? 1 :
-        graph.numstates);
+    end_state = (config.groundmode ==
+      SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
   }
 }
 
@@ -404,10 +406,10 @@ void Worker::notify_coordinator_update() const {
 // pattern. This list of options is maintained in case we get a request to split
 // work.
 
-void Worker::build_rootpos_throw_options(unsigned int from_state,
-    unsigned int start_column) {
+void Worker::build_rootpos_throw_options(unsigned from_state,
+    unsigned start_column) {
   root_throwval_options.clear();
-  for (unsigned int col = start_column; col < graph.outdegree.at(from_state);
+  for (unsigned col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
     root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
   }
@@ -416,7 +418,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " options at root_pos " << root_pos
            << ": [";
-    for (unsigned int v : root_throwval_options) {
+    for (unsigned v : root_throwval_options) {
       if (config.throwdigits > 0 && v != root_throwval_options.front()) {
         buffer << ',';
       }
@@ -435,7 +437,7 @@ void Worker::build_rootpos_throw_options(unsigned int from_state,
 // Return a work assignment that corresponds to a portion of the current work
 // assignment, for handing off to another worker.
 
-WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
+WorkAssignment Worker::split_work_assignment(unsigned split_alg) {
   if (end_state > start_state) {
     return split_work_assignment_takestartstates();
   }
@@ -454,7 +456,7 @@ WorkAssignment Worker::split_work_assignment(unsigned int split_alg) {
 // of the unexplored `start_state` values in the current assignment.
 
 WorkAssignment Worker::split_work_assignment_takestartstates() {
-  unsigned int takenum = (end_state - start_state + 1) / 2;
+  unsigned takenum = (end_state - start_state + 1) / 2;
   assert(takenum > 0);
   assert(end_state >= start_state + takenum);
 
@@ -500,7 +502,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   auto end = root_throwval_options.end();
   while (iter != end) {
     if (pattern.at(root_pos) >= 0 &&
-        *iter == static_cast<unsigned int>(pattern.at(root_pos))) {
+        *iter == static_cast<unsigned>(pattern.at(root_pos))) {
       iter = root_throwval_options.erase(iter);
     } else {
       ++iter;
@@ -509,26 +511,24 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   assert(root_throwval_options.size() > 0);
 
   // move `take_count` unexplored root_pos options to the new work assignment
-  size_t take_count =
+  auto take_count =
       static_cast<size_t>(0.51 + f * root_throwval_options.size());
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
       root_throwval_options.size());
 
-  size_t take_begin_idx = (take_front ?
+  auto take_begin_idx = static_cast<size_t>(take_front ?
         0 : root_throwval_options.size() - take_count);
-  size_t take_end_idx = take_begin_idx + take_count;
+  auto take_end_idx = take_begin_idx + take_count;
 
   iter = root_throwval_options.begin();
   end = root_throwval_options.end();
-  size_t index = 0;
-  while (iter != end) {
+  for (size_t index = 0; iter != end; ++index) {
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
       iter = root_throwval_options.erase(iter);
     } else {
       ++iter;
     }
-    ++index;
   }
 
   // did we give away all our throw options at `root_pos`?
@@ -544,14 +544,14 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // So we know there must be a value of `new_root_pos` with the properties we
     // need in the range root_pos < new_root_pos <= pos.
 
-    unsigned int from_state = start_state;
-    unsigned int new_root_pos = -1;
-    unsigned int col = 0;
+    unsigned from_state = start_state;
+    unsigned new_root_pos = -1;
+    unsigned col = 0;
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
     for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
-      const unsigned int throwval = static_cast<unsigned int>(pattern.at(pos2));
+      const unsigned throwval = static_cast<unsigned>(pattern.at(pos2));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
         if (throwval == graph.outthrowval.at(from_state).at(col)) {
           break;
@@ -570,7 +570,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
       assert(col != graph.outdegree.at(from_state));
 
       if (pos2 > root_pos && col < graph.outdegree.at(from_state) - 1) {
-        new_root_pos = static_cast<unsigned int>(pos2);
+        new_root_pos = static_cast<unsigned>(pos2);
         break;
       }
 
@@ -658,8 +658,8 @@ void Worker::gen_patterns() {
 
     std::vector<int> used_start(used);
     switch (config.mode) {
-      case RunMode::NORMAL_SEARCH:
-        if (config.graphmode == GraphMode::SINGLE_PERIOD_GRAPH) {
+      case SearchConfig::RunMode::NORMAL_SEARCH:
+        if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
           // typically these searches are not close to `l_bound` so the
           // marking version of gen_loops() is not worth the overhead
           if (config.countflag) {
@@ -672,7 +672,7 @@ void Worker::gen_patterns() {
           iterative_gen_loops_normal_marking();
         }
         break;
-      case RunMode::SUPER_SEARCH:
+      case SearchConfig::RunMode::SUPER_SEARCH:
         if (config.shiftlimit == 0) {
           iterative_gen_loops_super<true>();
         } else {
@@ -700,13 +700,13 @@ void Worker::customize_graph() {
   // number of consecutive 'x's at the end of the state, cannot exceed
   // `shiftlimit`.
 
-  if (config.mode == RunMode::SUPER_SEARCH) {
+  if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      unsigned int start0s = 0;
+      unsigned start0s = 0;
       while (start0s < graph.h && graph.state.at(i).slot(start0s) == 0) {
         ++start0s;
       }
-      unsigned int end1s = 0;
+      unsigned end1s = 0;
       while (end1s < graph.h &&
           graph.state.at(i).slot(graph.h - end1s - 1) != 0) {
         ++end1s;
@@ -720,13 +720,13 @@ void Worker::customize_graph() {
   // Some special cases for (b,h) = (b,2b) due to the special properties of the
   // period-2 shift cycle (x-)^b.
 
-  if (config.h == (2 * config.b) && config.mode == RunMode::SUPER_SEARCH &&
-      config.l_min > 2) {
+  if (config.h == (2 * config.b) && config.mode ==
+      SearchConfig::RunMode::SUPER_SEARCH && config.l_min > 2) {
     State per2state{config.h};
     for (size_t i = 0; i < config.h; i += 2) {
       per2state.slot(i) = 1;
     }
-    unsigned int k = graph.get_statenum(per2state);
+    unsigned k = graph.get_statenum(per2state);
     assert(k != 0);
 
     if (config.shiftlimit == 0) {
@@ -739,7 +739,7 @@ void Worker::customize_graph() {
         bool allowed = false;
 
         // does i's downstream state have a throw to (x-)^b ?
-        unsigned int s = graph.downstream_state(i);
+        unsigned s = graph.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
             if (graph.outmatrix.at(s).at(j) == k)
@@ -755,7 +755,7 @@ void Worker::customize_graph() {
 
         // if neither of the above is true, remove all shift throws out of `i`
         if (!allowed) {
-          unsigned int outthrownum = 0;
+          unsigned outthrownum = 0;
           for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
             if (graph.outthrowval.at(i).at(j) != 0 &&
                 graph.outthrowval.at(i).at(j) != config.h) {
@@ -799,7 +799,7 @@ void Worker::initialize_working_variables() {
     }
   }
 
-  max_possible = (config.mode == RunMode::SUPER_SEARCH)
+  max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
       ? graph.superprime_length_bound() + config.shiftlimit
       : graph.prime_length_bound();
 }
@@ -814,7 +814,7 @@ void Worker::initialize_working_variables() {
 void Worker::report_pattern() const {
   std::ostringstream buffer;
 
-  if (config.groundmode != GroundMode::GROUND_SEARCH) {
+  if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH) {
     if (start_state == 1) {
       buffer << "  ";
     } else {
@@ -856,7 +856,8 @@ void Worker::report_pattern() const {
     assert(pat.is_superprime() == inverse.is_superprime());
 
     if (inverse.is_valid()) {
-      if (config.groundmode != GroundMode::GROUND_SEARCH && start_state == 1) {
+      if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH &&
+          start_state == 1) {
         buffer << "  ";
       }
       if (config.dualflag) {

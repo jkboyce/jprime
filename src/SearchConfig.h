@@ -16,34 +16,34 @@
 #include <vector>
 
 
-enum class RunMode {
-  NORMAL_SEARCH,
-  SUPER_SEARCH,
-};
-
-enum class GroundMode {
-  GROUND_SEARCH,
-  EXCITED_SEARCH,
-  ALL_SEARCH,
-};
-
-enum class GraphMode {
-  FULL_GRAPH,
-  SINGLE_PERIOD_GRAPH,
-};
-
 struct SearchConfig {
+  enum class RunMode {
+    NORMAL_SEARCH,
+    SUPER_SEARCH,
+  };
+
+  enum class GroundMode {
+    GROUND_SEARCH,
+    EXCITED_SEARCH,
+    ALL_SEARCH,
+  };
+
+  enum class GraphMode {
+    FULL_GRAPH,
+    SINGLE_PERIOD_GRAPH,
+  };
+
   // number of objects
-  unsigned int b = 0;
+  unsigned b = 0;
 
   // maximum throw value
-  unsigned int h = 0;
+  unsigned h = 0;
 
   // minimum pattern length to find
-  unsigned int l_min = 1;
+  unsigned l_min = 1;
 
   // maximum pattern length to find; 0 means open-ended range like "5-"
-  unsigned int l_max = 0;
+  unsigned l_max = 0;
 
   // search type
   RunMode mode = RunMode::NORMAL_SEARCH;
@@ -86,23 +86,23 @@ struct SearchConfig {
   std::string outfile;
 
   // number of worker threads to use
-  unsigned int num_threads = 1;
+  unsigned num_threads = 1;
 
   // for super mode, number of shift throws to allow
-  unsigned int shiftlimit = 0;
+  unsigned shiftlimit = 0;
 
   // throw values to exclude from search
   std::vector<bool> xarray;
 
   // if 0 then print as letter (a=10, b=11, ...), if >0 then print as an integer
   // with the given field width
-  unsigned int throwdigits = 0;
+  unsigned throwdigits = 0;
 
   // work stealing algorithm to use
-  unsigned int steal_alg = 1;
+  unsigned steal_alg = 1;
 
   // work splitting algorithm to use
-  unsigned int split_alg = 1;
+  unsigned split_alg = 1;
 
   // methods to initialize from command line arguments
   void from_args(size_t argc, char** argv);

@@ -776,7 +776,7 @@ void Pattern::check_have_states() {
   assert(cyclestates.size() == 0);
 
   // find the starting state
-  State start_state{static_cast<unsigned int>(h)};
+  State start_state{static_cast<unsigned>(h)};
   for (size_t i = 0; i < length(); ++i) {
     int fillslot = throwval.at(i) - static_cast<int>(length()) +
         static_cast<int>(i);

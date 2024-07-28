@@ -37,16 +37,16 @@ class Coordinator {
  private:
   const SearchConfig& config;
   SearchContext& context;
-  unsigned int l_max = 0;
+  unsigned l_max = 0;
   std::vector<std::unique_ptr<Worker>> worker;
   std::vector<std::unique_ptr<std::thread>> worker_thread;
-  std::set<unsigned int> workers_idle;
-  std::set<unsigned int> workers_splitting;
-  std::vector<unsigned int> worker_startstate;
-  std::vector<unsigned int> worker_endstate;
-  std::vector<unsigned int> worker_rootpos;
+  std::set<unsigned> workers_idle;
+  std::set<unsigned> workers_splitting;
+  std::vector<unsigned> worker_startstate;
+  std::vector<unsigned> worker_endstate;
+  std::vector<unsigned> worker_rootpos;
   static bool stopping;
-  static constexpr unsigned int MAX_STATES = 1000000u;
+  static constexpr unsigned MAX_STATES = 1000000u;
 
   // check inbox 10x more often than workers do
   static constexpr double NANOSECS_PER_INBOX_CHECK =
@@ -57,20 +57,20 @@ class Coordinator {
   static constexpr int WAITS_PER_STATUS = static_cast<int>(1e9 *
       SECS_PER_STATUS / NANOSECS_PER_INBOX_CHECK);
   static constexpr int STATUS_WIDTH = 55;
-  unsigned int stats_counter = 0;
-  unsigned int stats_received = 0;
+  unsigned stats_counter = 0;
+  unsigned stats_received = 0;
   bool stats_printed = false;
   std::vector<std::string> worker_status;
-  std::vector<std::vector<unsigned int>> worker_options_left_start;
-  std::vector<std::vector<unsigned int>> worker_options_left_last;
-  std::vector<unsigned int> worker_longest_start;
-  std::vector<unsigned int> worker_longest_last;
+  std::vector<std::vector<unsigned>> worker_options_left_start;
+  std::vector<std::vector<unsigned>> worker_options_left_last;
+  std::vector<unsigned> worker_longest_start;
+  std::vector<unsigned> worker_longest_last;
 
  public:
   bool run();
 
  private:
-  void message_worker(const MessageC2W& msg, unsigned int worker_id) const;
+  void message_worker(const MessageC2W& msg, unsigned worker_id) const;
   void give_assignments();
   void process_inbox();
   void process_search_result(const MessageW2C& msg);
@@ -80,11 +80,11 @@ class Coordinator {
   void process_worker_update(const MessageW2C& msg);
   void collect_stats();
   void steal_work();
-  unsigned int find_stealing_target_mostremaining() const;
+  unsigned find_stealing_target_mostremaining() const;
   bool passes_prechecks();
   void calc_graph_size();
-  bool is_worker_idle(const unsigned int id) const;
-  bool is_worker_splitting(const unsigned int id) const;
+  bool is_worker_idle(const unsigned id) const;
+  bool is_worker_splitting(const unsigned id) const;
   void record_data_from_message(const MessageW2C& msg);
   void start_workers();
   void stop_workers();

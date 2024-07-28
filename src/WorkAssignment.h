@@ -21,21 +21,21 @@
 struct WorkAssignment {
   // lowest value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
-  unsigned int start_state = 0;
+  unsigned start_state = 0;
 
   // highest value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
-  unsigned int end_state = 0;
+  unsigned end_state = 0;
 
   // lowest value of `pos` that still has unexplored throw options in the
   // search tree; used for splitting work
-  unsigned int root_pos = 0;
+  unsigned root_pos = 0;
 
   // set of unexplored throw options at `pos`==`root_pos`
-  std::list<unsigned int> root_throwval_options;
+  std::list<unsigned> root_throwval_options;
 
   // sequence of throws comprising the current position in the search tree
-  std::vector<unsigned int> partial_pattern;
+  std::vector<unsigned> partial_pattern;
 
   bool from_string(const std::string& str);
 };
