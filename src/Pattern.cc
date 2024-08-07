@@ -168,7 +168,7 @@ Pattern::Pattern(const std::string& p) {
   // pattern is in block form.
   //
   // we need to solve the equation: plusses * h + sum = b * length
-  // for minimal (integer) values of `h` and `b`, where h >= b.
+  // for minimal (positive integer) values of `h` and `b`, where h >= b.
   //
   // from Bizout's identity this has a solution if and only if `sum` is
   // divisible by gcd(plusses, length).
@@ -183,39 +183,38 @@ Pattern::Pattern(const std::string& p) {
 
   h = (len > plusses) ? 1 + std::max(maxval, (sum - 1) / (len - plusses)) : 1;
 
-  while (h <= len + maxval) {
-    if ((plusses * h + sum) % len == 0) {
-      assert(h > maxval);
-      assert(h >= (plusses * h + sum) / len);
+  for (; h <= len + maxval; ++h) {
+    if ((plusses * h + sum) % len != 0)
+      continue;
+    assert(h > maxval);
+    assert(h >= (plusses * h + sum) / len);  // h >= b
 
-      // fill in throw values for + placeholders
-      for (size_t i = 0; i < throwval.size(); ++i) {
-        if (throwval.at(i) < 0) {
-          throwval.at(i) = h;
-        }
-      }
-
-      // validity check here catches cases like ++4+--++4-+-++2-++-+1+-++-3-
-      // where the minimal solution h=5,b=3 is not valid due to collisions
-      // between link throws and + throws --> correct solution is h=7,b=4
-      if (is_valid()) {
-        if (hmax > 0 && hmax != h) {
-          std::string err = "Solution for `+` value (" + std::to_string(h)
-              + ") does not match the supplied `h` value ("
-              + std::to_string(hmax) + ")";
-          throw std::invalid_argument(err);
-        }
-        return;
-      }
-
-      // didn't work; revert back
-      for (size_t i = 0; i < throwval.size(); ++i) {
-        if (throwval.at(i) == h) {
-          throwval.at(i) = -1;
-        }
+    // fill in throw values for + placeholders
+    for (size_t i = 0; i < throwval.size(); ++i) {
+      if (throwval.at(i) < 0) {
+        throwval.at(i) = h;
       }
     }
-    ++h;
+
+    // validity check here catches cases like ++4+--++4-+-++2-++-+1+-++-3-
+    // where the minimal solution h=5,b=3 is not valid due to collisions
+    // between link throws and + throws --> correct solution is h=7,b=4
+    if (is_valid()) {
+      if (hmax > 0 && hmax != h) {
+        std::string err = "Solution for `+` value (" + std::to_string(h)
+            + ") does not match the supplied `h` value ("
+            + std::to_string(hmax) + ")";
+        throw std::invalid_argument(err);
+      }
+      return;
+    }
+
+    // didn't work; revert back
+    for (size_t i = 0; i < throwval.size(); ++i) {
+      if (throwval.at(i) == h) {
+        throwval.at(i) = -1;
+      }
+    }
   }
 
   throw std::invalid_argument("Collision between link throws in pattern");
@@ -624,8 +623,7 @@ std::string Pattern::make_analysis() {
   int max_cycle_period = 0;
 
   for (int p = 1; p <= h; ++p) {
-    const std::uint64_t cycles =
-        Graph::shift_cycle_count(objects(), h, p);
+    const std::uint64_t cycles = Graph::shift_cycle_count(objects(), h, p);
     full_numcycles += cycles;
     if (p < h) {
       full_numshortcycles += cycles;

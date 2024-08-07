@@ -513,12 +513,14 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
 // structures for tracking them.
 
 void Coordinator::start_workers() {
-  if (config.verboseflag)
+  if (config.verboseflag) {
     std::cout << "Started on: " << current_time_string();
+  }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (config.verboseflag)
+    if (config.verboseflag) {
       std::cout << "worker " << id << " starting..." << std::endl;
+    }
 
     worker.push_back(std::make_unique<Worker>(config, *this, id, l_max));
     worker_thread.push_back(
@@ -563,7 +565,8 @@ void Coordinator::stop_workers() {
 // degree of search completion.
 //
 // The distribution of patterns by length is observed to closely follow a
-// Gaussian (bell) shape, so we fit to this shape.
+// Gaussian (normal) shape, so we fit the logarithm to a parabola and use that
+// to extrapolate.
 
 double Coordinator::expected_patterns_at_maxlength() {
   size_t mode = 0;
@@ -575,8 +578,9 @@ double Coordinator::expected_patterns_at_maxlength() {
       mode = i;
       modeval = context.count.at(i);
     }
-    if (context.count.at(i) > 0)
+    if (context.count.at(i) > 0) {
       max = i;
+    }
   }
 
   // fit a parabola to the log of pattern count
@@ -600,8 +604,8 @@ double Coordinator::expected_patterns_at_maxlength() {
     sx2y += x * x * y;
   }
 
-  // Solve this 3x3 linear system for A, B, C, the coefficients in the
-  // parabola of best fit y = Ax^2 + Bx + C:
+  // Solve this 3x3 linear system for A, B, C, the coefficients in the parabola
+  // of best fit y = Ax^2 + Bx + C:
   //
   // | sx4  sx3  sx2  | | A |   | sx2y |
   // | sx3  sx2  sx   | | B | = | sxy  |
@@ -659,6 +663,16 @@ void Coordinator::signal_handler(int signum) {
 // Handle terminal output
 //------------------------------------------------------------------------------
 
+void Coordinator::print_pattern(const MessageW2C& msg) {
+  erase_status_output();
+  if (config.verboseflag) {
+    std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
+  } else {
+    std::cout << msg.pattern << std::endl;
+  }
+  print_status_output();
+}
+
 void Coordinator::print_preamble() const {
   std::cout << "objects: " << (config.dualflag ? config.h - config.b : config.b)
             << ", max throw: " << config.h << '\n';
@@ -667,17 +681,19 @@ void Coordinator::print_preamble() const {
     std::cout << "prime ";
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     std::cout << "superprime ";
-    if (config.shiftlimit == 1)
+    if (config.shiftlimit == 1) {
       std::cout << "(+1 shift) ";
-    else if (config.shiftlimit > 1)
+    } else if (config.shiftlimit > 1) {
       std::cout << "(+" << config.shiftlimit << " shifts) ";
+    }
   }
   std::cout << "search for length: " << config.l_min;
   if (config.l_max != config.l_min) {
-    if (config.l_max == 0)
+    if (config.l_max == 0) {
       std::cout << '-';
-    else
+    } else {
       std::cout << '-' << config.l_max;
+    }
   }
   std::cout << " (bound " << context.l_bound << ")";
   if (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH) {
@@ -697,16 +713,6 @@ void Coordinator::print_preamble() const {
     std::cout << "(using period-" << config.l_min << " subgraph: "
               << context.memory_numstates << " states)" << std::endl;
   }
-}
-
-void Coordinator::print_pattern(const MessageW2C& msg) {
-  erase_status_output();
-  if (config.verboseflag) {
-    std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
-  } else {
-    std::cout << msg.pattern << std::endl;
-  }
-  print_status_output();
 }
 
 void Coordinator::print_summary() const {
@@ -730,8 +736,9 @@ void Coordinator::print_summary() const {
 
   if (config.countflag || l_max > config.l_min) {
     std::cout << "\nPattern count by length:\n";
-    for (unsigned i = config.l_min; i <= l_max; ++i)
+    for (unsigned i = config.l_min; i <= l_max; ++i) {
       std::cout << i << ", " << context.count.at(i) << '\n';
+    }
   }
 }
 
@@ -754,15 +761,18 @@ void Coordinator::print_status_output() {
   std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
     std::cout << " (compressed view)";
-    for (int i = 47; i < STATUS_WIDTH; ++i)
+    for (int i = 47; i < STATUS_WIDTH; ++i) {
       std::cout << ' ';
+    }
   } else {
-    for (int i = 29; i < STATUS_WIDTH; ++i)
+    for (int i = 29; i < STATUS_WIDTH; ++i) {
       std::cout << ' ';
+    }
   }
   std::cout << "    length\n";
-  for (unsigned i = 0; i < config.num_threads; ++i)
+  for (unsigned i = 0; i < config.num_threads; ++i) {
     std::cout << worker_status.at(i) << std::endl;
+  }
 
   stats_printed = true;
 }
@@ -778,8 +788,9 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
 
   if (!msg.running) {
     buffer << "   -/   -   - IDLE";
-    for (int i = 1; i < STATUS_WIDTH; ++i)
+    for (int i = 1; i < STATUS_WIDTH; ++i) {
       buffer << ' ';
+    }
     buffer << "-    -";
     return buffer.str();
   }

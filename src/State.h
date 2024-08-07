@@ -20,6 +20,7 @@ class State {
  public:
   State(unsigned h);
   State(std::string s);
+  State() = delete;
 
  private:
   std::vector<unsigned> _slot;  // 0 or 1

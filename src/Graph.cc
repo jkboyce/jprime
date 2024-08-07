@@ -16,8 +16,8 @@
 #include <limits>
 
 
-Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa,
-    bool ltwc, unsigned l)
+Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, bool ltwc,
+    unsigned l)
     : b(b), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
   init();
 }
@@ -37,7 +37,7 @@ Graph::Graph(unsigned b, unsigned h)
 // populate the graph arrays with data.
 
 void Graph::init() {
-  // fail if the number of states cannot fit into an unsigned
+  // fail if the number of states cannot fit into an unsigned int
   const std::uint64_t num = (l == 0 ? combinations(h, b) :
       ordered_partitions(b, h, l));
   assert(num <= std::numeric_limits<unsigned>::max());
@@ -90,8 +90,7 @@ void Graph::init() {
 
 // Generate all possible states into the vector `s`.
 
-void Graph::gen_states_all(std::vector<State>& s, unsigned b,
-    unsigned h) {
+void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
   s.push_back({h});
   gen_states_all_helper(s, h - 1, b);
   s.pop_back();
@@ -126,8 +125,8 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned pos,
 
 // Generate all possible states that can be part of a pattern of period `l`.
 
-void Graph::gen_states_for_period(std::vector<State>& s, unsigned b,
-    unsigned h, unsigned l) {
+void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
+    unsigned l) {
   s.push_back({h});
   gen_states_for_period_helper(s, 0, b, h, l);
   s.pop_back();
@@ -136,9 +135,8 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b,
 // Helper function to generate states in the single-period case. The states are
 // enumerated by partitioning the `b` objects into `l` different buckets.
 
-void Graph::gen_states_for_period_helper(std::vector<State>& s,
-    unsigned pos, unsigned left, const unsigned h,
-    const unsigned l) {
+void Graph::gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
+    unsigned left, const unsigned h, const unsigned l) {
   if (pos == l) {
     if (left == 0) {
       // success: duplicate state at the end and continue
@@ -183,8 +181,7 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s,
 // state positions must be filled from the bottom up in order to be part of a
 // period `l` pattern.
 
-std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
-    unsigned l) {
+std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h, unsigned l) {
   std::map<op_key_type, std::uint64_t> cache;
   return ordered_partitions_helper(0, b, h, l, cache);
 }
@@ -192,8 +189,8 @@ std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
 // Compute the number of ways of filling slot `pos` through slot `l-1`, given
 // `left` remaining objects.
 
-std::uint64_t Graph::ordered_partitions_helper(unsigned pos,
-    unsigned left, const unsigned h, const unsigned l,
+std::uint64_t Graph::ordered_partitions_helper(unsigned pos, unsigned left,
+    const unsigned h, const unsigned l,
     std::map<op_key_type, std::uint64_t>& cache) {
   op_key_type key{pos, left};
   if (cache.find(key) != cache.end())
@@ -321,7 +318,7 @@ void Graph::build_graph() {
 
 // Remove unusable links and states from the graph. Apply two transformations
 // until no further reductions are possible:
-// - Remove links to inactive states
+// - Remove links into inactive states
 // - Deactivate states with zero outdegree or indegree
 //
 // Finally call find_exit_cycles() to update those data structures based on the
@@ -331,7 +328,7 @@ void Graph::reduce_graph() {
   while (true) {
     bool changed = false;
 
-    // Remove links to inactive states
+    // Remove links into inactive states
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
@@ -474,8 +471,7 @@ std::uint64_t Graph::combinations(unsigned a, unsigned b) {
 // Compute the number of shift cycles with `b` objects, max throw `h`, with
 // exact period `p`.
 
-std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
-    unsigned p) {
+std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h, unsigned p) {
   if (h % p != 0)
     return 0;
   if (b % (h / p) != 0)
@@ -584,8 +580,7 @@ unsigned Graph::get_statenum(const State& s) const {
 // Return the state number that comes from advancing a given state by a single
 // throw. Returns 0 if the throw is not allowed.
 
-unsigned Graph::advance_state(unsigned statenum,
-    unsigned throwval) const {
+unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const {
   const State& s = state.at(statenum);
 
   if (throwval > s.size())

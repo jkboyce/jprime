@@ -742,15 +742,17 @@ void Worker::customize_graph() {
         unsigned s = graph.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
-            if (graph.outmatrix.at(s).at(j) == k)
+            if (graph.outmatrix.at(s).at(j) == k) {
               allowed = true;
+            }
           }
         }
 
         // does (x-)^b have a throw into i ?
         for (size_t j = 0; j < graph.outdegree.at(k); ++j) {
-          if (graph.outmatrix.at(k).at(j) == i)
+          if (graph.outmatrix.at(k).at(j) == i) {
             allowed = true;
+          }
         }
 
         // if neither of the above is true, remove all shift throws out of `i`
@@ -789,8 +791,9 @@ void Worker::initialize_working_variables() {
     cycleused.at(i) = false;
     deadstates.at(i) = 0;
     deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
-    if (graph.isexitcycle.at(i))
+    if (graph.isexitcycle.at(i)) {
       ++exitcyclesleft;
+    }
   }
 
   for (size_t i = 1; i <= graph.numstates; ++i) {

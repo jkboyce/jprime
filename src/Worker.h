@@ -100,8 +100,7 @@ class Worker {
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
-  void build_rootpos_throw_options(unsigned from_state,
-      unsigned min_column);
+  void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
   WorkAssignment split_work_assignment(unsigned split_alg);
   WorkAssignment split_work_assignment_takestartstates();
   WorkAssignment split_work_assignment_takeall();

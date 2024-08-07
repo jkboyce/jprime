@@ -124,7 +124,7 @@ void print_analysis(int argc, char** argv) {
     std::cout << pat.make_analysis() << std::endl;
   } catch (const std::invalid_argument& ie) {
     std::cout << "Error analyzing input: " << input << '\n'
-              << ie.what() << std::endl;
+              << ie.what() << '\n';
   }
 }
 
@@ -152,7 +152,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
         context.from_file(outfile);
 
         if (context.assignments.size() == 0) {
-          std::cout << "Calculation is finished" << std::endl;
+          std::cout << "Calculation is finished\n";
           std::exit(0);
         }
 
@@ -217,8 +217,7 @@ int main(int argc, char** argv) {
   Coordinator coordinator(config, context);
   const bool success = coordinator.run();
 
-  std::cout << "------------------------------------------------------------"
-            << std::endl;
+  std::cout << "------------------------------------------------------------\n";
   if (success && config.fileoutputflag) {
     std::cout << "Saving checkpoint file '" << config.outfile << "'\n";
     context.to_file(config.outfile);

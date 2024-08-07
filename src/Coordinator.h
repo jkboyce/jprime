@@ -29,6 +29,7 @@
 class Coordinator {
  public:
   Coordinator(const SearchConfig& config, SearchContext& context);
+  Coordinator() = delete;
 
  public:
   std::queue<MessageW2C> inbox;
@@ -90,8 +91,8 @@ class Coordinator {
   void stop_workers();
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);
-  void print_preamble() const;
   void print_pattern(const MessageW2C& msg);
+  void print_preamble() const;
   void print_summary() const;
   void erase_status_output() const;
   void print_status_output();

@@ -57,16 +57,15 @@ class Graph {
   void find_exit_cycles();
 
   using op_key_type = std::tuple<unsigned, unsigned>;
-  static void gen_states_all(std::vector<State>& s, unsigned b,
-    unsigned h);
+  static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_all_helper(std::vector<State>& s, unsigned pos,
     unsigned left);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned l);
-  static void gen_states_for_period_helper(std::vector<State>& s,
-    unsigned pos, unsigned left, unsigned h, unsigned l);
-  static std::uint64_t ordered_partitions_helper(unsigned pos,
-    unsigned left, const unsigned h, const unsigned l,
+  static void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
+    unsigned left, unsigned h, unsigned l);
+  static std::uint64_t ordered_partitions_helper(unsigned pos, unsigned left,
+    const unsigned h, const unsigned l,
     std::map<op_key_type, std::uint64_t>& cache);
 
  public:
@@ -74,15 +73,12 @@ class Graph {
   void reduce_graph();
   void find_exclude_states();
   static std::uint64_t combinations(unsigned a, unsigned b);
-  static std::uint64_t shift_cycle_count(unsigned b, unsigned h,
-    unsigned p);
-  static std::uint64_t ordered_partitions(unsigned b, unsigned h,
-    unsigned l);
+  static std::uint64_t shift_cycle_count(unsigned b, unsigned h, unsigned p);
+  static std::uint64_t ordered_partitions(unsigned b, unsigned h, unsigned l);
   unsigned prime_length_bound() const;
   unsigned superprime_length_bound() const;
   unsigned get_statenum(const State& s) const;
-  unsigned advance_state(unsigned statenum, unsigned throwval)
-    const;
+  unsigned advance_state(unsigned statenum, unsigned throwval) const;
   unsigned reverse_state(unsigned statenum) const;
   unsigned downstream_state(unsigned statenum) const;
   unsigned upstream_state(unsigned statenum) const;

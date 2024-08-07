@@ -56,6 +56,7 @@ void Worker::iterative_gen_loops_normal() {
   // provide a guard since beat[0].col is modified at the end of the search.
   SearchState* ss = &beat.at(pos + 1);
 
+  // main search loop
   while (p >= 0) {
     // begin with any necessary cleanup from previous marking operations
     if (ss->to_state != 0) {
@@ -65,6 +66,7 @@ void Worker::iterative_gen_loops_normal() {
 
     skip_unmarking:
     if (ss->col == ss->col_limit) {
+      // beat is finished, so back to previous one
       --p;
       --ss;
       ++ss->col;
@@ -74,6 +76,7 @@ void Worker::iterative_gen_loops_normal() {
 
     const unsigned to_state = ss->outmatrix[ss->col];
     if (to_state == st_state) {
+      // found a valid pattern
       if (REPORT) {
         pos = p;
         iterative_handle_finished_pattern();
@@ -95,6 +98,10 @@ void Worker::iterative_gen_loops_normal() {
     }
 
     if (++steps >= steps_limit) {
+      // check the inbox for incoming messages, after doing some prep work
+      // to ensure we can respond to any type of message we might receive
+      //
+      // this code is rarely evaluated so it is not performance-critical
       steps = 0;
 
       pos = p;
@@ -113,7 +120,7 @@ void Worker::iterative_gen_loops_normal() {
       }
     }
 
-    // advance to next beat
+    // current throw is valid, so advance to next beat
     u[to_state] = 1;
     ss->to_state = to_state;
     ++p;
@@ -727,8 +734,8 @@ bool Worker::iterative_calc_rootpos_and_options() {
   return true;
 }
 
-// Determine whether we will be able to respond to a SPLIT_WORK request at
-// our current point in iterative search.
+// Determine whether we will be able to respond to a SPLIT_WORK request at our
+// current point in iterative search.
 //
 // Needs an updated value of `root_pos`.
 
@@ -753,10 +760,15 @@ void Worker::iterative_update_after_split() {
               << '\n';
   }
   assert(root_pos <= pos);
+
+  // ensure no further iteration on beats prior to `root_pos`
   for (size_t i = 0; i < root_pos; ++i) {
     SearchState& ss = beat.at(i + 1);
-    ss.col_limit = ss.col + 1;  // ensure no further iteration on this beat
+    ss.col_limit = ss.col + 1;
   }
+
+  // ensure we don't iterate over the throw options at `root_pos` that we just
+  // gave away
   SearchState& ss = beat.at(root_pos + 1);
   unsigned new_col_limit = ss.col + 1;
   for (size_t i = ss.col + 1; i < graph.outdegree.at(ss.from_state); ++i) {
