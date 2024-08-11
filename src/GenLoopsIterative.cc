@@ -676,8 +676,9 @@ bool Worker::iterative_init_workspace(bool marking) {
     rss.col = graph.maxoutdegree;
     for (size_t i = 0; i < graph.outdegree.at(rss.from_state); ++i) {
       unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
-      if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
-          throwval) != root_throwval_options.end()) {
+      if (std::find(root_throwval_options.cbegin(),
+          root_throwval_options.cend(), throwval)
+          != root_throwval_options.cend()) {
         rss.col = std::min(rss.col, static_cast<unsigned>(i));
       }
     }
@@ -690,8 +691,8 @@ bool Worker::iterative_init_workspace(bool marking) {
   rss.col_limit = 0;
   for (size_t i = 0; i < graph.outdegree.at(rss.from_state); ++i) {
     unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
-    if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
-        throwval) != root_throwval_options.end()) {
+    if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
+        throwval) != root_throwval_options.cend()) {
       rss.col_limit = std::max(rss.col_limit, static_cast<unsigned>(i + 1));
     }
   }
@@ -773,8 +774,8 @@ void Worker::iterative_update_after_split() {
   unsigned new_col_limit = ss.col + 1;
   for (size_t i = ss.col + 1; i < graph.outdegree.at(ss.from_state); ++i) {
     unsigned throwval = graph.outthrowval.at(ss.from_state).at(i);
-    if (std::find(root_throwval_options.begin(), root_throwval_options.end(),
-        throwval) != root_throwval_options.end()) {
+    if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
+        throwval) != root_throwval_options.cend()) {
       new_col_limit = static_cast<unsigned>(i + 1);
     }
   }

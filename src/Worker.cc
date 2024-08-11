@@ -621,8 +621,8 @@ void Worker::gen_patterns() {
 
     if (config.verboseflag) {
       int num_inactive = static_cast<int>(
-          std::count(graph.state_active.begin() + 1,
-          graph.state_active.end(), false));
+          std::count(graph.state_active.cbegin() + 1,
+          graph.state_active.cend(), false));
       std::ostringstream buffer;
       buffer << "worker " << worker_id
              << " starting at state " << graph.state_string(start_state)

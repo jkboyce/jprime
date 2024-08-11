@@ -26,21 +26,21 @@
 
 std::vector<int> parse_pattern_line(const std::string& p) {
   // remove the first colon and anything beyond
-  std::string pat = {p.begin(), std::find(p.begin(), p.end(), ':')};
+  std::string pat = {p.cbegin(), std::find(p.cbegin(), p.cend(), ':')};
 
   // extract part between first and second '*'s if present
-  auto star = std::find(pat.begin(), pat.end(), '*');
-  if (star != pat.end()) {
-    pat = {star + 1, std::find(star + 1, pat.end(), '*')};
+  auto star = std::find(pat.cbegin(), pat.cend(), '*');
+  if (star != pat.cend()) {
+    pat = {star + 1, std::find(star + 1, pat.cend(), '*')};
   }
 
   std::vector<int> result;
-  auto x = pat.begin();
+  auto x = pat.cbegin();
   while (true) {
-    auto y = std::find(x, pat.end(), ',');
+    auto y = std::find(x, pat.cend(), ',');
     std::string s{x, y};
     result.push_back(std::stoi(s));
-    if (y == pat.end())
+    if (y == pat.cend())
       break;
     x = y + 1;
   }
@@ -131,8 +131,8 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
 // weak ordering, and false otherwise.
 
 bool pattern_compare(const std::string& pat1, const std::string& pat2) {
-  bool has_comma = (std::find(pat1.begin(), pat1.end(), ',') != pat1.end() ||
-      std::find(pat2.begin(), pat2.end(), ',') != pat2.end());
+  bool has_comma = (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
+      std::find(pat2.cbegin(), pat2.cend(), ',') != pat2.cend());
 
   if (has_comma)
     return pattern_compare_ints(pat1, pat2);

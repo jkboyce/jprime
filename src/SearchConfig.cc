@@ -178,7 +178,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       // try to parse argument as a length or length range
       bool success = false;
       std::string s{argv[i]};
-      int hyphens = static_cast<int>(std::count(s.begin(), s.end(), '-'));
+      int hyphens = static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
       if (hyphens == 0) {
         try {
           val = std::stoi(argv[i]);

@@ -66,13 +66,13 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 Pattern::Pattern(const std::string& p) {
   int maxval = 0;
   int hmax = 0;
-  const bool has_slash = (std::find(p.begin(), p.end(), '/') != p.end());
-  const bool has_comma = (std::find(p.begin(), p.end(), ',') != p.end());
+  const bool has_slash = (std::find(p.cbegin(), p.cend(), '/') != p.cend());
+  const bool has_comma = (std::find(p.cbegin(), p.cend(), ',') != p.cend());
   std::string pat;
 
   if (has_slash) {
-    auto x = std::find(p.begin(), p.end(), '/');
-    std::string hstr{x + 1, p.end()};
+    auto x = std::find(p.cbegin(), p.cend(), '/');
+    std::string hstr{x + 1, p.cend()};
     int val;
     try {
       val = std::stoi(hstr);
@@ -83,15 +83,15 @@ Pattern::Pattern(const std::string& p) {
       throw std::invalid_argument("Disallowed `h` value: " + hstr);
     }
     hmax = val;
-    pat = {p.begin(), x};
+    pat = {p.cbegin(), x};
   } else {
     pat = {p};
   }
 
   if (has_comma) {
-    auto x = pat.begin();
+    auto x = pat.cbegin();
     while (true) {
-      auto y = std::find(x, pat.end(), ',');
+      auto y = std::find(x, pat.cend(), ',');
       std::string s{x, y};
       int val;
       try {
@@ -104,7 +104,7 @@ Pattern::Pattern(const std::string& p) {
       }
       throwval.push_back(val);
       maxval = std::max(val, maxval);
-      if (y == pat.end())
+      if (y == pat.cend())
         break;
       x = y + 1;
     }
@@ -278,7 +278,7 @@ bool Pattern::is_prime() {
     return false;
   check_have_states();
 
-  std::set<State> s(states.begin(), states.end());
+  std::set<State> s(states.cbegin(), states.cend());
   return (s.size() == states.size());
 }
 
@@ -316,7 +316,7 @@ bool Pattern::is_superprime() {
     deduped.pop_back();
   }
 
-  std::set<State> s(deduped.begin(), deduped.end());
+  std::set<State> s(deduped.cbegin(), deduped.cend());
   return (deduped.size() > 1 && s.size() == deduped.size());
 }
 
@@ -569,16 +569,16 @@ std::string Pattern::make_analysis() {
 
     int index = 0;
     std::string patstring = to_string(1);
-    auto x = patstring.begin();
+    auto x = patstring.cbegin();
     while (true) {
-      auto y = std::find(x, patstring.end(), ',');
+      auto y = std::find(x, patstring.cend(), ',');
       std::string s{x, y};
       if (index == collision_start || index == collision_end) {
         buffer << '[' << s << ']';
       } else {
         buffer << s;
       }
-      if (y == patstring.end())
+      if (y == patstring.cend())
         break;
       buffer << ',';
       x = y + 1;
@@ -680,7 +680,7 @@ std::string Pattern::make_analysis() {
 
   for (size_t i = 0; i < length(); ++i) {
     // state and throw value out of it
-    if (std::count(states.begin(), states.end(), states.at(i)) == 1) {
+    if (std::count(states.cbegin(), states.cend(), states.at(i)) == 1) {
       buffer << "  ";
     } else {
       buffer << "R ";
@@ -700,7 +700,7 @@ std::string Pattern::make_analysis() {
     bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
 
     if (prev_linkthrow) {
-      if (std::count(shiftcycles_visited.begin(), shiftcycles_visited.end(),
+      if (std::count(shiftcycles_visited.cbegin(), shiftcycles_visited.cend(),
           cyclestates.at(i)) == 1) {
         buffer << "      ";
       } else {

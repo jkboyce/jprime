@@ -373,8 +373,8 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
     unsigned to_state) {
   bool found = false;
   unsigned remaining = 0;
-  std::list<unsigned>::iterator iter = root_throwval_options.begin();
-  std::list<unsigned>::iterator end = root_throwval_options.end();
+  auto iter = root_throwval_options.begin();
+  auto end = root_throwval_options.end();
 
   while (iter != end) {
     // housekeeping: has this root_pos option been pruned from the graph?

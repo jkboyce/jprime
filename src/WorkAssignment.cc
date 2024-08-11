@@ -34,24 +34,24 @@ bool WorkAssignment::from_string(const std::string& str) {
 
   root_throwval_options.clear();
   std::string tvo{matches[4].str()};
-  auto x = tvo.begin();
+  auto x = tvo.cbegin();
   while (true) {
-    auto y = std::find(x, tvo.end(), ',');
+    auto y = std::find(x, tvo.cend(), ',');
     std::string s{x, y};
     root_throwval_options.push_back(std::stoi(s));
-    if (y == tvo.end())
+    if (y == tvo.cend())
       break;
     x = y + 1;
   }
 
   partial_pattern.clear();
   std::string pp{matches[5].str()};
-  x = pp.begin();
+  x = pp.cbegin();
   while (true) {
-    auto y = std::find(x, pp.end(), ',');
+    auto y = std::find(x, pp.cend(), ',');
     std::string s{x, y};
     partial_pattern.push_back(std::stoi(s));
-    if (y == pp.end())
+    if (y == pp.cend())
       break;
     x = y + 1;
   }

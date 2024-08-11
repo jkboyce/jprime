@@ -173,50 +173,8 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
   }
 }
 
-// Compute the number of ways of building states for a single-period graph.
-//
-// We partition each state into `l` slots, where slot `i` is associated with
-// positions i, i + l, i + 2*l, ... in the state, up to a maximum of h - 1.
-// The only degree of freedom is how many objects to put into each slot; the
-// state positions must be filled from the bottom up in order to be part of a
-// period `l` pattern.
-
-std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h, unsigned l) {
-  std::map<op_key_type, std::uint64_t> cache;
-  return ordered_partitions_helper(0, b, h, l, cache);
-}
-
-// Compute the number of ways of filling slot `pos` through slot `l-1`, given
-// `left` remaining objects.
-
-std::uint64_t Graph::ordered_partitions_helper(unsigned pos, unsigned left,
-    const unsigned h, const unsigned l,
-    std::map<op_key_type, std::uint64_t>& cache) {
-  op_key_type key{pos, left};
-  if (cache.find(key) != cache.end())
-    return cache[key];
-
-  unsigned max_fill = 0;
-  for (unsigned i = pos; i < h; i += l) {
-    ++max_fill;
-  }
-  max_fill = std::min(max_fill, left);
-
-  std::uint64_t result = 0;
-  if (pos == l - 1) {
-    result = (left <= max_fill ? 1 : 0);
-  } else {
-    for (unsigned i = 0; i <= max_fill; ++i) {
-      result += ordered_partitions_helper(pos + 1, left - i, h, l, cache);
-    }
-  }
-
-  cache[key] = result;
-  return result;
-}
-
 //------------------------------------------------------------------------------
-// Prep core data structures for search
+// Prep core data structures used by pattern search
 //------------------------------------------------------------------------------
 
 // Generate arrays describing the shift cycles of the juggling graph.
@@ -455,38 +413,6 @@ void Graph::find_exclude_states() {
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Compute (a choose b).
-
-std::uint64_t Graph::combinations(unsigned a, unsigned b) {
-  if (a < b)
-    return 0;
-
-  std::uint64_t result = 1;
-  for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
-    result = (result * (a - denom + 1)) / denom;
-  }
-  return result;
-}
-
-// Compute the number of shift cycles with `b` objects, max throw `h`, with
-// exact period `p`.
-
-std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h, unsigned p) {
-  if (h % p != 0)
-    return 0;
-  if (b % (h / p) != 0)
-    return 0;
-  if (p < h)
-    return shift_cycle_count(b * p / h, p, p);
-
-  std::uint64_t val = combinations(h, b);
-  for (unsigned p2 = 1; p2 <= h / 2; ++p2) {
-    val -= p2 * shift_cycle_count(b, h, p2);
-  }
-  assert(val % h == 0);
-  return (val / h);
-}
-
 // Calculate an upper bound on the length of prime patterns in the graph, using
 // states that are currently active.
 
@@ -504,7 +430,7 @@ unsigned Graph::prime_length_bound() const {
   }
 
   int cycles_active = numcycles -
-      static_cast<int>(std::count(num_active.begin(), num_active.end(), 0));
+      static_cast<int>(std::count(num_active.cbegin(), num_active.cend(), 0));
   if (cycles_active > 1) {
     for (size_t i = 0; i < numcycles; ++i) {
       if (num_active.at(i) == cycleperiod.at(i)) {
@@ -537,11 +463,11 @@ unsigned Graph::superprime_length_bound() const {
     }
   }
 
-  if (std::count(any_active.begin(), any_active.end(), true) < 2)
+  if (std::count(any_active.cbegin(), any_active.cend(), true) < 2)
     return 0;
 
   return static_cast<unsigned>(
-      std::count(any_active.begin(), any_active.end(), true));
+      std::count(any_active.cbegin(), any_active.cend(), true));
 }
 
 // Return the index in the `state` array that corresponds to a given state.

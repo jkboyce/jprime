@@ -56,7 +56,6 @@ class Graph {
   void find_shift_cycles();
   void find_exit_cycles();
 
-  using op_key_type = std::tuple<unsigned, unsigned>;
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_all_helper(std::vector<State>& s, unsigned pos,
     unsigned left);
@@ -64,17 +63,11 @@ class Graph {
     unsigned h, unsigned l);
   static void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
     unsigned left, unsigned h, unsigned l);
-  static std::uint64_t ordered_partitions_helper(unsigned pos, unsigned left,
-    const unsigned h, const unsigned l,
-    std::map<op_key_type, std::uint64_t>& cache);
 
  public:
   void build_graph();
   void reduce_graph();
   void find_exclude_states();
-  static std::uint64_t combinations(unsigned a, unsigned b);
-  static std::uint64_t shift_cycle_count(unsigned b, unsigned h, unsigned p);
-  static std::uint64_t ordered_partitions(unsigned b, unsigned h, unsigned l);
   unsigned prime_length_bound() const;
   unsigned superprime_length_bound() const;
   unsigned get_statenum(const State& s) const;
@@ -83,6 +76,90 @@ class Graph {
   unsigned downstream_state(unsigned statenum) const;
   unsigned upstream_state(unsigned statenum) const;
   std::string state_string(unsigned statenum) const;
+
+  constexpr static std::uint64_t combinations(unsigned a, unsigned b);
+  constexpr static std::uint64_t shift_cycle_count(unsigned b, unsigned h,
+    unsigned p);
+  constexpr static std::uint64_t ordered_partitions(unsigned b, unsigned h,
+    unsigned l);
 };
+
+
+//------------------------------------------------------------------------------
+// Static methods for calculating graph size
+//------------------------------------------------------------------------------
+
+// Compute (a choose b).
+
+constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
+  if (a < b)
+    return 0;
+
+  std::uint64_t result = 1;
+  for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
+    result = (result * (a - denom + 1)) / denom;
+  }
+  return result;
+}
+
+// Compute the number of shift cycles with `b` objects, max throw `h`, with
+// exact period `p`.
+
+constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
+    unsigned p) {
+  if (h % p != 0)
+    return 0;
+  if (b % (h / p) != 0)
+    return 0;
+  if (p < h)
+    return shift_cycle_count(b * p / h, p, p);
+
+  std::uint64_t val = combinations(h, b);
+  for (unsigned p2 = 1; p2 <= h / 2; ++p2) {
+    val -= p2 * shift_cycle_count(b, h, p2);
+  }
+  return (val / h);
+}
+
+// Compute the number of ways of building states for a single-period graph.
+//
+// We partition each state into `l` slots, where slot `i` is associated with
+// positions i, i + l, i + 2*l, ... in the state, up to a maximum of h - 1.
+// The only degree of freedom is how many objects to put into each slot; the
+// state positions must be filled from the bottom up in order to be part of a
+// period `l` pattern.
+
+constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
+    unsigned l) {
+  std::vector<std::uint64_t> options((b + 1) * l, 0);
+
+  for (unsigned pos = l - 1; ; --pos) {
+    for (unsigned left = (pos == 0 ? b : 0); left <= b; ++left) {
+      // calculate the number of way to fill slots `pos` and higher, using
+      // `left` balls
+
+      unsigned index = pos + left * l;  // index into array
+      unsigned max_fill = 0;
+      for (unsigned i = pos; i < h; i += l) {
+        ++max_fill;
+      }
+      max_fill = std::min(max_fill, left);
+
+      if (pos == l - 1) {
+        options.at(index) = (left <= max_fill ? 1 : 0);
+      } else {
+        for (unsigned i = 0; i <= max_fill; ++i) {
+          unsigned index2 = (pos + 1) + (left - i) * l;
+          options.at(index) += options.at(index2);
+        }
+      }
+    }
+
+    if (pos == 0)
+      break;
+  }
+
+  return options.at(b * l);  // pos = 0, left = b
+}
 
 #endif
