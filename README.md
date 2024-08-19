@@ -330,7 +330,7 @@ The table below shows exact counts for the number of prime patterns at each peri
 
 ## Running jprime
 
-After cloning the repository, on a Unix system run `make` to build the `jprime` binary using the included makefile. Run the binary with no arguments to get a help message.
+After cloning the repository, on a Unix system run `make` to build the `jprime` binary using the included makefile. `jprime` requires the following compiler versions or later: GCC 12, Clang 15, MSVC 19.29, Apple Clang 14.0.3. Run the binary with no arguments to get a help message.
 
 `jprime` has two modes of operation, intended to search for prime patterns in complementary ways:
 
