@@ -5,136 +5,9 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 `jprime` searches the juggling state graph for prime patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
-## Finding the longest prime patterns in $(b, h)$
-
-Using `jprime` I have carried out some research into prime siteswap patterns. The first investigation is to identify the longest prime patterns for a given number of objects $b$ and maximum throw value $h$.
-
-Since the state graph $(b, h)$ for $b$ objects and maximum throw $h$ is finite in size – with a number of vertices equal to the number of states ($h$ choose $b$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on its length.) The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
-
-The table below summarizes everything known about the longest prime siteswap patterns. $n$ is the length of the longest prime pattern for the given $(b, h)$, and $n_{bound}$ is the theoretical upper bound on that length.
-
-Table notes:
-- When $n < n_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern is superprime, and has a superprime inverse.) When $n < n_{bound}$ the pattern count is shown as `{superprime, non-superprime}` patterns. The superprime patterns are faster to find than the non-superprime ones, and in some cases only the former have been tabulated.
-- There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
-- The table for $b=2$ is truncated; the observed pattern appears to continue.
-
-The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of this pattern!
-<pre>
-         2 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-3,    3    (3),          1
-4,    4    (4),          2
-5,    8    (8),          1
-6,    12   (12),         1
-7,    18   (18),         1
-8,    24   (24),         1
-.
-.
-.
-
-         3 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-4,    4    (4),          1
-5,    8    (8),          <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_5_8">1</a>
-6,    15   (16),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_6_15">{6, 0}</a>
-7,    30   (30),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_7_30">1</a>
-8,    49   (49),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_8_49">3</a>
-9,    74   (74),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_9_74">1</a>
-10,   108  (108),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_10_108">1</a>
-11,   149  (150),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_11_149">{18, 0}</a>
-12,   200  (201),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_12_200">{28, 2}</a>
-13,   263  (264),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_13_263">{4, 4}</a>
-14,   337  (338),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_14_337">{38, 0}</a>
-15,   424  (424),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_15_s0">1</a>
-16,   524  (525),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_16_524">{20, 10}</a>
-17,   639  (640),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_17_639">{34, 4}</a>
-18,   769  (770),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_18_769">{50, 7}</a>
-19,   917  (918),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_19_917">{0, 4}</a>
-20,   1082 (1083),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_20_1082">{92, 4}</a>
-21,   1266 (1266),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_21_s0">1</a>
-22,   1469 (1470),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_22_1469">{18, 4}</a>
-23,   1693 (1694),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_23_1693">{56, 4}</a>
-24,   1938 (1939),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_24_1938">{44, 3}</a>
-25,   2207 (2208),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_25_2207">{0, 4}</a>
-26,   2499 (2500),   <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g">{180, ?}</a>
-27,   2816 (2816),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g">1</a>
-28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=14, ?}</a>
-29,  <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0"><3528</a> (3528),     {?, ?}
-
-  
-         4 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-5,    5    (5),          1
-6,    12   (12),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_6_12">1</a>
-7,    30   (30),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_7_30">1</a>
-8,    58   (60),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_8_58">{28, 16}</a>
-9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_9_112">5</a>
-10,   188  (188),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_10_188">9</a>
-11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_11_300">144</a>
-12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0">45</a>
-13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_55_s0">16317</a>
-14,   928  (928),     <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=18911</a>
-
-  
-         5 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-6,    6    (6),          1
-7,    18   (18),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_7_18">1</a>
-8,    49   (49),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_8_49">3</a>
-9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_9_112">5</a>
-10,   225  (226),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_10_225">{752, 86}</a>
-11,   420  (420),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0">59346</a>
-12,   726  (726),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=309585</a>
-
-  
-         6 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-7,    7    (7),          1
-8,    24   (24),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_8_24">1</a>
-9,    74   (74),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_9_74">1</a>
-10,   188  (188),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_10_s0">9</a>
-11,   420  (420),      59346
-12,   843  (844), {>=(<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_79_s0">104</a>+<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_81_s1">263</a>), ?} (see note)
-
-  
-         7 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-8,    8    (8),          1
-9,    32   (32),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_9_32">1</a>
-10,   108  (108),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_10_s0">1</a>
-11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0">144</a>
-12,   726  (726),    >=309585
-
-  
-         8 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-9,    9    (9),          1
-10,   40   (40),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_10_40">1</a>
-11,   149  (150),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_11_149">{18, 0}</a>
-12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_12_s0">45</a>
-
-  
-         9 OBJECTS
-H     N (N_bound)  Pattern count
---------------------------------
-10,   10   (10),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_10_10">1</a>
-11,   50   (50),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_11_50">1</a>
-12,   200  (201),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_12_200">{28, 2}</a>
-13,   660  (660),      16317
-</pre>
-
-**Note for case $(6,12)$.** Dietrich Kuske proved in 1999 that no graph $(b,2b)$ has a complete prime pattern when $b > 2$, because of the period-2 shift cycle generated by the state `(x-)^b`. In the case $(6,12)$ we do find patterns of length 843, which are one shorter than $n_{bound}$. The superprime ones are the inverses of two different kinds of (shorter) superprime patterns: (a) patterns that miss the `(x-)^b` shift cycle entirely, and use exactly one state on each other shift cycle, and (b) patterns that use state `(x-)^b` and every other shift cycle, including exactly one shift throw on one of these other cycles. The numbers shown are the quantities found of each, respectively. Similarly, the 752 maximal superprime patterns in $(5,10)$ can be found by combining results from `jprime 5 10 25 -super 0 -inverse` (308 patterns) and `jprime 5 10 27 -super 1 -inverse` (444 patterns).
-
 ## Counting prime patterns
 
-As a second investigation, we use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
+Using `jprime` I have carried out some research into prime siteswap patterns. The first is to use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
 
 The counting problem has been solved analytically for siteswap patterns in general. In [_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf) (Buhler, Eisenbud, Graham, and Wright, 1994) the following formula is derived for the total number of periodic siteswap patterns with $b$ objects and period (length) $n$: $(b+1)^n - b^n$.
 
@@ -327,6 +200,133 @@ The table below shows exact counts for the number of prime patterns at each peri
 12, 59574064361
 13, 572427402861
 </pre>
+
+## Finding the longest prime patterns in $(b, h)$
+
+As a second investigation, we aim to identify the longest prime patterns for a given number of objects $b$ and maximum throw value $h$.
+
+Since the state graph $(b, h)$ for $b$ objects and maximum throw $h$ is finite in size – with a number of vertices equal to the number of states ($h$ choose $b$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on its length.) The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
+
+The table below summarizes everything known about the longest prime siteswap patterns. $n$ is the length of the longest prime pattern for the given $(b, h)$, and $n_{bound}$ is the theoretical upper bound on that length.
+
+Table notes:
+- When $n < n_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern is superprime, and has a superprime inverse.) When $n < n_{bound}$ the pattern count is shown as `{superprime, non-superprime}` patterns. The superprime patterns are faster to find than the non-superprime ones, and in some cases only the former have been tabulated.
+- There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
+- The table for $b=2$ is truncated; the observed pattern appears to continue.
+
+The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of this pattern!
+<pre>
+         2 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+3,    3    (3),          1
+4,    4    (4),          2
+5,    8    (8),          1
+6,    12   (12),         1
+7,    18   (18),         1
+8,    24   (24),         1
+.
+.
+.
+
+         3 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+4,    4    (4),          1
+5,    8    (8),          <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_5_8">1</a>
+6,    15   (16),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_6_15">{6, 0}</a>
+7,    30   (30),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_7_30">1</a>
+8,    49   (49),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_8_49">3</a>
+9,    74   (74),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_9_74">1</a>
+10,   108  (108),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_10_108">1</a>
+11,   149  (150),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_11_149">{18, 0}</a>
+12,   200  (201),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_12_200">{28, 2}</a>
+13,   263  (264),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_13_263">{4, 4}</a>
+14,   337  (338),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_14_337">{38, 0}</a>
+15,   424  (424),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_15_s0">1</a>
+16,   524  (525),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_16_524">{20, 10}</a>
+17,   639  (640),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_17_639">{34, 4}</a>
+18,   769  (770),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_18_769">{50, 7}</a>
+19,   917  (918),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_19_917">{0, 4}</a>
+20,   1082 (1083),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_20_1082">{92, 4}</a>
+21,   1266 (1266),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_21_s0">1</a>
+22,   1469 (1470),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_22_1469">{18, 4}</a>
+23,   1693 (1694),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_23_1693">{56, 4}</a>
+24,   1938 (1939),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_24_1938">{44, 3}</a>
+25,   2207 (2208),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_25_2207">{0, 4}</a>
+26,   2499 (2500),   <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g">{180, ?}</a>
+27,   2816 (2816),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g">1</a>
+28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=14, ?}</a>
+29,  <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0"><3528</a> (3528),     {?, ?}
+
+  
+         4 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+5,    5    (5),          1
+6,    12   (12),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_6_12">1</a>
+7,    30   (30),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_7_30">1</a>
+8,    58   (60),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_8_58">{28, 16}</a>
+9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_9_112">5</a>
+10,   188  (188),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_10_188">9</a>
+11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_11_300">144</a>
+12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0">45</a>
+13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_55_s0">16317</a>
+14,   928  (928),     <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=18911</a>
+
+  
+         5 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+6,    6    (6),          1
+7,    18   (18),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_7_18">1</a>
+8,    49   (49),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_8_49">3</a>
+9,    112  (112),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_9_112">5</a>
+10,   225  (226),    <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_10_225">{752, 86}</a>
+11,   420  (420),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0">59346</a>
+12,   726  (726),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=309585</a>
+
+  
+         6 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+7,    7    (7),          1
+8,    24   (24),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_8_24">1</a>
+9,    74   (74),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_9_74">1</a>
+10,   188  (188),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/6_10_s0">9</a>
+11,   420  (420),      59346
+12,   843  (844), {>=(<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_79_s0">104</a>+<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_81_s1">263</a>), ?} (see note)
+
+  
+         7 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+8,    8    (8),          1
+9,    32   (32),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_9_32">1</a>
+10,   108  (108),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_10_s0">1</a>
+11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0">144</a>
+12,   726  (726),    >=309585
+
+  
+         8 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+9,    9    (9),          1
+10,   40   (40),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_10_40">1</a>
+11,   149  (150),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_11_149">{18, 0}</a>
+12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_12_s0">45</a>
+
+  
+         9 OBJECTS
+H     N (N_bound)  Pattern count
+--------------------------------
+10,   10   (10),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_10_10">1</a>
+11,   50   (50),         <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_11_50">1</a>
+12,   200  (201),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/9_12_200">{28, 2}</a>
+13,   660  (660),      16317
+</pre>
+
+**Note for case $(6,12)$.** Dietrich Kuske proved in 1999 that no graph $(b,2b)$ has a complete prime pattern when $b > 2$, because of the period-2 shift cycle generated by the state `(x-)^b`. In the case $(6,12)$ we do find patterns of length 843, which are one shorter than $n_{bound}$. The superprime ones are the inverses of two different kinds of (shorter) superprime patterns: (a) patterns that miss the `(x-)^b` shift cycle entirely, and use exactly one state on each other shift cycle, and (b) patterns that use state `(x-)^b` and every other shift cycle, including exactly one shift throw on one of these other cycles. The numbers shown are the quantities found of each, respectively. Similarly, the 752 maximal superprime patterns in $(5,10)$ can be found by combining results from `jprime 5 10 25 -super 0 -inverse` (308 patterns) and `jprime 5 10 27 -super 1 -inverse` (444 patterns).
 
 ## Running jprime
 
