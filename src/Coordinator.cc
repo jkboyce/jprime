@@ -112,9 +112,8 @@ void Coordinator::collect_stats() {
   stats_counter = 0;
   stats_received = 0;
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    MessageC2W msg {
-      .type = MessageC2W::Type::SEND_STATS
-    };
+    MessageC2W msg;
+    msg.type = MessageC2W::Type::SEND_STATS;
     message_worker(msg, id);
   }
 }
@@ -130,10 +129,9 @@ void Coordinator::give_assignments() {
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
 
-    MessageC2W msg {
-      .type = MessageC2W::Type::DO_WORK,
-      .assignment = wa
-    };
+    MessageC2W msg;
+    msg.type = MessageC2W::Type::DO_WORK;
+    msg.assignment = wa;
     worker_startstate.at(id) = wa.start_state;
     worker_endstate.at(id) = wa.end_state;
     worker_rootpos.at(id) = wa.root_pos;
@@ -555,9 +553,8 @@ void Coordinator::stop_workers() {
     erase_status_output();
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    MessageC2W msg {
-      .type = MessageC2W::Type::STOP_WORKER
-    };
+    MessageC2W msg;
+    msg.type = MessageC2W::Type::STOP_WORKER;
     message_worker(msg, id);
 
     if (config.verboseflag)

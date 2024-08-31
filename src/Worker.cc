@@ -131,10 +131,9 @@ void Worker::message_coordinator(MessageW2C& msg) const {
 // Deliver an informational text message to the coordinator's inbox.
 
 void Worker::message_coordinator_text(const std::string& str) const {
-  MessageW2C msg {
-    .type = MessageW2C::Type::WORKER_UPDATE,
-    .meta = str
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::WORKER_UPDATE;
+  msg.meta = str;
   message_coordinator(msg);
 }
 
@@ -168,8 +167,7 @@ void Worker::process_inbox_running() {
   }
 
   if (stopping_work) {
-    // unwind back to Worker::run()
-    throw JprimeStopException();
+    throw JprimeStopException();  // unwind back to Worker::run()
   }
 }
 
@@ -209,8 +207,8 @@ void Worker::calibrate_inbox_check() {
 
 void Worker::process_split_work_request() {
   if (config.verboseflag) {
-    auto message = std::format("worker {} splitting work...", worker_id);
-    message_coordinator_text(message);
+    message_coordinator_text(
+        std::format("worker {} splitting work...", worker_id));
   }
 
   WorkAssignment wa = split_work_assignment(config.split_alg);
@@ -225,8 +223,9 @@ void Worker::process_split_work_request() {
 
   if (config.verboseflag) {
     std::ostringstream buffer;
-    buffer << "worker " << worker_id << " remaining work after split:\n"
-           << "  " << get_work_assignment();
+    buffer << std::format("worker {} remaining work after split:\n  ",
+                worker_id)
+           << get_work_assignment();
     message_coordinator_text(buffer.str());
   }
 }
@@ -234,10 +233,9 @@ void Worker::process_split_work_request() {
 // Send a work assignment to the coordinator.
 
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
-  MessageW2C msg {
-    .type = MessageW2C::Type::RETURN_WORK,
-    .assignment = wa
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::RETURN_WORK;
+  msg.assignment = wa;
   add_data_to_message(msg);
   message_coordinator(msg);
 }
@@ -246,10 +244,9 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 // live status display.
 
 void Worker::send_stats_to_coordinator() {
-  MessageW2C msg {
-    .type = MessageW2C::Type::RETURN_STATS,
-    .running = running
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::RETURN_STATS;
+  msg.running = running;
   add_data_to_message(msg);
 
   if (!running) {
@@ -386,9 +383,8 @@ WorkAssignment Worker::get_work_assignment() const {
 // assignment.
 
 void Worker::notify_coordinator_idle() {
-  MessageW2C msg {
-    .type = MessageW2C::Type::WORKER_IDLE
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::WORKER_IDLE;
   add_data_to_message(msg);
   message_coordinator(msg);
   running = false;
@@ -399,12 +395,11 @@ void Worker::notify_coordinator_idle() {
 // from when another worker goes idle.
 
 void Worker::notify_coordinator_update() const {
-  MessageW2C msg {
-    .type = MessageW2C::Type::WORKER_UPDATE,
-    .start_state = start_state,
-    .end_state = end_state,
-    .root_pos = root_pos
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::WORKER_UPDATE;
+  msg.start_state = start_state;
+  msg.end_state = end_state;
+  msg.root_pos = root_pos;
   message_coordinator(msg);
 }
 
@@ -879,10 +874,9 @@ void Worker::report_pattern() const {
     }
   }
 
-  MessageW2C msg {
-    .type = MessageW2C::Type::SEARCH_RESULT,
-    .pattern = buffer.str(),
-    .length = pos + 1
-  };
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::SEARCH_RESULT;
+  msg.pattern = buffer.str();
+  msg.length = pos + 1;
   message_coordinator(msg);
 }
