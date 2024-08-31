@@ -57,7 +57,7 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 // pattern in short form with one alphanumeric character per throw. It accepts
 // the +/- substitutions for h and 0. It also looks for an optional suffix in
 // the form "/<h>" where <h> is an integer; this allows one to set the
-// graph (n,h) that is used for e.g. determining superprimality and finding an
+// graph (b,h) that is used for e.g. determining superprimality and finding an
 // inverse.
 //
 // In the event of an error, throw a `std::invalid_argument` exception with a
@@ -111,8 +111,8 @@ Pattern::Pattern(const std::string& p) {
 
     if (hmax > 0) {
       if (hmax < maxval) {
-        auto err = std::format("Supplied `h` value ({}) is too small", hmax);
-        throw std::invalid_argument(err);
+        throw std::invalid_argument(
+            std::format("Supplied `h` value ({}) is too small", hmax));
       }
       h = hmax;
     } else {
@@ -153,8 +153,8 @@ Pattern::Pattern(const std::string& p) {
   if (plusses == 0) {
     if (hmax > 0) {
       if (hmax < maxval) {
-        auto err = std::format("Supplied `h` value ({}) is too small", hmax);
-        throw std::invalid_argument(err);
+        throw std::invalid_argument(
+            std::format("Supplied `h` value ({}) is too small", hmax));
       }
       h = hmax;
     } else {
@@ -199,10 +199,9 @@ Pattern::Pattern(const std::string& p) {
     // between link throws and + throws --> correct solution is h=7,b=4
     if (is_valid()) {
       if (hmax > 0 && hmax != h) {
-        auto err = std::format(
-        "Solution for `+` value ({}) does not match the supplied `h` value ({})"
-          , h, hmax);
-        throw std::invalid_argument(err);
+        throw std::invalid_argument(
+            std::format("Solution for `+` value ({}) does not match"
+            " the supplied `h` value ({})", h, hmax));
       }
       return;
     }

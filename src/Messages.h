@@ -52,7 +52,7 @@ struct MessageW2C {
 
   // for all message types
   Type type = Type::NONE;
-  unsigned worker_id = 0;
+  unsigned worker_id = -1;
 
   // for type SEARCH_RESULT
   std::string pattern;

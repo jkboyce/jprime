@@ -422,8 +422,8 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 
   if (config.verboseflag) {
     std::ostringstream buffer;
-    buffer << "worker " << worker_id << " options at root_pos " << root_pos
-           << ": [";
+    buffer << std::format("worker {} options at root_pos {}: [", worker_id,
+        root_pos);
     for (auto v : root_throwval_options) {
       if (config.throwdigits > 0 && v != root_throwval_options.front()) {
         buffer << ',';
@@ -628,17 +628,15 @@ void Worker::gen_patterns() {
     initialize_working_variables();
 
     if (config.verboseflag) {
-      int num_inactive = static_cast<int>(
+      auto num_inactive = static_cast<int>(
           std::count(graph.state_active.cbegin() + 1,
           graph.state_active.cend(), false));
-      std::ostringstream buffer;
-      buffer << "worker " << worker_id
-             << " starting at state " << graph.state_string(start_state)
-             << " (" << start_state << ")\n";
-      buffer << "worker " << worker_id
-             << " deactivated " << num_inactive << " of " << graph.numstates
-             << " states, max_possible = " << max_possible;
-      message_coordinator_text(buffer.str());
+      auto text = std::format(
+          "worker {} starting at state {} ({})\n"
+          "worker {} deactivated {} of {} states, max_possible = {}",
+          worker_id, graph.state_string(start_state), start_state,
+          worker_id, num_inactive, graph.numstates, max_possible);
+      message_coordinator_text(text);
     }
 
     if (max_possible < static_cast<int>(l_min)) {

@@ -148,8 +148,8 @@ void Coordinator::give_assignments() {
 
     if (config.verboseflag) {
       erase_status_output();
-      std::cout << "worker " << id << " given work ("
-                << workers_idle.size() << " idle):\n "
+      std::cout << std::format("worker {} given work ({} idle):\n  ", id,
+                     workers_idle.size())
                 << msg.assignment << std::endl;
       print_status_output();
     }
@@ -205,11 +205,11 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 
   if (config.verboseflag) {
     erase_status_output();
-    std::cout << "worker " << msg.worker_id << " went idle ("
-              << workers_idle.size() << " idle)";
+    std::cout << std::format("worker {} went idle ({} idle)", msg.worker_id,
+                   workers_idle.size());
     if (workers_splitting.count(msg.worker_id) > 0) {
-      std::cout << ", removed from splitting queue ("
-                << (workers_splitting.size() - 1) << " splitting)";
+      std::cout << std::format(", removed from splitting queue ({} splitting)",
+                     (workers_splitting.size() - 1));
     }
     std::cout << " on: " << current_time_string();
     print_status_output();
@@ -232,7 +232,7 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
 
   if (config.verboseflag) {
     erase_status_output();
-    std::cout << "worker " << msg.worker_id << " returned work:\n "
+    std::cout << std::format("worker {} returned work:\n  ", msg.worker_id)
               << msg.assignment << std::endl;
     print_status_output();
   }
@@ -339,8 +339,9 @@ void Coordinator::steal_work() {
     if (workers_idle.size() + workers_splitting.size() == config.num_threads) {
       if (config.verboseflag && sent_split_request) {
         erase_status_output();
-        std::cout << "could not steal work (" << workers_idle.size()
-                  << " idle)" << std::endl;
+        std::cout << std::format("could not steal work ({} idle)",
+                       workers_idle.size())
+                  << std::endl;
         print_status_output();
       }
       break;
@@ -363,8 +364,10 @@ void Coordinator::steal_work() {
 
     if (config.verboseflag) {
       erase_status_output();
-      std::cout << "worker " << id << " given work split request ("
-                << workers_splitting.size() << " splitting)" << std::endl;
+      std::cout << std::format(
+                     "worker {} given work split request ({} splitting)", id,
+                     workers_splitting.size())
+                << std::endl;
       print_status_output();
     }
   }
