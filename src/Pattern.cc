@@ -19,6 +19,7 @@
 #include <set>
 #include <cassert>
 #include <stdexcept>
+#include <format>
 
 
 // Initialize from a vector of throw values.
@@ -41,8 +42,7 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 
   if (hmax > 0) {
     if (hmax < maxval) {
-      std::string err = "Supplied `hmax` value (" + std::to_string(hmax)
-          + ") is too small";
+      auto err = std::format("Supplied `hmax` value ({}) is too small", hmax);
       throw std::invalid_argument(err);
     }
     h = hmax;
@@ -111,8 +111,7 @@ Pattern::Pattern(const std::string& p) {
 
     if (hmax > 0) {
       if (hmax < maxval) {
-        std::string err = "Supplied `h` value (" + std::to_string(hmax)
-            + ") is too small";
+        auto err = std::format("Supplied `h` value ({}) is too small", hmax);
         throw std::invalid_argument(err);
       }
       h = hmax;
@@ -143,7 +142,7 @@ Pattern::Pattern(const std::string& p) {
       }
       if (val == -1) {
         throw std::invalid_argument(
-            std::string("Unrecognized character: ") + ch);
+            std::format("Unrecognized character: {}", ch));
       }
       throwval.push_back(val);
       sum += val;
@@ -154,8 +153,7 @@ Pattern::Pattern(const std::string& p) {
   if (plusses == 0) {
     if (hmax > 0) {
       if (hmax < maxval) {
-        std::string err = "Supplied `h` value (" + std::to_string(hmax)
-            + ") is too small";
+        auto err = std::format("Supplied `h` value ({}) is too small", hmax);
         throw std::invalid_argument(err);
       }
       h = hmax;
@@ -201,9 +199,9 @@ Pattern::Pattern(const std::string& p) {
     // between link throws and + throws --> correct solution is h=7,b=4
     if (is_valid()) {
       if (hmax > 0 && hmax != h) {
-        std::string err = "Solution for `+` value (" + std::to_string(h)
-            + ") does not match the supplied `h` value ("
-            + std::to_string(hmax) + ")";
+        auto err = std::format(
+        "Solution for `+` value ({}) does not match the supplied `h` value ({})"
+          , h, hmax);
         throw std::invalid_argument(err);
       }
       return;

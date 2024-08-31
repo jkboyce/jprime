@@ -27,6 +27,7 @@
 #include <cmath>
 #include <csignal>
 #include <cassert>
+#include <format>
 
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
@@ -41,8 +42,13 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 // Returns true on success, false on failure.
 
 bool Coordinator::run() {
+  calc_graph_size();
   if (!passes_prechecks())
     return false;
+
+  // the computation is a go and `l_bound` fits into an unsigned int
+  l_max = (config.l_max > 0) ? config.l_max
+      : static_cast<unsigned>(context.l_bound);
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -58,16 +64,16 @@ bool Coordinator::run() {
     steal_work();
     process_inbox();
 
-    if ((workers_idle.size() == config.num_threads
-          && context.assignments.size() == 0) || Coordinator::stopping) {
-      stop_workers();
-      // any worker that was running will have sent back a RETURN_WORK message
-      process_inbox();
+    if (Coordinator::stopping || (workers_idle.size() == config.num_threads
+          && context.assignments.size() == 0)) {
       break;
     }
 
     std::this_thread::sleep_for(NANOSECS_WAIT);
   }
+
+  stop_workers();
+  process_inbox();  // running worker will have sent back a RETURN_WORK message
 
   const auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end - start;
@@ -106,8 +112,9 @@ void Coordinator::collect_stats() {
   stats_counter = 0;
   stats_received = 0;
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    MessageC2W msg;
-    msg.type = MessageC2W::Type::SEND_STATS;
+    MessageC2W msg {
+      .type = MessageC2W::Type::SEND_STATS
+    };
     message_worker(msg, id);
   }
 }
@@ -123,9 +130,10 @@ void Coordinator::give_assignments() {
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
 
-    MessageC2W msg;
-    msg.type = MessageC2W::Type::DO_WORK;
-    msg.assignment = wa;
+    MessageC2W msg {
+      .type = MessageC2W::Type::DO_WORK,
+      .assignment = wa
+    };
     worker_startstate.at(id) = wa.start_state;
     worker_endstate.at(id) = wa.end_state;
     worker_rootpos.at(id) = wa.root_pos;
@@ -346,8 +354,9 @@ void Coordinator::steal_work() {
     }
     assert(id < config.num_threads);
 
-    MessageC2W msg;
-    msg.type = MessageC2W::Type::SPLIT_WORK;
+    MessageC2W msg {
+      .type = MessageC2W::Type::SPLIT_WORK
+    };
     message_worker(msg, id);
     workers_splitting.insert(id);
     sent_split_request = true;
@@ -397,38 +406,6 @@ unsigned Coordinator::find_stealing_target_mostremaining() const {
 // Helper functions
 //------------------------------------------------------------------------------
 
-// Perform checks before starting the workers.
-//
-// Returns true if the computation is cleared to proceed.
-
-bool Coordinator::passes_prechecks() {
-  calc_graph_size();
-
-  const bool length_error = (config.l_min > context.l_bound ||
-      config.l_max > context.l_bound);
-
-  if (config.infoflag || length_error ||
-      context.memory_numstates > MAX_STATES) {
-    if (config.infoflag) {
-      print_preamble();
-    }
-    if (length_error) {
-      std::cout << "No patterns longer than " << context.l_bound
-                << " are possible" << std::endl;
-    }
-    if (context.memory_numstates > MAX_STATES) {
-      std::cout << "Number of states " << context.memory_numstates
-                << " exceeds limit of " << MAX_STATES << std::endl;
-    }
-    return false;
-  }
-
-  // The computation is a go and everything fits into unsigned ints
-  l_max = (config.l_max > 0) ? config.l_max
-      : static_cast<unsigned>(context.l_bound);
-  return true;
-}
-
 // Determine as much as possible about the size of the computation before
 // starting up the workers, saving results in `context`.
 //
@@ -472,6 +449,35 @@ void Coordinator::calc_graph_size() {
     context.memory_numstates =
         Graph::ordered_partitions(config.b, config.h, config.l_min);
   }
+}
+
+// Perform checks before starting the workers.
+//
+// Returns true if the computation is cleared to proceed.
+
+bool Coordinator::passes_prechecks() {
+  const bool length_error = (config.l_min > context.l_bound ||
+      config.l_max > context.l_bound);
+
+  if (config.infoflag || length_error ||
+      context.memory_numstates > MAX_STATES) {
+    if (config.infoflag) {
+      print_preamble();
+    }
+    if (length_error) {
+      std::cout << std::format("No patterns longer than {} are possible",
+                     context.l_bound)
+                << std::endl;
+    }
+    if (context.memory_numstates > MAX_STATES) {
+      std::cout << std::format("Number of states {} exceeds limit of {}",
+                     context.memory_numstates, MAX_STATES)
+                << std::endl;
+    }
+    return false;
+  }
+
+  return true;
 }
 
 bool Coordinator::is_worker_idle(const unsigned id) const {
@@ -519,7 +525,7 @@ void Coordinator::start_workers() {
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if (config.verboseflag) {
-      std::cout << "worker " << id << " starting..." << std::endl;
+      std::cout << std::format("worker {} starting...", id) << std::endl;
     }
 
     worker.push_back(std::make_unique<Worker>(config, *this, id, l_max));
@@ -546,12 +552,13 @@ void Coordinator::stop_workers() {
     erase_status_output();
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    MessageC2W msg;
-    msg.type = MessageC2W::Type::STOP_WORKER;
+    MessageC2W msg {
+      .type = MessageC2W::Type::STOP_WORKER
+    };
     message_worker(msg, id);
 
     if (config.verboseflag)
-      std::cout << "worker " << id << " asked to stop" << std::endl;
+      std::cout << std::format("worker {} asked to stop", id) << std::endl;
 
     worker_thread.at(id)->join();
   }
@@ -650,7 +657,7 @@ double Coordinator::expected_patterns_at_maxlength() {
 
 // Static variable for indicating the user has interrupted execution.
 
-bool Coordinator::stopping = false;
+volatile sig_atomic_t Coordinator::stopping = 0;
 
 // Respond to a SIGINT (ctrl-c) interrupt during execution.
 
@@ -674,8 +681,8 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
 }
 
 void Coordinator::print_preamble() const {
-  std::cout << "objects: " << (config.dualflag ? config.h - config.b : config.b)
-            << ", max throw: " << config.h << '\n';
+  std::cout << std::format("objects: {}, max throw: {}\n",
+      (config.dualflag ? config.h - config.b : config.b), config.h);
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     std::cout << "prime ";
@@ -695,7 +702,7 @@ void Coordinator::print_preamble() const {
       std::cout << '-' << config.l_max;
     }
   }
-  std::cout << " (bound " << context.l_bound << ")";
+  std::cout << std::format(" (bound {})", context.l_bound);
   if (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH) {
     std::cout << ", ground state only\n";
   } else if (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH) {
@@ -704,33 +711,29 @@ void Coordinator::print_preamble() const {
     std::cout << '\n';
   }
 
-  std::cout << "graph: "
-            << context.full_numstates << " states, "
-            << context.full_numcycles << " shift cycles, "
-            << context.full_numshortcycles << " short cycles" << std::endl;
+  std::cout << std::format("graph: {} states, {} shift cycles, {} short cycles",
+                 context.full_numstates, context.full_numcycles,
+                 context.full_numshortcycles)
+            << std::endl;
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-    std::cout << "(using period-" << config.l_min << " subgraph: "
-              << context.memory_numstates << " states)" << std::endl;
+    std::cout << std::format("(using period-{} subgraph: {} states)",
+                   config.l_min, context.memory_numstates)
+              << std::endl;
   }
 }
 
 void Coordinator::print_summary() const {
-  std::cout << context.npatterns << " patterns found ("
-            << context.ntotal << " seen, "
-            << context.nnodes << " nodes, "
-            << std::fixed << std::setprecision(2)
-            << (static_cast<double>(context.nnodes) / context.secs_elapsed /
-                1000000)
-            << "M nodes/sec)\n";
+  std::cout <<
+    std::format("{} patterns found ({} seen, {} nodes, {:.2f}M nodes/sec)\n",
+        context.npatterns, context.ntotal, context.nnodes,
+        static_cast<double>(context.nnodes) / context.secs_elapsed / 1000000);
 
-  std::cout << "running time = "
-            << std::fixed << std::setprecision(4)
-            << context.secs_elapsed << " sec";
+  std::cout << std::format("running time = {:.4f} sec", context.secs_elapsed);
+
   if (config.num_threads > 1) {
-    std::cout << " (worker util = " << std::setprecision(2)
-              << ((context.secs_working / context.secs_available) * 100)
-              << " %)";
+    std::cout << std::format(" (worker util = {:.2f} %)",
+                    (context.secs_working / context.secs_available) * 100);
   }
   std::cout << '\n';
 

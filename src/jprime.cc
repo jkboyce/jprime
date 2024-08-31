@@ -48,6 +48,7 @@
 #include <cstring>
 #include <string>
 #include <stdexcept>
+#include <format>
 
 
 //------------------------------------------------------------------------------
@@ -217,10 +218,13 @@ int main(int argc, char** argv) {
   Coordinator coordinator(config, context);
   const bool success = coordinator.run();
 
-  std::cout << "------------------------------------------------------------\n";
-  if (success && config.fileoutputflag) {
-    std::cout << "Saving checkpoint file '" << config.outfile << "'\n";
-    context.to_file(config.outfile);
+  if (success) {
+    std::cout <<
+        "------------------------------------------------------------\n";
+    if (config.fileoutputflag) {
+      std::cout << std::format("Saving checkpoint file '{}'\n", config.outfile);
+      context.to_file(config.outfile);
+    }
   }
   return 0;
 }

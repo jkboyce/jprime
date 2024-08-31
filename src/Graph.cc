@@ -251,23 +251,22 @@ void Graph::build_graph() {
     }
 
     unsigned outthrownum = 0;
-    for (int throwval = h; throwval >= 0; --throwval) {
-      const unsigned tv = static_cast<unsigned>(throwval);
-      if (xarray.at(tv))
+    for (unsigned throwval = h + 1; throwval-- > 0; ) {
+      if (xarray.at(throwval))
         continue;
 
-      unsigned k = advance_state(static_cast<unsigned>(i), tv);
+      unsigned k = advance_state(i, throwval);
       if (k == 0)
         continue;
       if (!state_active.at(k))
         continue;
-      if (tv > 0 && tv < h && !linkthrows_within_cycle &&
+      if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
           cyclenum.at(i) == cyclenum.at(k)) {
         continue;
       }
 
       outmatrix.at(i).at(outthrownum) = k;
-      outthrowval.at(i).at(outthrownum) = tv;
+      outthrowval.at(i).at(outthrownum) = throwval;
       ++outthrownum;
     }
     outdegree.at(i) = outthrownum;
@@ -463,11 +462,10 @@ unsigned Graph::superprime_length_bound() const {
     }
   }
 
-  if (std::count(any_active.cbegin(), any_active.cend(), true) < 2)
-    return 0;
-
-  return static_cast<unsigned>(
+  auto active_cycles = static_cast<unsigned>(
       std::count(any_active.cbegin(), any_active.cend(), true));
+
+  return (active_cycles > 1 ? active_cycles : 0);
 }
 
 // Return the index in the `state` array that corresponds to a given state.

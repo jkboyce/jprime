@@ -26,6 +26,7 @@
 #include <sstream>
 #include <chrono>
 #include <cassert>
+#include <format>
 
 
 Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
@@ -130,9 +131,10 @@ void Worker::message_coordinator(MessageW2C& msg) const {
 // Deliver an informational text message to the coordinator's inbox.
 
 void Worker::message_coordinator_text(const std::string& str) const {
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::WORKER_UPDATE;
-  msg.meta = str;
+  MessageW2C msg {
+    .type = MessageW2C::Type::WORKER_UPDATE,
+    .meta = str
+  };
   message_coordinator(msg);
 }
 
@@ -207,9 +209,8 @@ void Worker::calibrate_inbox_check() {
 
 void Worker::process_split_work_request() {
   if (config.verboseflag) {
-    std::ostringstream buffer;
-    buffer << "worker " << worker_id << " splitting work...";
-    message_coordinator_text(buffer.str());
+    auto message = std::format("worker {} splitting work...", worker_id);
+    message_coordinator_text(message);
   }
 
   WorkAssignment wa = split_work_assignment(config.split_alg);
@@ -233,9 +234,10 @@ void Worker::process_split_work_request() {
 // Send a work assignment to the coordinator.
 
 void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::RETURN_WORK;
-  msg.assignment = wa;
+  MessageW2C msg {
+    .type = MessageW2C::Type::RETURN_WORK,
+    .assignment = wa
+  };
   add_data_to_message(msg);
   message_coordinator(msg);
 }
@@ -244,10 +246,11 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 // live status display.
 
 void Worker::send_stats_to_coordinator() {
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::RETURN_STATS;
+  MessageW2C msg {
+    .type = MessageW2C::Type::RETURN_STATS,
+    .running = running
+  };
   add_data_to_message(msg);
-  msg.running = running;
 
   if (!running) {
     message_coordinator(msg);
@@ -346,13 +349,13 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
   root_throwval_options = wa.root_throwval_options;
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern.at(i) = (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i)
-        : -1);
+    pattern.at(i) =
+      (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i) : -1);
   }
 
   if (start_state == 0) {
-    start_state = (config.groundmode ==
-      SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+    start_state =
+      (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
   }
   if (end_state == 0) {
     end_state = (config.groundmode ==
@@ -365,15 +368,16 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 // portion of the assignment.
 
 WorkAssignment Worker::get_work_assignment() const {
-  WorkAssignment wa;
-  wa.start_state = start_state;
-  wa.end_state = end_state;
-  wa.root_pos = root_pos;
-  wa.root_throwval_options = root_throwval_options;
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    if (pattern.at(i) == -1)
+  WorkAssignment wa {
+    .start_state = start_state,
+    .end_state = end_state,
+    .root_pos = root_pos,
+    .root_throwval_options = root_throwval_options
+  };
+  for (auto v : pattern) {
+    if (v == -1)
       break;
-    wa.partial_pattern.push_back(pattern.at(i));
+    wa.partial_pattern.push_back(v);
   }
   return wa;
 }
@@ -382,8 +386,9 @@ WorkAssignment Worker::get_work_assignment() const {
 // assignment.
 
 void Worker::notify_coordinator_idle() {
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::WORKER_IDLE;
+  MessageW2C msg {
+    .type = MessageW2C::Type::WORKER_IDLE
+  };
   add_data_to_message(msg);
   message_coordinator(msg);
   running = false;
@@ -394,11 +399,12 @@ void Worker::notify_coordinator_idle() {
 // from when another worker goes idle.
 
 void Worker::notify_coordinator_update() const {
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::WORKER_UPDATE;
-  msg.start_state = start_state;
-  msg.end_state = end_state;
-  msg.root_pos = root_pos;
+  MessageW2C msg {
+    .type = MessageW2C::Type::WORKER_UPDATE,
+    .start_state = start_state,
+    .end_state = end_state,
+    .root_pos = root_pos
+  };
   message_coordinator(msg);
 }
 
@@ -418,7 +424,7 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
     std::ostringstream buffer;
     buffer << "worker " << worker_id << " options at root_pos " << root_pos
            << ": [";
-    for (unsigned v : root_throwval_options) {
+    for (auto v : root_throwval_options) {
       if (config.throwdigits > 0 && v != root_throwval_options.front()) {
         buffer << ',';
       }
@@ -460,10 +466,11 @@ WorkAssignment Worker::split_work_assignment_takestartstates() {
   assert(takenum > 0);
   assert(end_state >= start_state + takenum);
 
-  WorkAssignment wa;
-  wa.start_state = end_state - takenum + 1;
-  wa.end_state = end_state;
-  wa.root_pos = 0;
+  WorkAssignment wa {
+    .start_state = end_state - takenum + 1,
+    .end_state = end_state,
+    .root_pos = 0
+  };
 
   end_state -= takenum;
   notify_coordinator_update();
@@ -489,10 +496,11 @@ WorkAssignment Worker::split_work_assignment_takehalf() {
 
 WorkAssignment Worker::split_work_assignment_takefraction(double f,
       bool take_front) {
-  WorkAssignment wa;
-  wa.start_state = start_state;
-  wa.end_state = start_state;
-  wa.root_pos = root_pos;
+  WorkAssignment wa {
+    .start_state = start_state,
+    .end_state = start_state,
+    .root_pos = root_pos
+  };
   for (size_t i = 0; i < root_pos; ++i) {
     wa.partial_pattern.push_back(pattern.at(i));
   }
@@ -873,9 +881,10 @@ void Worker::report_pattern() const {
     }
   }
 
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::SEARCH_RESULT;
-  msg.pattern = buffer.str();
-  msg.length = pos + 1;
+  MessageW2C msg {
+    .type = MessageW2C::Type::SEARCH_RESULT,
+    .pattern = buffer.str(),
+    .length = pos + 1
+  };
   message_coordinator(msg);
 }

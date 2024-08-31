@@ -24,6 +24,7 @@
 #include <string>
 #include <thread>
 #include <memory>
+#include <csignal>
 
 
 class Coordinator {
@@ -46,7 +47,7 @@ class Coordinator {
   std::vector<unsigned> worker_startstate;
   std::vector<unsigned> worker_endstate;
   std::vector<unsigned> worker_rootpos;
-  static bool stopping;
+  static volatile sig_atomic_t stopping;
   static constexpr unsigned MAX_STATES = 1000000u;
 
   // check inbox 10x more often than workers do
@@ -82,8 +83,8 @@ class Coordinator {
   void collect_stats();
   void steal_work();
   unsigned find_stealing_target_mostremaining() const;
-  bool passes_prechecks();
   void calc_graph_size();
+  bool passes_prechecks();
   bool is_worker_idle(const unsigned id) const;
   bool is_worker_splitting(const unsigned id) const;
   void record_data_from_message(const MessageW2C& msg);
