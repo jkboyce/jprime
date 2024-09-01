@@ -365,12 +365,11 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 // portion of the assignment.
 
 WorkAssignment Worker::get_work_assignment() const {
-  WorkAssignment wa {
-    .start_state = start_state,
-    .end_state = end_state,
-    .root_pos = root_pos,
-    .root_throwval_options = root_throwval_options
-  };
+  WorkAssignment wa;
+  wa.start_state = start_state;
+  wa.end_state = end_state;
+  wa.root_pos = root_pos;
+  wa.root_throwval_options = root_throwval_options;
   for (auto v : pattern) {
     if (v == -1)
       break;
@@ -461,11 +460,10 @@ WorkAssignment Worker::split_work_assignment_takestartstates() {
   assert(takenum > 0);
   assert(end_state >= start_state + takenum);
 
-  WorkAssignment wa {
-    .start_state = end_state - takenum + 1,
-    .end_state = end_state,
-    .root_pos = 0
-  };
+  WorkAssignment wa;
+  wa.start_state = end_state - takenum + 1;
+  wa.end_state = end_state;
+  wa.root_pos = 0;
 
   end_state -= takenum;
   notify_coordinator_update();
@@ -491,11 +489,10 @@ WorkAssignment Worker::split_work_assignment_takehalf() {
 
 WorkAssignment Worker::split_work_assignment_takefraction(double f,
       bool take_front) {
-  WorkAssignment wa {
-    .start_state = start_state,
-    .end_state = start_state,
-    .root_pos = root_pos
-  };
+  WorkAssignment wa;
+  wa.start_state = start_state;
+  wa.end_state = start_state;
+  wa.root_pos = root_pos;
   for (size_t i = 0; i < root_pos; ++i) {
     wa.partial_pattern.push_back(pattern.at(i));
   }

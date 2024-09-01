@@ -353,9 +353,8 @@ void Coordinator::steal_work() {
     }
     assert(id < config.num_threads);
 
-    MessageC2W msg {
-      .type = MessageC2W::Type::SPLIT_WORK
-    };
+    MessageC2W msg;
+    msg.type = MessageC2W::Type::SPLIT_WORK;
     message_worker(msg, id);
     workers_splitting.insert(id);
     sent_split_request = true;
