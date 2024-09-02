@@ -715,33 +715,35 @@ void Worker::customize_graph() {
     }
   }
 
-  // Some special cases for (b,h) = (b,2b) due to the special properties of the
-  // period-2 shift cycle (x-)^b.
+  // Some special cases for (b,h) = (b,2b) due to the properties of the period-2
+  // shift cycle (x-)^b.
 
-  if (config.h == (2 * config.b) && config.mode ==
-      SearchConfig::RunMode::SUPER_SEARCH && config.l_min > 2) {
-    State per2state{config.h};
+  if (config.mode == SearchConfig::RunMode::SUPER_SEARCH &&
+        config.h == (2 * config.b) && config.l_min > 2) {
+    State period2_state{config.h};
     for (size_t i = 0; i < config.h; i += 2) {
-      per2state.slot(i) = 1;
+      period2_state.slot(i) = 1;
     }
-    unsigned k = graph.get_statenum(per2state);
+    const unsigned k = graph.get_statenum(period2_state);
     assert(k != 0);
 
     if (config.shiftlimit == 0) {
-      // in this case (x-)^b is excluded
+      // in this case state (x-)^b is excluded
       graph.state_active.at(k) = false;
     } else if (config.shiftlimit == 1 && config.l_min == graph.numcycles + 1) {
-      // in this case (x-)^b is required to be in the pattern, and the one shift
-      // throw has to be in the cycle immediately preceding or following (x-)^b
+      // in this case state (x-)^b is required to be in the pattern, and the one
+      // shift throw can only be in the cycle immediately preceding or following
+      // state (x-)^b in the pattern
+
       for (size_t i = 1; i <= graph.numstates; ++i) {
-        bool allowed = false;
+        bool allowed_to_shift_throw = false;
 
         // does i's downstream state have a throw to (x-)^b ?
         unsigned s = graph.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
             if (graph.outmatrix.at(s).at(j) == k) {
-              allowed = true;
+              allowed_to_shift_throw = true;
             }
           }
         }
@@ -749,27 +751,28 @@ void Worker::customize_graph() {
         // does (x-)^b have a throw into i ?
         for (size_t j = 0; j < graph.outdegree.at(k); ++j) {
           if (graph.outmatrix.at(k).at(j) == i) {
-            allowed = true;
+            allowed_to_shift_throw = true;
           }
         }
 
         // if neither of the above is true, remove all shift throws out of `i`
-        if (!allowed) {
-          unsigned outthrownum = 0;
-          for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
-            if (graph.outthrowval.at(i).at(j) != 0 &&
-                graph.outthrowval.at(i).at(j) != config.h) {
-              if (outthrownum != j) {
-                graph.outmatrix.at(i).at(outthrownum) =
-                    graph.outmatrix.at(i).at(j);
-                graph.outthrowval.at(i).at(outthrownum) =
-                    graph.outthrowval.at(i).at(j);
-              }
-              ++outthrownum;
+        if (allowed_to_shift_throw)
+          continue;
+
+        unsigned outthrownum = 0;
+        for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
+          if (graph.outthrowval.at(i).at(j) != 0 &&
+              graph.outthrowval.at(i).at(j) != config.h) {
+            if (outthrownum != j) {
+              graph.outmatrix.at(i).at(outthrownum) =
+                  graph.outmatrix.at(i).at(j);
+              graph.outthrowval.at(i).at(outthrownum) =
+                  graph.outthrowval.at(i).at(j);
             }
+            ++outthrownum;
           }
-          graph.outdegree.at(i) = outthrownum;
         }
+        graph.outdegree.at(i) = outthrownum;
       }
     }
   }

@@ -12,6 +12,7 @@
 #include "Graph.h"
 
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <numeric>
 #include <iomanip>
@@ -174,7 +175,7 @@ Pattern::Pattern(const std::string& p) {
   // also since h >= b, then `h` must be at least as large as
   // ceiling(sum / (length - plusses))
 
-  int len = static_cast<int>(length());
+  auto len = static_cast<int>(length());
   if (sum % std::gcd(plusses, len) != 0) {
     throw std::invalid_argument("No solution for `+` value in pattern");
   }
@@ -582,7 +583,6 @@ std::string Pattern::make_analysis() {
       ++index;
     }
     buffer << '\n';
-    buffer << "------------------------------------------------------------";
     return buffer.str();
   }
 
@@ -746,11 +746,10 @@ std::string Pattern::make_analysis() {
   assert((inverse_pattern.length() != 0) == is_superprime());
   assert(is_superprime() == inverse_pattern.is_superprime());
   if (inverse_pattern.length() != 0) {
-    buffer << "\nInverse pattern:\n  " << inverse_pattern.to_string(0, true)
-           << " /" << h << '\n';
+    buffer << std::format("\nInverse pattern:\n  {} /{}\n",
+                inverse_pattern.to_string(0, true), h);
   }
 
-  buffer << "------------------------------------------------------------";
   return buffer.str();
 }
 

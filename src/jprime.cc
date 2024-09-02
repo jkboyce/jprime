@@ -122,10 +122,12 @@ void print_analysis(int argc, char** argv) {
 
   try {
     Pattern pat(input);
-    std::cout << pat.make_analysis() << std::endl;
+    std::cout << pat.make_analysis()
+              << "------------------------------------------------------------"
+              << std::endl;
   } catch (const std::invalid_argument& ie) {
-    std::cout << "Error analyzing input: " << input << '\n'
-              << ie.what() << '\n';
+    std::cout << std::format("Error analyzing input: {}\n{}\n", input,
+                   ie.what());
   }
 }
 
@@ -149,7 +151,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     if (myfile.good()) {
       try {
         // file exists; try resuming calculation
-        std::cout << "Reading checkpoint file '" << outfile << "'\n";
+        std::cout << std::format("Reading checkpoint file '{}'\n", outfile);
         context.from_file(outfile);
 
         if (context.assignments.size() == 0) {
@@ -164,10 +166,11 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
         // invocation, use the current filename
         config.outfile = outfile;
 
-        std::cout << "Resuming calculation: " << context.arglist << '\n'
-                  << "Loaded " << context.npatterns
-                  << " patterns and " << context.assignments.size()
-                  << " work assignments" << std::endl;
+        std::cout << std::format("Resuming calculation: {}\n"
+                       "Loaded {} patterns and {} work assignments",
+                       context.arglist, context.npatterns,
+                       context.assignments.size())
+                  << std::endl;
         return;
       } catch (const std::invalid_argument& ie) {
         std::cerr << ie.what() << '\n';
@@ -214,17 +217,15 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
-
   Coordinator coordinator(config, context);
-  const bool success = coordinator.run();
 
-  if (success) {
-    std::cout <<
-        "------------------------------------------------------------\n";
-    if (config.fileoutputflag) {
-      std::cout << std::format("Saving checkpoint file '{}'\n", config.outfile);
-      context.to_file(config.outfile);
-    }
+  if (!coordinator.run())
+    return 0;
+
+  std::cout << "------------------------------------------------------------\n";
+  if (config.fileoutputflag) {
+    std::cout << std::format("Saving checkpoint file '{}'\n", config.outfile);
+    context.to_file(config.outfile);
   }
   return 0;
 }

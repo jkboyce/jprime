@@ -86,8 +86,8 @@ bool Coordinator::run() {
     std::cout << "Finished on: " << current_time_string();
   if (context.assignments.size() > 0)
     std::cout << "\nPARTIAL RESULTS:\n";
-  print_preamble();
-  print_summary();
+  print_search_description();
+  print_results();
   return true;
 }
 
@@ -462,7 +462,7 @@ bool Coordinator::passes_prechecks() {
   if (config.infoflag || length_error ||
       context.memory_numstates > MAX_STATES) {
     if (config.infoflag) {
-      print_preamble();
+      print_search_description();
     }
     if (length_error) {
       std::cout << std::format("No patterns longer than {} are possible",
@@ -679,7 +679,7 @@ void Coordinator::print_pattern(const MessageW2C& msg) {
   print_status_output();
 }
 
-void Coordinator::print_preamble() const {
+void Coordinator::print_search_description() const {
   std::cout << std::format("objects: {}, max throw: {}\n",
       (config.dualflag ? config.h - config.b : config.b), config.h);
 
@@ -716,25 +716,25 @@ void Coordinator::print_preamble() const {
             << std::endl;
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-    std::cout << std::format("(using period-{} subgraph: {} states)",
-                   config.l_min, context.memory_numstates)
+    std::cout << std::format("period-{} subgraph: {} states", config.l_min,
+                   context.memory_numstates)
               << std::endl;
   }
 }
 
-void Coordinator::print_summary() const {
-  std::cout <<
-    std::format("{} patterns found ({} seen, {} nodes, {:.2f}M nodes/sec)\n",
-        context.npatterns, context.ntotal, context.nnodes,
-        static_cast<double>(context.nnodes) / context.secs_elapsed / 1000000);
+void Coordinator::print_results() const {
+  std::cout << std::format("{} patterns in range ({} seen, {} nodes)\n",
+                 context.npatterns, context.ntotal, context.nnodes);
 
-  std::cout << std::format("running time = {:.4f} sec", context.secs_elapsed);
-
+  std::cout << std::format("runtime = {:.4f} sec ({:.0f}M nodes/sec",
+                 context.secs_elapsed, static_cast<double>(context.nnodes) /
+                 context.secs_elapsed / 1000000);
   if (config.num_threads > 1) {
-    std::cout << std::format(" (worker util = {:.2f} %)",
-                    (context.secs_working / context.secs_available) * 100);
+    std::cout << std::format(", {:.1f} % util)\n",
+                   (context.secs_working / context.secs_available) * 100);
+  } else {
+    std::cout << ")\n";
   }
-  std::cout << '\n';
 
   if (config.countflag || l_max > config.l_min) {
     std::cout << "\nPattern count by length:\n";

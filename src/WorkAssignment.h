@@ -38,6 +38,7 @@ struct WorkAssignment {
   std::vector<unsigned> partial_pattern;
 
   bool from_string(const std::string& str);
+  std::string to_string() const;
 };
 
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa);

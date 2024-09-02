@@ -93,8 +93,8 @@ class Coordinator {
   double expected_patterns_at_maxlength();
   static void signal_handler(int signum);
   void print_pattern(const MessageW2C& msg);
-  void print_preamble() const;
-  void print_summary() const;
+  void print_search_description() const;
+  void print_results() const;
   void erase_status_output() const;
   void print_status_output();
   static std::string current_time_string();

@@ -13,10 +13,13 @@
 
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <regex>
 
 
-// Initialize from a string; return true on success, false otherwise.
+// Initialize from a string.
+//
+// Return true on success, false otherwise.
 
 bool WorkAssignment::from_string(const std::string& str) {
   std::regex rgx(
@@ -60,24 +63,33 @@ bool WorkAssignment::from_string(const std::string& str) {
   return true;
 }
 
-// Output a text representation of a WorkAssignment.
+// Return a text representation.
+
+std::string WorkAssignment::to_string() const {
+  std::ostringstream buffer;
+
+  buffer << "{ start_state:" << start_state
+         << ", end_state:" << end_state
+         << ", root_pos:" << root_pos
+         << ", root_options:[";
+  for (unsigned v : root_throwval_options) {
+    if (v != root_throwval_options.front())
+      buffer << ',';
+    buffer << v;
+  }
+  buffer << "], current:\"";
+  for (size_t i = 0; i < partial_pattern.size(); ++i) {
+    if (i > 0)
+      buffer << ',';
+    buffer << partial_pattern.at(i);
+  }
+  buffer << "\" }";
+  return buffer.str();
+}
+
+// Print to an output stream using the default text format.
 
 std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
-  ost << "{ start_state:" << wa.start_state
-      << ", end_state:" << wa.end_state
-      << ", root_pos:" << wa.root_pos
-      << ", root_options:[";
-  for (unsigned v : wa.root_throwval_options) {
-    if (v != wa.root_throwval_options.front())
-      ost << ',';
-    ost << v;
-  }
-  ost << "], current:\"";
-  for (size_t i = 0; i < wa.partial_pattern.size(); ++i) {
-    if (i > 0)
-      ost << ',';
-    ost << wa.partial_pattern.at(i);
-  }
-  ost << "\" }";
+  ost << wa.to_string();
   return ost;
 }
