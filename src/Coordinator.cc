@@ -689,8 +689,8 @@ void Coordinator::print_search_description() const {
     std::cout << "superprime ";
     if (config.shiftlimit == 1) {
       std::cout << "(+1 shift) ";
-    } else if (config.shiftlimit > 1) {
-      std::cout << "(+" << config.shiftlimit << " shifts) ";
+    } else {
+      std::cout << std::format("(+{} shifts) ", config.shiftlimit);
     }
   }
   std::cout << "search for length: " << config.l_min;
@@ -726,7 +726,7 @@ void Coordinator::print_results() const {
   std::cout << std::format("{} patterns in range ({} seen, {} nodes)\n",
                  context.npatterns, context.ntotal, context.nnodes);
 
-  std::cout << std::format("runtime = {:.4f} sec ({:.0f}M nodes/sec",
+  std::cout << std::format("runtime = {:.4f} sec ({:.1f}M nodes/sec",
                  context.secs_elapsed, static_cast<double>(context.nnodes) /
                  context.secs_elapsed / 1000000);
   if (config.num_threads > 1) {

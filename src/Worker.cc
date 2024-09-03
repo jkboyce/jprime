@@ -222,11 +222,9 @@ void Worker::process_split_work_request() {
   }
 
   if (config.verboseflag) {
-    std::ostringstream buffer;
-    buffer << std::format("worker {} remaining work after split:\n  ",
-                worker_id)
-           << get_work_assignment();
-    message_coordinator_text(buffer.str());
+    auto text = std::format("worker {} remaining work after split:\n  {}",
+                worker_id, get_work_assignment().to_string());
+    message_coordinator_text(text);
   }
 }
 
