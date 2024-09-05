@@ -11,7 +11,6 @@
 //
 
 #include "Worker.h"
-#include "Graph.h"
 
 #include <iostream>
 #include <sstream>

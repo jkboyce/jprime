@@ -12,11 +12,7 @@
 // This file is distributed under the MIT License.
 //
 
-#include "SearchConfig.h"
-#include "SearchContext.h"
 #include "Coordinator.h"
-#include "Worker.h"
-#include "Messages.h"
 
 #include <iostream>
 #include <iomanip>
