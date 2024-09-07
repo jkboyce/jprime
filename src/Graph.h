@@ -22,9 +22,8 @@
 
 class Graph {
  public:
-  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, bool ltwc,
-      unsigned l = 0);
   Graph(unsigned b, unsigned h);
+  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l = 0);
   Graph() = default;
 
  public:
@@ -33,7 +32,6 @@ class Graph {
   unsigned h = 0;  // maximum throw value
   unsigned l = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
-  bool linkthrows_within_cycle = true;
   unsigned numstates = 0;
   unsigned maxoutdegree = 0;
   unsigned numcycles = 0;
@@ -44,8 +42,8 @@ class Graph {
 
   // updated as states are activated/deactivated
   std::vector<bool> state_active;
-  std::vector<std::vector<unsigned>> outmatrix;
   std::vector<unsigned> outdegree;
+  std::vector<std::vector<unsigned>> outmatrix;
   std::vector<std::vector<unsigned>> outthrowval;
   std::vector<std::vector<unsigned>> excludestates_throw;
   std::vector<std::vector<unsigned>> excludestates_catch;
@@ -55,21 +53,16 @@ class Graph {
   void init();
   void find_shift_cycles();
   void find_exit_cycles();
-
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
-  static void gen_states_all_helper(std::vector<State>& s, unsigned pos,
-    unsigned left);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned l);
-  static void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
-    unsigned left, unsigned h, unsigned l);
 
  public:
   void build_graph();
   void reduce_graph();
   void find_exclude_states();
   unsigned prime_length_bound() const;
-  unsigned superprime_length_bound() const;
+  unsigned superprime_length_bound(unsigned shifts) const;
   unsigned get_statenum(const State& s) const;
   unsigned advance_state(unsigned statenum, unsigned throwval) const;
   unsigned reverse_state(unsigned statenum) const;

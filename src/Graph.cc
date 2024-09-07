@@ -16,14 +16,26 @@
 #include <limits>
 
 
-Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, bool ltwc,
-    unsigned l)
-    : b(b), h(h), l(l), xarray(xa), linkthrows_within_cycle(ltwc) {
+// Full graph for `b` objects, max throw `h`.
+
+Graph::Graph(unsigned b, unsigned h)
+    : b(b), h(h), l(0), xarray(h + 1, false) {
   init();
 }
 
-Graph::Graph(unsigned b, unsigned h)
-    : b(b), h(h), l(0), xarray(h + 1, false), linkthrows_within_cycle(true) {
+// Initialize with two additional options:
+//
+// Parameter `xa` specifies a vector of size h+1 that determines whether a given
+// throw value is excluded; when xa[val] is true then no graph links with throw
+// value `val` are created.
+//
+// Parameter `l` is optional and specifies that a single-period graph is
+// desired; a single-period graph contains only those states that may be part of
+// a period-l pattern. When `l`==0 we generate the full graph.
+
+Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
+    : b(b), h(h), l(l), xarray(xa) {
+  assert(xa.size() == h + 1);
   init();
 }
 
@@ -88,20 +100,11 @@ void Graph::init() {
 // Generate the states in the graph
 //------------------------------------------------------------------------------
 
-// Generate all possible states into the vector `s`.
-
-void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
-  s.push_back({h});
-  gen_states_all_helper(s, h - 1, b);
-  s.pop_back();
-}
-
 // Helper function to generate states in the general case. Recursively insert
 // 1s into successive slots, and when all 1s are used up append a new state
 // to the list.
 
-void Graph::gen_states_all_helper(std::vector<State>& s, unsigned pos,
-    unsigned left) {
+void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left) {
   if (left > (pos + 1))
     return;  // no way to succeed
 
@@ -123,19 +126,18 @@ void Graph::gen_states_all_helper(std::vector<State>& s, unsigned pos,
   }
 }
 
-// Generate all possible states that can be part of a pattern of period `l`.
+// Generate all possible states into the vector `s`.
 
-void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
-    unsigned l) {
+void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
   s.push_back({h});
-  gen_states_for_period_helper(s, 0, b, h, l);
+  gen_states_all_helper(s, h - 1, b);
   s.pop_back();
 }
 
 // Helper function to generate states in the single-period case. The states are
 // enumerated by partitioning the `b` objects into `l` different buckets.
 
-void Graph::gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
+void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
     unsigned left, const unsigned h, const unsigned l) {
   if (pos == l) {
     if (left == 0) {
@@ -171,6 +173,15 @@ void Graph::gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
     if (filled >= min_fill)
       gen_states_for_period_helper(s, pos + 1, left - filled, h, l);
   }
+}
+
+// Generate all possible states that can be part of a pattern of period `l`.
+
+void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
+    unsigned l) {
+  s.push_back({h});
+  gen_states_for_period_helper(s, 0, b, h, l);
+  s.pop_back();
 }
 
 //------------------------------------------------------------------------------
@@ -254,16 +265,11 @@ void Graph::build_graph() {
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
       if (xarray.at(throwval))
         continue;
-
-      unsigned k = advance_state(i, throwval);
+      auto k = advance_state(i, throwval);
       if (k == 0)
         continue;
       if (!state_active.at(k))
         continue;
-      if (throwval > 0 && throwval < h && !linkthrows_within_cycle &&
-          cyclenum.at(i) == cyclenum.at(k)) {
-        continue;
-      }
 
       outmatrix.at(i).at(outthrownum) = k;
       outthrowval.at(i).at(outthrownum) = throwval;
@@ -450,10 +456,10 @@ unsigned Graph::prime_length_bound() const {
   return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the length of superprime patterns without shift
-// throws, using states in the graph that are currently active.
+// Calculate an upper bound on the length of superprime patterns with `shifts`
+// shift throws, using states in the graph that are currently active.
 
-unsigned Graph::superprime_length_bound() const {
+unsigned Graph::superprime_length_bound(unsigned shifts) const {
   std::vector<bool> any_active(numcycles, false);
 
   for (size_t i = 1; i <= numstates; ++i) {
@@ -465,7 +471,7 @@ unsigned Graph::superprime_length_bound() const {
   auto active_cycles = static_cast<unsigned>(
       std::count(any_active.cbegin(), any_active.cend(), true));
 
-  return (active_cycles > 1 ? active_cycles : 0);
+  return (active_cycles > 1 ? active_cycles + shifts : 0);
 }
 
 // Return the index in the `state` array that corresponds to a given state.

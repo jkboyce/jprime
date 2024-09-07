@@ -100,7 +100,6 @@ void Worker::run() {
 
 void Worker::initialize_graph() {
   graph = {config.b, config.h, config.xarray,
-    config.mode != SearchConfig::RunMode::SUPER_SEARCH,
     config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH ?
     config.l_min : 0};
 
@@ -612,8 +611,8 @@ void Worker::gen_patterns() {
       graph.state_active.at(i) = false;
     }
     graph.reduce_graph();
-    initialize_working_variables();
 
+    initialize_working_variables();
     if (config.verboseflag) {
       auto num_inactive = static_cast<int>(
           std::count(graph.state_active.cbegin() + 1,
@@ -645,6 +644,7 @@ void Worker::gen_patterns() {
       loading_work = false;
       continue;
     }
+
     notify_coordinator_update();
 
     ////////////////////// RELEASE THE KRAKEN //////////////////////
@@ -689,8 +689,34 @@ void Worker::gen_patterns() {
 // Note this routine should never set states as active!
 
 void Worker::customize_graph() {
-  // In SUPER mode, number of consecutive '-'s at the start of the state, plus
-  // number of consecutive 'x's at the end of the state, cannot exceed
+  // (1) In SUPER mode we are not allowed to make link throws within a single
+  // shift cycle, so remove them.
+
+  if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      unsigned outthrownum = 0;
+
+      for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
+        const auto tv = graph.outthrowval.at(i).at(j);
+        if (graph.cyclenum.at(graph.outmatrix.at(i).at(j)) ==
+            graph.cyclenum.at(i) && tv != 0 && tv != config.h) {
+          continue;
+        }
+
+        // throw is allowed
+        if (outthrownum != j) {
+          graph.outmatrix.at(i).at(outthrownum) = graph.outmatrix.at(i).at(j);
+          graph.outthrowval.at(i).at(outthrownum) = tv;
+        }
+        ++outthrownum;
+      }
+
+      graph.outdegree.at(i) = outthrownum;
+    }
+  }
+
+  // (2) In SUPER mode, number of consecutive '-'s at the start of the state,
+  // plus the number of consecutive 'x's at the end of the state, cannot exceed
   // `shiftlimit`.
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
@@ -710,8 +736,8 @@ void Worker::customize_graph() {
     }
   }
 
-  // Some special cases for (b,h) = (b,2b) due to the properties of the period-2
-  // shift cycle (x-)^b.
+  // (3) In SUPER mode, apply some special cases for (b,h) = (b,2b) due to the
+  // properties of the period-2 shift cycle (x-)^b.
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH &&
         config.h == (2 * config.b) && config.l_min > 2) {
@@ -719,7 +745,7 @@ void Worker::customize_graph() {
     for (size_t i = 0; i < config.h; i += 2) {
       period2_state.slot(i) = 1;
     }
-    const unsigned k = graph.get_statenum(period2_state);
+    const auto k = graph.get_statenum(period2_state);
     assert(k != 0);
 
     if (config.shiftlimit == 0) {
@@ -734,7 +760,7 @@ void Worker::customize_graph() {
         bool allowed_to_shift_throw = false;
 
         // does i's downstream state have a throw to (x-)^b ?
-        unsigned s = graph.downstream_state(i);
+        auto s = graph.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
             if (graph.outmatrix.at(s).at(j) == k) {
@@ -756,13 +782,12 @@ void Worker::customize_graph() {
 
         unsigned outthrownum = 0;
         for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
-          if (graph.outthrowval.at(i).at(j) != 0 &&
-              graph.outthrowval.at(i).at(j) != config.h) {
+          const auto tv = graph.outthrowval.at(i).at(j);
+          if (tv != 0 && tv != config.h) {
             if (outthrownum != j) {
               graph.outmatrix.at(i).at(outthrownum) =
                   graph.outmatrix.at(i).at(j);
-              graph.outthrowval.at(i).at(outthrownum) =
-                  graph.outthrowval.at(i).at(j);
+              graph.outthrowval.at(i).at(outthrownum) = tv;
             }
             ++outthrownum;
           }
@@ -799,7 +824,7 @@ void Worker::initialize_working_variables() {
   }
 
   max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
-      ? graph.superprime_length_bound() + config.shiftlimit
+      ? graph.superprime_length_bound(config.shiftlimit)
       : graph.prime_length_bound();
 }
 
