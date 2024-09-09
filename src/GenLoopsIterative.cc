@@ -181,8 +181,9 @@ void Worker::iterative_gen_loops_normal_marking() {
       unsigned* const ds = ss->deadstates_catch;
       unsigned* es = ss->excludes_catch;
       for (unsigned statenum; (statenum = *es); ++es) {
-        if (--u[statenum] == 0 && --*ds > 0)
+        if (--u[statenum] == 0 && --*ds > 0) {
           ++max_possible;
+        }
       }
       ss->excludes_catch = nullptr;
     }
@@ -193,8 +194,9 @@ void Worker::iterative_gen_loops_normal_marking() {
         unsigned* const ds = ss->deadstates_throw;
         unsigned* es = ss->excludes_throw;
         for (unsigned statenum; (statenum = *es); ++es) {
-          if (--u[statenum] == 0 && --*ds > 0)
+          if (--u[statenum] == 0 && --*ds > 0) {
             ++max_possible;
+          }
         }
       }
 
@@ -236,16 +238,18 @@ void Worker::iterative_gen_loops_normal_marking() {
 
         for (unsigned statenum; (statenum = *es); ++es) {
           if (++u[statenum] == 1 && ++*ds > 1 &&
-              --max_possible < static_cast<int>(l_min))
+              --max_possible < static_cast<int>(l_min)) {
             valid1 = false;
+          }
         }
 
         if (!valid1) {
           // undo marking operation and bail to previous beat
           es = ss->excludes_throw;
           for (unsigned statenum; (statenum = *es); ++es) {
-            if (--u[statenum] == 0 && --*ds > 0)
+            if (--u[statenum] == 0 && --*ds > 0) {
               ++max_possible;
+            }
           }
 
           --p;
@@ -265,8 +269,9 @@ void Worker::iterative_gen_loops_normal_marking() {
 
       for (unsigned statenum; (statenum = *es); ++es) {
         if (++u[statenum] == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(l_min))
+            --max_possible < static_cast<int>(l_min)) {
           valid2 = false;
+        }
       }
 
       if (valid2) {

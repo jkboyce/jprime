@@ -284,8 +284,8 @@ void Graph::build_graph() {
 // - Remove links into inactive states
 // - Deactivate states with zero outdegree or indegree
 //
-// Finally call find_exit_cycles() to update those data structures based on the
-// current graph.
+// Finally update these data structures based on the reduced graph:
+// - isexitcycle, excludestates_throw, excludestates_catch
 
 void Graph::reduce_graph() {
   while (true) {
@@ -341,10 +341,16 @@ void Graph::reduce_graph() {
   }
 
   find_exit_cycles();
+
+  for (size_t i = 0; i <= numstates; ++i) {
+    excludestates_throw.at(i).assign(h, 0);
+    excludestates_catch.at(i).assign(h, 0);
+  }
 }
 
 // Fill in array `isexitcycle` that indicates which shift cycles can exit
-// directly to the start state with a link throw.
+// directly to the start state with a link throw. This is used in SUPER mode to
+// cut off search when all exit cycles have been used.
 //
 // The start state is assumed to be the lowest active state number.
 
@@ -391,7 +397,7 @@ void Graph::find_exclude_states() {
     State s = state.at(i).downstream();
     unsigned j = 0;
     while (s.slot(s.size() - 1) != 0 && j < h) {
-      unsigned statenum = get_statenum(s);
+      auto statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_throw.at(i).at(j++) = statenum;
@@ -404,8 +410,8 @@ void Graph::find_exclude_states() {
     s = state.at(i).upstream();
     j = 0;
     while (s.slot(0) == 0 && j < h) {
-      unsigned statenum = get_statenum(s);
-      if (statenum == 0 || !state_active.at(statenum))
+      auto statenum = get_statenum(s);
+      if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_catch.at(i).at(j++) = statenum;
       s = s.upstream();

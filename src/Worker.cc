@@ -254,7 +254,7 @@ void Worker::send_stats_to_coordinator() {
   msg.worker_deadstates_extra.assign(pos + 1, 0);
 
   unsigned tempfrom = start_state;
-  std::vector<bool> u(graph.numstates + 1, false);
+  std::vector<int> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
   for (size_t i = 0; i <= pos; ++i) {
@@ -262,11 +262,11 @@ void Worker::send_stats_to_coordinator() {
     msg.worker_throw.at(i) = pattern.at(i);
 
     for (unsigned col = 0; col < graph.outdegree.at(tempfrom); ++col) {
-      const unsigned throwval = graph.outthrowval.at(tempfrom).at(col);
+      const auto throwval = graph.outthrowval.at(tempfrom).at(col);
       if (throwval != static_cast<unsigned>(pattern.at(i)))
         continue;
 
-      const unsigned tempto = graph.outmatrix.at(tempfrom).at(col);
+      const auto tempto = graph.outmatrix.at(tempfrom).at(col);
       assert(tempto > 0);
       assert(!u.at(tempto));
 
@@ -284,32 +284,40 @@ void Worker::send_stats_to_coordinator() {
       // one-per-shift cycle baseline
       if (throwval != 0 && throwval != graph.h) {
         // throw
-        for (size_t j = 0; true; ++j) {
-          unsigned es = graph.excludestates_throw.at(tempfrom).at(j);
+        for (size_t j = 0; ; ++j) {
+          auto es = graph.excludestates_throw.at(tempfrom).at(j);
           if (es == 0)
             break;
-          if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempfrom)) > 1) {
+          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(tempfrom)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
-          u.at(es) = true;
         }
 
         // catch
-        for (size_t j = 0; true; ++j) {
-          unsigned es = graph.excludestates_catch.at(tempto).at(j);
+        for (size_t j = 0; ; ++j) {
+          auto es = graph.excludestates_catch.at(tempto).at(j);
           if (es == 0)
             break;
-          if (!u.at(es) && ++ds.at(graph.cyclenum.at(tempto)) > 1) {
+          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(tempto)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
-          u.at(es) = true;
         }
       }
 
-      u.at(tempto) = true;
+      if (i < pos) {
+        // for i == pos we haven't yet marked used = 1 in gen_loops()
+        u.at(tempto) = 1;
+      }
       tempfrom = tempto;
       break;
     }
+  }
+
+  if (config.mode != SearchConfig::RunMode::SUPER_SEARCH ||
+      config.shiftlimit != 0) {
+    // check that we're accounting for used states in the correct way above;
+    // note that `used` isn't used in SUPER0 mode
+    assert(u == used);
   }
 
   message_coordinator(msg);
@@ -652,17 +660,16 @@ void Worker::gen_patterns() {
     std::vector<int> used_start(used);
     switch (config.mode) {
       case SearchConfig::RunMode::NORMAL_SEARCH:
-        if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-          // typically these searches are not close to `l_bound` so the
-          // marking version of gen_loops() is not worth the overhead
-          if (config.countflag) {
-            iterative_gen_loops_normal<false>();
-          } else {
-            iterative_gen_loops_normal<true>();
-          }
-        } else {
+        if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+            static_cast<double>(l_min) >
+            0.66 * static_cast<double>(max_possible)) {
+          // the overhead of marking is only worth it for long patterns
           graph.find_exclude_states();
           iterative_gen_loops_normal_marking();
+        } else if (config.countflag) {
+          iterative_gen_loops_normal<false>();
+        } else {
+          iterative_gen_loops_normal<true>();
         }
         break;
       case SearchConfig::RunMode::SUPER_SEARCH:
