@@ -24,6 +24,7 @@
 #include <csignal>
 #include <cassert>
 #include <format>
+#include <stdexcept>
 
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
@@ -38,7 +39,12 @@ Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
 // Returns true on success, false on failure.
 
 bool Coordinator::run() {
-  calc_graph_size();
+  try {
+    calc_graph_size();
+  } catch (const std::overflow_error& oe) {
+    std::cout << "Overflow occurred computing graph size\n";
+    return false;
+  }
   if (!passes_prechecks())
     return false;
 
@@ -406,6 +412,10 @@ unsigned Coordinator::find_stealing_target_mostremaining() const {
 // starting up the workers, saving results in `context`.
 //
 // Note these quantities may be very large so we use uint64s for all of them.
+//
+// In the event of a math overflow error, throw a `std::overflow_error`
+// exception with a relevant error message. We only check for overflow when
+// calculating `full_numstates` since this quantity is the largest.
 
 void Coordinator::calc_graph_size() {
   // size of the full graph

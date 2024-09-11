@@ -18,6 +18,8 @@
 #include <map>
 #include <tuple>
 #include <cstdint>
+#include <stdexcept>
+#include <format>
 
 
 class Graph {
@@ -85,13 +87,22 @@ class Graph {
 // Compute (a choose b).
 //
 // The number of states (vertices) in juggling graph (b,h) is (h choose b).
+//
+// In the event of a math overflow error, throw a `std::overflow_error`
+// exception with a relevant error message.
 
 constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
   if (a < b)
     return 0;
 
   std::uint64_t result = 1;
+  const std::uint64_t max_int = -1;
+
   for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
+    if ((a - denom + 1) > max_int / result) {
+      throw std::overflow_error(
+          std::format("Overflow in combinations({},{})", a, b));
+    }
     result = (result * (a - denom + 1)) / denom;
   }
   return result;
