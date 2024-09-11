@@ -42,7 +42,7 @@ bool Coordinator::run() {
   if (!passes_prechecks())
     return false;
 
-  // the computation is a go and `l_bound` fits into an unsigned int
+  // the search is a go and `l_bound` fits into an unsigned int
   l_max = (config.l_max > 0) ? config.l_max
       : static_cast<unsigned>(context.l_bound);
 
@@ -55,9 +55,9 @@ bool Coordinator::run() {
   const auto start = std::chrono::high_resolution_clock::now();
 
   while (true) {
-    collect_stats();
     give_assignments();
     steal_work();
+    collect_stats();
     process_inbox();
 
     if (Coordinator::stopping || (workers_idle.size() == config.num_threads
@@ -429,13 +429,11 @@ void Coordinator::calc_graph_size() {
   // longest patterns possible of the type selected
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     // two possibilities: Stay on a single cycle, or use multiple cycles
-    context.l_bound = std::max(
-        static_cast<std::uint64_t>(max_cycle_period),
-        context.full_numstates - context.full_numcycles
-    );
+    context.l_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
+        context.full_numstates - context.full_numcycles);
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    context.l_bound = (context.full_numcycles < 2 ) ? 0 :
-        context.full_numcycles + config.shiftlimit;
+    context.l_bound = (context.full_numcycles > 1 ?
+        context.full_numcycles + config.shiftlimit : 0);
   }
 
   // number of states that will be resident in memory if we build the graph
@@ -452,28 +450,26 @@ void Coordinator::calc_graph_size() {
 // Returns true if the computation is cleared to proceed.
 
 bool Coordinator::passes_prechecks() {
-  const bool length_error = (config.l_min > context.l_bound ||
-      config.l_max > context.l_bound);
+  bool do_search = true;
 
-  if (config.infoflag || length_error ||
-      context.memory_numstates > MAX_STATES) {
-    if (config.infoflag) {
-      print_search_description();
-    }
-    if (length_error) {
-      std::cout << std::format("No patterns longer than {} are possible",
-                     context.l_bound)
-                << std::endl;
-    }
-    if (context.memory_numstates > MAX_STATES) {
-      std::cout << std::format("Number of states {} exceeds limit of {}",
-                     context.memory_numstates, MAX_STATES)
-                << std::endl;
-    }
-    return false;
+  if (config.infoflag) {
+    print_search_description();
+    do_search = false;
+  }
+  if (config.l_min > context.l_bound || config.l_max > context.l_bound) {
+    std::cout << std::format("No patterns longer than {} are possible",
+                   context.l_bound)
+              << std::endl;
+    do_search = false;
+  }
+  if (context.memory_numstates > MAX_STATES) {
+    std::cout << std::format("Number of states {} exceeds limit of {}",
+                   context.memory_numstates, MAX_STATES)
+              << std::endl;
+    do_search = false;
   }
 
-  return true;
+  return do_search;
 }
 
 bool Coordinator::is_worker_idle(const unsigned id) const {

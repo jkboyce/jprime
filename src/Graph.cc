@@ -342,6 +342,7 @@ void Graph::reduce_graph() {
 
   find_exit_cycles();
 
+  // initialize to empty; call find_exclude_states() to fill in
   for (size_t i = 0; i <= numstates; ++i) {
     excludestates_throw.at(i).assign(h, 0);
     excludestates_catch.at(i).assign(h, 0);
