@@ -96,10 +96,10 @@ constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
     return 0;
 
   std::uint64_t result = 1;
-  const std::uint64_t max_int = -1;
+  const std::uint64_t max_uint64 = -1;
 
   for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
-    if ((a - denom + 1) > max_int / result) {
+    if ((a - denom + 1) > max_uint64 / result) {
       throw std::overflow_error(
           std::format("Overflow in combinations({},{})", a, b));
     }
@@ -138,12 +138,16 @@ constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
 // maximum of h - 1. The only degree of freedom is how many objects to put into
 // each slot; the state positions must be filled from the bottom up in order to
 // be part of a period `l` pattern.
+//
+// In the event of a math overflow error, throw a `std::overflow_error`
+// exception with a relevant error message.
 
 constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
     unsigned l) {
   if (l == 0)
     return 0;
   std::vector<std::uint64_t> options((b + 1) * l, 0);
+  const std::uint64_t max_uint64 = -1;
 
   // calculate the number of ways to fill slots `pos` and higher using `left`
   // balls, working backward from the end
@@ -162,6 +166,10 @@ constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
         for (unsigned i = 0; i <= max_fill && i <= left; ++i) {
           // put `i` balls into slot `pos`
           const unsigned index2 = (pos + 1) + (left - i) * l;
+          if (options.at(index2) > max_uint64 - options.at(index)) {
+            throw std::overflow_error(
+              std::format("Overflow in ordered_partitions({},{},{})", b, h, l));
+          }
           options.at(index) += options.at(index2);
         }
       }

@@ -31,11 +31,13 @@ Graph::Graph(unsigned b, unsigned h)
 //
 // Parameter `l` is optional and specifies that a single-period graph is
 // desired; a single-period graph contains only those states that may be part of
-// a period-l pattern. When `l`==0 we generate the full graph.
+// a period-l pattern. We only permit values l < h. When l == 0 we generate
+// the full graph.
 
 Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
     : b(b), h(h), l(l), xarray(xa) {
   assert(xa.size() == h + 1);
+  assert(l < h);
   init();
 }
 
@@ -127,6 +129,8 @@ void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left) {
 }
 
 // Generate all possible states into the vector `s`.
+//
+// Note this has a recursion depth of `h`.
 
 void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
   s.push_back({h});
@@ -176,6 +180,8 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
 }
 
 // Generate all possible states that can be part of a pattern of period `l`.
+//
+// Note this has a recursion depth of `h`.
 
 void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
     unsigned l) {
@@ -342,7 +348,7 @@ void Graph::reduce_graph() {
 
   find_exit_cycles();
 
-  // initialize to empty; call find_exclude_states() to fill in
+  // initialize to empty; call find_exclude_states() to fill in if needed
   for (size_t i = 0; i <= numstates; ++i) {
     excludestates_throw.at(i).assign(h, 0);
     excludestates_catch.at(i).assign(h, 0);
@@ -383,7 +389,7 @@ void Graph::find_exit_cycles() {
 // Generate arrays that are used for marking excluded states during NORMAL
 // mode search with marking.
 //
-// This should be called immediately before gen_loops().
+// This should be called after reduce_graph() and before gen_loops().
 
 void Graph::find_exclude_states() {
   for (size_t i = 1; i <= numstates; ++i) {
@@ -520,11 +526,11 @@ unsigned Graph::get_statenum(const State& s) const {
 unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const {
   const State& s = state.at(statenum);
 
-  if (throwval > s.size())
+  if (throwval > 0 && s.slot(0) == 0)  // no object to throw
     return 0;
-  if (throwval > 0 && s.slot(0) == 0)
+  if (throwval < s.size() && s.slot(throwval) != 0)  // collision w/prev throw
     return 0;
-  if (throwval < s.size() && s.slot(throwval) != 0)
+  if (throwval > s.size())  // out of range
     return 0;
 
   return get_statenum(s.advance_with_throw(throwval));
