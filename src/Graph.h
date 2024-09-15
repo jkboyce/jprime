@@ -53,7 +53,7 @@ class Graph {
 
  private:
   void init();
-  void find_shift_cycles();
+  unsigned find_shift_cycles();
   void find_exit_cycles();
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,

@@ -106,8 +106,8 @@ void Worker::initialize_graph() {
   beat.resize(graph.numstates + 1);
   pattern.assign(graph.numstates + 1, -1);
   used.assign(graph.numstates + 1, 0);
-  cycleused.assign(graph.numstates + 1, 0);
-  deadstates.assign(graph.numstates + 1, 0);
+  cycleused.assign(graph.numcycles, 0);
+  deadstates.assign(graph.numcycles, 0);
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
   count.assign(l_max + 1, 0);
 }
@@ -658,30 +658,26 @@ void Worker::gen_patterns() {
     ////////////////////// RELEASE THE KRAKEN //////////////////////
 
     std::vector<int> used_start(used);
-    switch (config.mode) {
-      case SearchConfig::RunMode::NORMAL_SEARCH:
-        if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
-            static_cast<double>(l_min) >
-            0.66 * static_cast<double>(max_possible)) {
-          // the overhead of marking is only worth it for long patterns
-          graph.find_exclude_states();
-          iterative_gen_loops_normal_marking();
-        } else if (config.countflag) {
-          iterative_gen_loops_normal<false>();
-        } else {
-          iterative_gen_loops_normal<true>();
-        }
-        break;
-      case SearchConfig::RunMode::SUPER_SEARCH:
-        if (config.shiftlimit == 0) {
-          iterative_gen_loops_super<true>();
-        } else {
-          iterative_gen_loops_super<false>();
-        }
-        break;
-      default:
-        assert(false);
-        break;
+    if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+      if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+          static_cast<double>(l_min) >
+          0.66 * static_cast<double>(max_possible)) {
+        // the overhead of marking is only worth it for long patterns
+        graph.find_exclude_states();
+        iterative_gen_loops_normal_marking();
+      } else if (config.countflag) {
+        iterative_gen_loops_normal<false>();
+      } else {
+        iterative_gen_loops_normal<true>();
+      }
+    } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+      if (config.shiftlimit == 0) {
+        iterative_gen_loops_super<true>();
+      } else {
+        iterative_gen_loops_super<false>();
+      }
+    } else {
+      assert(false);
     }
     assert(used == used_start);
     assert(pos == 0);
@@ -813,22 +809,19 @@ void Worker::initialize_working_variables() {
   pos = 0;
   from = start_state;
   shiftcount = 0;
-  exitcyclesleft = 0;
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    used.at(i) = 0;
-    cycleused.at(i) = false;
-    deadstates.at(i) = 0;
-    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
-    if (graph.isexitcycle.at(i)) {
-      ++exitcyclesleft;
-    }
-  }
+  used.assign(graph.numstates + 1, 0);
+  cycleused.assign(graph.numcycles, 0);
+  deadstates.assign(graph.numcycles, 0);
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
+    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
     if (!graph.state_active.at(i)) {
       ++*deadstates_bystate.at(i);
     }
   }
+
+  exitcyclesleft =
+      std::count(graph.isexitcycle.cbegin(), graph.isexitcycle.cend(), true);
 
   max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
       ? graph.superprime_length_bound(config.shiftlimit)

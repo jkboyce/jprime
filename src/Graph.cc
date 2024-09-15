@@ -81,8 +81,6 @@ void Graph::init() {
   state_active.assign(numstates + 1, true);
   outdegree.assign(numstates + 1, 0);
   cyclenum.assign(numstates + 1, 0);
-  cycleperiod.assign(numstates + 1, 0);
-  isexitcycle.assign(numstates + 1, false);
 
   outmatrix.resize(numstates + 1);
   outthrowval.resize(numstates + 1);
@@ -95,7 +93,8 @@ void Graph::init() {
     excludestates_catch.at(i).assign(h, 0);
   }
 
-  find_shift_cycles();
+  numcycles = find_shift_cycles();
+  isexitcycle.assign(numcycles, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -200,17 +199,18 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 //         cyclenum[statenum] --> cyclenum
 // - The period of a given shift cycle number:
 //         cycleperiod[cyclenum] --> period
+//
+// Return the total number of shift cycles found.
 
-void Graph::find_shift_cycles() {
-  unsigned cycleindex = 0;
+unsigned Graph::find_shift_cycles() {
+  const unsigned state_unused = -1;
+  cyclenum.assign(numstates + 1, state_unused);
+
+  unsigned cycles = 0;
   std::vector<unsigned> cyclestates(h);
-  const unsigned UNUSED = -1;
-
-  cyclenum.assign(numstates + 1, UNUSED);
-  cycleperiod.assign(numstates + 1, UNUSED);
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (cyclenum.at(i) != UNUSED)
+    if (cyclenum.at(i) != state_unused)
       continue;
 
     State s = state.at(i);
@@ -220,7 +220,7 @@ void Graph::find_shift_cycles() {
 
     for (size_t j = 0; j < h; ++j) {
       s = s.upstream();
-      unsigned k = get_statenum(s);
+      const auto k = get_statenum(s);
       cyclestates.at(j) = k;
       if (k == 0)
         continue;
@@ -236,16 +236,18 @@ void Graph::find_shift_cycles() {
 
     if (newshiftcycle) {
       for (size_t j = 0; j < h; j++) {
-        if (cyclestates.at(j) > 0)
-          cyclenum.at(cyclestates.at(j)) = cycleindex;
+        if (cyclestates.at(j) > 0) {
+          cyclenum.at(cyclestates.at(j)) = cycles;
+        }
       }
-      cycleperiod.at(cycleindex) = cycleper;
-      if (cycleper < h)
+      cycleperiod.push_back(cycleper);
+      if (cycleper < h) {
         ++numshortcycles;
-      ++cycleindex;
+      }
+      ++cycles;
     }
   }
-  numcycles = cycleindex;
+  return cycles;
 }
 
 // Construct matrices describing the structure of the juggling graph, for the
@@ -272,9 +274,7 @@ void Graph::build_graph() {
       if (xarray.at(throwval))
         continue;
       auto k = advance_state(i, throwval);
-      if (k == 0)
-        continue;
-      if (!state_active.at(k))
+      if (k == 0 || !state_active.at(k))
         continue;
 
       outmatrix.at(i).at(outthrownum) = k;
@@ -362,7 +362,7 @@ void Graph::reduce_graph() {
 // The start state is assumed to be the lowest active state number.
 
 void Graph::find_exit_cycles() {
-  isexitcycle.assign(numstates + 1, false);
+  isexitcycle.assign(numcycles, false);
 
   unsigned lowest_active_state = 0;
 
