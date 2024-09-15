@@ -29,7 +29,8 @@
 
 class Coordinator {
  public:
-  Coordinator(const SearchConfig& config, SearchContext& context);
+  Coordinator(const SearchConfig& config, SearchContext& context,
+      std::ostream& jpout);
   Coordinator() = delete;
 
  public:
@@ -39,7 +40,10 @@ class Coordinator {
  private:
   const SearchConfig& config;
   SearchContext& context;
+  std::ostream& jpout;  // all console output goes here
   unsigned l_max = 0;
+
+  // workers
   std::vector<std::unique_ptr<Worker>> worker;
   std::vector<std::unique_ptr<std::thread>> worker_thread;
   std::set<unsigned> workers_idle;
@@ -47,8 +51,9 @@ class Coordinator {
   std::vector<unsigned> worker_startstate;
   std::vector<unsigned> worker_endstate;
   std::vector<unsigned> worker_rootpos;
+
   static volatile sig_atomic_t stopping;
-  static constexpr unsigned MAX_STATES = 1000000u;
+  static constexpr unsigned MAX_STATES = 1000000u;  // memory limit
 
   // check inbox 10x more often than workers do
   static constexpr double NANOSECS_PER_INBOX_CHECK =

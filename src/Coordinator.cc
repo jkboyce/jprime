@@ -27,14 +27,15 @@
 #include <stdexcept>
 
 
-Coordinator::Coordinator(const SearchConfig& a, SearchContext& b)
-    : config(a), context(b) {}
+Coordinator::Coordinator(const SearchConfig& a, SearchContext& b,
+    std::ostream& c) : config(a), context(b), jpout(c) {}
 
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
-// Execute the calculation specified in `config`, storing results in `context`.
+// Execute the calculation specified in `config`, storing results in `context`,
+// and sending console output to `jpout`.
 //
 // Returns true on success, false on failure.
 
@@ -42,7 +43,7 @@ bool Coordinator::run() {
   try {
     calc_graph_size();
   } catch (const std::overflow_error& oe) {
-    std::cout << "Overflow occurred computing graph size\n";
+    jpout << "Overflow occurred computing graph size\n";
     return false;
   }
   if (!passes_prechecks())
@@ -85,9 +86,9 @@ bool Coordinator::run() {
 
   erase_status_output();
   if (config.verboseflag)
-    std::cout << "Finished on: " << current_time_string();
+    jpout << "Finished on: " << current_time_string();
   if (context.assignments.size() > 0)
-    std::cout << "\nPARTIAL RESULTS:\n";
+    jpout << "\nPARTIAL RESULTS:\n";
   print_search_description();
   print_results();
   return true;
@@ -125,9 +126,9 @@ void Coordinator::collect_stats() {
 
 void Coordinator::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
-    auto it = workers_idle.begin();
-    unsigned id = *it;
-    workers_idle.erase(it);
+    auto iter = workers_idle.begin();
+    auto id = *iter;
+    workers_idle.erase(iter);
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
 
@@ -148,9 +149,9 @@ void Coordinator::give_assignments() {
 
     if (config.verboseflag) {
       erase_status_output();
-      std::cout << std::format("worker {} given work ({} idle):\n  ", id,
-                     workers_idle.size())
-                << msg.assignment << std::endl;
+      jpout << std::format("worker {} given work ({} idle):\n  ", id,
+                 workers_idle.size())
+            << msg.assignment << std::endl;
       print_status_output();
     }
   }
@@ -205,13 +206,13 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 
   if (config.verboseflag) {
     erase_status_output();
-    std::cout << std::format("worker {} went idle ({} idle)", msg.worker_id,
-                   workers_idle.size());
+    jpout << std::format("worker {} went idle ({} idle)", msg.worker_id,
+               workers_idle.size());
     if (workers_splitting.count(msg.worker_id) > 0) {
-      std::cout << std::format(", removed from splitting queue ({} splitting)",
-                     (workers_splitting.size() - 1));
+      jpout << std::format(", removed from splitting queue ({} splitting)",
+                 (workers_splitting.size() - 1));
     }
-    std::cout << " on: " << current_time_string();
+    jpout << " on: " << current_time_string();
     print_status_output();
   }
 
@@ -232,8 +233,8 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
 
   if (config.verboseflag) {
     erase_status_output();
-    std::cout << std::format("worker {} returned work:\n  ", msg.worker_id)
-              << msg.assignment << std::endl;
+    jpout << std::format("worker {} returned work:\n  ", msg.worker_id)
+          << msg.assignment << std::endl;
     print_status_output();
   }
 }
@@ -267,7 +268,7 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
   if (msg.meta.size() > 0) {
     if (config.verboseflag) {
       erase_status_output();
-      std::cout << msg.meta << '\n';
+      jpout << msg.meta << '\n';
       print_status_output();
     }
     return;
@@ -302,23 +303,23 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
       (startstate_changed || endstate_changed || rootpos_changed)) {
     erase_status_output();
     bool comma = false;
-    std::cout << "worker " << msg.worker_id;
+    jpout << "worker " << msg.worker_id;
     if (startstate_changed) {
-      std::cout << " new start_state " << msg.start_state;
+      jpout << " new start_state " << msg.start_state;
       comma = true;
     }
     if (endstate_changed) {
       if (comma)
-        std::cout << ',';
-      std::cout << " new end_state " << msg.end_state;
+        jpout << ',';
+      jpout << " new end_state " << msg.end_state;
       comma = true;
     }
     if (rootpos_changed) {
       if (comma)
-        std::cout << ',';
-      std::cout << " new root_pos " << msg.root_pos;
+        jpout << ',';
+      jpout << " new root_pos " << msg.root_pos;
     }
-    std::cout << " on: " << current_time_string();
+    jpout << " on: " << current_time_string();
     print_status_output();
   }
 }
@@ -339,9 +340,9 @@ void Coordinator::steal_work() {
     if (workers_idle.size() + workers_splitting.size() == config.num_threads) {
       if (config.verboseflag && sent_split_request) {
         erase_status_output();
-        std::cout << std::format("could not steal work ({} idle)",
-                       workers_idle.size())
-                  << std::endl;
+        jpout << std::format("could not steal work ({} idle)",
+                   workers_idle.size())
+              << std::endl;
         print_status_output();
       }
       break;
@@ -363,7 +364,7 @@ void Coordinator::steal_work() {
 
     if (config.verboseflag) {
       erase_status_output();
-      std::cout << std::format(
+      jpout << std::format(
                      "worker {} given work split request ({} splitting)", id,
                      workers_splitting.size())
                 << std::endl;
@@ -467,15 +468,15 @@ bool Coordinator::passes_prechecks() {
     do_search = false;
   }
   if (config.l_min > context.l_bound || config.l_max > context.l_bound) {
-    std::cout << std::format("No patterns longer than {} are possible",
-                   context.l_bound)
-              << std::endl;
+    jpout << std::format("No patterns longer than {} are possible",
+               context.l_bound)
+          << std::endl;
     do_search = false;
   }
   if (context.memory_numstates > MAX_STATES) {
-    std::cout << std::format("Number of states {} exceeds limit of {}",
-                   context.memory_numstates, MAX_STATES)
-              << std::endl;
+    jpout << std::format("Number of states {} exceeds limit of {}",
+               context.memory_numstates, MAX_STATES)
+          << std::endl;
     do_search = false;
   }
 
@@ -522,12 +523,12 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
 
 void Coordinator::start_workers() {
   if (config.verboseflag) {
-    std::cout << "Started on: " << current_time_string();
+    jpout << "Started on: " << current_time_string();
   }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if (config.verboseflag) {
-      std::cout << std::format("worker {} starting...", id) << std::endl;
+      jpout << std::format("worker {} starting...", id) << std::endl;
     }
 
     worker.push_back(std::make_unique<Worker>(config, *this, id, l_max));
@@ -559,7 +560,7 @@ void Coordinator::stop_workers() {
     message_worker(msg, id);
 
     if (config.verboseflag)
-      std::cout << std::format("worker {} asked to stop", id) << std::endl;
+      jpout << std::format("worker {} asked to stop", id) << std::endl;
 
     worker_thread.at(id)->join();
   }
@@ -674,74 +675,74 @@ void Coordinator::signal_handler(int signum) {
 void Coordinator::print_pattern(const MessageW2C& msg) {
   erase_status_output();
   if (config.verboseflag) {
-    std::cout << msg.worker_id << ": " << msg.pattern << std::endl;
+    jpout << msg.worker_id << ": " << msg.pattern << std::endl;
   } else {
-    std::cout << msg.pattern << std::endl;
+    jpout << msg.pattern << std::endl;
   }
   print_status_output();
 }
 
 void Coordinator::print_search_description() const {
-  std::cout << std::format("objects: {}, max throw: {}\n",
+  jpout << std::format("objects: {}, max throw: {}\n",
       (config.dualflag ? config.h - config.b : config.b), config.h);
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    std::cout << "prime ";
+    jpout << "prime ";
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    std::cout << "superprime ";
+    jpout << "superprime ";
     if (config.shiftlimit == 1) {
-      std::cout << "(+1 shift) ";
+      jpout << "(+1 shift) ";
     } else {
-      std::cout << std::format("(+{} shifts) ", config.shiftlimit);
+      jpout << std::format("(+{} shifts) ", config.shiftlimit);
     }
   }
-  std::cout << "search for length: " << config.l_min;
+  jpout << "search for length: " << config.l_min;
   if (config.l_max != config.l_min) {
     if (config.l_max == 0) {
-      std::cout << '-';
+      jpout << '-';
     } else {
-      std::cout << '-' << config.l_max;
+      jpout << '-' << config.l_max;
     }
   }
-  std::cout << std::format(" (bound {})", context.l_bound);
+  jpout << std::format(" (bound {})", context.l_bound);
   if (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH) {
-    std::cout << ", ground state only\n";
+    jpout << ", ground state only\n";
   } else if (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH) {
-    std::cout << ", excited states only\n";
+    jpout << ", excited states only\n";
   } else {
-    std::cout << '\n';
+    jpout << '\n';
   }
 
-  std::cout << std::format("graph: {} states, {} shift cycles, {} short cycles",
-                 context.full_numstates, context.full_numcycles,
-                 context.full_numshortcycles)
-            << std::endl;
+  jpout << std::format("graph: {} states, {} shift cycles, {} short cycles",
+             context.full_numstates, context.full_numcycles,
+             context.full_numshortcycles)
+        << std::endl;
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-    std::cout << std::format("period-{} subgraph: {} states", config.l_min,
-                   context.memory_numstates)
-              << std::endl;
+    jpout << std::format("period-{} subgraph: {} states", config.l_min,
+               context.memory_numstates)
+          << std::endl;
   }
 }
 
 void Coordinator::print_results() const {
-  std::cout << std::format("{} patterns in range ({} seen, {} nodes)\n",
-                 context.npatterns, context.ntotal, context.nnodes);
+  jpout << std::format("{} patterns in range ({} seen, {} nodes)\n",
+             context.npatterns, context.ntotal, context.nnodes);
 
-  std::cout << std::format("runtime = {:.4f} sec ({:.1f}M nodes/sec",
-                 context.secs_elapsed, static_cast<double>(context.nnodes) /
-                 context.secs_elapsed / 1000000);
+  jpout << std::format("runtime = {:.4f} sec ({:.1f}M nodes/sec",
+             context.secs_elapsed, static_cast<double>(context.nnodes) /
+             context.secs_elapsed / 1000000);
   if (config.num_threads > 1) {
-    std::cout << std::format(", {:.1f} % util)\n",
-                   (context.secs_working / context.secs_available) * 100);
+    jpout << std::format(", {:.1f} % util)\n",
+               (context.secs_working / context.secs_available) * 100);
   } else {
-    std::cout << ")\n";
+    jpout << ")\n";
   }
 
   if (config.countflag || l_max > config.l_min) {
-    std::cout << "\nPattern count by length:\n";
+    jpout << "\nPattern count by length:\n";
     for (unsigned i = config.l_min; i <= l_max; ++i) {
-      std::cout << i << ", " << context.count.at(i) << '\n';
+      jpout << i << ", " << context.count.at(i) << '\n';
     }
   }
 }
@@ -750,8 +751,8 @@ void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
   for (unsigned i = 0; i < config.num_threads + 2; ++i) {
-    std::cout << '\x1B' << "[1A"
-              << '\x1B' << "[2K";
+    jpout << '\x1B' << "[1A"
+          << '\x1B' << "[2K";
   }
 }
 
@@ -761,21 +762,21 @@ void Coordinator::print_status_output() {
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
       && l_max > 2 * STATUS_WIDTH);
-  std::cout << "Status on: " << current_time_string();
-  std::cout << " cur/ end  rp options remaining at position";
+  jpout << "Status on: " << current_time_string();
+  jpout << " cur/ end  rp options remaining at position";
   if (compressed) {
-    std::cout << " (compressed view)";
+    jpout << " (compressed view)";
     for (int i = 47; i < STATUS_WIDTH; ++i) {
-      std::cout << ' ';
+      jpout << ' ';
     }
   } else {
     for (int i = 29; i < STATUS_WIDTH; ++i) {
-      std::cout << ' ';
+      jpout << ' ';
     }
   }
-  std::cout << "    length\n";
+  jpout << "    length\n";
   for (unsigned i = 0; i < config.num_threads; ++i) {
-    std::cout << worker_status.at(i) << std::endl;
+    jpout << worker_status.at(i) << std::endl;
   }
 
   stats_printed = true;

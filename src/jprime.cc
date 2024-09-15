@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
   SearchConfig config;
   SearchContext context;
   prepare_calculation(argc, argv, config, context);
-  Coordinator coordinator(config, context);
+  Coordinator coordinator(config, context, std::cout);
 
   if (!coordinator.run())
     return 0;
