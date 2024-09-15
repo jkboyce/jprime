@@ -5,7 +5,7 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 `jprime` searches the juggling state graph for prime patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
-## Counting prime patterns
+## Counting prime patterns by period $n$
 
 Using `jprime` I have carried out some research into prime siteswap patterns. The first is to use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
 
@@ -201,9 +201,51 @@ The table below shows exact counts for the number of prime patterns at each peri
 13, 572427402861
 </pre>
 
+## Counting prime patterns by height $h$
+
+For a real juggler there is a physical limit to how high a person can throw. In fact many of the patterns found above (prime patterns of a given period $n$) are not readily juggleable because they contain very large throw values.
+
+Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$.
+
+The table below shows exact counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$. We can see that the prime pattern count increases very quickly as $h$ increases, because the number of states ($h$ choose $b$) increases very rapidly.
+
+<pre>
+2 OBJECTS
+3, 3
+4, 8
+5, 26
+6, 79
+7, 337
+8, 1398
+9, 7848
+10, 42749
+11, 297887
+12, 2009956
+13, 16660918
+14, 133895979
+15, 1284371565
+16, 11970256082
+17, 130310396228
+18, 1381323285721
+
+3 OBJECTS
+4, 4
+5, 26
+6, 349
+7, 29693
+8, 11906414
+9, 30513071763
+
+4 OBJECTS
+5, 5
+6, 79
+7, 29693
+8, 1505718865         
+</pre>
+
 ## Finding the longest prime patterns in $(b, h)$
 
-As a second investigation, we aim to identify the longest prime patterns for a given number of objects $b$ and maximum throw value $h$.
+As a final investigation, we aim to identify the longest prime patterns for a given number of objects $b$ and maximum throw value $h$.
 
 Since the state graph $(b, h)$ for $b$ objects and maximum throw $h$ is finite in size – with a number of vertices equal to the number of states ($h$ choose $b$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on its length.) The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
 
