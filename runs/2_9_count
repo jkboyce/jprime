@@ -1,0 +1,50 @@
+version           6.8
+command line      jprime 2 9 1- -count -file 2_9_count
+states            36
+shift cycles      4
+short cycles      0
+length bound      32
+states (in mem)   36
+patterns          7848
+patterns (total)  7848
+nodes completed   18262
+seconds elapsed   0.0013
+seconds working   0.0003
+seconds avail     0.0013
+cores avail       12
+
+patterns
+
+counts
+1, 1
+2, 2
+3, 5
+4, 10
+5, 22
+6, 44
+7, 89
+8, 152
+9, 211
+10, 195
+11, 288
+12, 381
+13, 503
+14, 597
+15, 672
+16, 689
+17, 659
+18, 670
+19, 572
+20, 520
+21, 460
+22, 357
+23, 272
+24, 192
+25, 119
+26, 71
+27, 47
+28, 26
+29, 14
+30, 5
+31, 2
+32, 1
