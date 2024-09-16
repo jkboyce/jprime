@@ -36,7 +36,7 @@
 // 2024.04.03  Version 6.6 adds efficiency improvements.
 // 2024.04.15  Version 6.7 code refactoring.
 // 2024.06.16  Version 6.8 adds analyzer and efficiency improvements for (b,2b).
-
+//
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
@@ -50,6 +50,8 @@
 #include <stdexcept>
 #include <format>
 
+
+void do_tests();  // defined in jprime_tests.cc
 
 //------------------------------------------------------------------------------
 // Help message
@@ -67,6 +69,7 @@ void print_help() {
     "Recognized command line formats:\n"
     "   jprime <# objects> <max. throw> [<length>] [options]\n"
     "   jprime -analyze <pattern> [/<h>]\n"
+    "   jprime -test\n"
     "\n"
     "where:\n"
     "   <# objects>       = number of objects\n"
@@ -204,6 +207,11 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
 //------------------------------------------------------------------------------
 
 int main(int argc, char** argv) {
+  if (argc > 1 && !strcmp(argv[1], "-test")) {
+    do_tests();
+    return 0;
+  }
+
   if (argc < 3) {
     print_help();
     return 0;
