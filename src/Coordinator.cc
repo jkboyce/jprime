@@ -102,7 +102,7 @@ bool Coordinator::run() {
 
 void Coordinator::message_worker(const MessageC2W& msg,
     unsigned worker_id) const {
-  std::unique_lock<std::mutex> lck {worker.at(worker_id)->inbox_lock};
+  std::unique_lock<std::mutex> lck(worker.at(worker_id)->inbox_lock);
   worker.at(worker_id)->inbox.push(msg);
 }
 
@@ -160,7 +160,7 @@ void Coordinator::give_assignments() {
 // Receive and handle messages from the worker threads.
 
 void Coordinator::process_inbox() {
-  std::unique_lock<std::mutex> lck {inbox_lock};
+  std::unique_lock<std::mutex> lck(inbox_lock);
   while (!inbox.empty()) {
     MessageW2C msg = inbox.front();
     inbox.pop();
@@ -751,8 +751,8 @@ void Coordinator::erase_status_output() const {
   if (!config.statusflag || !stats_printed)
     return;
   for (unsigned i = 0; i < config.num_threads + 2; ++i) {
-    jpout << '\x1B' << "[1A"
-          << '\x1B' << "[2K";
+    std::cout << '\x1B' << "[1A"
+              << '\x1B' << "[2K";
   }
 }
 
@@ -762,21 +762,21 @@ void Coordinator::print_status_output() {
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
       && l_max > 2 * STATUS_WIDTH);
-  jpout << "Status on: " << current_time_string();
-  jpout << " cur/ end  rp options remaining at position";
+  std::cout << "Status on: " << current_time_string();
+  std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
-    jpout << " (compressed view)";
+    std::cout << " (compressed view)";
     for (int i = 47; i < STATUS_WIDTH; ++i) {
-      jpout << ' ';
+      std::cout << ' ';
     }
   } else {
     for (int i = 29; i < STATUS_WIDTH; ++i) {
-      jpout << ' ';
+      std::cout << ' ';
     }
   }
-  jpout << "    length\n";
+  std::cout << "    length\n";
   for (unsigned i = 0; i < config.num_threads; ++i) {
-    jpout << worker_status.at(i) << std::endl;
+    std::cout << worker_status.at(i) << std::endl;
   }
 
   stats_printed = true;
