@@ -5,7 +5,7 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 `jprime` searches the juggling state graph for prime patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads.
 
-## Counting prime patterns by period $n$
+## Counting prime patterns, by period
 
 Using `jprime` I have carried out some research into prime siteswap patterns. The first is to use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
 
@@ -15,7 +15,7 @@ Note this formula treats rotated versions of the same pattern as distinct, e.g.,
 
 Counting prime patterns specifically is a more difficult problem than the general case. One set of results comes from [_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296) (Banaian, Butler, Cox, Davis, Landgraf, and Ponce, 2015). They find an exact formula for $P(n,b)$ for the case $b=2$, and also establish the lower bound $P(n,b) >= b^{n-1}$.
 
-The table below shows exact counts for the number of prime patterns at each period. For the cases $b = 2, 3, 4, 5$ these are OEIS sequences [A260744](https://oeis.org/A260744), [A260745](https://oeis.org/A260745), [A260746](https://oeis.org/A260746), and [A260752](https://oeis.org/A260752) respectively.
+The table below shows exact counts for the number of prime patterns at each period, found using `jprime`. For the cases $b = 2, 3, 4, 5$ these are OEIS sequences [A260744](https://oeis.org/A260744), [A260745](https://oeis.org/A260745), [A260746](https://oeis.org/A260746), and [A260752](https://oeis.org/A260752) respectively.
 <pre>
 2 OBJECTS
 1, 1
@@ -201,13 +201,13 @@ The table below shows exact counts for the number of prime patterns at each peri
 13, 572427402861
 </pre>
 
-## Counting prime patterns by height $h$
+## Counting prime patterns, by height
 
 For a real juggler there is a physical limit to how high a person can throw. In fact many of the patterns found above (prime patterns of a given period $n$) are not readily juggleable because they contain very large throw values.
 
-Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$.
+Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$. (Again, consult the Wikipedia [article](https://en.wikipedia.org/wiki/Siteswap) for an example state graph $(3,5)$.)
 
-The table below shows exact counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$. We can see that the prime pattern count increases very quickly as $h$ increases, because the number of states ($h$ choose $b$) increases very rapidly.
+The table below shows exact counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$, found using `jprime`. We can see that the prime pattern count increases very quickly as $h$ increases, because the number of states ($h$ choose $b$) increases very rapidly.
 
 <pre>
 2 OBJECTS
@@ -298,7 +298,7 @@ H     N (N_bound)  Pattern count
 25,   2207 (2208),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_25_2207">{0, 4}</a>
 26,   2499 (2500),   <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g">{180, ?}</a>
 27,   2816 (2816),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g">1</a>
-28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=14, ?}</a>
+28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=22, ?}</a>
 29,  <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0"><3528</a> (3528),     {?, ?}
 
   
