@@ -205,9 +205,9 @@ The table below shows exact counts for the number of prime patterns at each peri
 
 For a real juggler there is a physical limit to how high a person can throw. In fact many of the patterns found above (prime patterns of a given period $n$) are not readily juggleable because they contain very large throw values.
 
-Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$. (Again, consult the Wikipedia [article](https://en.wikipedia.org/wiki/Siteswap) for an example state graph $(3,5)$.)
+Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$ and look for cycles in the graph. (Again, consult the Wikipedia [article](https://en.wikipedia.org/wiki/Siteswap) for an example state graph $(3,5)$.)
 
-The table below shows counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$, found using `jprime`. We can see that the prime pattern count increases very quickly as $h$ increases, because the number of states ($h$ choose $b$) increases very rapidly.
+The table below shows counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$, found using `jprime`. We can see that the prime pattern count increases very quickly as $h$ increases.
 
 <pre>
 2 OBJECTS
@@ -243,13 +243,13 @@ The table below shows counts for the number of prime patterns in state graph $(b
 8, 1505718865         
 </pre>
 
-These are the total counts of prime patterns, but how do they break down in terms of pattern periods (lengths)? For example of the 30,513,071,763 patterns in $(3,9)$, how many are there of each period? The answer is shown in this chart ([data](runs/3_9_count)):
+These are the total counts of prime patterns, but how do they break down in terms of pattern periods (lengths)? For example of the 30,513,071,763 patterns in $(3,9)$, how many are there of each period? The answer is shown here ([data](runs/3_9_count)):
 
 ![Prime pattern length histogram in (3,9)](patterns_3_9.png)
 
-We can see that the distribution of pattern periods is close to a normal distribution, with the largest number at period 40 in this case. In general there are relatively few very short or very long patterns, and for graph $(b,h)$ most patterns are clustered around a period slightly less than half the number of vertices in the graph, e.g., 84 vertices in the case of $(3,9)$.
+We see that the distribution of pattern periods is close to a normal distribution, with the most patterns at period 40 in this case. In general there are relatively few very short or very long prime patterns, and for graph $(b,h)$ most are clustered around a period slightly less than half the number of vertices in the graph, e.g., 84 vertices in the case of $(3,9)$.
 
-At the extremes, for $(3,9)$ there is a single pattern of period 1 (`3`) and a single pattern of period 74 (`99500009091900009080900009700900091900900080800900908000900960000990800000`). We will have more to say about such maximally-long patterns in the next section.
+At the extremes, for $(3,9)$ there is a single pattern of period 1 (`3`) and a single prime pattern of period 74 (`99500009091900009080900009700900091900900080800900908000900960000990800000`). We will have more to say about such maximally-long patterns in the next section.
 
 ## Finding the longest prime patterns in $(b, h)$
 
