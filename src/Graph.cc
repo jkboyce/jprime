@@ -42,7 +42,7 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
 }
 
 //------------------------------------------------------------------------------
-// Prep core data structures during construction
+// Prepare graph data structures during construction
 //------------------------------------------------------------------------------
 
 // Initialize the Graph object.
@@ -250,7 +250,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 }
 
 //------------------------------------------------------------------------------
-// Prepare graph data structures used by pattern search
+// Populate graph data structures describing connections between states
 //------------------------------------------------------------------------------
 
 // Construct matrices describing the structure of the juggling graph, for the
