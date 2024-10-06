@@ -47,8 +47,8 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
 
 // Initialize the Graph object.
 //
-// NOTE: This does not call build_graph(), which must be done afterward to
-// populate the graph arrays with data.
+// NOTE: Call build_graph() after this to fully populate the graph arrays with
+// data.
 
 void Graph::init() {
   // fail if the number of states cannot fit into an unsigned int
@@ -57,7 +57,7 @@ void Graph::init() {
   assert(num <= std::numeric_limits<unsigned>::max());
   numstates = static_cast<unsigned>(num);
 
-  // enumerate the states
+  // generate the states
   state.reserve(numstates + 2);
   state.push_back({h});  // state at index 0 is unused
   if (l == 0) {
@@ -70,18 +70,21 @@ void Graph::init() {
     }
   }
   assert(state.size() == numstates + 1);
+  state_active.assign(numstates + 1, true);
 
+  // generate the shift cycles
+  numcycles = find_shift_cycles();
+
+  // allocate arrays to be filled in later by build_graph() and
+  // find_exclude_states()
+  unsigned maxoutdegree = 0;
   for (size_t i = 0; i <= h; ++i) {
     if (!xarray.at(i)) {
       ++maxoutdegree;
     }
   }
   maxoutdegree = std::min(maxoutdegree, h - b + 1);
-
-  state_active.assign(numstates + 1, true);
   outdegree.assign(numstates + 1, 0);
-  cyclenum.assign(numstates + 1, 0);
-
   outmatrix.resize(numstates + 1);
   outthrowval.resize(numstates + 1);
   excludestates_throw.resize(numstates + 1);
@@ -92,9 +95,66 @@ void Graph::init() {
     excludestates_throw.at(i).assign(h, 0);
     excludestates_catch.at(i).assign(h, 0);
   }
-
-  numcycles = find_shift_cycles();
   isexitcycle.assign(numcycles, 0);
+}
+
+// Generate arrays describing the shift cycles of the juggling graph.
+//
+// - Which shift cycle number a given state belongs to:
+//         cyclenum[statenum] --> cyclenum
+// - The period of a given shift cycle number:
+//         cycleperiod[cyclenum] --> period
+//
+// Return the total number of shift cycles found.
+
+unsigned Graph::find_shift_cycles() {
+  const unsigned state_unused = -1;
+  cyclenum.assign(numstates + 1, state_unused);
+  assert(cycleperiod.size() == 0);
+
+  unsigned cycles = 0;
+  std::vector<unsigned> cyclestates(h);
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (cyclenum.at(i) != state_unused)
+      continue;
+
+    State s = state.at(i);
+    bool periodfound = false;
+    bool newshiftcycle = true;
+    unsigned cycleper = h;
+
+    for (size_t j = 0; j < h; ++j) {
+      s = s.upstream();
+      const auto k = get_statenum(s);
+      cyclestates.at(j) = k;
+      if (k == 0)
+        continue;
+
+      if (k == i && !periodfound) {
+        cycleper = static_cast<unsigned>(j + 1);
+        periodfound = true;
+      } else if (k < i) {
+        newshiftcycle = false;
+      }
+    }
+    assert(cyclestates.at(h - 1) == i);
+
+    if (newshiftcycle) {
+      for (size_t j = 0; j < h; j++) {
+        if (cyclestates.at(j) > 0) {
+          cyclenum.at(cyclestates.at(j)) = cycles;
+        }
+      }
+      cycleperiod.push_back(cycleper);
+      if (cycleper < h) {
+        ++numshortcycles;
+      }
+      ++cycles;
+    }
+  }
+  assert(cycleperiod.size() == cycles);
+  return cycles;
 }
 
 //------------------------------------------------------------------------------
@@ -190,65 +250,8 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 }
 
 //------------------------------------------------------------------------------
-// Prep core data structures used by pattern search
+// Prepare graph data structures used by pattern search
 //------------------------------------------------------------------------------
-
-// Generate arrays describing the shift cycles of the juggling graph.
-//
-// - Which shift cycle number a given state belongs to:
-//         cyclenum[statenum] --> cyclenum
-// - The period of a given shift cycle number:
-//         cycleperiod[cyclenum] --> period
-//
-// Return the total number of shift cycles found.
-
-unsigned Graph::find_shift_cycles() {
-  const unsigned state_unused = -1;
-  cyclenum.assign(numstates + 1, state_unused);
-
-  unsigned cycles = 0;
-  std::vector<unsigned> cyclestates(h);
-
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (cyclenum.at(i) != state_unused)
-      continue;
-
-    State s = state.at(i);
-    bool periodfound = false;
-    bool newshiftcycle = true;
-    unsigned cycleper = h;
-
-    for (size_t j = 0; j < h; ++j) {
-      s = s.upstream();
-      const auto k = get_statenum(s);
-      cyclestates.at(j) = k;
-      if (k == 0)
-        continue;
-
-      if (k == i && !periodfound) {
-        cycleper = static_cast<unsigned>(j + 1);
-        periodfound = true;
-      } else if (k < i) {
-        newshiftcycle = false;
-      }
-    }
-    assert(cyclestates.at(h - 1) == i);
-
-    if (newshiftcycle) {
-      for (size_t j = 0; j < h; j++) {
-        if (cyclestates.at(j) > 0) {
-          cyclenum.at(cyclestates.at(j)) = cycles;
-        }
-      }
-      cycleperiod.push_back(cycleper);
-      if (cycleper < h) {
-        ++numshortcycles;
-      }
-      ++cycles;
-    }
-  }
-  return cycles;
-}
 
 // Construct matrices describing the structure of the juggling graph, for the
 // states that are currently active.
@@ -283,6 +286,8 @@ void Graph::build_graph() {
     }
     outdegree.at(i) = outthrownum;
   }
+
+  find_exit_cycles();
 }
 
 // Remove unusable links and states from the graph. Apply two transformations
@@ -363,7 +368,6 @@ void Graph::reduce_graph() {
 
 void Graph::find_exit_cycles() {
   isexitcycle.assign(numcycles, false);
-
   unsigned lowest_active_state = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {
@@ -387,7 +391,8 @@ void Graph::find_exit_cycles() {
 }
 
 // Generate arrays that are used for marking excluded states during NORMAL
-// mode search with marking.
+// mode search with marking. If one of the non-marking versions of gen_loops()
+// is used then these arrays are ignored.
 //
 // This should be called after reduce_graph() and before gen_loops().
 

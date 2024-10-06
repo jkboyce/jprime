@@ -676,10 +676,14 @@ bool Worker::iterative_init_workspace(bool marking) {
     rss.shifts_remaining = shifts_remaining;
     rss.exitcycles_remaining = exitcycles_remaining;
 
-    // set `col` at `root_pos`
-    rss.col = graph.maxoutdegree;
+    // Set `col` at `root_pos`; it's equal to the lowest index of the throws
+    // in `root_throwval_options`. This works because the way we steal work
+    // ensures that the unexplored throw options in `root_throwval_options`
+    // have contiguous indices up to and including `col_limit` - 1.
+
+    rss.col = -1;
     for (size_t i = 0; i < graph.outdegree.at(rss.from_state); ++i) {
-      unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
+      const unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
       if (std::find(root_throwval_options.cbegin(),
           root_throwval_options.cend(), throwval)
           != root_throwval_options.cend()) {

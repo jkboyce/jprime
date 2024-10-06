@@ -8,7 +8,6 @@
 // This file is distributed under the MIT License.
 //
 
-
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "Coordinator.h"

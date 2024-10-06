@@ -345,13 +345,13 @@ unsigned Worker::load_one_throw() {
             << "start_state: " << start_state << '\n'
             << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
-  for (size_t i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
     std::cerr << graph.outthrowval.at(from).at(i) << ", ";
   std::cerr << "\noutmatrix[from][]: ";
-  for (size_t i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
     std::cerr << graph.outmatrix.at(from).at(i) << ", ";
   std::cerr << "\nstate[outmatrix[from][]]: ";
-  for (size_t i = 0; i < graph.maxoutdegree; ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
     std::cerr << graph.state.at(graph.outmatrix.at(from).at(i)) << ", ";
   std::cerr << '\n';
   std::exit(EXIT_FAILURE);

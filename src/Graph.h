@@ -35,7 +35,6 @@ class Graph {
   unsigned l = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
   unsigned numstates = 0;
-  unsigned maxoutdegree = 0;
   unsigned numcycles = 0;
   unsigned numshortcycles = 0;
   std::vector<State> state;
@@ -110,6 +109,9 @@ constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
 
 // Compute the number of shift cycles with `b` objects, max throw `h`, with
 // exact period `p`.
+//
+// In the event of a math overflow error, throw a `std::overflow_error`
+// exception with a relevant error message.
 
 constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
     unsigned p) {
