@@ -15,7 +15,9 @@ Note this formula treats rotated versions of the same pattern as distinct, e.g.,
 
 Counting prime patterns specifically is a more difficult problem than the general case. One set of results comes from [_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296) (Banaian, Butler, Cox, Davis, Landgraf, and Ponce, 2015). They find an exact formula for $P(n,b)$ for the case $b=2$, and also establish the lower bound $P(n,b) >= b^{n-1}$.
 
-The table below shows exact counts for the number of prime patterns at each period, found using `jprime`. For the cases $b = 2, 3, 4, 5$ these are OEIS sequences [A260744](https://oeis.org/A260744), [A260745](https://oeis.org/A260745), [A260746](https://oeis.org/A260746), and [A260752](https://oeis.org/A260752) respectively.
+As a concrete example, for 3 objects there are 11 prime siteswap patterns of period 3: `531`, `441`, `522`, `630`, `450`, `612`, `720`, `360`, `711`, `801`, and `900`. Any other period-3 pattern that one might write down is either a rotation of one of these (like `504`), or not prime (like `423`). So we have $P(3,3) = 11$.
+
+The table below shows exact counts for the number of prime patterns at each period, found using `jprime`. For the cases $b = 2, 3, 4, 5$ these are OEIS sequences [A260744](https://oeis.org/A260744), [A260745](https://oeis.org/A260745), [A260746](https://oeis.org/A260746), and [A260752](https://oeis.org/A260752) respectively. Banaian et al found a formula for $b = 2$; is there also a formula for any $b>2$? This is one of many unanswered questions related to prime juggling patterns.
 <pre>
 2 OBJECTS
 1, 1
@@ -205,9 +207,9 @@ The table below shows exact counts for the number of prime patterns at each peri
 
 For a real juggler there is a physical limit to how high a person can throw. In fact many of the patterns found above (prime patterns of a given period $n$) are not readily juggleable because they contain very large throw values.
 
-Here we ask a slightly different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$ and look for cycles in the graph. (Again, consult the Wikipedia [article](https://en.wikipedia.org/wiki/Siteswap) for an example state graph $(3,5)$.)
+Here we ask a different question: If we restrict ourselves to siteswap throws no greater than some value $h$, how many prime juggling patterns are there? To answer this, we construct the state graph $(b, h)$ for $b$ objects and maximum throw $h$ and look for cycles in the graph. (Again, consult the Wikipedia [article](https://en.wikipedia.org/wiki/Siteswap) for an example state graph $(3,5)$.)
 
-The table below shows counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$, found using `jprime`. We can see that the prime pattern count increases very quickly as $h$ increases.
+Since the graph $(b,h)$ is finite, we can see that the number of prime patterns (cycles) must also be finite, since states cannot be revisited in such a pattern. The table below shows counts for the number of prime patterns in state graph $(b, h)$, for each value of $h$, found using `jprime`. The prime pattern count increases very quickly as $h$ increases.
 
 <pre>
 2 OBJECTS
@@ -264,7 +266,7 @@ Table notes:
 - There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
 - The table for $b=2$ is truncated; the observed pattern appears to continue.
 
-The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of this pattern!
+The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of these patterns!
 <pre>
          2 OBJECTS
 H     N (N_bound)  Pattern count
