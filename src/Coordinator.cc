@@ -46,8 +46,9 @@ bool Coordinator::run() {
     jpout << "Overflow occurred computing graph size\n";
     return false;
   }
-  if (!passes_prechecks())
+  if (!passes_prechecks()) {
     return false;
+  }
 
   // the search is a go and `l_bound` fits into an unsigned int
   l_max = (config.l_max > 0) ? config.l_max
@@ -85,10 +86,12 @@ bool Coordinator::run() {
   context.secs_available += runtime * config.num_threads;
 
   erase_status_output();
-  if (config.verboseflag)
+  if (config.verboseflag) {
     jpout << "Finished on: " << current_time_string();
-  if (context.assignments.size() > 0)
+  }
+  if (context.assignments.size() > 0) {
     jpout << "\nPARTIAL RESULTS:\n";
+  }
   print_search_description();
   print_results();
   return true;
@@ -415,8 +418,7 @@ unsigned Coordinator::find_stealing_target_mostremaining() const {
 // Note these quantities may be very large so we use uint64s for all of them.
 //
 // In the event of a math overflow error, throw a `std::overflow_error`
-// exception with a relevant error message. We only check for overflow when
-// calculating `full_numstates` since this quantity is the largest.
+// exception with a relevant error message.
 
 void Coordinator::calc_graph_size() {
   // size of the full graph

@@ -227,8 +227,9 @@ int main(int argc, char** argv) {
   prepare_calculation(argc, argv, config, context);
   Coordinator coordinator(config, context, std::cout);
 
-  if (!coordinator.run())
+  if (!coordinator.run()) {
     return 0;
+  }
 
   std::cout << "------------------------------------------------------------\n";
   if (config.fileoutputflag) {
