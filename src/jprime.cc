@@ -92,6 +92,7 @@ void print_help() {
     "   -count            print/save pattern counts only\n"
     "   -status           display live search status (needs ANSI terminal)\n"
     "   -verbose          print worker diagnostic information during search\n"
+    "   -recursive        use recursive search algorithms instead of iterative\n"
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted via ctrl-c), resuming, and final output\n"

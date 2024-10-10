@@ -41,52 +41,74 @@ const std::vector<TestCase> tests {
 };
 
 // Run a single test case and compare against known values, outputting results
-// to the console.
+// to the console. Each test case is actually executed twice, first with the
+// iterative algorithms and again with the recursive ones.
 //
 // Return true on test pass, false on failure.
 
 bool run_one_test(const TestCase& tc) {
-  std::cout << std::format("Executing: {}\n", tc.input);
-
-  // prep config
-  SearchConfig config;
-  try {
-    config.from_args(tc.input);
-  } catch (const std::invalid_argument& ie) {
-    std::cout << "Error parsing test input: " << ie.what() << '\n'
-              << "TEST FAILED" << std::endl;
-    return false;
-  }
-
-  // prep context
-  SearchContext context;
-  WorkAssignment wa;
-  context.assignments.push_back(wa);
-
-  std::ostringstream buffer;
-  Coordinator coordinator(config, context, buffer);
-
-  // run test
-  std::cout << "            patterns,         seen,        nodes\n"
-            << std::format("target: {:12}, {:12}, {:12}", tc.npatterns,
+  std::cout << std::format("Executing: {}\n", tc.input)
+            << "               patterns,         seen,"
+            << "        nodes,  time (sec)\n"
+            << std::format("target     {:12}, {:12}, {:12}", tc.npatterns,
                  tc.ntotal, tc.nnodes)
             << std::endl;
-  if (!coordinator.run()) {
-    std::cout << "TEST FAILED\n" << std::endl;
-    return false;
-  }
-  std::cout << std::format("got:    {:12}, {:12}, {:12}", context.npatterns,
-                 context.ntotal, context.nnodes)
-            << std::endl;
 
-  if (context.npatterns != tc.npatterns || context.ntotal != tc.ntotal ||
-      context.nnodes != tc.nnodes) {
-    std::cout << "TEST FAILED\n" << std::endl;
-    return false;
-  } else {
-    std::cout << "Test succeeded\n" << std::endl;
-    return true;
+  bool success = true;
+
+  for (int run = 0; run < 2; ++run) {
+    // prep config
+    SearchConfig config;
+    try {
+      if (run == 0) {
+        config.from_args(tc.input);
+      } else {
+        config.from_args(tc.input + " -recursive");
+      }
+    } catch (const std::invalid_argument& ie) {
+      std::cout << "Error parsing test input: " << ie.what() << '\n'
+                << "TEST FAILED" << std::endl;
+      return false;
+    }
+
+    // prep context
+    SearchContext context;
+    WorkAssignment wa;
+    context.assignments.push_back(wa);
+
+    std::ostringstream buffer;
+    Coordinator coordinator(config, context, buffer);
+
+    // run test
+    if (!coordinator.run()) {
+      std::cout << "TEST FAILED TO EXECUTE\n" << std::endl;
+      success = false;
+      continue;
+    }
+
+    if (run == 0) {
+      std::cout << "iterative";
+    } else {
+      std::cout << "recursive";
+    }
+    std::cout << std::format("  {:12}, {:12}, {:12},  {:.4f}",
+                   context.npatterns, context.ntotal, context.nnodes,
+                   context.secs_elapsed)
+              << std::endl;
+
+    if (context.npatterns != tc.npatterns || context.ntotal != tc.ntotal ||
+        context.nnodes != tc.nnodes) {
+      success = false;
+    }
   }
+
+  if (success) {
+    std::cout << "Test succeeded\n" << std::endl;
+  } else {
+    std::cout << "TEST FAILED\n" << std::endl;
+  }
+
+  return success;
 }
 
 // Execute all test cases and report on results.

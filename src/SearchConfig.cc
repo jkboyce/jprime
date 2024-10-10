@@ -157,6 +157,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       infoflag = true;
     } else if (!strcmp(argv[i], "-status")) {
       statusflag = true;
+    } else if (!strcmp(argv[i], "-recursive")) {
+      recursiveflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
       if ((i + 1) < argc) {
         ++i;

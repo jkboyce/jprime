@@ -422,13 +422,12 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
     buffer << std::format("worker {} options at root_pos {}: [", worker_id,
         root_pos);
     for (auto v : root_throwval_options) {
-      if (config.throwdigits > 0 && v != root_throwval_options.front()) {
+      if (v != root_throwval_options.front()) {
         buffer << ',';
       }
-      Pattern::print_throw(buffer, v, config.throwdigits,
-          config.noplusminusflag ? 0 : config.h);
+      buffer << v;
     }
-    buffer << "]";
+    buffer << ']';
     message_coordinator_text(buffer.str());
   }
 }
@@ -637,6 +636,12 @@ void Worker::gen_patterns() {
     if (max_possible < static_cast<int>(l_min)) {
       // larger values of `start_state` will have `max_possible` values that are
       // the same or smaller, so we can exit the loop
+      if (config.verboseflag) {
+        auto text = std::format(
+            "worker {} terminating because max_possible ({}) < l_min ({})",
+            worker_id, max_possible, l_min);
+        message_coordinator_text(text);
+      }
       break;
     }
     if (!graph.state_active.at(start_state)) {
@@ -654,41 +659,96 @@ void Worker::gen_patterns() {
       continue;
     }
 
+    // the search at `start_state` is a go
     notify_coordinator_update();
-
-    ////////////////////// RELEASE THE KRAKEN //////////////////////
-
-    std::vector<int> used_start(used);
-    if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-      if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
-          static_cast<double>(l_min) >
-          0.66 * static_cast<double>(max_possible)) {
-        // the overhead of marking is only worth it for long patterns
-        graph.find_exclude_states();
-        iterative_gen_loops_normal_marking();
-      } else if (config.countflag) {
-        iterative_gen_loops_normal<false>();
-      } else {
-        iterative_gen_loops_normal<true>();
-      }
-    } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-      if (config.shiftlimit == 0) {
-        iterative_gen_loops_super<true>();
-      } else {
-        iterative_gen_loops_super<false>();
-      }
-    } else {
-      assert(false);
-    }
-    assert(used == used_start);
+    gen_loops();
     assert(pos == 0);
   }
-  assert(pos == 0);
 }
 
-// Edit the graph after its initial build. This is an opportunity to apply some
-// optimizations depending on search mode, etc. This is executed once,
-// immediately after the graph is built.
+// Find all patterns for the current value of `start_state`.
+
+void Worker::gen_loops() {
+  // choose a search algorithm to use
+  unsigned alg = -1;
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+        static_cast<double>(l_min) >
+        0.66 * static_cast<double>(max_possible)) {
+      // the overhead of marking is only worth it for long patterns
+      alg = (config.recursiveflag ? 0 : 4);
+    } else if (config.countflag) {
+      alg = (config.recursiveflag ? 1 : 5);
+    } else {
+      alg = (config.recursiveflag ? 1 : 6);
+    }
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    if (config.shiftlimit == 0) {
+      alg = (config.recursiveflag ? 3 : 8);
+    } else {
+      alg = (config.recursiveflag ? 2 : 7);
+    }
+  }
+
+  if (config.verboseflag) {
+    static const std::vector<std::string> algs = {
+      "gen_loops_normal_marking()",
+      "gen_loops_normal()",
+      "gen_loops_super()",
+      "gen_loops_super0()",
+      "iterative_gen_loops_normal_marking()",
+      "iterative_gen_loops_normal<false>()",
+      "iterative_gen_loops_normal<true>()",
+      "iterative_gen_loops_super<false>()",
+      "iterative_gen_loops_super<true>()",
+    };
+    auto text = std::format("worker {} starting algorithm {}", worker_id,
+        algs.at(alg));
+    message_coordinator_text(text);
+  }
+
+  ////////////////////// RELEASE THE KRAKEN //////////////////////
+
+  std::vector<int> used_start(used);
+  switch (alg) {
+    case 0:
+      graph.find_exclude_states();
+      gen_loops_normal_marking();
+      break;
+    case 1:
+      gen_loops_normal();
+      break;
+    case 2:
+      gen_loops_super();
+      break;
+    case 3:
+      gen_loops_super0();
+      break;
+    case 4:
+      graph.find_exclude_states();
+      iterative_gen_loops_normal_marking();
+      break;
+    case 5:
+      iterative_gen_loops_normal<false>();
+      break;
+    case 6:
+      iterative_gen_loops_normal<true>();
+      break;
+    case 7:
+      iterative_gen_loops_super<false>();
+      break;
+    case 8:
+      iterative_gen_loops_super<true>();
+      break;
+    default:
+      assert(false);
+  }
+  assert(used == used_start);
+}
+
+// Edit the graph after its initial construction. This is an opportunity to
+// apply some optimizations depending on search mode, etc. This is executed
+// once, immediately after the graph is built.
 //
 // Note this routine should never set states as active!
 

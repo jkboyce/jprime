@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <format>
 
 
 // Try all allowed throw values at the current pattern position `pos`,
@@ -386,20 +387,19 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
     }
 
     if (pruned && config.verboseflag) {
-      std::ostringstream buffer;
-      buffer << "worker " << worker_id << " option " << throwval
-             << " at root_pos " << root_pos << " was pruned; removing";
-      message_coordinator_text(buffer.str());
+      auto text = std::format(
+          "worker {} option {} at root_pos {} was pruned; removing",
+          worker_id, throwval, root_pos);
+      message_coordinator_text(text);
     }
 
     if (!pruned && *iter == throwval) {
       found = true;
 
       if (config.verboseflag) {
-        std::ostringstream buffer;
-        buffer << "worker " << worker_id << " starting option " << throwval
-               << " at root_pos " << root_pos;
-        message_coordinator_text(buffer.str());
+        auto text = std::format("worker {} starting option {} at root_pos {}",
+            worker_id, throwval, root_pos);
+        message_coordinator_text(text);
       }
     }
 

@@ -107,11 +107,12 @@ class Worker {
   WorkAssignment split_work_assignment_takehalf();
   WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
+  void gen_loops();
   void customize_graph();
   void initialize_working_variables();
   void report_pattern() const;
 
-  // core search routines (recursive versions)
+  // main search routines (recursive versions)
   void gen_loops_normal();
   void gen_loops_normal_marking();
   void gen_loops_super();
@@ -124,7 +125,7 @@ class Worker {
   void unmark_unreachable_states_catch(unsigned to_state);
   void handle_finished_pattern();
 
-  // core search routines (iterative versions; identical in function to above)
+  // main search routines (iterative versions; identical in function to above)
   template<bool REPORT> void iterative_gen_loops_normal();
   void iterative_gen_loops_normal_marking();
   template<bool SUPER0> void iterative_gen_loops_super();
