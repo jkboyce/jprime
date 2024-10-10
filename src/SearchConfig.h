@@ -104,7 +104,7 @@ struct SearchConfig {
   // work splitting algorithm to use
   unsigned split_alg = 1;
 
-  // whetheher to use recursive search algorithms (vs iterative)
+  // use recursive search algorithms (vs iterative)?
   bool recursiveflag = false;
 
   // methods to initialize from command line arguments

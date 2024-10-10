@@ -697,10 +697,10 @@ void Worker::gen_loops() {
       "gen_loops_super()",
       "gen_loops_super0()",
       "iterative_gen_loops_normal_marking()",
-      "iterative_gen_loops_normal<false>()",
-      "iterative_gen_loops_normal<true>()",
-      "iterative_gen_loops_super<false>()",
-      "iterative_gen_loops_super<true>()",
+      "iterative_gen_loops_normal<REPORT=false>()",
+      "iterative_gen_loops_normal<REPORT=true>()",
+      "iterative_gen_loops_super<SUPER0=false>()",
+      "iterative_gen_loops_super<SUPER0=true>()",
     };
     auto text = std::format("worker {} starting algorithm {}", worker_id,
         algs.at(alg));
