@@ -312,14 +312,16 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
       comma = true;
     }
     if (endstate_changed) {
-      if (comma)
+      if (comma) {
         jpout << ',';
+      }
       jpout << " new end_state " << msg.end_state;
       comma = true;
     }
     if (rootpos_changed) {
-      if (comma)
+      if (comma) {
         jpout << ',';
+      }
       jpout << " new root_pos " << msg.root_pos;
     }
     jpout << " on: " << current_time_string();
@@ -368,9 +370,9 @@ void Coordinator::steal_work() {
     if (config.verboseflag) {
       erase_status_output();
       jpout << std::format(
-                     "worker {} given work split request ({} splitting)", id,
-                     workers_splitting.size())
-                << std::endl;
+                 "worker {} given work split request ({} splitting)", id,
+                 workers_splitting.size())
+            << std::endl;
       print_status_output();
     }
   }
@@ -553,22 +555,25 @@ void Coordinator::start_workers() {
 // Stop all workers.
 
 void Coordinator::stop_workers() {
-  if (config.verboseflag)
+  if (config.verboseflag) {
     erase_status_output();
+  }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;
     msg.type = MessageC2W::Type::STOP_WORKER;
     message_worker(msg, id);
 
-    if (config.verboseflag)
+    if (config.verboseflag) {
       jpout << std::format("worker {} asked to stop", id) << std::endl;
+    }
 
     worker_thread.at(id)->join();
   }
 
-  if (config.verboseflag)
+  if (config.verboseflag) {
     print_status_output();
+  }
 }
 
 // Use the distribution of patterns found so far to extrapolate the expected

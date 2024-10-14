@@ -619,8 +619,8 @@ void Worker::gen_patterns() {
       graph.state_active.at(i) = false;
     }
     graph.reduce_graph();
-
     initialize_working_variables();
+
     if (config.verboseflag) {
       auto num_inactive = static_cast<int>(
           std::count(graph.state_active.cbegin() + 1,
@@ -631,6 +631,23 @@ void Worker::gen_patterns() {
           worker_id, graph.state_string(start_state), start_state,
           worker_id, num_inactive, graph.numstates, max_possible);
       message_coordinator_text(text);
+
+      /*
+      std::ostringstream buffer;
+      buffer << std::format("worker {} active states and outdegrees:\n",
+                  worker_id);
+      bool some_printed = false;
+      for (size_t i = 1; i <= graph.numstates; ++i) {
+        if (graph.state_active.at(i)) {
+          if (some_printed) {
+            buffer << '\n';
+          }
+          buffer << "  " << graph.state.at(i) << "  " << graph.outdegree.at(i);
+          some_printed = true;
+        }
+      }
+      message_coordinator_text(buffer.str());
+      */
     }
 
     if (max_possible < static_cast<int>(l_min)) {
@@ -796,6 +813,7 @@ void Worker::customize_graph() {
       }
       if (start0s + end1s > config.shiftlimit) {
         graph.state_active.at(i) = false;
+        // std::cout << "killing state " << graph.state.at(i) << '\n';
       }
     }
   }
