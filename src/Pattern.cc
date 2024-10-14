@@ -595,21 +595,25 @@ std::string Pattern::make_analysis() {
 
   buffer << "Pattern:\n";
   if (h < 36) {
-    buffer << "  short form          " << to_string(0) << '\n';
+    buffer << "   short form          " << to_string(0) << '\n';
     if (maxval == h) {
-      buffer << "  block form          " << to_string(0, true) << '\n';
+      buffer << "   block form          " << to_string(0, true) << '\n';
     }
   }
-  buffer << "  standard form       " << to_string(1) << "\n\n";
+  buffer << "   standard form       " << to_string(1) << "\n\n";
 
   check_have_states();
+  const auto is_prime_ = is_prime();
+  const auto is_superprime_ = is_superprime();
+  const auto length_ = length();
+
   buffer << "Properties:\n"
-         << "  objects             " << objects() << '\n'
-         << "  length              " << length() << '\n'
-         << "  maximum throw       " << maxval << '\n'
-         << "  beats in state      " << h << '\n'
-         << "  is_prime            " << std::boolalpha << is_prime() << '\n'
-         << "  is_superprime       " << std::boolalpha << is_superprime()
+         << "   objects             " << objects() << '\n'
+         << "   length              " << length_ << '\n'
+         << "   maximum throw       " << maxval << '\n'
+         << "   beats in state      " << h << '\n'
+         << "   is_prime            " << std::boolalpha << is_prime_ << '\n'
+         << "   is_superprime       " << std::boolalpha << is_superprime_
          << "\n\n";
 
   // graph information
@@ -631,17 +635,17 @@ std::string Pattern::make_analysis() {
   }
 
   buffer << "Graph (" << objects() << ',' << h << "):\n"
-         << "  states              " << full_numstates << '\n'
-         << "  shift cycles        " << full_numcycles << '\n'
-         << "  short cycles        " << full_numshortcycles << '\n'
-         << "  prime length bound  "
+         << "   states              " << full_numstates << '\n'
+         << "   shift cycles        " << full_numcycles << '\n'
+         << "   short cycles        " << full_numshortcycles << '\n'
+         << "   prime length bound  "
          << std::max(static_cast<std::uint64_t>(max_cycle_period),
               full_numstates - full_numcycles)
          << "\n\n";
 
   // table of states, shift cycles, and excluded states
 
-  bool show_sc = is_prime();
+  bool show_sc = is_prime_;
   int separation = std::max(15, 4 + h + 4);
 
   int throwdigits = 1;
@@ -649,25 +653,27 @@ std::string Pattern::make_analysis() {
     ++throwdigits;
   }
 
+  std::ostringstream buffer2;
+  bool got_repeat = false;
   if (show_sc) {
-    buffer << "States:";
-    for (int j = 0; j < (h + throwdigits + 1); ++j) {
-      buffer << ' ';
+    buffer2 << "   state";
+    for (int j = 0; j < (h + throwdigits + 3); ++j) {
+      buffer2 << ' ';
     }
-    buffer << "Shift cycles:";
-    for (int j = 0; j < (separation - 13); ++j) {
-      buffer << ' ';
+    buffer2 << "shift cycle";
+    for (int j = 0; j < (separation - 11); ++j) {
+      buffer2 << ' ';
     }
-    buffer << "Excluded states:\n";
+    buffer2 << "states excluded\n";
   } else {
-    buffer << "States:\n";
+    buffer2 << "   state\n";
   }
 
   std::vector<State> shiftcycles_visited;
   bool any_linkthrow = false;
-  for (size_t i = 0; i < length(); ++i) {
+  for (size_t i = 0; i < length_; ++i) {
     if (throwval.at(i) != 0 && throwval.at(i) != h) {
-      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length()));
+      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length_));
     }
     if (throwval.at(i) != 0 && throwval.at(i) != h) {
       any_linkthrow = true;
@@ -675,23 +681,24 @@ std::string Pattern::make_analysis() {
   }
   std::set<State> printed;
 
-  for (size_t i = 0; i < length(); ++i) {
+  for (size_t i = 0; i < length_; ++i) {
     // state and throw value out of it
     if (std::count(states.cbegin(), states.cend(), states.at(i)) == 1) {
-      buffer << "  ";
+      buffer2 << "   ";
     } else {
-      buffer << "R ";
+      buffer2 << " R ";
+      got_repeat = true;
     }
-    buffer << states.at(i) << "  "
-           << std::setw(throwdigits) << throwval.at(i);
+    buffer2 << states.at(i) << "  "
+            << std::setw(throwdigits) << throwval.at(i);
 
     if (!show_sc) {
-      buffer << '\n';
+      buffer2 << '\n';
       continue;
     }
 
     // shift cycle visited
-    int prev_throwvalue = throwval.at(i == 0 ? length() - 1 : i - 1);
+    int prev_throwvalue = throwval.at(i == 0 ? length_ - 1 : i - 1);
     int curr_throwvalue = throwval.at(i);
     bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
     bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
@@ -699,21 +706,22 @@ std::string Pattern::make_analysis() {
     if (prev_linkthrow) {
       if (std::count(shiftcycles_visited.cbegin(), shiftcycles_visited.cend(),
           cyclestates.at(i)) == 1) {
-        buffer << "      ";
+        buffer2 << "      ";
       } else {
-        buffer << "    R ";
+        buffer2 << "    R ";
+        got_repeat = true;
       }
-      buffer << '(' << cyclestates.at(i) << ") ";
+      buffer2 << '(' << cyclestates.at(i) << ") ";
     } else if (!any_linkthrow && i == 0) {
-      buffer << "      (" << cyclestates.at(i) << ") ";
+      buffer2 << "      (" << cyclestates.at(i) << ") ";
     } else {
-      buffer << "         .";
+      buffer2 << "         \"";
       for (int j = 0; j < (h - 1); ++j) {
-        buffer << ' ';
+        buffer2 << ' ';
       }
     }
     for (int j = 0; j < (separation - (h + 3)); ++j) {
-      buffer << ' ';
+      buffer2 << ' ';
     }
 
     // excluded states, if any
@@ -721,7 +729,7 @@ std::string Pattern::make_analysis() {
     if (prev_linkthrow) {
       State excluded = states.at(i).upstream();
       if (printed.count(excluded) == 0) {
-        buffer << excluded;
+        buffer2 << excluded;
         printed.insert(excluded);
         es_printed = true;
       }
@@ -730,24 +738,70 @@ std::string Pattern::make_analysis() {
       State excluded = states.at(i).downstream();
       if (printed.count(excluded) == 0) {
         if (es_printed) {
-          buffer << ", ";
+          buffer2 << ", ";
         }
-        buffer << excluded;
+        buffer2 << excluded;
         printed.insert(excluded);
       }
     }
 
-    buffer << '\n';
+    buffer2 << '\n';
   }
 
-  // inverse pattern, if one exists
+  if (got_repeat) {
+    buffer << "State traversal list (R = repeat):\n";
+  } else {
+    buffer << "State traversal list:\n";
+  }
+  buffer << buffer2.str();
+
+  // table of states used on each shift cycle
+
+  if (show_sc) {
+    buffer << "\nStates used on each shift cycle:\n";
+
+    std::set<State> sc_visited;
+    for (size_t i = 0; i < length_; ++i) {
+      sc_visited.insert(cyclestates.at(i));
+    }
+    std::vector<State> sc_sorted(sc_visited.begin(), sc_visited.end());
+    std::sort(sc_sorted.begin(), sc_sorted.end(), state_compare);
+
+    int sep = std::max(14, 10 + h);
+    buffer << "   shift cycle";
+    for (int i = 13; i < sep + throwdigits; ++i) {
+      buffer << ' ';
+    }
+    buffer << "states used\n";
+
+    for (const State& s : sc_sorted) {
+      buffer << "   (" << s << ')';
+      for (int i = 4 + h; i < sep + throwdigits; ++i) {
+        buffer << ' ';
+      }
+      bool s_printed = false;
+      for (size_t i = 0; i < length_; ++i) {
+        if (cyclestates.at(i) == s) {
+          if (s_printed) {
+            buffer << ", ";
+          }
+          buffer << states.at(i);
+          s_printed = true;
+        }
+      }
+      buffer << '\n';
+    }
+  }
+
+  // inverse pattern, if it exists
 
   Pattern inverse_pattern = inverse();
-  assert((inverse_pattern.length() != 0) == is_superprime());
-  assert(is_superprime() == inverse_pattern.is_superprime());
-  if (inverse_pattern.length() != 0) {
-    buffer << std::format("\nInverse pattern:\n  {} /{}\n",
-                inverse_pattern.to_string(0, true), h);
+  assert(is_superprime_ == (inverse_pattern.length() != 0));
+  assert(is_superprime_ == inverse_pattern.is_superprime());
+
+  if (is_superprime_) {
+    buffer << std::format("\nInverse pattern (length {}):\n   {} /{}\n",
+              inverse_pattern.length(), inverse_pattern.to_string(0, true), h);
   }
 
   return buffer.str();
