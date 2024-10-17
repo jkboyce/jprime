@@ -67,6 +67,9 @@ struct SearchContext {
   // work assignments remaining not assigned to a worker
   std::list<WorkAssignment> assignments;
 
+  // number of times work assignments have been split
+  unsigned splits_total = 0;
+
   // methods to save and load on disk
   void to_file(const std::string& file);
   void from_file(const std::string& file);

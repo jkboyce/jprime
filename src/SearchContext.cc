@@ -152,7 +152,7 @@ void SearchContext::to_file(const std::string& file) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.8\n"
+  myfile << "version           6.9\n"
          << "command line      " << arglist << '\n'
          << "states            " << full_numstates << '\n'
          << "shift cycles      " << full_numcycles << '\n'
@@ -162,6 +162,7 @@ void SearchContext::to_file(const std::string& file) {
          << "patterns          " << npatterns << '\n'
          << "patterns (total)  " << ntotal << '\n'
          << "nodes completed   " << nnodes << '\n'
+         << "work splits       " << splits_total << '\n'
          << "seconds elapsed   " << std::fixed << std::setprecision(4)
                                  << secs_elapsed << '\n'
          << "seconds working   " << secs_working << '\n'
@@ -218,6 +219,7 @@ void SearchContext::from_file(const std::string& file) {
     throw std::invalid_argument("Error reading file: could not open");
   }
 
+  std::string version;
   std::string s;
   int linenum = 0;
   int section = 1;
@@ -236,9 +238,10 @@ void SearchContext::from_file(const std::string& file) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.7" && val != "6.8") {
-          error = "file version below 6.7 not supported";
+        if (val != "6.8" && val != "6.9") {
+          error = "file version below 6.8 not supported";
         }
+        version = val;
         break;
       case 1:
         if (s.rfind("command", 0) != 0) {
@@ -283,38 +286,51 @@ void SearchContext::from_file(const std::string& file) {
         nnodes = std::stoull(val);
         break;
       case 10:
+        if (version == "6.8") {
+          ++linenum;  // skip and read line as "seconds elapsed" instead
+        } else {
+          if (s.rfind("work splits", 0) != 0) {
+            error = "syntax in line 11";
+            break;
+          }
+          val = s.substr(column_start, s.size());
+          trim(val);
+          splits_total = static_cast<unsigned>(std::stoi(val));
+          break;
+        }
+      case 11:
         if (s.rfind("seconds elapsed", 0) != 0) {
-          error = "syntax in line 11";
+          error = "syntax in line 12";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         secs_elapsed = std::stod(val);
         break;
-      case 11:
+      case 12:
         if (s.rfind("seconds working", 0) != 0) {
-          error = "syntax in line 12";
+          error = "syntax in line 13";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         secs_working = std::stod(val);
         break;
-      case 12:
+      case 13:
         if (s.rfind("seconds avail", 0) != 0) {
-          error = "syntax in line 13";
+          error = "syntax in line 14";
           break;
         }
         val = s.substr(column_start, s.size());
         trim(val);
         secs_available = std::stod(val);
         break;
-      case 13:
       case 14:
-        break;
       case 15:
+        break;
+      case 16:
         if (s.rfind("patterns", 0) != 0) {
-          error = "syntax in line 16";
+          error = "syntax in line 17";
           break;
         }
         section = 2;
@@ -328,7 +344,7 @@ void SearchContext::from_file(const std::string& file) {
       throw std::invalid_argument(msg);
     }
 
-    if (linenum < 16) {
+    if (linenum < 17) {
       ++linenum;
       continue;
     }

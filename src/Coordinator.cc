@@ -77,6 +77,7 @@ bool Coordinator::run() {
   }
 
   stop_workers();
+  workers_splitting.clear();
   process_inbox();  // running worker will have sent back a RETURN_WORK message
 
   const auto end = std::chrono::high_resolution_clock::now();
@@ -230,7 +231,10 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 // SPLIT_WORK request, and (b) when the worker is notified to quit.
 
 void Coordinator::process_returned_work(const MessageW2C& msg) {
-  workers_splitting.erase(msg.worker_id);
+  if (workers_splitting.count(msg.worker_id) > 0) {
+    ++context.splits_total;
+    workers_splitting.erase(msg.worker_id);
+  }
   context.assignments.push_back(msg.assignment);
   record_data_from_message(msg);
 
@@ -740,8 +744,9 @@ void Coordinator::print_results() const {
              context.secs_elapsed, static_cast<double>(context.nnodes) /
              context.secs_elapsed / 1000000);
   if (config.num_threads > 1) {
-    jpout << std::format(", {:.1f} % util)\n",
-               (context.secs_working / context.secs_available) * 100);
+    jpout << std::format(", {:.1f} % util, {} splits)\n",
+               (context.secs_working / context.secs_available) * 100,
+               context.splits_total);
   } else {
     jpout << ")\n";
   }
