@@ -447,10 +447,8 @@ WorkAssignment Worker::split_work_assignment(unsigned split_alg) {
   switch (split_alg) {
     case 1:
       return split_work_assignment_takeall();
-      break;
     default:
       return split_work_assignment_takehalf();
-      break;
   }
 }
 
