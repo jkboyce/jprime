@@ -74,7 +74,7 @@ void Worker::gen_loops_normal() {
   ++nnodes;
 }
 
-// As above, but for long searches close to `l_bound`.
+// As above, but for long pattern searches close to `l_bound`.
 //
 // This version marks off states that are made unreachable by link throws
 // between shift cycles. We cut the search short when we determine we can't
@@ -153,8 +153,9 @@ void Worker::gen_loops_normal_marking() {
       break;
   }
 
-  if (did_mark_for_throw)
+  if (did_mark_for_throw) {
     unmark_unreachable_states_throw();
+  }
   ++nnodes;
 }
 
@@ -424,7 +425,7 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
 // `from` to state `to_state`.
 //
 // Returns false if the number of newly-excluded states implies that we can't
-// finish a pattern of at least length `l_current` from our current position.
+// finish a pattern of at least length `l_min` from our current position.
 // Returns true otherwise.
 
 inline bool Worker::mark_unreachable_states_throw() {

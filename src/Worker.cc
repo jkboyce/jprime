@@ -39,7 +39,7 @@ Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
 // assignment from the coordinator.
 
 void Worker::run() {
-  initialize_graph();
+  init();
 
   while (true) {
     bool new_assignment = false;
@@ -99,7 +99,7 @@ void Worker::run() {
 
 // Initialize the juggling graph and associated arrays used during search.
 
-void Worker::initialize_graph() {
+void Worker::init() {
   graph = {config.b, config.h, config.xarray,
     config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH ?
     config.l_min : 0};

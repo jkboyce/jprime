@@ -85,7 +85,7 @@ class Worker {
   void run();
 
  private:
-  void initialize_graph();
+  void init();
   void message_coordinator(MessageW2C& msg) const;
   void message_coordinator_text(const std::string& str) const;
   void process_inbox_running();
