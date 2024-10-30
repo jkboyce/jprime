@@ -793,6 +793,12 @@ std::string Pattern::make_analysis() {
     }
   }
 
+  // dual pattern
+
+  Pattern dual_pattern = dual();
+  buffer << std::format("\nDual pattern ({} objects):\n   {}\n",
+            dual_pattern.objects(), dual_pattern.to_string(0, false));
+
   // inverse pattern, if it exists
 
   Pattern inverse_pattern = inverse();
