@@ -245,7 +245,7 @@ Since the graph $(b,h)$ is finite, we can see that the number of prime patterns 
 8, 1505718865         
 </pre>
 
-These are the total counts of prime patterns, but how do they break down in terms of pattern periods (lengths)? For example of the 30,513,071,763 patterns in $(3,9)$, how many are there of each period? The answer is shown here ([data](runs/3_9_count)):
+How do these total counts break down in terms of pattern periods (lengths)? As an experiment, when we find the 30,513,071,763 patterns in $(3,9)$ we discover their periods are distributed like so ([data](runs/3_9_count)):
 
 ![Prime pattern length histogram in (3,9)](patterns_3_9.png)
 
