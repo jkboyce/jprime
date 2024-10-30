@@ -114,7 +114,7 @@ The table below shows exact counts for the number of prime patterns at each peri
 20, 2180061001275
 21, 9772927018285
 22, 43467641569472
-         
+
 5 OBJECTS
 1, 1
 2, 5
@@ -242,7 +242,7 @@ Since the graph $(b,h)$ is finite, we can see that the number of prime patterns 
 5, 5
 6, 79
 7, 29693
-8, 1505718865         
+8, 1505718865
 </pre>
 
 How do these total counts break down in terms of pattern periods (lengths)? As an experiment, when we find the 30,513,071,763 patterns in $(3,9)$ we discover their periods are distributed like so ([data](runs/3_9_count)):
@@ -308,10 +308,10 @@ H     N (N_bound)  Pattern count
 25,   2207 (2208),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_25_2207">{0, 4}</a>
 26,   2499 (2500),   <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_26_s1_g">{180, ?}</a>
 27,   2816 (2816),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_27_s0_g">1</a>
-28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=22, ?}</a>
+28,   3158 (3159),  <a href="https://github.com/jkboyce/jprime/blob/main/runs (in progress)/3_28_118_s1">{>=26, ?}</a>
 29,  <a href="https://github.com/jkboyce/jprime/blob/main/runs/3_29_s0"><3528</a> (3528),     {?, ?}
 
-  
+
          4 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
@@ -326,7 +326,7 @@ H     N (N_bound)  Pattern count
 13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_55_s0">16317</a>
 14,   928  (928),     <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/4_14_s0_g">>=18911</a>
 
-  
+
          5 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
@@ -338,7 +338,7 @@ H     N (N_bound)  Pattern count
 11,   420  (420),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/5_11_s0">59346</a>
 12,   726  (726),    <a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/5_12_s0_g">>=309585</a>
 
-  
+
          6 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
@@ -349,7 +349,7 @@ H     N (N_bound)  Pattern count
 11,   420  (420),      59346
 12,   843  (844), {>=(<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_79_s0">104</a>+<a href="https://github.com/jkboyce/jprime/blob/main/runs%20(in%20progress)/6_12_81_s1">263</a>), ?} (see note)
 
-  
+
          7 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
@@ -359,7 +359,7 @@ H     N (N_bound)  Pattern count
 11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/7_11_s0">144</a>
 12,   726  (726),    >=309585
 
-  
+
          8 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
@@ -368,7 +368,7 @@ H     N (N_bound)  Pattern count
 11,   149  (150),     <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_11_149">{18, 0}</a>
 12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/8_12_s0">45</a>
 
-  
+
          9 OBJECTS
 H     N (N_bound)  Pattern count
 --------------------------------
