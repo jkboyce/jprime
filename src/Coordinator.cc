@@ -730,23 +730,28 @@ void Coordinator::print_search_description() const {
         << std::endl;
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-    jpout << std::format("period-{} subgraph: {} states", config.l_min,
-               context.memory_numstates)
+    jpout << std::format("period-{} subgraph: {} {}", config.l_min,
+               context.memory_numstates,
+               context.memory_numstates == 1 ? "state" : "states")
           << std::endl;
   }
 }
 
 void Coordinator::print_results() const {
-  jpout << std::format("{} patterns in range ({} seen, {} nodes)\n",
-             context.npatterns, context.ntotal, context.nnodes);
+  jpout << std::format("{} {} in range ({} seen, {} {})\n",
+             context.npatterns,
+             context.npatterns == 1 ? "pattern" : "patterns",
+             context.ntotal, context.nnodes,
+             context.nnodes == 1 ? "node" : "nodes");
 
   jpout << std::format("runtime = {:.4f} sec ({:.1f}M nodes/sec",
              context.secs_elapsed, static_cast<double>(context.nnodes) /
              context.secs_elapsed / 1000000);
   if (config.num_threads > 1) {
-    jpout << std::format(", {:.1f} % util, {} splits)\n",
+    jpout << std::format(", {:.1f} % util, {} {})\n",
                (context.secs_working / context.secs_available) * 100,
-               context.splits_total);
+               context.splits_total,
+               context.splits_total == 1 ? "split" : "splits");
   } else {
     jpout << ")\n";
   }
