@@ -348,8 +348,8 @@ void Worker::iterative_gen_loops_super() {
   std::vector<std::vector<unsigned>> is_linkthrow(graph.numstates + 1);
   if (!SUPER0) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      for (size_t j = 0; j < graph.outdegree[i]; ++j) {
-        const unsigned tv = graph.outthrowval[i][j];
+      for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
+        const unsigned tv = graph.outthrowval.at(i).at(j);
         is_linkthrow.at(i).push_back(tv != 0 && tv != graph.h ? 1 : 0);
       }
     }

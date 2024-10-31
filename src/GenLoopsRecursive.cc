@@ -51,7 +51,7 @@ void Worker::gen_loops_normal() {
 
       // terminate the pattern at the current position in case we get a
       // STOP_WORKER message and need to unwind back to run()
-      pattern[pos + 1] = -1;
+      pattern.at(pos + 1) = -1;
       process_inbox_running();
       steps_taken = 0;
     }
@@ -133,7 +133,7 @@ void Worker::gen_loops_normal_marking() {
 
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
-        pattern[pos + 1] = -1;
+        pattern.at(pos + 1) = -1;
         process_inbox_running();
         steps_taken = 0;
       }
@@ -199,7 +199,7 @@ void Worker::gen_loops_super() {
       } else {
         if (++steps_taken >= steps_per_inbox_check && pos > root_pos
               && col < limit - 1) {
-          pattern[pos + 1] = -1;
+          pattern.at(pos + 1) = -1;
           process_inbox_running();
           steps_taken = 0;
         }
@@ -283,7 +283,7 @@ void Worker::gen_loops_super0() {
     } else {
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
             && col < limit - 1) {
-        pattern[pos + 1] = -1;
+        pattern.at(pos + 1) = -1;
         process_inbox_running();
         steps_taken = 0;
       }
