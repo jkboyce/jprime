@@ -691,11 +691,11 @@ void Worker::gen_loops() {
         static_cast<double>(l_min) >
         0.66 * static_cast<double>(max_possible)) {
       // the overhead of marking is only worth it for long patterns
-      alg = (config.recursiveflag ? 0 : 4);
-    } else if (config.countflag) {
-      alg = (config.recursiveflag ? 1 : 5);
-    } else {
       alg = (config.recursiveflag ? 1 : 6);
+    } else if (config.countflag) {
+      alg = (config.recursiveflag ? 0 : 4);
+    } else {
+      alg = (config.recursiveflag ? 0 : 5);
     }
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     if (config.shiftlimit == 0) {
@@ -707,13 +707,13 @@ void Worker::gen_loops() {
 
   if (config.verboseflag) {
     static const std::vector<std::string> algs = {
-      "gen_loops_normal_marking()",
       "gen_loops_normal()",
+      "gen_loops_normal_marking()",
       "gen_loops_super()",
       "gen_loops_super0()",
-      "iterative_gen_loops_normal_marking()",
       "iterative_gen_loops_normal<REPORT=false>()",
       "iterative_gen_loops_normal<REPORT=true>()",
+      "iterative_gen_loops_normal_marking()",
       "iterative_gen_loops_super<SUPER0=false>()",
       "iterative_gen_loops_super<SUPER0=true>()",
     };
@@ -727,11 +727,11 @@ void Worker::gen_loops() {
   std::vector<int> used_start(used);
   switch (alg) {
     case 0:
-      graph.find_exclude_states();
-      gen_loops_normal_marking();
+      gen_loops_normal();
       break;
     case 1:
-      gen_loops_normal();
+      graph.find_exclude_states();
+      gen_loops_normal_marking();
       break;
     case 2:
       gen_loops_super();
@@ -740,14 +740,14 @@ void Worker::gen_loops() {
       gen_loops_super0();
       break;
     case 4:
-      graph.find_exclude_states();
-      iterative_gen_loops_normal_marking();
-      break;
-    case 5:
       iterative_gen_loops_normal<false>();
       break;
-    case 6:
+    case 5:
       iterative_gen_loops_normal<true>();
+      break;
+    case 6:
+      graph.find_exclude_states();
+      iterative_gen_loops_normal_marking();
       break;
     case 7:
       iterative_gen_loops_super<false>();

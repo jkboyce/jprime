@@ -527,7 +527,7 @@ template void Worker::iterative_gen_loops_super<false>();
 // Helper methods
 //------------------------------------------------------------------------------
 
-// Set up the SearchState array with initial values.
+// Set up the SearchState vector with initial values.
 //
 // Leaves `pos` pointing to the last beat with loaded data, ready for the
 // iterative algorithm to resume. Input parameter `marking` indicates whether
@@ -580,8 +580,9 @@ bool Worker::iterative_init_workspace(bool marking) {
                 << "pos: " << pos << '\n'
                 << "pattern: ";
       for (size_t j = 0; pattern.at(j) != -1; ++j) {
-        if (j != 0)
+        if (j != 0) {
           std::cerr << ',';
+        }
         std::cerr << pattern.at(j);
       }
       std::cerr << '\n';
@@ -646,8 +647,9 @@ bool Worker::iterative_init_workspace(bool marking) {
           --exitcycles_remaining;
         }
       } else {
-        if (shifts_remaining == 0)
+        if (shifts_remaining == 0) {
           return false;
+        }
         --shifts_remaining;
         ss.to_cycle = -1;
       }
@@ -722,20 +724,22 @@ bool Worker::iterative_init_workspace(bool marking) {
 bool Worker::iterative_calc_rootpos_and_options() {
   unsigned new_root_pos = 0;
   for (; new_root_pos < pos; ++new_root_pos) {
-    SearchState& ss = beat.at(new_root_pos + 1);
+    const SearchState& ss = beat.at(new_root_pos + 1);
     if (ss.col < ss.col_limit - 1)
       break;
   }
-  if (new_root_pos == pos)
+  if (new_root_pos == pos) {
     return false;
+  }
 
+  assert(new_root_pos >= root_pos);
   if (new_root_pos != root_pos) {
     root_pos = new_root_pos;
     notify_coordinator_update();
   }
 
   root_throwval_options.clear();
-  SearchState& ss = beat.at(new_root_pos + 1);
+  const SearchState& ss = beat.at(new_root_pos + 1);
   for (size_t col = ss.col + 1; col < ss.col_limit; ++col) {
     root_throwval_options.push_back(
         graph.outthrowval.at(ss.from_state).at(col));
@@ -750,9 +754,10 @@ bool Worker::iterative_calc_rootpos_and_options() {
 
 bool Worker::iterative_can_split() {
   for (size_t i = root_pos + 1; i <= pos; ++i) {
-    SearchState& ss = beat.at(i + 1);
-    if (ss.col < ss.col_limit - 1)
+    const SearchState& ss = beat.at(i + 1);
+    if (ss.col < ss.col_limit - 1) {
       return true;
+    }
   }
   return false;
 }
