@@ -58,7 +58,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   xarray.assign(h + 1, false);
 
   // default for using dual graph
-  if (h > (2 * b)) {
+  if (h > 2 * b) {
     dualflag = true;
     b = h - b;
   }
@@ -75,7 +75,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-noplus")) {
       noplusminusflag = true;
     } else if (!strcmp(argv[i], "-super")) {
-      if ((i + 1) < argc) {
+      if (i + 1 < argc) {
         ++i;
         mode = RunMode::SUPER_SEARCH;
         try {
@@ -96,7 +96,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         throw std::invalid_argument("No shift limit provided after -super");
       }
     } else if (!strcmp(argv[i], "-file")) {
-      if ((i + 1) < argc) {
+      if (i + 1 < argc) {
         ++i;
         fileoutputflag = true;
         outfile = std::string(argv[i]);
@@ -104,7 +104,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         throw std::invalid_argument("No filename provided after -file");
       }
     } else if (!strcmp(argv[i], "-steal_alg")) {
-      if ((i + 1) < argc) {
+      if (i + 1 < argc) {
         ++i;
         val = std::stoi(argv[i]);
         if (val < 1 || val > 1) {
@@ -115,7 +115,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         throw std::invalid_argument("No number provided after -steal_alg");
       }
     } else if (!strcmp(argv[i], "-split_alg")) {
-      if ((i + 1) < argc) {
+      if (i + 1 < argc) {
         ++i;
         val = std::stoi(argv[i]);
         if (val < 1 || val > 2) {
@@ -160,7 +160,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-recursive")) {
       recursiveflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
-      if ((i + 1) < argc) {
+      if (i + 1 < argc) {
         ++i;
         try {
           val = std::stoi(argv[i]);
@@ -180,7 +180,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       // try to parse argument as a length or length range
       bool success = false;
       std::string s{argv[i]};
-      int hyphens = static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
+      auto hyphens = static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
       if (hyphens == 0) {
         try {
           val = std::stoi(argv[i]);
@@ -206,10 +206,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
             msg.append(s1);
             throw std::invalid_argument(msg);
           }
-          if (val > 0)
+          if (val > 0) {
             l_min = static_cast<unsigned>(val);
-          else
+          } else {
             success = false;
+          }
         }
         if (s2.size() > 0) {
           try {
@@ -219,10 +220,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
             msg.append(s2);
             throw std::invalid_argument(msg);
           }
-          if (val > 0)
+          if (val > 0) {
             l_max = static_cast<unsigned>(val);
-          else
+          } else {
             success = false;
+          }
         }
       }
 

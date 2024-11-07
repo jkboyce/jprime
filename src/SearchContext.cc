@@ -29,7 +29,7 @@ std::vector<int> parse_pattern_line(const std::string& p) {
   std::string pat = {p.cbegin(), std::find(p.cbegin(), p.cend(), ':')};
 
   // extract part between first and second '*'s if present
-  auto star = std::find(pat.cbegin(), pat.cend(), '*');
+  const auto star = std::find(pat.cbegin(), pat.cend(), '*');
   if (star != pat.cend()) {
     pat = {star + 1, std::find(star + 1, pat.cend(), '*')};
   }
@@ -92,18 +92,20 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
 
   unsigned pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
   unsigned pat1_end = pat1_start;
-  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ')
+  while (pat1_end != pat1.size() && pat1[pat1_end] != ' ') {
     ++pat1_end;
+  }
 
   unsigned pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
   unsigned pat2_end = pat2_start;
-  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ')
+  while (pat2_end != pat2.size() && pat2[pat2_end] != ' ') {
     ++pat2_end;
+  }
 
   // shorter patterns sort earlier
-  if ((pat1_end - pat1_start) < (pat2_end - pat2_start))
+  if (pat1_end - pat1_start < pat2_end - pat2_start)
     return true;
-  if ((pat1_end - pat1_start) > (pat2_end - pat2_start))
+  if (pat1_end - pat1_start > pat2_end - pat2_start)
     return false;
 
   // ground state before excited state patterns
@@ -134,10 +136,11 @@ bool pattern_compare(const std::string& pat1, const std::string& pat2) {
   bool has_comma = (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
       std::find(pat2.cbegin(), pat2.cend(), ',') != pat2.cend());
 
-  if (has_comma)
+  if (has_comma) {
     return pattern_compare_ints(pat1, pat2);
-  else
+  } else {
     return pattern_compare_letters(pat1, pat2);
+  }
 }
 
 //------------------------------------------------------------------------------

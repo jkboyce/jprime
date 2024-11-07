@@ -175,7 +175,7 @@ Pattern::Pattern(const std::string& p) {
   // also since h >= b, then `h` must be at least as large as
   // ceiling(sum / (length - plusses))
 
-  auto len = static_cast<int>(length());
+  const auto len = static_cast<int>(length());
   if (sum % std::gcd(plusses, len) != 0) {
     throw std::invalid_argument("No solution for `+` value in pattern");
   }
@@ -227,8 +227,9 @@ Pattern::Pattern(const std::string& p) {
 // If the pattern is not valid, return 0.
 
 int Pattern::objects() const {
-  if (!is_valid())
+  if (!is_valid()) {
     return 0;
+  }
 
   int sum = 0;
   for (int val : throwval) {
@@ -254,15 +255,18 @@ State Pattern::state_before(size_t index) {
 // Return true if the pattern is a valid siteswap, false otherwise.
 
 bool Pattern::is_valid() const {
-  if (length() == 0)
+  const auto len = length();
+  if (len == 0) {
     return false;
+  }
 
   // look for collisions
-  std::vector<bool> taken(length(), false);
-  for (size_t i = 0; i < length(); ++i) {
-    size_t index = (i + static_cast<size_t>(throwval.at(i))) % length();
-    if (taken.at(index))
+  std::vector<bool> taken(len, false);
+  for (size_t i = 0; i < len; ++i) {
+    size_t index = (i + static_cast<size_t>(throwval.at(i))) % len;
+    if (taken.at(index)) {
       return false;
+    }
     taken.at(index) = true;
   }
 
@@ -272,8 +276,9 @@ bool Pattern::is_valid() const {
 // Return true if the pattern is prime, false otherwise.
 
 bool Pattern::is_prime() {
-  if (!is_valid())
+  if (!is_valid()) {
     return false;
+  }
   check_have_states();
 
   std::set<State> s(states.cbegin(), states.cend());
@@ -283,16 +288,18 @@ bool Pattern::is_prime() {
 // Return true if the pattern is composite, false otherwise.
 
 bool Pattern::is_composite() {
-  if (!is_valid())
+  if (!is_valid()) {
     return false;
+  }
   return !is_prime();
 }
 
 // Return true if the pattern is superprime, false otherwise.
 
 bool Pattern::is_superprime() {
-  if (!is_valid())
+  if (!is_valid()) {
     return false;
+  }
   check_have_states();
 
   std::vector<State> deduped;
@@ -325,14 +332,15 @@ bool Pattern::is_superprime() {
 // Return the dual of the pattern.
 
 Pattern Pattern::dual() const {
-  if (length() == 0) {
+  const auto len = length();
+  if (len == 0) {
     std::vector<int> empty_throwval;
     return {empty_throwval, h};
   }
 
-  std::vector<int> dual_throwval(length());
+  std::vector<int> dual_throwval(len);
   for (size_t i = 0; i < length(); ++i) {
-    dual_throwval.at(i) = h - throwval.at(length() - 1 - i);
+    dual_throwval.at(i) = h - throwval.at(len - 1 - i);
   }
   return {dual_throwval, h};
 }
@@ -434,9 +442,9 @@ Pattern Pattern::inverse() {
     }
   }
 
-  const size_t inverse_length = inverse_throwval.size();
-  for (size_t i = 0; i < inverse_length; ++i) {
-    size_t j = (i + min_index) % inverse_length;
+  const auto inverse_len = inverse_throwval.size();
+  for (size_t i = 0; i < inverse_len; ++i) {
+    const auto j = (i + min_index) % inverse_len;
     inverse_final.push_back(inverse_throwval.at(j));
   }
 
@@ -605,11 +613,11 @@ std::string Pattern::make_analysis() {
   check_have_states();
   const auto is_prime_ = is_prime();
   const auto is_superprime_ = is_superprime();
-  const auto length_ = length();
+  const auto len = length();
 
   buffer << "Properties:\n"
          << "   objects             " << objects() << '\n'
-         << "   length              " << length_ << '\n'
+         << "   length              " << len << '\n'
          << "   maximum throw       " << maxval << '\n'
          << "   beats in state      " << h << '\n'
          << "   is_prime            " << std::boolalpha << is_prime_ << '\n'
@@ -671,9 +679,9 @@ std::string Pattern::make_analysis() {
 
   std::vector<State> shiftcycles_visited;
   bool any_linkthrow = false;
-  for (size_t i = 0; i < length_; ++i) {
+  for (size_t i = 0; i < len; ++i) {
     if (throwval.at(i) != 0 && throwval.at(i) != h) {
-      shiftcycles_visited.push_back(cyclestates.at((i + 1) % length_));
+      shiftcycles_visited.push_back(cyclestates.at((i + 1) % len));
     }
     if (throwval.at(i) != 0 && throwval.at(i) != h) {
       any_linkthrow = true;
@@ -681,7 +689,7 @@ std::string Pattern::make_analysis() {
   }
   std::set<State> printed;
 
-  for (size_t i = 0; i < length_; ++i) {
+  for (size_t i = 0; i < len; ++i) {
     // state and throw value out of it
     if (std::count(states.cbegin(), states.cend(), states.at(i)) == 1) {
       buffer2 << "   ";
@@ -698,7 +706,7 @@ std::string Pattern::make_analysis() {
     }
 
     // shift cycle visited
-    int prev_throwvalue = throwval.at(i == 0 ? length_ - 1 : i - 1);
+    int prev_throwvalue = throwval.at(i == 0 ? len - 1 : i - 1);
     int curr_throwvalue = throwval.at(i);
     bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
     bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
@@ -761,7 +769,7 @@ std::string Pattern::make_analysis() {
     buffer << "\nStates used on each shift cycle:\n";
 
     std::set<State> sc_visited;
-    for (size_t i = 0; i < length_; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       sc_visited.insert(cyclestates.at(i));
     }
     std::vector<State> sc_sorted(sc_visited.begin(), sc_visited.end());
@@ -780,7 +788,7 @@ std::string Pattern::make_analysis() {
         buffer << ' ';
       }
       bool s_printed = false;
-      for (size_t i = 0; i < length_; ++i) {
+      for (size_t i = 0; i < len; ++i) {
         if (cyclestates.at(i) == s) {
           if (s_printed) {
             buffer << ", ";
@@ -824,30 +832,30 @@ std::string Pattern::make_analysis() {
 // This should only be called for a valid pattern!
 
 void Pattern::check_have_states() {
-  if (states.size() == length())
+  const auto len = length();
+  if (states.size() == len)
     return;
   assert(states.size() == 0);
   assert(cyclestates.size() == 0);
 
   // find the starting state
   State start_state{static_cast<unsigned>(h)};
-  for (size_t i = 0; i < length(); ++i) {
-    int fillslot = throwval.at(i) - static_cast<int>(length()) +
-        static_cast<int>(i);
+  for (size_t i = 0; i < len; ++i) {
+    int fillslot = throwval.at(i) - static_cast<int>(len) + static_cast<int>(i);
     while (fillslot >= 0) {
       if (fillslot < static_cast<int>(h)) {
         assert(start_state.slot(fillslot) == 0);
         start_state.slot(fillslot) = 1;
       }
-      fillslot -= length();
+      fillslot -= len;
     }
   }
 
   states.push_back(start_state);
   State state = start_state;
-  for (size_t i = 0; i < length(); ++i) {
+  for (size_t i = 0; i < len; ++i) {
     state = state.advance_with_throw(throwval.at(i));
-    if (i != length() - 1) {
+    if (i != len - 1) {
       states.push_back(state);
     }
   }
@@ -865,8 +873,8 @@ void Pattern::check_have_states() {
     cyclestates.push_back(cyclestate);
   }
 
-  assert(states.size() == length());
-  assert(cyclestates.size() == length());
+  assert(states.size() == len);
+  assert(cyclestates.size() == len);
 }
 
 // Print the pattern to an output stream using the default output format.

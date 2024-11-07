@@ -20,6 +20,8 @@
 // recursively continuing until a pattern is found or `l_max` is exceeded.
 //
 // This version is for NORMAL mode.
+//
+// Note this has a recursion depth of `l_max`.
 
 void Worker::gen_loops_normal() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -79,6 +81,8 @@ void Worker::gen_loops_normal() {
 // This version marks off states that are made unreachable by link throws
 // between shift cycles. We cut the search short when we determine we can't
 // generate a pattern of length `l_min` or longer from our current position.
+//
+// Note this has a recursion depth of `l_max`.
 
 void Worker::gen_loops_normal_marking() {
   bool did_mark_for_throw = false;
@@ -107,8 +111,10 @@ void Worker::gen_loops_normal_marking() {
     if (throwval != 0 && throwval != graph.h) {
       // link throws make certain nearby states unreachable
       if (!did_mark_for_throw) {
+        // all larger `col` values will also be link throws, so we only need to
+        // mark the "from" shift cycle once (marking is independent of link
+        // throw value)
         if (!mark_unreachable_states_throw()) {
-          // bail since all additional `col` values will also be link throws
           unmark_unreachable_states_throw();
           ++nnodes;
           return;
@@ -164,6 +170,8 @@ void Worker::gen_loops_normal_marking() {
 // Since a superprime pattern can only visit a single state in each shift cycle,
 // this is the fastest version because so many states are excluded by each
 // throw to a new shift cycle.
+//
+// Note this has a recursion depth of `l_max`.
 
 void Worker::gen_loops_super() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -250,11 +258,13 @@ void Worker::gen_loops_super() {
   ++nnodes;
 }
 
-// A specialization of gen_loops_super() for the case `shiftthrows` == 0.
+// A specialization of gen_loops_super() for the case `shiftlimit` == 0.
 //
 // This version tracks the specific "exit cycles" that can get back to the
 // start state with a single throw. If those exit cycles are all used and the
 // pattern isn't done, we terminate the search early.
+//
+// Note this has a recursion depth of `l_max`.
 
 void Worker::gen_loops_super0() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -289,8 +299,9 @@ void Worker::gen_loops_super0() {
       }
 
       const int old_exitcyclesleft = exitcyclesleft;
-      if (graph.isexitcycle[to_cycle])
+      if (graph.isexitcycle[to_cycle]) {
         --exitcyclesleft;
+      }
       cycleused[to_cycle] = true;
       ++pos;
       const unsigned old_from = from;
@@ -436,8 +447,9 @@ inline bool Worker::mark_unreachable_states_throw() {
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 &&
-        --max_possible < static_cast<int>(l_min))
+        --max_possible < static_cast<int>(l_min)) {
       valid = false;
+    }
   }
   return valid;
 }
@@ -450,8 +462,9 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 &&
-        --max_possible < static_cast<int>(l_min))
+        --max_possible < static_cast<int>(l_min)) {
       valid = false;
+    }
   }
 
   return valid;
@@ -465,8 +478,9 @@ inline void Worker::unmark_unreachable_states_throw() {
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (--used[statenum] == 0 && --*ds > 0)
+    if (--used[statenum] == 0 && --*ds > 0) {
       ++max_possible;
+    }
   }
 }
 
@@ -476,8 +490,9 @@ inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (--used[statenum] == 0 && --*ds > 0)
+    if (--used[statenum] == 0 && --*ds > 0) {
       ++max_possible;
+    }
   }
 }
 

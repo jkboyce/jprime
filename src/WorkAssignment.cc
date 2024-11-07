@@ -28,8 +28,9 @@ bool WorkAssignment::from_string(const std::string& str) {
   );
   std::smatch matches;
 
-  if (!std::regex_search(str, matches, rgx) || matches.size() != 6)
+  if (!std::regex_search(str, matches, rgx) || matches.size() != 6) {
     return false;
+  }
 
   start_state = std::stoi(matches[1].str());
   end_state = std::stoi(matches[2].str());
@@ -73,14 +74,16 @@ std::string WorkAssignment::to_string() const {
          << ", root_pos:" << root_pos
          << ", root_options:[";
   for (unsigned v : root_throwval_options) {
-    if (v != root_throwval_options.front())
+    if (v != root_throwval_options.front()) {
       buffer << ',';
+    }
     buffer << v;
   }
   buffer << "], current:\"";
   for (size_t i = 0; i < partial_pattern.size(); ++i) {
-    if (i > 0)
+    if (i > 0) {
       buffer << ',';
+    }
     buffer << partial_pattern.at(i);
   }
   buffer << "\" }";
