@@ -27,6 +27,7 @@ void Worker::gen_loops_normal() {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
+  const int old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -61,7 +62,6 @@ void Worker::gen_loops_normal() {
     // we need to go deeper
     ++used[to];
     ++pos;
-    const int old_from = from;
     from = to;
     gen_loops_normal();
     from = old_from;
@@ -89,6 +89,7 @@ void Worker::gen_loops_normal_marking() {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
+  const int old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -126,7 +127,6 @@ void Worker::gen_loops_normal_marking() {
         pattern[pos] = throwval;
         ++used[to];
         ++pos;
-        const int old_from = from;
         from = to;
         gen_loops_normal_marking();
         from = old_from;
@@ -178,6 +178,7 @@ void Worker::gen_loops_super() {
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
   const unsigned* ov = graph.outthrowval[from].data();
+  const int old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -213,12 +214,12 @@ void Worker::gen_loops_super() {
         }
 
         const int old_exitcyclesleft = exitcyclesleft;
-        if (graph.isexitcycle[to_cycle])
+        if (graph.isexitcycle[to_cycle]) {
           --exitcyclesleft;
+        }
         cycleused[to_cycle] = true;
         ++used[to];
         ++pos;
-        const int old_from = from;
         from = to;
         gen_loops_super();
         from = old_from;
@@ -241,7 +242,6 @@ void Worker::gen_loops_super() {
         ++shiftcount;
         ++used[to];
         ++pos;
-        const int old_from = from;
         from = to;
         gen_loops_super();
         from = old_from;
@@ -270,6 +270,7 @@ void Worker::gen_loops_super0() {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
+  const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -304,7 +305,6 @@ void Worker::gen_loops_super0() {
       }
       cycleused[to_cycle] = true;
       ++pos;
-      const unsigned old_from = from;
       from = to;
       gen_loops_super0();
       from = old_from;
@@ -339,15 +339,17 @@ unsigned Worker::load_one_throw() {
 
   for (unsigned col = 0; col < graph.outdegree.at(from); ++col) {
     if (graph.outthrowval.at(from).at(col) ==
-          static_cast<unsigned>(pattern.at(pos)))
+          static_cast<unsigned>(pattern.at(pos))) {
       return col;
+    }
   }
 
   // diagnostic information if there's a problem
   std::ostringstream buffer;
   for (size_t i = 0; i <= pos; ++i) {
-    if (i != 0)
+    if (i != 0) {
       buffer << ',';
+    }
     buffer << pattern.at(i);
   }
   std::cerr << "worker: " << worker_id << '\n'
@@ -358,14 +360,17 @@ unsigned Worker::load_one_throw() {
             << "start_state: " << start_state << '\n'
             << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
-  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
     std::cerr << graph.outthrowval.at(from).at(i) << ", ";
+  }
   std::cerr << "\noutmatrix[from][]: ";
-  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
     std::cerr << graph.outmatrix.at(from).at(i) << ", ";
+  }
   std::cerr << "\nstate[outmatrix[from][]]: ";
-  for (size_t i = 0; i < graph.outdegree.at(from); ++i)
+  for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
     std::cerr << graph.state.at(graph.outmatrix.at(from).at(i)) << ", ";
+  }
   std::cerr << '\n';
   std::exit(EXIT_FAILURE);
   return 0;
