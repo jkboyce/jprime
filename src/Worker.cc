@@ -663,18 +663,16 @@ void Worker::gen_patterns() {
       loading_work = false;
       continue;
     }
+
+    // the search at `start_state` is a go
     if (!loading_work || root_throwval_options.size() == 0) {
-      // when loading work, `root_pos` (and usually `root_throwval_options`) are
-      // given by the work assignment, otherwise initialize here
+      // ensure `root_throwval_options` is populated correctly; if loading work
+      // then we only need to do this for a new search - otherwise it's
+      // already been set by the work assignment
       root_pos = 0;
       build_rootpos_throw_options(start_state, 0);
     }
-    if (root_throwval_options.size() == 0) {
-      loading_work = false;
-      continue;
-    }
-
-    // the search at `start_state` is a go
+    assert(root_throwval_options.size() > 0);
     notify_coordinator_update();
     gen_loops();
     assert(pos == 0);
