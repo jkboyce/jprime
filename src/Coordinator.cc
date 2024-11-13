@@ -707,7 +707,7 @@ void Coordinator::print_search_description() const {
       jpout << std::format("(+{} shifts) ", config.shiftlimit);
     }
   }
-  jpout << "search for length: " << config.l_min;
+  jpout << "search for period: " << config.l_min;
   if (config.l_max != config.l_min) {
     if (config.l_max == 0) {
       jpout << '-';
@@ -757,7 +757,7 @@ void Coordinator::print_results() const {
   }
 
   if (config.countflag || l_max > config.l_min) {
-    jpout << "\nPattern count by length:\n";
+    jpout << "\nPattern count by period:\n";
     for (unsigned i = config.l_min; i <= l_max; ++i) {
       jpout << i << ", " << context.count.at(i) << '\n';
     }
@@ -791,7 +791,7 @@ void Coordinator::print_status_output() {
       std::cout << ' ';
     }
   }
-  std::cout << "    length\n";
+  std::cout << "    period\n";
   for (unsigned i = 0; i < config.num_threads; ++i) {
     std::cout << worker_status.at(i) << std::endl;
   }

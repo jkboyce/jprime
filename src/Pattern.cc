@@ -603,25 +603,27 @@ std::string Pattern::make_analysis() {
 
   buffer << "Pattern:\n";
   if (h < 36) {
-    buffer << "   short form          " << to_string(0) << '\n';
+    buffer << "   short form           " << to_string(0) << '\n';
     if (maxval == h) {
-      buffer << "   block form          " << to_string(0, true) << '\n';
+      buffer << "   block form           " << to_string(0, true) << '\n';
     }
   }
-  buffer << "   standard form       " << to_string(1) << "\n\n";
+  buffer << "   standard form        " << to_string(1) << "\n\n";
 
   check_have_states();
   const auto is_prime_ = is_prime();
   const auto is_superprime_ = is_superprime();
   const auto len = length();
+  const auto graphstring = std::format("({},{})", objects(), h);
 
   buffer << "Properties:\n"
-         << "   objects             " << objects() << '\n'
-         << "   length              " << len << '\n'
-         << "   maximum throw       " << maxval << '\n'
-         << "   beats in state      " << h << '\n'
-         << "   is_prime            " << std::boolalpha << is_prime_ << '\n'
-         << "   is_superprime       " << std::boolalpha << is_superprime_
+         << "   objects              " << objects() << '\n'
+         << "   period               " << len << '\n'
+         << "   maximum throw        " << maxval << '\n'
+         << "   beats in state       " << h << '\n'
+         << "   prime                " << std::boolalpha << is_prime_ << '\n'
+         << "   superprime in "        << std::format("{:6} ", graphstring)
+                                       << std::boolalpha << is_superprime_
          << "\n\n";
 
   // graph information
@@ -642,11 +644,11 @@ std::string Pattern::make_analysis() {
     }
   }
 
-  buffer << "Graph (" << objects() << ',' << h << "):\n"
-         << "   states              " << full_numstates << '\n'
-         << "   shift cycles        " << full_numcycles << '\n'
-         << "   short cycles        " << full_numshortcycles << '\n'
-         << "   prime length bound  "
+  buffer << "Graph " << graphstring << ":\n"
+         << "   states               " << full_numstates << '\n'
+         << "   shift cycles         " << full_numcycles << '\n'
+         << "   short cycles         " << full_numshortcycles << '\n'
+         << "   prime length bound   "
          << std::max(static_cast<std::uint64_t>(max_cycle_period),
               full_numstates - full_numcycles)
          << "\n\n";
