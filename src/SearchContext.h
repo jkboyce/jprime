@@ -33,9 +33,9 @@ struct SearchContext {
   std::uint64_t full_numcycles = 0;
   std::uint64_t full_numshortcycles = 0;
 
-  // precalculated maximum length possible for a pattern of the type we're
+  // precalculated maximum period possible for a pattern of the type we're
   // searching for, in the full graph (does not change)
-  std::uint64_t l_bound = 0;
+  std::uint64_t n_bound = 0;
 
   // precalculated quantity for the actual graph in memory
   std::uint64_t memory_numstates = 0;
@@ -43,7 +43,7 @@ struct SearchContext {
   // number of patterns found in the range [l_min, l_max]
   std::uint64_t npatterns = 0;
 
-  // total number of patterns seen, of any length
+  // total number of patterns seen, of any period
   std::uint64_t ntotal = 0;
 
   // total number of nodes completed in the search tree
@@ -58,10 +58,10 @@ struct SearchContext {
   // sum of available working time for all workers (busy or idle)
   double secs_available = 0;
 
-  // patterns found with length in the range [l_min, l_max]
+  // patterns found with period in the range [n_min, n_max]
   std::vector<std::string> patterns;
 
-  // count of patterns found at each length, for all lengths
+  // count of patterns found at each period, for all periods
   std::vector<std::uint64_t> count;
 
   // work assignments remaining not assigned to a worker

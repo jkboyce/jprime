@@ -53,8 +53,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   }
 
   // defaults
-  l_min = 1;
-  l_max = 0;
+  n_min = 1;
+  n_max = 0;
   xarray.assign(h + 1, false);
 
   // default for using dual graph
@@ -177,7 +177,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         throw std::invalid_argument("No number provided after -threads");
       }
     } else if (i == 3) {
-      // try to parse argument as a length or length range
+      // try to parse argument as a period or period range
       bool success = false;
       std::string s{argv[i]};
       auto hyphens = static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
@@ -185,12 +185,12 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
-          std::string msg("Error parsing pattern length: ");
+          std::string msg("Error parsing pattern period: ");
           msg.append(argv[i]);
           throw std::invalid_argument(msg);
         }
         if (val > 0) {
-          l_min = l_max = static_cast<unsigned>(val);
+          n_min = n_max = static_cast<unsigned>(val);
           success = true;
         }
       } else if (hyphens == 1) {
@@ -202,12 +202,12 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           try {
             val = std::stoi(s1);
           } catch (const std::invalid_argument& ie) {
-            std::string msg("Error parsing pattern length: ");
+            std::string msg("Error parsing pattern period: ");
             msg.append(s1);
             throw std::invalid_argument(msg);
           }
           if (val > 0) {
-            l_min = static_cast<unsigned>(val);
+            n_min = static_cast<unsigned>(val);
           } else {
             success = false;
           }
@@ -216,12 +216,12 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           try {
             val = std::stoi(s2);
           } catch (const std::invalid_argument& ie) {
-            std::string msg("Error parsing pattern length: ");
+            std::string msg("Error parsing pattern period: ");
             msg.append(s2);
             throw std::invalid_argument(msg);
           }
           if (val > 0) {
-            l_max = static_cast<unsigned>(val);
+            n_max = static_cast<unsigned>(val);
           } else {
             success = false;
           }
@@ -229,7 +229,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       }
 
       if (!success) {
-        std::string msg("Error parsing pattern length: ");
+        std::string msg("Error parsing pattern period: ");
         msg.append(argv[i]);
         throw std::invalid_argument(msg);
       }
@@ -241,7 +241,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   }
 
   // graph type
-  if (l_min == l_max && l_min < h) {
+  if (n_min == n_max && n_min < h) {
     graphmode = GraphMode::SINGLE_PERIOD_GRAPH;
   } else {
     graphmode = GraphMode::FULL_GRAPH;
@@ -249,11 +249,11 @@ void SearchConfig::from_args(size_t argc, char** argv) {
 
   // output throws as letters (a, b, ...) or numbers (10, 11, ...)?
   unsigned max_throw_value = h;
-  if (l_max > 0) {
+  if (n_max > 0) {
     if (dualflag) {
-      max_throw_value = std::min(max_throw_value, (h - b) * l_max);
+      max_throw_value = std::min(max_throw_value, (h - b) * n_max);
     } else {
-      max_throw_value = std::min(max_throw_value, b * l_max);
+      max_throw_value = std::min(max_throw_value, b * n_max);
     }
   }
   if (max_throw_value < 36) {

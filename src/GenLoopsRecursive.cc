@@ -17,11 +17,11 @@
 
 
 // Try all allowed throw values at the current pattern position `pos`,
-// recursively continuing until a pattern is found or `l_max` is exceeded.
+// recursively continuing until a pattern is found or `n_max` is exceeded.
 //
 // This version is for NORMAL mode.
 //
-// Note this has a recursion depth of `l_max`.
+// Note this has a recursion depth of `n_max`.
 
 void Worker::gen_loops_normal() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -43,7 +43,7 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    if (pos + 1 == l_max)
+    if (pos + 1 == n_max)
       continue;
 
     // see if it's time to check the inbox
@@ -76,13 +76,13 @@ void Worker::gen_loops_normal() {
   ++nnodes;
 }
 
-// As above, but for long pattern searches close to `l_bound`.
+// As above, but for pattern periods `n` close to `n_bound`.
 //
 // This version marks off states that are made unreachable by link throws
 // between shift cycles. We cut the search short when we determine we can't
-// generate a pattern of length `l_min` or longer from our current position.
+// generate a pattern of period `n_min` or larger from our current position.
 //
-// Note this has a recursion depth of `l_max`.
+// Note this has a recursion depth of `n_max`.
 
 void Worker::gen_loops_normal_marking() {
   bool did_mark_for_throw = false;
@@ -106,7 +106,7 @@ void Worker::gen_loops_normal_marking() {
       continue;
     }
 
-    if (pos + 1 == l_max)
+    if (pos + 1 == n_max)
       continue;
 
     if (throwval != 0 && throwval != graph.h) {
@@ -171,7 +171,7 @@ void Worker::gen_loops_normal_marking() {
 // this is the fastest version because so many states are excluded by each
 // throw to a new shift cycle.
 //
-// Note this has a recursion depth of `l_max`.
+// Note this has a recursion depth of `n_max`.
 
 void Worker::gen_loops_super() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -203,7 +203,7 @@ void Worker::gen_loops_super() {
         continue;
       } else if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
         continue;
-      } else if (pos + 1 == l_max) {
+      } else if (pos + 1 == n_max) {
         continue;
       } else {
         if (++steps_taken >= steps_per_inbox_check && pos > root_pos
@@ -236,7 +236,7 @@ void Worker::gen_loops_super() {
       pattern[pos] = throwval;
       if (to == start_state) {
         handle_finished_pattern();
-      } else if (pos + 1 == l_max) {
+      } else if (pos + 1 == n_max) {
         continue;
       } else {
         ++shiftcount;
@@ -264,7 +264,7 @@ void Worker::gen_loops_super() {
 // start state with a single throw. If those exit cycles are all used and the
 // pattern isn't done, we terminate the search early.
 //
-// Note this has a recursion depth of `l_max`.
+// Note this has a recursion depth of `n_max`.
 
 void Worker::gen_loops_super0() {
   unsigned col = (loading_work ? load_one_throw() : 0);
@@ -289,7 +289,7 @@ void Worker::gen_loops_super0() {
       continue;
     } else if (exitcyclesleft == 0) {
       continue;
-    } else if (pos + 1 == l_max) {
+    } else if (pos + 1 == n_max) {
       continue;
     } else {
       if (++steps_taken >= steps_per_inbox_check && pos > root_pos
@@ -333,7 +333,7 @@ unsigned Worker::load_one_throw() {
     loading_work = false;
     return 0;
   }
-  if (pos + 1 == l_max) {
+  if (pos + 1 == n_max) {
     loading_work = false;
   }
 
@@ -441,7 +441,7 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
 // `from` to state `to_state`.
 //
 // Returns false if the number of newly-excluded states implies that we can't
-// finish a pattern of at least length `l_min` from our current position.
+// finish a pattern of at least period `n_min` from our current position.
 // Returns true otherwise.
 
 inline bool Worker::mark_unreachable_states_throw() {
@@ -452,7 +452,7 @@ inline bool Worker::mark_unreachable_states_throw() {
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 &&
-        --max_possible < static_cast<int>(l_min)) {
+        --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
   }
@@ -467,7 +467,7 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
 
   while ((statenum = *es++)) {
     if (++used[statenum] == 1 && ++*ds > 1 &&
-        --max_possible < static_cast<int>(l_min)) {
+        --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
   }
@@ -504,7 +504,7 @@ inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
 inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
-  if ((pos + 1) >= l_min && !config.countflag) {
+  if ((pos + 1) >= n_min && !config.countflag) {
     pattern.at(pos + 1) = -1;
     report_pattern();
   }

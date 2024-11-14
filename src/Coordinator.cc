@@ -50,9 +50,9 @@ bool Coordinator::run() {
     return false;
   }
 
-  // the search is a go and `l_bound` fits into an unsigned int
-  l_max = (config.l_max > 0) ? config.l_max
-      : static_cast<unsigned>(context.l_bound);
+  // the search is a go and `n_bound` fits into an unsigned int
+  n_max = (config.n_max > 0) ? config.n_max
+      : static_cast<unsigned>(context.n_bound);
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -189,7 +189,7 @@ void Coordinator::process_inbox() {
 // to the terminal.
 
 void Coordinator::process_search_result(const MessageW2C& msg) {
-  // workers only send patterns in the target length range
+  // workers only send patterns in the target period range
   context.patterns.push_back(msg.pattern);
 
   if (config.printflag) {
@@ -445,13 +445,13 @@ void Coordinator::calc_graph_size() {
     }
   }
 
-  // longest patterns possible of the type selected
+  // highest-period patterns possible of the type selected
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     // two possibilities: Stay on a single cycle, or use multiple cycles
-    context.l_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
+    context.n_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
         context.full_numstates - context.full_numcycles);
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    context.l_bound = (context.full_numcycles > 1 ?
+    context.n_bound = (context.full_numcycles > 1 ?
         context.full_numcycles + config.shiftlimit : 0);
   }
 
@@ -460,7 +460,7 @@ void Coordinator::calc_graph_size() {
     context.memory_numstates = context.full_numstates;
   } else if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
     context.memory_numstates =
-        Graph::ordered_partitions(config.b, config.h, config.l_min);
+        Graph::ordered_partitions(config.b, config.h, config.n_min);
   }
 }
 
@@ -475,9 +475,9 @@ bool Coordinator::passes_prechecks() {
     print_search_description();
     do_search = false;
   }
-  if (config.l_min > context.l_bound || config.l_max > context.l_bound) {
-    jpout << std::format("No patterns longer than {} are possible",
-               context.l_bound)
+  if (config.n_min > context.n_bound || config.n_max > context.n_bound) {
+    jpout << std::format("Pattern periods greater than {} are not possible",
+               context.n_bound)
           << std::endl;
     do_search = false;
   }
@@ -506,15 +506,15 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
   context.nnodes += msg.nnodes;
   context.secs_working += msg.secs_working;
 
-  // pattern counts by length
-  assert(msg.count.size() == l_max + 1);
+  // pattern counts by period
+  assert(msg.count.size() == n_max + 1);
   assert(context.count.size() <= msg.count.size());
   context.count.resize(msg.count.size(), 0);
 
   for (size_t i = 1; i < msg.count.size(); ++i) {
     context.count.at(i) += msg.count.at(i);
     context.ntotal += msg.count.at(i);
-    if (i >= config.l_min && i <= l_max) {
+    if (i >= config.n_min && i <= n_max) {
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
@@ -539,7 +539,7 @@ void Coordinator::start_workers() {
       jpout << std::format("worker {} starting...", id) << std::endl;
     }
 
-    worker.push_back(std::make_unique<Worker>(config, *this, id, l_max));
+    worker.push_back(std::make_unique<Worker>(config, *this, id, n_max));
     worker_thread.push_back(
         std::make_unique<std::thread>(&Worker::run, worker.at(id).get()));
     worker_startstate.push_back(0);
@@ -581,14 +581,14 @@ void Coordinator::stop_workers() {
 }
 
 // Use the distribution of patterns found so far to extrapolate the expected
-// number of patterns at length `l_bound`. This may be a useful signal of the
+// number of patterns at period `n_bound`. This may be a useful signal of the
 // degree of search completion.
 //
-// The distribution of patterns by length is observed to closely follow a
+// The distribution of patterns by period is observed to closely follow a
 // Gaussian (normal) shape, so we fit the logarithm to a parabola and use that
 // to extrapolate.
 
-double Coordinator::expected_patterns_at_maxlength() {
+double Coordinator::expected_patterns_at_maxperiod() {
   size_t mode = 0;
   size_t max = 0;
   std::uint64_t modeval = 0;
@@ -662,8 +662,8 @@ double Coordinator::expected_patterns_at_maxlength() {
   double B = M21 * sx2y + M22 * sxy + M23 * sy;
   double C = M31 * sx2y + M32 * sxy + M33 * sy;
 
-  // evaluate the expected number of patterns found at x = l_bound
-  double x = static_cast<double>(context.l_bound);
+  // evaluate the expected number of patterns found at x = n_bound
+  double x = static_cast<double>(context.n_bound);
   double lny = A * x * x + B * x + C;
   return exp(lny);
 }
@@ -707,15 +707,15 @@ void Coordinator::print_search_description() const {
       jpout << std::format("(+{} shifts) ", config.shiftlimit);
     }
   }
-  jpout << "search for period: " << config.l_min;
-  if (config.l_max != config.l_min) {
-    if (config.l_max == 0) {
+  jpout << "search for period: " << config.n_min;
+  if (config.n_max != config.n_min) {
+    if (config.n_max == 0) {
       jpout << '-';
     } else {
-      jpout << '-' << config.l_max;
+      jpout << '-' << config.n_max;
     }
   }
-  jpout << std::format(" (bound {})", context.l_bound);
+  jpout << std::format(" (bound {})", context.n_bound);
   if (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH) {
     jpout << ", ground state only\n";
   } else if (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH) {
@@ -730,7 +730,7 @@ void Coordinator::print_search_description() const {
         << std::endl;
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
-    jpout << std::format("period-{} subgraph: {} {}", config.l_min,
+    jpout << std::format("period-{} subgraph: {} {}", config.n_min,
                context.memory_numstates,
                context.memory_numstates == 1 ? "state" : "states")
           << std::endl;
@@ -756,9 +756,9 @@ void Coordinator::print_results() const {
     jpout << ")\n";
   }
 
-  if (config.countflag || l_max > config.l_min) {
+  if (config.countflag || n_max > config.n_min) {
     jpout << "\nPattern count by period:\n";
-    for (unsigned i = config.l_min; i <= l_max; ++i) {
+    for (unsigned i = config.n_min; i <= n_max; ++i) {
       jpout << i << ", " << context.count.at(i) << '\n';
     }
   }
@@ -778,7 +778,7 @@ void Coordinator::print_status_output() {
     return;
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && l_max > 2 * STATUS_WIDTH);
+      && n_max > 2 * STATUS_WIDTH);
   std::cout << "Status on: " << current_time_string();
   std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
@@ -829,7 +829,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && l_max > 2 * STATUS_WIDTH);
+      && n_max > 2 * STATUS_WIDTH);
   const bool show_deadstates =
       (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
       config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);

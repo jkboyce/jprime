@@ -41,7 +41,7 @@ class Coordinator {
   const SearchConfig& config;
   SearchContext& context;
   std::ostream& jpout;  // all console output goes here
-  unsigned l_max = 0;
+  unsigned n_max = 0;  // max pattern period to find
 
   // workers
   std::vector<std::unique_ptr<Worker>> worker;
@@ -95,7 +95,7 @@ class Coordinator {
   void record_data_from_message(const MessageW2C& msg);
   void start_workers();
   void stop_workers();
-  double expected_patterns_at_maxlength();
+  double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
   void print_pattern(const MessageW2C& msg);
   void print_search_description() const;

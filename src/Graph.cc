@@ -19,7 +19,7 @@
 // Full graph for `b` objects, max throw `h`.
 
 Graph::Graph(unsigned b, unsigned h)
-    : b(b), h(h), l(0), xarray(h + 1, false) {
+    : b(b), h(h), n(0), xarray(h + 1, false) {
   init();
 }
 
@@ -29,15 +29,15 @@ Graph::Graph(unsigned b, unsigned h)
 // throw value is excluded; when xa[val] is true then no graph links with throw
 // value `val` are created.
 //
-// Parameter `l` is optional and specifies that a single-period graph is
+// Parameter `n` is optional and specifies that a single-period graph is
 // desired; a single-period graph contains only those states that may be part of
-// a period-l pattern. We only permit values l < h. When l == 0 we generate
+// a period-n pattern. We only permit values n < h. When n == 0 we generate
 // the full graph.
 
-Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
-    : b(b), h(h), l(l), xarray(xa) {
+Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
+    : b(b), h(h), n(n), xarray(xa) {
   assert(xa.size() == h + 1);
-  assert(l < h);
+  assert(n < h);
   init();
 }
 
@@ -52,19 +52,19 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l)
 
 void Graph::init() {
   // fail if the number of states cannot fit into an unsigned int
-  const std::uint64_t num = (l == 0 ? combinations(h, b) :
-      ordered_partitions(b, h, l));
+  const std::uint64_t num = (n == 0 ? combinations(h, b) :
+      ordered_partitions(b, h, n));
   assert(num <= std::numeric_limits<unsigned>::max());
   numstates = static_cast<unsigned>(num);
 
   // generate the states
   state.reserve(numstates + 2);
   state.push_back({h});  // state at index 0 is unused
-  if (l == 0) {
+  if (n == 0) {
     gen_states_all(state, b, h);
     // states are generated in sorted order
   } else {
-    gen_states_for_period(state, b, h, l);
+    gen_states_for_period(state, b, h, n);
     if (state.size() > 1) {
       std::sort(state.begin() + 1, state.end(), state_compare);
     }
@@ -198,11 +198,11 @@ void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
 }
 
 // Helper function to generate states in the single-period case. The states are
-// enumerated by partitioning the `b` objects into `l` different buckets.
+// enumerated by partitioning the `b` objects into `n` different buckets.
 
 void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
-    unsigned left, const unsigned h, const unsigned l) {
-  if (pos == l) {
+    unsigned left, const unsigned h, const unsigned n) {
+  if (pos == n) {
     if (left == 0) {
       // success: duplicate state at the end and continue
       s.push_back(s.back());
@@ -211,41 +211,41 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
   }
 
   // empty all the slots at position `pos`
-  for (size_t i = pos; i < h; i += l) {
+  for (size_t i = pos; i < h; i += n) {
     s.back().slot(i) = 0;
   }
 
   // work out the maximum number that can go into later slots, and the min
   // for this slot
   unsigned max_later = 0;
-  for (size_t pos2 = pos + 1; pos2 < l; ++pos2) {
-    for (size_t i = pos2; i < h; i += l) {
+  for (size_t pos2 = pos + 1; pos2 < n; ++pos2) {
+    for (size_t i = pos2; i < h; i += n) {
       ++max_later;
     }
   }
   unsigned min_fill = (left > max_later ? left - max_later : 0);
 
   if (min_fill == 0)
-    gen_states_for_period_helper(s, pos + 1, left, h, l);
+    gen_states_for_period_helper(s, pos + 1, left, h, n);
 
   // successively fill slots at `pos`
   unsigned filled = 0;
-  for (size_t i = pos; i < h && filled < left; i += l) {
+  for (size_t i = pos; i < h && filled < left; i += n) {
     s.back().slot(i) = 1;
     ++filled;
     if (filled >= min_fill)
-      gen_states_for_period_helper(s, pos + 1, left - filled, h, l);
+      gen_states_for_period_helper(s, pos + 1, left - filled, h, n);
   }
 }
 
-// Generate all possible states that can be part of a pattern of period `l`.
+// Generate all possible states that can be part of a pattern of period `n`.
 //
 // Note this has a recursion depth of `h`.
 
 void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
-    unsigned l) {
+    unsigned n) {
   s.push_back({h});
-  gen_states_for_period_helper(s, 0, b, h, l);
+  gen_states_for_period_helper(s, 0, b, h, n);
   s.pop_back();
 }
 
@@ -436,10 +436,10 @@ void Graph::find_exclude_states() {
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Calculate an upper bound on the length of prime patterns in the graph, using
+// Calculate an upper bound on the period of prime patterns in the graph, using
 // states that are currently active.
 
-unsigned Graph::prime_length_bound() const {
+unsigned Graph::prime_period_bound() const {
   // Case 1: The pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
   unsigned result_multicycle = 0;
@@ -474,10 +474,10 @@ unsigned Graph::prime_length_bound() const {
   return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the length of superprime patterns with `shifts`
+// Calculate an upper bound on the period of superprime patterns with `shifts`
 // shift throws, using states in the graph that are currently active.
 
-unsigned Graph::superprime_length_bound(unsigned shifts) const {
+unsigned Graph::superprime_period_bound(unsigned shifts) const {
   std::vector<bool> any_active(numcycles, false);
 
   for (size_t i = 1; i <= numstates; ++i) {

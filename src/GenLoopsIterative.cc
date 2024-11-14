@@ -43,7 +43,7 @@ void Worker::iterative_gen_loops_normal() {
   // local variables to improve performance
   int p = pos;
   uint64_t nn = nnodes;
-  const int lmax = l_max;
+  const int nmax = n_max;
   int* const u = used.data();
   unsigned steps = 0;
   unsigned steps_limit = steps_per_inbox_check;
@@ -91,7 +91,7 @@ void Worker::iterative_gen_loops_normal() {
       goto skip_unmarking;
     }
 
-    if (p + 1 == lmax) {
+    if (p + 1 == nmax) {
       ++ss->col;
       goto skip_unmarking;
     }
@@ -159,7 +159,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 
   int p = pos;
   uint64_t nn = nnodes;
-  const int lmax = l_max;
+  const int nmax = n_max;
   int* const u = used.data();
   unsigned steps = 0;
   unsigned steps_limit = steps_per_inbox_check;
@@ -220,7 +220,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       goto skip_unmarking2;
     }
 
-    if (p + 1 == lmax) {
+    if (p + 1 == nmax) {
       ++ss->col;
       goto skip_unmarking2;
     }
@@ -238,7 +238,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 
         for (unsigned statenum; (statenum = *es); ++es) {
           if (++u[statenum] == 1 && ++*ds > 1 &&
-              --max_possible < static_cast<int>(l_min)) {
+              --max_possible < static_cast<int>(n_min)) {
             valid1 = false;
           }
         }
@@ -269,7 +269,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 
       for (unsigned statenum; (statenum = *es); ++es) {
         if (++u[statenum] == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(l_min)) {
+            --max_possible < static_cast<int>(n_min)) {
           valid2 = false;
         }
       }
@@ -368,7 +368,7 @@ void Worker::iterative_gen_loops_super() {
 
   int p = pos;
   uint64_t nn = nnodes;
-  const int lmax = l_max;
+  const int nmax = n_max;
   int* const u = used.data();
   unsigned steps = 0;
   int* const cu = cycleused.data();
@@ -426,7 +426,7 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
-      if (p + 1 == lmax) {
+      if (p + 1 == nmax) {
         ++ss->col;
         goto skip_unmarking;
       }
@@ -486,7 +486,7 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
-      if (p + 1 == lmax) {
+      if (p + 1 == nmax) {
         ++ss->col;
         goto skip_unmarking;
       }
@@ -618,7 +618,7 @@ bool Worker::iterative_init_workspace(bool marking) {
 
       for (unsigned statenum; (statenum = *es); ++es) {
         if (++used.at(statenum) == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(l_min)) {
+            --max_possible < static_cast<int>(n_min)) {
           pos = 0;
           return false;
         }
@@ -632,7 +632,7 @@ bool Worker::iterative_init_workspace(bool marking) {
 
       for (unsigned statenum; (statenum = *es); ++es) {
         if (++used.at(statenum) == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(l_min)) {
+            --max_possible < static_cast<int>(n_min)) {
           pos = 0;
           return false;
         }
@@ -798,7 +798,7 @@ void Worker::iterative_update_after_split() {
 inline void Worker::iterative_handle_finished_pattern() {
   ++count[pos + 1];
 
-  if ((pos + 1) >= l_min && !config.countflag) {
+  if ((pos + 1) >= n_min && !config.countflag) {
     for (size_t i = 0; i <= pos; ++i) {
       pattern.at(i) = graph.outthrowval.at(beat.at(i + 1).from_state)
                                        .at(beat.at(i + 1).col);

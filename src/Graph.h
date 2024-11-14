@@ -25,14 +25,14 @@
 class Graph {
  public:
   Graph(unsigned b, unsigned h);
-  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned l = 0);
+  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n = 0);
   Graph() = default;
 
  public:
   // calculated at construction and do not change
   unsigned b = 0;  // number of objects
   unsigned h = 0;  // maximum throw value
-  unsigned l = 0;  // if nonzero then single-period graph
+  unsigned n = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
   unsigned numstates = 0;
   unsigned numcycles = 0;
@@ -62,8 +62,8 @@ class Graph {
   void build_graph();
   void reduce_graph();
   void find_exclude_states();
-  unsigned prime_length_bound() const;
-  unsigned superprime_length_bound(unsigned shifts) const;
+  unsigned prime_period_bound() const;
+  unsigned superprime_period_bound(unsigned shifts) const;
   unsigned get_statenum(const State& s) const;
   unsigned advance_state(unsigned statenum, unsigned throwval) const;
   unsigned reverse_state(unsigned statenum) const;
@@ -75,7 +75,7 @@ class Graph {
   constexpr static std::uint64_t shift_cycle_count(unsigned b, unsigned h,
     unsigned p);
   constexpr static std::uint64_t ordered_partitions(unsigned b, unsigned h,
-    unsigned l);
+    unsigned n);
 };
 
 
@@ -131,46 +131,46 @@ constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
 
 // Compute the number of states for a single-period graph.
 //
-// Not every state in graph (b,h) can be part of a pattern of period `l`. In
+// Not every state in graph (b,h) can be part of a pattern of period `n`. In
 // particular we have the restriction that within the state, position[i] >=
-// position[i + l] for all i.
+// position[i + n] for all i.
 //
-// To count states, we partition each state into `l` slots, where slot `i` is
-// associated with positions i, i + l, i + 2*l, ... in the state, up to a
+// To count states, we partition each state into `n` slots, where slot `i` is
+// associated with positions i, i + n, i + 2*n, ... in the state, up to a
 // maximum of h - 1. The only degree of freedom is how many objects to put into
 // each slot; the state positions must be filled from the bottom up in order to
-// be part of a period `l` pattern.
+// be part of a period `n` pattern.
 //
 // In the event of a math overflow error, throw a `std::overflow_error`
 // exception with a relevant error message.
 
 constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
-    unsigned l) {
-  if (l == 0)
+    unsigned n) {
+  if (n == 0)
     return 0;
-  std::vector<std::uint64_t> options((b + 1) * l, 0);
+  std::vector<std::uint64_t> options((b + 1) * n, 0);
   const std::uint64_t max_uint64 = -1;
 
   // calculate the number of ways to fill slots `pos` and higher using `left`
   // balls, working backward from the end
-  for (unsigned pos = l; pos-- > 0; ) {
+  for (unsigned pos = n; pos-- > 0; ) {
     // upper bound on number of balls in slot `pos`
     unsigned max_fill = 0;
-    for (unsigned i = pos; i < h; i += l) {
+    for (unsigned i = pos; i < h; i += n) {
       ++max_fill;
     }
 
     for (unsigned left = (pos == 0 ? b : 0); left <= b; ++left) {
-      const unsigned index = pos + left * l;  // index into array
-      if (pos == l - 1) {
+      const unsigned index = pos + left * n;  // index into array
+      if (pos == n - 1) {
         options.at(index) = (left <= max_fill ? 1 : 0);  // last slot
       } else {
         for (unsigned i = 0; i <= max_fill && i <= left; ++i) {
           // put `i` balls into slot `pos`
-          const unsigned index2 = (pos + 1) + (left - i) * l;
+          const unsigned index2 = (pos + 1) + (left - i) * n;
           if (options.at(index2) > max_uint64 - options.at(index)) {
             throw std::overflow_error(
-              std::format("Overflow in ordered_partitions({},{},{})", b, h, l));
+              std::format("Overflow in ordered_partitions({},{},{})", b, h, n));
           }
           options.at(index) += options.at(index2);
         }
@@ -178,7 +178,7 @@ constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
     }
   }
 
-  return options.at(b * l);  // pos = 0, left = b
+  return options.at(b * n);  // pos = 0, left = b
 }
 
 #endif

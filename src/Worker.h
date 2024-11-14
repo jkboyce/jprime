@@ -29,7 +29,7 @@ class Coordinator;
 class Worker {
  public:
   Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
-      unsigned l_max);
+      unsigned n_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
 
@@ -43,8 +43,8 @@ class Worker {
   const SearchConfig config;
   Coordinator& coordinator;
   const unsigned worker_id;
-  const unsigned l_min;
-  const unsigned l_max;
+  const unsigned n_min;  // minimum period to find
+  const unsigned n_max;  // maximum period
 
   // working variables for search
   Graph graph;
@@ -54,22 +54,22 @@ class Worker {
   std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
-  unsigned pos = 0;
-  unsigned from = 1;
+  unsigned pos = 0;  // current index in the pattern
+  unsigned from = 1;  // current state number
   unsigned shiftcount = 0;
   unsigned exitcyclesleft = 0;
-  int max_possible = 0;
+  int max_possible = 0;  // max period possible from the current position
 
   // for loading and sharing work assignments
   unsigned start_state = 0;
   unsigned end_state = 0;
-  unsigned root_pos = 0;
+  unsigned root_pos = 0;  // lowest `pos` with unexplored tree options
   std::list<unsigned> root_throwval_options;
   bool loading_work = false;
 
   // status data to report to Coordinator
-  std::vector<std::uint64_t> count;
-  std::uint64_t nnodes = 0;
+  std::vector<std::uint64_t> count;  // count of patterns found at each period
+  std::uint64_t nnodes = 0;  // search tree nodes completed
   double secs_working = 0;
   bool running = false;
 

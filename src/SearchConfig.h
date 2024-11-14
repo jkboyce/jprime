@@ -39,11 +39,11 @@ struct SearchConfig {
   // maximum throw value
   unsigned h = 0;
 
-  // minimum pattern length to find
-  unsigned l_min = 1;
+  // minimum pattern period to find
+  unsigned n_min = 1;
 
-  // maximum pattern length to find; 0 means open-ended range like "5-"
-  unsigned l_max = 0;
+  // maximum pattern period to find; 0 means open-ended range like "5-"
+  unsigned n_max = 0;
 
   // search type
   RunMode mode = RunMode::NORMAL_SEARCH;
@@ -75,7 +75,7 @@ struct SearchConfig {
   // print without using +, - for h and 0 (when throwdigits == 0)?
   bool noplusminusflag = false;
 
-  // keep a record of patterns seen at each length?
+  // keep a record of patterns seen at each period?
   bool countflag = false;
 
   // use a file to save, resume after interruption, and record the final

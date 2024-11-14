@@ -32,7 +32,7 @@ class Pattern {
 
  public:
   int objects() const;
-  size_t length() const;
+  size_t period() const;
   State state_before(size_t index);
   bool is_valid() const;
   bool is_prime();

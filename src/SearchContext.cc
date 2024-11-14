@@ -160,7 +160,7 @@ void SearchContext::to_file(const std::string& file) {
          << "states            " << full_numstates << '\n'
          << "shift cycles      " << full_numcycles << '\n'
          << "short cycles      " << full_numshortcycles << '\n'
-         << "length bound      " << l_bound << '\n'
+         << "period bound      " << n_bound << '\n'
          << "states (in mem)   " << memory_numstates << '\n'
          << "patterns          " << npatterns << '\n'
          << "patterns (total)  " << ntotal << '\n'
@@ -291,6 +291,7 @@ void SearchContext::from_file(const std::string& file) {
       case 10:
         if (version == "6.8") {
           ++linenum;  // skip and read line as "seconds elapsed" instead
+          [[fallthrough]];
         } else {
           if (s.rfind("work splits", 0) != 0) {
             error = "syntax in line 11";
