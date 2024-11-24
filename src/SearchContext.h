@@ -40,7 +40,7 @@ struct SearchContext {
   // precalculated quantity for the actual graph in memory
   std::uint64_t memory_numstates = 0;
 
-  // number of patterns found in the range [l_min, l_max]
+  // number of patterns found in the range [n_min, n_max]
   std::uint64_t npatterns = 0;
 
   // total number of patterns seen, of any period
