@@ -263,7 +263,7 @@ The table below summarizes everything known about the longest prime siteswap pat
 
 Table notes:
 - When $n < n_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern is superprime, and has a superprime inverse.) When $n < n_{bound}$ the pattern count is shown as `{superprime, non-superprime}` patterns. The superprime patterns are faster to find than the non-superprime ones, and in some cases only the former have been tabulated.
-- There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
+- There is an isomorphism between the juggling patterns in graphs $(b, h)$ and $(h-b, h)$, in the form of a *duality transform*: Take a siteswap in $(b, h)$, reverse its throws, and subtract each from $h$ to get its dual pattern in $(h-b,h)$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform. So for example $(5,11)$ and $(6,11)$ have identical results below.
 - The table for $b=2$ is truncated; the observed pattern appears to continue.
 
 The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of these patterns!
