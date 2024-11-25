@@ -9,9 +9,9 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 Using `jprime` I have carried out some research into prime siteswap patterns. The first is to use `jprime` to count the total number of prime patterns for a given number of objects $b$ and pattern period $n$.
 
-The counting problem has been solved analytically for siteswap patterns in general. In [_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf) (Buhler, Eisenbud, Graham, and Wright, 1994) the following formula is derived for the total number of periodic siteswap patterns with $b$ objects and period (length) $n$: $(b+1)^n - b^n$.
+The counting problem has been solved analytically for siteswap patterns in general. In [_Juggling Drops and Descents_](https://mathweb.ucsd.edu/~ronspubs/94_01_juggling.pdf) (Buhler, Eisenbud, Graham, and Wright, 1994) the following formula is derived for the total number of periodic siteswap patterns with $b$ objects and period $n$: $(b+1)^n - b^n$.
 
-Note this formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), and because each prime pattern occurs exactly $n$ times in the count, it follows that an upper bound on the number of prime patterns of length $n$, where we do not treat rotations as distinct, is $P(n,b) <= [(b+1)^n - b^n] / n$.
+Note this formula treats rotated versions of the same pattern as distinct, e.g., `531`, `315`, and `153` are counted separately. Since this formula includes all prime patterns (as well as non-prime ones), and because each prime pattern occurs exactly $n$ times in the count, it follows that an upper bound on the number of prime patterns of period $n$, where we do not treat rotations as distinct, is $P(n,b) <= [(b+1)^n - b^n] / n$.
 
 Counting prime patterns specifically is a more difficult problem than the general case. One set of results comes from [_Counting prime juggling patterns_](https://arxiv.org/abs/1508.05296) (Banaian, Butler, Cox, Davis, Landgraf, and Ponce, 2015). They find an exact formula for $P(n,b)$ for the case $b=2$, and also establish the lower bound $P(n,b) >= b^{n-1}$.
 
@@ -245,9 +245,9 @@ Since the graph $(b,h)$ is finite, we can see that the number of prime patterns 
 8, 1505718865
 </pre>
 
-How do these total counts break down in terms of pattern periods (lengths)? As an experiment, when we find the 30,513,071,763 patterns in $(3,9)$ we discover their periods are distributed like so ([data](runs/3_9_count)):
+How do these total counts break down in terms of pattern periods? As an experiment, when we find the 30,513,071,763 patterns in $(3,9)$ we discover their periods are distributed like so ([data](runs/3_9_count)):
 
-![Prime pattern length histogram in (3,9)](patterns_3_9.png)
+![Prime pattern period histogram in (3,9)](patterns_3_9.png)
 
 We see that the distribution of pattern periods is close to a normal distribution, with the most patterns at period 40 in this case. In general there are relatively few very short or very long prime patterns, and for graph $(b,h)$ most are clustered around a period slightly less than half the number of vertices in the graph, e.g., 84 vertices in the case of $(3,9)$.
 
@@ -257,13 +257,13 @@ At the extremes, for $(3,9)$ there is a single pattern of period 1 (`3`) and a s
 
 As a final investigation, we aim to identify the longest prime patterns for a given number of objects $b$ and maximum throw value $h$.
 
-Since the state graph $(b, h)$ for $b$ objects and maximum throw $h$ is finite in size – with a number of vertices equal to the number of states ($h$ choose $b$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on its length.) The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
+Since the state graph $(b, h)$ for $b$ objects and maximum throw $h$ is finite in size – with a number of vertices equal to the number of states ($h$ choose $b$) – we know there must exist a longest prime siteswap pattern(s) for that case. (Recall that states may not be revisited in a prime pattern, so the order of the graph acts as an upper bound on its period.) The theory behind these longest prime patterns and how to find them is discussed in this 1999 [paper](https://github.com/jkboyce/jprime/blob/main/longest_prime_siteswaps_1999.pdf).
 
-The table below summarizes everything known about the longest prime siteswap patterns. $n$ is the length of the longest prime pattern for the given $(b, h)$, and $n_{bound}$ is the theoretical upper bound on that length.
+The table below summarizes everything known about the longest prime siteswap patterns. $n$ is the period of the longest prime pattern for the given $(b, h)$, and $n_{bound}$ is the theoretical upper bound on that period.
 
 Table notes:
-- When $n < n_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum length possible, missing exactly one state on each shift cycle. Every complete prime pattern is superprime, and has a superprime inverse.) When $n < n_{bound}$ the pattern count is shown as `{superprime, non-superprime}` patterns. The superprime patterns are faster to find than the non-superprime ones, and in some cases only the former have been tabulated.
-- There is an isomorphism between the juggling graphs for $(b, h)$ and $(h-b, h)$. So for example $(5,11)$ and $(6,11)$ have identical results below. A *duality transform* maps a siteswap in $(b, h)$ to its equivalent in $(h-b, h)$: You reverse the throws and subtract each from $h$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform.
+- When $n < n_{bound}$, this means there are no *complete* prime patterns for that case. (Consult the 1999 paper; in short a complete prime pattern is the maximum period possible, missing exactly one state on each shift cycle. Every complete prime pattern is superprime, and has a superprime inverse.) When $n < n_{bound}$ the pattern count is shown as `{superprime, non-superprime}` patterns. The superprime patterns are faster to find than the non-superprime ones, and in some cases only the former have been tabulated.
+- There is an isomorphism between the juggling patterns in graphs $(b, h)$ and $(h-b, h)$, in the form of a *duality transform*: Take a siteswap in $(b, h)$, reverse its throws, and subtract each from $h$ to get its dual pattern in $(h-b,h)$. E.g., `868671` in $(6,9)$ maps to `823131` in $(3,9)$. Primality is preserved under this transform. So for example $(5,11)$ and $(6,11)$ have identical results below.
 - The table for $b=2$ is truncated; the observed pattern appears to continue.
 
 The current record holder is $(3,28)$ which has prime patterns with 3158 throws. If juggled at a normal pace it would take over 10 minutes to complete a single cycle of these patterns!
@@ -378,7 +378,7 @@ H     N (N_bound)  Pattern count
 13,   660  (660),      16317
 </pre>
 
-**Note for case $(6,12)$.** Dietrich Kuske proved in 1999 that no graph $(b,2b)$ has a complete prime pattern when $b > 2$, because of the period-2 shift cycle generated by the state `(x-)^b`. In the case $(6,12)$ we do find patterns of length 843, which are one shorter than $n_{bound}$. The superprime ones are the inverses of two different kinds of (shorter) superprime patterns: (a) patterns that miss the `(x-)^b` shift cycle entirely, and use exactly one state on each other shift cycle, and (b) patterns that use state `(x-)^b` and every other shift cycle, including exactly one shift throw on one of these other cycles. The numbers shown are the quantities found of each, respectively. Similarly, the 752 maximal superprime patterns in $(5,10)$ can be found by combining results from `jprime 5 10 25 -super 0 -inverse` (308 patterns) and `jprime 5 10 27 -super 1 -inverse` (444 patterns).
+**Note for case $(6,12)$.** Dietrich Kuske proved in 1999 that no graph $(b,2b)$ has a complete prime pattern when $b > 2$, because of the period-2 shift cycle generated by the state `(x-)^b`. In the case $(6,12)$ we do find patterns of period 843, which are one shorter than $n_{bound}$. The superprime ones are the inverses of two different kinds of (shorter) superprime patterns: (a) patterns that miss the `(x-)^b` shift cycle entirely, and use exactly one state on each other shift cycle, and (b) patterns that use state `(x-)^b` and every other shift cycle, including exactly one shift throw on one of these other cycles. The numbers shown are the quantities found of each, respectively. Similarly, the 752 maximal superprime patterns in $(5,10)$ can be found by combining results from `jprime 5 10 25 -super 0 -inverse` (308 patterns) and `jprime 5 10 27 -super 1 -inverse` (444 patterns).
 
 ## Running jprime
 
