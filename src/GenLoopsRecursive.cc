@@ -167,9 +167,13 @@ void Worker::gen_loops_normal_marking() {
 
 // As above, but for SUPER mode.
 //
-// Since a superprime pattern can only visit a single state in each shift cycle,
-// this is the fastest version because so many states are excluded by each
-// throw to a new shift cycle.
+// Since a superprime pattern can never revisit a shift cycle, this is the
+// fastest version because so many states are excluded by each throw to a new
+// shift cycle.
+//
+// We also track the specific "exit cycles" that can get back to the start state
+// with a single throw. If those exit cycles are all used and the pattern isn't
+// done, we terminate the search early.
 //
 // Note this has a recursion depth of `n_max`.
 
@@ -260,10 +264,6 @@ void Worker::gen_loops_super() {
 
 // A specialization of gen_loops_super() for the case `shiftlimit` == 0.
 //
-// This version tracks the specific "exit cycles" that can get back to the
-// start state with a single throw. If those exit cycles are all used and the
-// pattern isn't done, we terminate the search early.
-//
 // Note this has a recursion depth of `n_max`.
 
 void Worker::gen_loops_super0() {
@@ -324,9 +324,9 @@ void Worker::gen_loops_super0() {
 // Helper methods
 //------------------------------------------------------------------------------
 
-// Return the column number in the `outmatrix[from]` row vector that
-// corresponds to the throw value at position `pos` in the pattern. This allows
-// us to resume where we left off when loading from a work assignment.
+// Return the column number in the `outmatrix[from]` row vector that corresponds
+// to the throw value at position `pos` in the pattern. This allows us to resume
+// where we left off when loading from a work assignment.
 
 unsigned Worker::load_one_throw() {
   if (pattern.at(pos) == -1) {
@@ -437,8 +437,8 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
   return (found || loading_work);
 }
 
-// Mark all of the states as used that are excluded by a throw from state
-// `from` to state `to_state`.
+// Mark all of the states as used that are excluded by a throw from state `from`
+// to state `to_state`.
 //
 // Returns false if the number of newly-excluded states implies that we can't
 // finish a pattern of at least period `n_min` from our current position.

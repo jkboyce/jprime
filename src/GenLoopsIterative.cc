@@ -18,7 +18,7 @@
 #include <cassert>
 
 
-// This is a non-recursive version of get_loops_normal(), with identical
+// This is a non-recursive version of gen_loops_normal(), with identical
 // interface and behavior.
 //
 // It is slightly faster than the recursive version and also avoids potential
@@ -138,7 +138,7 @@ void Worker::iterative_gen_loops_normal() {
   assert(pos == 0);
 }
 
-// Non-recursive version of get_loops_normal_marking()
+// Non-recursive version of gen_loops_normal_marking().
 
 void Worker::iterative_gen_loops_normal_marking() {
   if (!iterative_init_workspace(true)) {
@@ -334,7 +334,7 @@ void Worker::iterative_gen_loops_normal_marking() {
   assert(pos == 0);
 }
 
-// Non-recursive version of get_loops_super()
+// Non-recursive version of gen_loops_super() and gen_loops_super0().
 //
 // Template parameter `SUPER0` specifies whether no shift throws are allowed.
 // When `SUPER0` == true then certain optimizations can be applied.
@@ -515,8 +515,8 @@ void Worker::iterative_gen_loops_super() {
   assert(pos == 0);
 }
 
-// Explicit template instantiations since template method definition is not
-// in `.h` file
+// Explicit template instantiations since template method definition is not in
+// the `.h` file.
 
 template void Worker::iterative_gen_loops_normal<true>();
 template void Worker::iterative_gen_loops_normal<false>();
