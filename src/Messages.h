@@ -56,7 +56,7 @@ struct MessageW2C {
 
   // for type SEARCH_RESULT
   std::string pattern;
-  unsigned length = 0;
+  unsigned period = 0;
 
   // for types WORKER_IDLE and RETURN_WORK and RETURN_STATS
   std::vector<std::uint64_t> count;

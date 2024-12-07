@@ -972,6 +972,6 @@ void Worker::report_pattern() const {
   MessageW2C msg;
   msg.type = MessageW2C::Type::SEARCH_RESULT;
   msg.pattern = buffer.str();
-  msg.length = pos + 1;
+  msg.period = pos + 1;
   message_coordinator(msg);
 }
