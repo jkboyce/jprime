@@ -324,7 +324,7 @@ H     N (N_bound)  Pattern count
 11,   300  (300),       <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_11_300">144</a>
 12,   452  (452),        <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_12_s0">45</a>
 13,   660  (660),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_13_55_s0">16317</a>
-14,   928  (928),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_14_s0_g">63606</a>
+14,   928  (928),      <a href="https://github.com/jkboyce/jprime/blob/main/runs/4_14_73_s0">63606</a>
 
 
          5 OBJECTS
