@@ -1,7 +1,8 @@
 #
 # makefile
 #
-# Simple makefile to build `jprime`, for use with GNU Make on Unix systems.
+# Makefile to build `jprime`, for use with GNU Make on Unix-like systems.
+#
 # Run `make` to build the executable, `make clean` to clean the intermediate
 # object files in the `build` directory.
 #
