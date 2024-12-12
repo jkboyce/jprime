@@ -778,7 +778,7 @@ void Coordinator::print_status_output() {
     return;
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && n_max > 2 * STATUS_WIDTH);
+      && n_max > 3 * STATUS_WIDTH);
   std::cout << "Status on: " << current_time_string();
   std::cout << " cur/ end  rp options remaining at position";
   if (compressed) {
@@ -829,7 +829,7 @@ std::string Coordinator::make_worker_status(const MessageW2C& msg) {
   buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && n_max > 2 * STATUS_WIDTH);
+      && n_max > 3 * STATUS_WIDTH);
   const bool show_deadstates =
       (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
       config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
