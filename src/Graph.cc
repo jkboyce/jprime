@@ -442,8 +442,8 @@ void Graph::find_exclude_states() {
 unsigned Graph::prime_period_bound() const {
   // case 1: the pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
-  // case 2: the pattern stays on a single shift cycle; find the longest cycle
-  // with all states active.
+  // case 2: the pattern stays on a single shift cycle; find the cycle with the
+  // most active states.
   unsigned result_multicycle = 0;
   unsigned result_onecycle = 0;
 
@@ -454,19 +454,14 @@ unsigned Graph::prime_period_bound() const {
     }
   }
 
-  for (size_t i = 0; i < numcycles; ++i) {
-    if (num_active.at(i) == cycleperiod.at(i)) {
-      result_multicycle += cycleperiod.at(i) - 1;
-      result_onecycle = std::max(result_onecycle, cycleperiod.at(i));
-    } else {
-      result_multicycle += num_active.at(i);
-    }
-  }
-
   const int cycles_active = numcycles -
       static_cast<int>(std::count(num_active.cbegin(), num_active.cend(), 0));
-  if (cycles_active < 2) {
-    result_multicycle = 0;
+
+  for (size_t i = 0; i < numcycles; ++i) {
+    if (cycles_active > 1) {
+      result_multicycle += std::min(num_active.at(i), cycleperiod.at(i) - 1);
+    }
+    result_onecycle = std::max(result_onecycle, num_active.at(i));
   }
 
   return std::max(result_multicycle, result_onecycle);
