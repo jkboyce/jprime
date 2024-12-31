@@ -445,7 +445,8 @@ void Coordinator::calc_graph_size() {
     }
   }
 
-  // highest-period patterns possible of the type selected
+  // largest period possible of the pattern type selected, if all states are
+  // active
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     // two possibilities: Stay on a single cycle, or use multiple cycles
     context.n_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
@@ -466,29 +467,29 @@ void Coordinator::calc_graph_size() {
 
 // Perform checks before starting the workers.
 //
-// Returns true if the computation is cleared to proceed.
+// Returns true if the search is cleared to proceed.
 
 bool Coordinator::passes_prechecks() {
-  bool do_search = true;
+  const auto n_requested = std::max(config.n_min, config.n_max);
+  const bool period_error = (n_requested > context.n_bound);
+  const bool memory_error = (context.memory_numstates > MAX_STATES);
 
-  if (config.infoflag) {
-    print_search_description();
-    do_search = false;
-  }
-  if (config.n_min > context.n_bound || config.n_max > context.n_bound) {
-    jpout << std::format("Pattern periods greater than {} are not possible",
-               context.n_bound)
-          << std::endl;
-    do_search = false;
-  }
-  if (context.memory_numstates > MAX_STATES) {
-    jpout << std::format("Number of states {} exceeds limit of {}",
-               context.memory_numstates, MAX_STATES)
-          << std::endl;
-    do_search = false;
+  if (!config.infoflag && !period_error && !memory_error) {
+    return true;
   }
 
-  return do_search;
+  print_search_description();
+  if (period_error) {
+    jpout << std::format(
+               "ERROR: Requested period {} is greater than bound of {}\n",
+               n_requested, context.n_bound);
+  }
+  if (memory_error) {
+    jpout << std::format(
+               "ERROR: Number of states {} exceeds memory limit of {}\n",
+               context.memory_numstates, MAX_STATES);
+  }
+  return false;
 }
 
 bool Coordinator::is_worker_idle(const unsigned id) const {

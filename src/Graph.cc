@@ -440,53 +440,50 @@ void Graph::find_exclude_states() {
 // states that are currently active.
 
 unsigned Graph::prime_period_bound() const {
-  // Case 1: The pattern visits multiple shift cycles; it must miss at least one
+  // case 1: the pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
+  // case 2: the pattern stays on a single shift cycle; find the longest cycle
+  // with all states active.
   unsigned result_multicycle = 0;
-  std::vector<unsigned> num_active(numcycles, 0);
+  unsigned result_onecycle = 0;
 
+  std::vector<unsigned> num_active(numcycles, 0);
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
-      ++result_multicycle;
       ++num_active.at(cyclenum.at(i));
     }
   }
 
-  int cycles_active = numcycles -
-      static_cast<int>(std::count(num_active.cbegin(), num_active.cend(), 0));
-  if (cycles_active > 1) {
-    for (size_t i = 0; i < numcycles; ++i) {
-      if (num_active.at(i) == cycleperiod.at(i)) {
-        --result_multicycle;
-      }
+  for (size_t i = 0; i < numcycles; ++i) {
+    if (num_active.at(i) == cycleperiod.at(i)) {
+      result_multicycle += cycleperiod.at(i) - 1;
+      result_onecycle = std::max(result_onecycle, cycleperiod.at(i));
+    } else {
+      result_multicycle += num_active.at(i);
     }
-  } else {
-    result_multicycle = 0;
   }
 
-  // Case 2: The pattern stays on a single shift cycle; find the cycle with the
-  // most active states.
-  unsigned result_onecycle = 0;
-  for (size_t i = 0; i < numcycles; ++i) {
-    result_onecycle = std::max(result_onecycle, num_active.at(i));
+  const int cycles_active = numcycles -
+      static_cast<int>(std::count(num_active.cbegin(), num_active.cend(), 0));
+  if (cycles_active < 2) {
+    result_multicycle = 0;
   }
 
   return std::max(result_multicycle, result_onecycle);
 }
 
 // Calculate an upper bound on the period of superprime patterns with `shifts`
-// shift throws, using states in the graph that are currently active.
+// shift throws, using states that are currently active.
 
 unsigned Graph::superprime_period_bound(unsigned shifts) const {
   std::vector<bool> any_active(numcycles, false);
-
   for (size_t i = 1; i <= numstates; ++i) {
     if (state_active.at(i)) {
       any_active.at(cyclenum.at(i)) = true;
     }
   }
 
-  auto active_cycles = static_cast<unsigned>(
+  const auto active_cycles = static_cast<unsigned>(
       std::count(any_active.cbegin(), any_active.cend(), true));
 
   return (active_cycles > 1 ? active_cycles + shifts : 0);
