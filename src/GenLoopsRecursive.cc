@@ -32,7 +32,7 @@ void Worker::gen_loops_normal() {
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
     if (used[to] != 0)
       continue;
@@ -94,7 +94,7 @@ void Worker::gen_loops_normal_marking() {
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
     if (used[to] != 0)
       continue;
@@ -275,7 +275,7 @@ void Worker::gen_loops_super0() {
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == root_pos &&
-        !mark_off_rootpos_option(graph.outthrowval[from][col], to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
 
     pattern[pos] = graph.outthrowval[from][col];

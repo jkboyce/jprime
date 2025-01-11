@@ -339,9 +339,7 @@ void Graph::reduce_graph() {
     }
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i))
-        continue;
-      if (indegree.at(i) == 0) {
+      if (state_active.at(i) && indegree.at(i) == 0) {
         state_active.at(i) = false;
         changed = true;
       }

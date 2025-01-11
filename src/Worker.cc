@@ -854,21 +854,20 @@ void Worker::customize_graph() {
           }
         }
 
-        // if neither of the above is true, remove all shift throws out of `i`
+        // if either of the above is true, keep the shift throw out of `i`
         if (allowed_to_shift_throw)
           continue;
 
+        // otherwise remove it
         unsigned outthrownum = 0;
         for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
           const auto tv = graph.outthrowval.at(i).at(j);
-          if (tv != 0 && tv != config.h) {
-            if (outthrownum != j) {
-              graph.outmatrix.at(i).at(outthrownum) =
-                  graph.outmatrix.at(i).at(j);
-              graph.outthrowval.at(i).at(outthrownum) = tv;
-            }
-            ++outthrownum;
-          }
+          if (tv == 0 || tv == config.h)
+            continue;
+
+          graph.outmatrix.at(i).at(outthrownum) = graph.outmatrix.at(i).at(j);
+          graph.outthrowval.at(i).at(outthrownum) = tv;
+          ++outthrownum;
         }
         graph.outdegree.at(i) = outthrownum;
       }

@@ -25,9 +25,9 @@
 
 // Initialize from a vector of throw values.
 //
-// Parameter `hmax` determines the number of beats to use in each state; it
-// must be at least as large as the largest throw value. If omitted then the
-// number of beats per state is set equal to the largest throw value.
+// Optional parameter `hmax` determines the number of beats to use in each
+// state; it must be at least as large as the largest throw value. If omitted
+// then the number of beats per state is set equal to the largest throw value.
 //
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
@@ -247,7 +247,7 @@ size_t Pattern::period() const {
 
 // Return the State value immediately before the throw on beat `index`.
 
-State Pattern::state_before(size_t index) {
+State Pattern::state_before_index(size_t index) {
   check_have_states();
   return states.at(index);
 }
@@ -339,7 +339,7 @@ Pattern Pattern::dual() const {
   }
 
   std::vector<int> dual_throwval(per);
-  for (size_t i = 0; i < period(); ++i) {
+  for (size_t i = 0; i < per; ++i) {
     dual_throwval.at(i) = h - throwval.at(per - 1 - i);
   }
   return {dual_throwval, h};
@@ -476,17 +476,18 @@ bool Pattern::operator!=(const Pattern& p2) const {
 
 // Return the string representation of the pattern.
 //
-// Parameter `throwdigits` determines the field width to use when printing.
-// When equal to 0, each throw is printed as a single character without
-// separating commas. When > 0, each throw is printed as an integer using the
-// given field width (with padding spaces), including separating commas. If the
-// supplied value of `throwdigits` cannot print each throw without truncation,
-// it defaults to a value that avoids truncation.
+// Optional parameter `throwdigits` determines the field width to use when
+// printing. When equal to 0, each throw is printed as a single character
+// without separating commas. When > 0, each throw is printed as an integer
+// using the given field width (with padding spaces), including separating
+// commas. If the supplied value of `throwdigits` cannot print each throw
+// without truncation, it defaults to a value that avoids truncation.
 //
-// Parameter `plusminus`, if true, causes throws of value 0 and `h` to be output
-// as `-` and `+` respectively. This is only active when `throwdigits` == 0.
+// Optional parameter `blockform`, if true, causes throws of value 0 and `h` to
+// be output as `-` and `+` respectively. This is only active when
+// `throwdigits` == 0.
 
-std::string Pattern::to_string(int throwdigits, bool plusminus) const {
+std::string Pattern::to_string(int throwdigits, bool blockform) const {
   int maxval = 0;
   for (int val : throwval) {
     maxval = std::max(maxval, val);
@@ -510,7 +511,7 @@ std::string Pattern::to_string(int throwdigits, bool plusminus) const {
       buffer << ',';
     }
     print_throw(buffer, throwval.at(i), throwdigits,
-        (throwdigits == 0 && plusminus) ? h : 0);
+        (throwdigits == 0 && blockform) ? h : 0);
   }
   return buffer.str();
 }

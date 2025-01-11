@@ -33,7 +33,7 @@ class Pattern {
  public:
   int objects() const;
   size_t period() const;
-  State state_before(size_t index);
+  State state_before_index(size_t index);
   bool is_valid() const;
   bool is_prime();
   bool is_composite();
@@ -49,7 +49,7 @@ class Pattern {
   bool operator!=(const Pattern& s2) const;
 
   // string output
-  std::string to_string(int throwdigits = 0, bool plusminus = false) const;
+  std::string to_string(int throwdigits = 0, bool blockform = false) const;
   static void print_throw(std::ostringstream& buffer, int val,
       int throwdigits = 1, int plusval = 0);
   static char throw_char(int val);
