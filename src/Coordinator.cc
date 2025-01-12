@@ -81,8 +81,8 @@ bool Coordinator::run() {
   process_inbox();  // running worker will have sent back a RETURN_WORK message
 
   const auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = end - start;
-  double runtime = diff.count();
+  const std::chrono::duration<double> diff = end - start;
+  const double runtime = diff.count();
   context.secs_elapsed += runtime;
   context.secs_available += runtime * config.num_threads;
 
@@ -434,8 +434,7 @@ void Coordinator::calc_graph_size() {
   unsigned max_cycle_period = 0;
 
   for (unsigned p = 1; p <= config.h; ++p) {
-    const std::uint64_t cycles =
-        Graph::shift_cycle_count(config.b, config.h, p);
+    const auto cycles = Graph::shift_cycle_count(config.b, config.h, p);
     context.full_numcycles += cycles;
     if (p < config.h) {
       context.full_numshortcycles += cycles;
@@ -607,7 +606,7 @@ double Coordinator::expected_patterns_at_maxperiod() {
   // fit a parabola to the log of pattern count
   double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
   double sy = 0, sxy = 0, sx2y = 0;
-  size_t xstart = std::max(max - 10, mode);
+  const size_t xstart = std::max(max - 10, mode);
 
   for (size_t i = xstart; i < context.count.size(); ++i) {
     if (context.count.at(i) < 5)
@@ -633,17 +632,17 @@ double Coordinator::expected_patterns_at_maxperiod() {
   // | sx2  sx   s1   | | C |   | sy   |
 
   // Find matrix inverse
-  double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
+  const double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
       sx2 * (sx3 * sx - sx2 * sx2);
-  double M11 = (sx2 * s1 - sx * sx) / det;
-  double M12 = (sx2 * sx - sx3 * s1) / det;
-  double M13 = (sx3 * sx - sx2 * sx2) / det;
-  double M21 = M12;
-  double M22 = (sx4 * s1 - sx2 * sx2) / det;
-  double M23 = (sx2 * sx3 - sx4 * sx) / det;
-  double M31 = M13;
-  double M32 = M23;
-  double M33 = (sx4 * sx2 - sx3 * sx3) / det;
+  const double M11 = (sx2 * s1 - sx * sx) / det;
+  const double M12 = (sx2 * sx - sx3 * s1) / det;
+  const double M13 = (sx3 * sx - sx2 * sx2) / det;
+  const double M21 = M12;
+  const double M22 = (sx4 * s1 - sx2 * sx2) / det;
+  const double M23 = (sx2 * sx3 - sx4 * sx) / det;
+  const double M31 = M13;
+  const double M32 = M23;
+  const double M33 = (sx4 * sx2 - sx3 * sx3) / det;
 
   auto is_close = [](double a, double b) {
     double epsilon = 1e-3;
@@ -659,13 +658,13 @@ double Coordinator::expected_patterns_at_maxperiod() {
   assert(is_close(M31 * sx3 + M32 * sx2 + M33 * sx, 0));
   assert(is_close(M31 * sx2 + M32 * sx + M33 * s1, 1));
 
-  double A = M11 * sx2y + M12 * sxy + M13 * sy;
-  double B = M21 * sx2y + M22 * sxy + M23 * sy;
-  double C = M31 * sx2y + M32 * sxy + M33 * sy;
+  const double A = M11 * sx2y + M12 * sxy + M13 * sy;
+  const double B = M21 * sx2y + M22 * sxy + M23 * sy;
+  const double C = M31 * sx2y + M32 * sxy + M33 * sy;
 
   // evaluate the expected number of patterns found at x = n_bound
-  double x = static_cast<double>(context.n_bound);
-  double lny = A * x * x + B * x + C;
+  const double x = static_cast<double>(context.n_bound);
+  const double lny = A * x * x + B * x + C;
   return exp(lny);
 }
 

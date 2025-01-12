@@ -174,8 +174,8 @@ void Worker::process_inbox_running() {
 void Worker::record_elapsed_time_from(const
     std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
   const auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = end - start;
-  double runtime = diff.count();
+  const std::chrono::duration<double> diff = end - start;
+  const double runtime = diff.count();
   secs_working += runtime;
 }
 
@@ -190,8 +190,8 @@ void Worker::calibrate_inbox_check() {
   }
 
   const auto current_ts = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = current_ts - last_ts;
-  double time_spent = diff.count();
+  const std::chrono::duration<double> diff = current_ts - last_ts;
+  const double time_spent = diff.count();
   last_ts = current_ts;
   --calibrations_remaining;
 
@@ -373,7 +373,7 @@ WorkAssignment Worker::get_work_assignment() const {
   wa.end_state = end_state;
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
-  for (auto v : pattern) {
+  for (const auto v : pattern) {
     if (v == -1)
       break;
     wa.partial_pattern.push_back(v);
@@ -421,7 +421,7 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
     std::ostringstream buffer;
     buffer << std::format("worker {} options at root_pos {}: [", worker_id,
         root_pos);
-    for (auto v : root_throwval_options) {
+    for (const auto v : root_throwval_options) {
       if (v != root_throwval_options.front()) {
         buffer << ',';
       }
@@ -516,9 +516,9 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
       root_throwval_options.size());
 
-  auto take_begin_idx = static_cast<size_t>(take_front ?
+  const auto take_begin_idx = static_cast<size_t>(take_front ?
         0 : root_throwval_options.size() - take_count);
-  auto take_end_idx = take_begin_idx + take_count;
+  const auto take_end_idx = take_begin_idx + take_count;
 
   iter = root_throwval_options.begin();
   end = root_throwval_options.end();
@@ -551,7 +551,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
     for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
-      const unsigned throwval = static_cast<unsigned>(pattern.at(pos2));
+      const auto throwval = static_cast<unsigned>(pattern.at(pos2));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
         if (throwval == graph.outthrowval.at(from_state).at(col)) {
           break;
@@ -620,10 +620,10 @@ void Worker::gen_patterns() {
     initialize_working_variables();
 
     if (config.verboseflag) {
-      auto num_inactive = static_cast<int>(
+      const auto num_inactive = static_cast<int>(
           std::count(graph.state_active.cbegin() + 1,
           graph.state_active.cend(), false));
-      auto text = std::format(
+      const auto text = std::format(
           "worker {} starting at state {} ({})\n"
           "worker {} deactivated {} of {} states, max_possible = {}",
           worker_id, graph.state_string(start_state), start_state,
@@ -652,7 +652,7 @@ void Worker::gen_patterns() {
       // larger values of `start_state` will have `max_possible` values that are
       // the same or smaller, so we can exit the loop
       if (config.verboseflag) {
-        auto text = std::format(
+        const auto text = std::format(
             "worker {} terminating because max_possible ({}) < n_min ({})",
             worker_id, max_possible, n_min);
         message_coordinator_text(text);
@@ -715,7 +715,7 @@ void Worker::gen_loops() {
       "iterative_gen_loops_super<SUPER0=false>()",
       "iterative_gen_loops_super<SUPER0=true>()",
     };
-    auto text = std::format("worker {} starting algorithm {}", worker_id,
+    const auto text = std::format("worker {} starting algorithm {}", worker_id,
         algs.at(alg));
     message_coordinator_text(text);
   }
@@ -809,7 +809,6 @@ void Worker::customize_graph() {
       }
       if (start0s + end1s > config.shiftlimit) {
         graph.state_active.at(i) = false;
-        // std::cout << "killing state " << graph.state.at(i) << '\n';
       }
     }
   }
@@ -854,7 +853,7 @@ void Worker::customize_graph() {
           }
         }
 
-        // if either of the above is true, keep the shift throw out of `i`
+        // if either of the above is true, keep the shift throw out of i
         if (allowed_to_shift_throw)
           continue;
 
