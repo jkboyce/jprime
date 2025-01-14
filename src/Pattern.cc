@@ -43,8 +43,8 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 
   if (hmax > 0) {
     if (hmax < maxval) {
-      auto err = std::format("Supplied `hmax` value ({}) is too small", hmax);
-      throw std::invalid_argument(err);
+      throw std::invalid_argument(
+          std::format("Supplied `hmax` value ({}) is too small", hmax));
     }
     h = hmax;
   } else {
@@ -564,7 +564,7 @@ std::string Pattern::make_analysis() {
     int collision_end = -1;
     std::vector<int> landing_index(period(), -1);
     for (size_t i = 0; i < period(); ++i) {
-      size_t index = (i + static_cast<size_t>(throwval.at(i))) % period();
+      const size_t index = (i + static_cast<size_t>(throwval.at(i))) % period();
       if (landing_index[index] != -1) {
         collision_start = landing_index[index];
         collision_end = i;
@@ -578,7 +578,7 @@ std::string Pattern::make_analysis() {
     std::string patstring = to_string(1);
     auto x = patstring.cbegin();
     while (true) {
-      auto y = std::find(x, patstring.cend(), ',');
+      const auto y = std::find(x, patstring.cend(), ',');
       std::string s{x, y};
       if (index == collision_start || index == collision_end) {
         buffer << '[' << s << ']';
@@ -629,7 +629,7 @@ std::string Pattern::make_analysis() {
 
   // graph information
 
-  std::uint64_t full_numstates = Graph::combinations(h, objects());
+  const std::uint64_t full_numstates = Graph::combinations(h, objects());
   std::uint64_t full_numcycles = 0;
   std::uint64_t full_numshortcycles = 0;
   int max_cycle_period = 0;
@@ -656,8 +656,8 @@ std::string Pattern::make_analysis() {
 
   // table of states, shift cycles, and excluded states
 
-  bool show_sc = is_prime_;
-  int separation = std::max(15, 4 + h + 4);
+  const bool show_sc = is_prime_;
+  const int separation = std::max(15, 4 + h + 4);
 
   int throwdigits = 1;
   for (int temp = 10; temp <= h; temp *= 10) {
@@ -709,10 +709,10 @@ std::string Pattern::make_analysis() {
     }
 
     // shift cycle visited
-    int prev_throwvalue = throwval.at(i == 0 ? per - 1 : i - 1);
-    int curr_throwvalue = throwval.at(i);
-    bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
-    bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
+    const int prev_throwvalue = throwval.at(i == 0 ? per - 1 : i - 1);
+    const int curr_throwvalue = throwval.at(i);
+    const bool prev_linkthrow = (prev_throwvalue != 0 && prev_throwvalue != h);
+    const bool curr_linkthrow = (curr_throwvalue != 0 && curr_throwvalue != h);
 
     if (prev_linkthrow) {
       if (std::count(shiftcycles_visited.cbegin(), shiftcycles_visited.cend(),
@@ -778,7 +778,7 @@ std::string Pattern::make_analysis() {
     std::vector<State> sc_sorted(sc_visited.begin(), sc_visited.end());
     std::sort(sc_sorted.begin(), sc_sorted.end(), state_compare);
 
-    int sep = std::max(14, 10 + h);
+    const int sep = std::max(14, 10 + h);
     buffer << "   shift cycle";
     for (int i = 13; i < sep + throwdigits; ++i) {
       buffer << ' ';

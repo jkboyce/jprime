@@ -223,7 +223,7 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
       ++max_later;
     }
   }
-  unsigned min_fill = (left > max_later ? left - max_later : 0);
+  const unsigned min_fill = (left > max_later ? left - max_later : 0);
 
   if (min_fill == 0)
     gen_states_for_period_helper(s, pos + 1, left, h, n);
@@ -276,7 +276,7 @@ void Graph::build_graph() {
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
       if (xarray.at(throwval))
         continue;
-      auto k = advance_state(i, throwval);
+      const auto k = advance_state(i, throwval);
       if (k == 0 || !state_active.at(k))
         continue;
 
@@ -407,7 +407,7 @@ void Graph::find_exclude_states() {
     State s = state.at(i).downstream();
     unsigned j = 0;
     while (s.slot(s.size() - 1) != 0 && j < h) {
-      auto statenum = get_statenum(s);
+      const auto statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_throw.at(i).at(j++) = statenum;
@@ -420,7 +420,7 @@ void Graph::find_exclude_states() {
     s = state.at(i).upstream();
     j = 0;
     while (s.slot(0) == 0 && j < h) {
-      auto statenum = get_statenum(s);
+      const auto statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
       excludestates_catch.at(i).at(j++) = statenum;

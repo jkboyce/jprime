@@ -180,8 +180,8 @@ void Worker::gen_loops_normal_marking() {
 void Worker::gen_loops_super() {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* om = graph.outmatrix[from].data();
-  const unsigned* ov = graph.outthrowval[from].data();
+  const unsigned* const om = graph.outmatrix[from].data();
+  const unsigned* const ov = graph.outthrowval[from].data();
   const int old_from = from;
 
   for (; col < limit; ++col) {
@@ -269,7 +269,7 @@ void Worker::gen_loops_super() {
 void Worker::gen_loops_super0() {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* om = graph.outmatrix[from].data();
+  const unsigned* const om = graph.outmatrix[from].data();
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
@@ -386,12 +386,11 @@ unsigned Worker::load_one_throw() {
 // Returns true if `throwval` is an allowed choice at position `root_pos`,
 // false otherwise.
 
-bool Worker::mark_off_rootpos_option(unsigned throwval,
-    unsigned to_state) {
+bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state) {
   bool found = false;
   unsigned remaining = 0;
   auto iter = root_throwval_options.begin();
-  auto end = root_throwval_options.end();
+  const auto end = root_throwval_options.end();
 
   while (iter != end) {
     // housekeeping: has this root_pos option been pruned from the graph?
@@ -404,7 +403,7 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
     }
 
     if (pruned && config.verboseflag) {
-      auto text = std::format(
+      const auto text = std::format(
           "worker {} option {} at root_pos {} was pruned; removing",
           worker_id, throwval, root_pos);
       message_coordinator_text(text);
@@ -414,7 +413,8 @@ bool Worker::mark_off_rootpos_option(unsigned throwval,
       found = true;
 
       if (config.verboseflag) {
-        auto text = std::format("worker {} starting option {} at root_pos {}",
+        const auto text = std::format(
+            "worker {} starting option {} at root_pos {}",
             worker_id, throwval, root_pos);
         message_coordinator_text(text);
       }

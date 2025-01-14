@@ -163,7 +163,7 @@ void Worker::iterative_gen_loops_normal_marking() {
   int* const u = used.data();
   unsigned steps = 0;
   unsigned steps_limit = steps_per_inbox_check;
-  unsigned st_state = start_state;
+  const unsigned st_state = start_state;
   unsigned** const ds_bystate = deadstates_bystate.data();
   unsigned* const outdegree = graph.outdegree.data();
 
@@ -558,8 +558,8 @@ bool Worker::iterative_init_workspace(bool marking) {
 
   loading_work = false;
   unsigned last_from_state = start_state;
-  int shifts_remaining = static_cast<int>(config.shiftlimit);
-  int exitcycles_remaining = static_cast<int>(exitcyclesleft);
+  auto shifts_remaining = static_cast<int>(config.shiftlimit);
+  auto exitcycles_remaining = static_cast<int>(exitcyclesleft);
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
     pos = static_cast<unsigned>(i);
@@ -567,7 +567,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.from_state = last_from_state;
     ss.col_limit = graph.outdegree.at(ss.from_state);
 
-    unsigned tv = static_cast<unsigned>(pattern.at(i));
+    const auto tv = static_cast<unsigned>(pattern.at(i));
 
     for (ss.col = 0; ss.col < ss.col_limit; ++ss.col) {
       if (graph.outthrowval.at(ss.from_state).at(ss.col) == tv)
@@ -700,7 +700,7 @@ bool Worker::iterative_init_workspace(bool marking) {
   SearchState& rss = beat.at(root_pos + 1);
   rss.col_limit = 0;
   for (size_t i = 0; i < graph.outdegree.at(rss.from_state); ++i) {
-    unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
+    const unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);
     if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
         throwval) != root_throwval_options.cend()) {
       rss.col_limit = std::max(rss.col_limit, static_cast<unsigned>(i + 1));
@@ -786,7 +786,7 @@ void Worker::iterative_update_after_split() {
   SearchState& ss = beat.at(root_pos + 1);
   unsigned new_col_limit = ss.col + 1;
   for (size_t i = ss.col + 1; i < graph.outdegree.at(ss.from_state); ++i) {
-    unsigned throwval = graph.outthrowval.at(ss.from_state).at(i);
+    const unsigned throwval = graph.outthrowval.at(ss.from_state).at(i);
     if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
         throwval) != root_throwval_options.cend()) {
       new_col_limit = static_cast<unsigned>(i + 1);
