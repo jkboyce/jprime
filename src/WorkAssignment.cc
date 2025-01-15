@@ -37,11 +37,11 @@ bool WorkAssignment::from_string(const std::string& str) {
   root_pos = std::stoi(matches[3].str());
 
   root_throwval_options.clear();
-  std::string tvo{matches[4].str()};
+  const std::string tvo{matches[4].str()};
   auto x = tvo.cbegin();
   while (true) {
-    auto y = std::find(x, tvo.cend(), ',');
-    std::string s{x, y};
+    const auto y = std::find(x, tvo.cend(), ',');
+    const std::string s{x, y};
     root_throwval_options.push_back(std::stoi(s));
     if (y == tvo.cend())
       break;
@@ -49,11 +49,11 @@ bool WorkAssignment::from_string(const std::string& str) {
   }
 
   partial_pattern.clear();
-  std::string pp{matches[5].str()};
+  const std::string pp{matches[5].str()};
   x = pp.cbegin();
   while (true) {
-    auto y = std::find(x, pp.cend(), ',');
-    std::string s{x, y};
+    const auto y = std::find(x, pp.cend(), ',');
+    const std::string s{x, y};
     partial_pattern.push_back(std::stoi(s));
     if (y == pp.cend())
       break;
@@ -73,7 +73,7 @@ std::string WorkAssignment::to_string() const {
          << ", end_state:" << end_state
          << ", root_pos:" << root_pos
          << ", root_options:[";
-  for (unsigned v : root_throwval_options) {
+  for (const unsigned v : root_throwval_options) {
     if (v != root_throwval_options.front()) {
       buffer << ',';
     }

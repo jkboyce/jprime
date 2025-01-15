@@ -26,7 +26,7 @@
 
 std::vector<int> parse_pattern_line(const std::string& p) {
   // remove the first colon and anything beyond
-  std::string pat = {p.cbegin(), std::find(p.cbegin(), p.cend(), ':')};
+  std::string pat{p.cbegin(), std::find(p.cbegin(), p.cend(), ':')};
 
   // extract part between first and second '*'s if present
   const auto star = std::find(pat.cbegin(), pat.cend(), '*');
@@ -38,7 +38,7 @@ std::vector<int> parse_pattern_line(const std::string& p) {
   auto x = pat.cbegin();
   while (true) {
     auto y = std::find(x, pat.cend(), ',');
-    std::string s{x, y};
+    const std::string s{x, y};
     result.push_back(std::stoi(s));
     if (y == pat.cend())
       break;
@@ -53,8 +53,8 @@ std::vector<int> parse_pattern_line(const std::string& p) {
 // Test case: jprime 7 42 6 -file test
 
 bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
-  std::vector<int> vec1 = parse_pattern_line(pat1);
-  std::vector<int> vec2 = parse_pattern_line(pat2);
+  const std::vector<int> vec1 = parse_pattern_line(pat1);
+  const std::vector<int> vec2 = parse_pattern_line(pat2);
 
   if (vec2.size() == 0)
     return false;
@@ -90,13 +90,13 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
   if (pat1.size() == 0)
     return true;
 
-  unsigned pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
+  const unsigned pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
   unsigned pat1_end = pat1_start;
   while (pat1_end != pat1.size() && pat1[pat1_end] != ' ') {
     ++pat1_end;
   }
 
-  unsigned pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
+  const unsigned pat2_start = (pat2[0] == ' ' || pat2[0] == '*') ? 2 : 0;
   unsigned pat2_end = pat2_start;
   while (pat2_end != pat2.size() && pat2[pat2_end] != ' ') {
     ++pat2_end;
@@ -133,7 +133,8 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
 // weak ordering, and false otherwise.
 
 bool pattern_compare(const std::string& pat1, const std::string& pat2) {
-  bool has_comma = (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
+  const bool has_comma =
+      (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
       std::find(pat2.cbegin(), pat2.cend(), ',') != pat2.cend());
 
   if (has_comma) {
@@ -343,9 +344,7 @@ void SearchContext::from_file(const std::string& file) {
 
     if (error.size() > 0) {
       myfile.close();
-      std::string msg("Error reading file: ");
-      msg.append(error);
-      throw std::invalid_argument(msg);
+      throw std::invalid_argument(std::format("Error reading file: {}", error));
     }
 
     if (linenum < 17) {
@@ -366,16 +365,15 @@ void SearchContext::from_file(const std::string& file) {
       patterns.push_back(s);
     } else if (section == 3) {
       // read counts
-      size_t commapos = s.find(",");
+      const size_t commapos = s.find(",");
       if (commapos == std::string::npos) {
         myfile.close();
-        std::string msg("Error reading count in line ");
-        msg.append(std::to_string(linenum + 1));
-        throw std::invalid_argument(msg);
+        throw std::invalid_argument(
+            std::format("Error reading count in line {}", linenum + 1));
       }
-      std::string field1 = s.substr(0, commapos);
-      std::string field2 = s.substr(commapos + 1, s.size());
-      int i = std::stoi(field1);
+      const auto field1 = s.substr(0, commapos);
+      const auto field2 = s.substr(commapos + 1, s.size());
+      const int i = std::stoi(field1);
       count.resize(i + 1, 0);
       count.at(i) = std::stoull(field2);
     } else if (section == 4) {
@@ -385,9 +383,8 @@ void SearchContext::from_file(const std::string& file) {
         assignments.push_back(wa);
       } else {
         myfile.close();
-        std::string msg("Error reading work assignment in line ");
-        msg.append(std::to_string(linenum + 1));
-        throw std::invalid_argument(msg);
+        throw std::invalid_argument(std::format(
+            "Error reading work assignment in line {}", linenum + 1));
       }
     }
 

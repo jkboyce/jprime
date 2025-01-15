@@ -27,9 +27,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   try {
     val = std::stoi(argv[1]);
   } catch (const std::invalid_argument& ie) {
-    std::string msg("Error parsing number of objects: ");
-    msg.append(argv[1]);
-    throw std::invalid_argument(msg);
+    throw std::invalid_argument(
+        std::format("Error parsing number of objects: {}", argv[1]));
   }
   if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
@@ -39,9 +38,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   try {
     val = std::stoi(argv[2]);
   } catch (const std::invalid_argument& ie) {
-    std::string msg("Error parsing max. throw value: ");
-    msg.append(argv[2]);
-    throw std::invalid_argument(msg);
+    throw std::invalid_argument(
+        std::format("Error parsing max. throw value: {}", argv[2]));
   }
   if (val < 1) {
     throw std::invalid_argument("Max. throw value must be at least 1");
@@ -81,9 +79,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
-          std::string msg("Error parsing shift limit: ");
-          msg.append(argv[i]);
-          throw std::invalid_argument(msg);
+          throw std::invalid_argument(
+              std::format("Error parsing shift limit: {}", argv[i]));
         }
         if (val < 0) {
           throw std::invalid_argument("Shift limit must be non-negative");
@@ -131,14 +128,13 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
-          std::string msg("Error parsing excluded throw value: ");
-          msg.append(argv[i]);
-          throw std::invalid_argument(msg);
+          throw std::invalid_argument(
+              std::format("Error parsing excluded throw value: {}", argv[i]));
         }
         if (val < 0) {
           throw std::invalid_argument("Excluded throws must be non-negative");
         }
-        unsigned j = static_cast<unsigned>(val);
+        const auto j = static_cast<unsigned>(val);
         if (j == h) {
           throw std::invalid_argument(
               "Cannot exclude max. throw value using -x");
@@ -165,9 +161,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
-          std::string msg("Error parsing number of threads: ");
-          msg.append(argv[i]);
-          throw std::invalid_argument(msg);
+          throw std::invalid_argument(
+              std::format("Error parsing number of threads: {}", argv[i]));
         }
         if (val < 1) {
           throw std::invalid_argument("Must have at least one worker thread");
@@ -179,15 +174,15 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (i == 3) {
       // try to parse argument as a period or period range
       bool success = false;
-      std::string s{argv[i]};
-      auto hyphens = static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
+      const std::string s{argv[i]};
+      const auto hyphens =
+          static_cast<int>(std::count(s.cbegin(), s.cend(), '-'));
       if (hyphens == 0) {
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
-          std::string msg("Error parsing pattern period: ");
-          msg.append(argv[i]);
-          throw std::invalid_argument(msg);
+          throw std::invalid_argument(
+              std::format("Error parsing pattern period: {}", argv[i]));
         }
         if (val > 0) {
           n_min = n_max = static_cast<unsigned>(val);
@@ -195,16 +190,15 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         }
       } else if (hyphens == 1) {
         success = true;
-        auto hpos = s.find('-');
-        std::string s1 = s.substr(0, hpos);
-        std::string s2 = s.substr(hpos + 1);
+        const auto hpos = s.find('-');
+        const auto s1 = s.substr(0, hpos);
+        const auto s2 = s.substr(hpos + 1);
         if (s1.size() > 0) {
           try {
             val = std::stoi(s1);
           } catch (const std::invalid_argument& ie) {
-            std::string msg("Error parsing pattern period: ");
-            msg.append(s1);
-            throw std::invalid_argument(msg);
+            throw std::invalid_argument(
+                std::format("Error parsing pattern period: {}", s1));
           }
           if (val > 0) {
             n_min = static_cast<unsigned>(val);
@@ -216,9 +210,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           try {
             val = std::stoi(s2);
           } catch (const std::invalid_argument& ie) {
-            std::string msg("Error parsing pattern period: ");
-            msg.append(s2);
-            throw std::invalid_argument(msg);
+            throw std::invalid_argument(
+                std::format("Error parsing pattern period: {}", s2));
           }
           if (val > 0) {
             n_max = static_cast<unsigned>(val);
@@ -229,14 +222,12 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       }
 
       if (!success) {
-        std::string msg("Error parsing pattern period: ");
-        msg.append(argv[i]);
-        throw std::invalid_argument(msg);
+        throw std::invalid_argument(
+            std::format("Error parsing pattern period: {}", argv[i]));
       }
     } else if (i > 3) {
-      std::string msg("Unrecognized input: ");
-      msg.append(argv[i]);
-      throw std::invalid_argument(msg);
+      throw std::invalid_argument(
+          std::format("Unrecognized input: {}", argv[i]));
     }
   }
 

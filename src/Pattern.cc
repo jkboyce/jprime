@@ -34,7 +34,7 @@
 
 Pattern::Pattern(const std::vector<int>& p, int hmax) {
   int maxval = 0;
-  for (int val : p) {
+  for (const int val : p) {
     if (val < 0)
       break;
     throwval.push_back(val);
@@ -89,6 +89,7 @@ Pattern::Pattern(const std::string& p) {
     pat = {p};
   }
 
+  // case 1: pattern in standard form (comma-separated integers)
   if (has_comma) {
     auto x = pat.cbegin();
     while (true) {
@@ -125,7 +126,7 @@ Pattern::Pattern(const std::string& p) {
   int plusses = 0;
   int sum = 0;
 
-  for (char ch : pat) {
+  for (const char ch : pat) {
     if (ch == ' ') {
     } else if (ch == '-') {
       throwval.push_back(0);
@@ -151,6 +152,7 @@ Pattern::Pattern(const std::string& p) {
     }
   }
 
+  // case 2: pattern in compressed form without `+` throws
   if (plusses == 0) {
     if (hmax > 0) {
       if (hmax < maxval) {
@@ -164,16 +166,16 @@ Pattern::Pattern(const std::string& p) {
     return;
   }
 
-  // pattern is in block form.
+  // case 3: pattern in compressed form with `+` throws
   //
-  // we need to solve the equation: plusses * h + sum = b * period
+  // We need to solve the equation: plusses * h + sum = b * period
   // for minimal (positive integer) values of `h` and `b`, where h >= b.
   //
-  // from Bizout's identity this has a solution if and only if `sum` is
+  // From Bizout's identity this has a solution if and only if `sum` is
   // divisible by gcd(plusses, period).
   //
-  // also since h >= b, then `h` must be at least as large as
-  // ceiling(sum / (period - plusses))
+  // Also since h >= b, then `h` must be at least as large as
+  // ceiling(sum / (period - plusses)).
 
   const auto per = static_cast<int>(period());
   if (sum % std::gcd(plusses, per) != 0) {
@@ -232,7 +234,7 @@ int Pattern::objects() const {
   }
 
   int sum = 0;
-  for (int val : throwval) {
+  for (const int val : throwval) {
     sum += val;
   }
   assert(sum % period() == 0);  // always true if no collisions
@@ -263,7 +265,7 @@ bool Pattern::is_valid() const {
   // look for collisions
   std::vector<bool> taken(per, false);
   for (size_t i = 0; i < per; ++i) {
-    size_t index = (i + static_cast<size_t>(throwval.at(i))) % per;
+    const size_t index = (i + static_cast<size_t>(throwval.at(i))) % per;
     if (taken.at(index)) {
       return false;
     }
@@ -281,7 +283,7 @@ bool Pattern::is_prime() {
   }
   check_have_states();
 
-  std::set<State> s(states.cbegin(), states.cend());
+  const std::set<State> s(states.cbegin(), states.cend());
   return (s.size() == states.size());
 }
 
@@ -321,7 +323,7 @@ bool Pattern::is_superprime() {
     deduped.pop_back();
   }
 
-  std::set<State> s(deduped.cbegin(), deduped.cend());
+  const std::set<State> s(deduped.cbegin(), deduped.cend());
   return (deduped.size() > 1 && s.size() == deduped.size());
 }
 
@@ -418,7 +420,7 @@ Pattern Pattern::inverse() {
     // state whose reverse is used by the original pattern
 
     while (true) {
-      State trial_state = inverse_states.back().downstream();
+      const State trial_state = inverse_states.back().downstream();
       if (states_used.count(trial_state.reverse()) != 0)
         break;
 
@@ -489,7 +491,7 @@ bool Pattern::operator!=(const Pattern& p2) const {
 
 std::string Pattern::to_string(int throwdigits, bool blockform) const {
   int maxval = 0;
-  for (int val : throwval) {
+  for (const int val : throwval) {
     maxval = std::max(maxval, val);
   }
   int min_throwdigits = 1;
@@ -598,7 +600,7 @@ std::string Pattern::make_analysis() {
   // basic information
 
   int maxval = 0;
-  for (int val : throwval) {
+  for (const int val : throwval) {
     maxval = std::max(maxval, val);
   }
 

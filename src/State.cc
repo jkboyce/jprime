@@ -22,7 +22,7 @@ State::State(unsigned h)
 // Initialize from a string representation.
 
 State::State(std::string s) {
-  for (char ch : s) {
+  for (const char ch : s) {
     _slot.push_back((ch == 'x' || ch == '1') ? 1 : 0);
   }
 }
@@ -51,23 +51,21 @@ const unsigned& State::slot(size_t i) const {
 
 State State::advance_with_throw(unsigned throwval) const {
   State s = *this;
-  unsigned head = *s._slot.begin();
+  const unsigned head = *s._slot.begin();
 
   s._slot.erase(s._slot.begin());
   s._slot.push_back(0);
 
   if (throwval > size()) {
-    std::string err = "Throw value " + std::to_string(throwval) +
-        " exceeds the number of slots in state (" +
-        std::to_string(size()) + ")";
-    throw std::invalid_argument(err);
+    throw std::invalid_argument(
+        std::format("Throw value {} exceeds the number of slots in state ({})",
+        throwval, size()));
   }
 
   if ((head == 0 && throwval != 0) || (head != 0 && throwval == 0) ||
       (throwval > 0 && s.slot(throwval - 1) != 0)) {
-    std::string err = "Throw value " + std::to_string(throwval) +
-        " is not valid from state " + to_string();
-    throw std::invalid_argument(err);
+    throw std::invalid_argument(std::format(
+        "Throw value {} is not valid from state {}", throwval, to_string()));
   }
 
   if (throwval > 0) {
@@ -81,7 +79,7 @@ State State::advance_with_throw(unsigned throwval) const {
 
 State State::downstream() const {
   State s = *this;
-  unsigned head = *s._slot.begin();
+  const unsigned head = *s._slot.begin();
   s._slot.erase(s._slot.begin());
   s._slot.push_back(head);
   return s;
@@ -91,7 +89,7 @@ State State::downstream() const {
 
 State State::upstream() const {
   State s = *this;
-  unsigned tail = s._slot.back();
+  const unsigned tail = s._slot.back();
   s._slot.pop_back();
   s._slot.insert(s._slot.begin(), tail);
   return s;
