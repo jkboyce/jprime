@@ -476,10 +476,10 @@ unsigned Graph::superprime_period_bound(unsigned shifts) const {
     }
   }
 
-  const auto active_cycles = static_cast<unsigned>(
+  const auto cycles_active = static_cast<unsigned>(
       std::count(any_active.cbegin(), any_active.cend(), true));
 
-  return (active_cycles > 1 ? active_cycles + shifts : 0);
+  return (cycles_active > 1 ? cycles_active + shifts : 0);
 }
 
 // Return the index in the `state` array that corresponds to a given state.
