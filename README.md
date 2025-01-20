@@ -237,6 +237,7 @@ Since the graph $(b,h)$ is finite, we can see that the number of prime patterns 
 7, 29693
 8, 11906414
 9, 30513071763
+10, 587709292126267
 
 4 OBJECTS
 5, 5
