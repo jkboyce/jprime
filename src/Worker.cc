@@ -879,23 +879,23 @@ void Worker::customize_graph() {
 // Need to execute Graph::reduce_graph() before calling this method.
 
 void Worker::initialize_working_variables() {
-  pos = 0;
-  from = start_state;
-  shiftcount = 0;
   used.assign(graph.numstates + 1, 0);
   cycleused.assign(graph.numcycles, 0);
   deadstates.assign(graph.numcycles, 0);
+  deadstates_bystate.assign(graph.numstates + 1, nullptr);
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
     deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
     if (!graph.state_active.at(i)) {
-      ++*deadstates_bystate.at(i);
+      (*deadstates_bystate.at(i)) += 1;
     }
   }
 
+  pos = 0;
+  from = start_state;
+  shiftcount = 0;
   exitcyclesleft =
       std::count(graph.isexitcycle.cbegin(), graph.isexitcycle.cend(), true);
-
   max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
       ? graph.superprime_period_bound(config.shiftlimit)
       : graph.prime_period_bound();
