@@ -30,6 +30,9 @@ jprime: $(_OBJ)
 $(ODIR)/%.o: $(SDIR)/%.cc $(_DEP) | builddir
 	$(CC) -c -o $@ $< $(CFLAGS)
 
+cuda: $(SDIR)/CoordinatorCuda.cu $(_OBJ)
+	nvcc -std=c++20 -O3 -o jprime src/CoordinatorCuda.cu $(_OBJ)
+
 .PHONY: builddir clean
 
 builddir:

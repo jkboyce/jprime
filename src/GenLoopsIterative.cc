@@ -5,7 +5,7 @@
 // in replacements for recursive versions in GenLoopsRecursive.cc. These
 // routines are by far the most performance-critical portions of jprime.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

@@ -95,6 +95,7 @@ void print_help() {
     "   -threads <num>    run with the given number of worker threads (default 1)\n"
     "   -file <name>      use the named file for checkpointing (when jprime is\n"
     "                        interrupted via ctrl-c), resuming, and final output\n"
+    "   -cuda             run search on CUDA-enabled GPU\n"
     "\n"
     "When resuming a calculation from a checkpoint file, the other parts of the\n"
     "input are ignored and can be omitted. For example: jprime -file testrun\n"

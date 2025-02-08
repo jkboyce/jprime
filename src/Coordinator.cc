@@ -7,7 +7,7 @@
 // stealing to keep the workers busy. The business of the coordinator is to
 // interact with the workers to distribute work, and also to manage output.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -56,6 +56,12 @@ bool Coordinator::run() {
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
+
+  if (config.cudaflag) {
+    run_cuda();
+    return true;
+  }
+
   start_workers();
 
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(

@@ -3,7 +3,7 @@
 //
 // Coordinator that manages the overall search.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -104,6 +104,9 @@ class Coordinator {
   void print_status_output();
   static std::string current_time_string();
   std::string make_worker_status(const MessageW2C& msg);
+
+ private:
+  bool run_cuda();
 };
 
 #endif
