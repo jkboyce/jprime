@@ -90,6 +90,7 @@ The table below shows exact counts for the number of prime patterns at each peri
 26, 7896286237030
 27, 25316008015581
 28, 80572339461372
+29, 257264254717163
 
 4 OBJECTS
 1, 1
