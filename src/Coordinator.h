@@ -77,6 +77,8 @@ class Coordinator {
   bool run();
 
  private:
+  void run_cpu();
+  void run_cuda();
   void message_worker(const MessageC2W& msg, unsigned worker_id) const;
   void give_assignments();
   void process_inbox();
@@ -104,9 +106,6 @@ class Coordinator {
   void print_status_output();
   static std::string current_time_string();
   std::string make_worker_status(const MessageW2C& msg);
-
- private:
-  bool run_cuda();
 };
 
 #endif

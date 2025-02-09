@@ -6,7 +6,7 @@
 # Run `make` to build the executable, `make clean` to clean the intermediate
 # object files in the `build` directory.
 #
-# Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+# Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 #
 # This file is distributed under the MIT License.
 #
@@ -30,13 +30,25 @@ jprime: $(_OBJ)
 $(ODIR)/%.o: $(SDIR)/%.cc $(_DEP) | builddir
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-cuda: $(SDIR)/CoordinatorCuda.cu $(_OBJ)
-	nvcc -std=c++20 -O3 -o jprime src/CoordinatorCuda.cu $(_OBJ)
-
-.PHONY: builddir clean
-
 builddir:
 	mkdir -p $(ODIR)
 
+.PHONY: builddir clean
+
 clean:
 	rm -rf $(ODIR)
+
+# Optional support for CUDA target.
+#
+# This requires the `nvcc` compiler, part of the CUDA Toolkit from NVIDIA.
+
+_OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
+
+cuda: $(SDIR)/CoordinatorCuda.cu $(_OBJ_CUDA)
+	nvcc -std=c++20 -O3 -o jprime src/CoordinatorCuda.cu $(_OBJ_CUDA)
+
+$(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) | builddir_cuda
+	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS)
+
+builddir_cuda:
+	mkdir -p $(ODIR)/cuda

@@ -53,20 +53,47 @@ bool Coordinator::run() {
   // the search is a go and `n_bound` fits into an unsigned int
   n_max = (config.n_max > 0) ? config.n_max
       : static_cast<unsigned>(context.n_bound);
+  context.count.assign(n_max + 1, 0);
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
 
+  const auto start = std::chrono::high_resolution_clock::now();
+  #ifdef CUDA_ENABLED
   if (config.cudaflag) {
     run_cuda();
-    return true;
+    return false;
+  } else {
+    run_cpu();
   }
+  #else
+  run_cpu();
+  #endif
+  const auto end = std::chrono::high_resolution_clock::now();
 
-  start_workers();
+  const std::chrono::duration<double> diff = end - start;
+  const double runtime = diff.count();
+  context.secs_elapsed += runtime;
+  context.secs_available += runtime * config.num_threads;
 
+  erase_status_output();
+  if (config.verboseflag) {
+    jpout << "Finished on: " << current_time_string();
+  }
+  if (context.assignments.size() > 0) {
+    jpout << "\nPARTIAL RESULTS:\n";
+  }
+  print_search_description();
+  print_results();
+  return true;
+}
+
+// Run the search on the CPU, using one or more worker threads.
+
+void Coordinator::run_cpu() {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
-      static_cast<long>(NANOSECS_PER_INBOX_CHECK));
-  const auto start = std::chrono::high_resolution_clock::now();
+    static_cast<long>(NANOSECS_PER_INBOX_CHECK));
+  start_workers();
 
   while (true) {
     give_assignments();
@@ -85,23 +112,6 @@ bool Coordinator::run() {
   stop_workers();
   workers_splitting.clear();
   process_inbox();  // running worker will have sent back a RETURN_WORK message
-
-  const auto end = std::chrono::high_resolution_clock::now();
-  const std::chrono::duration<double> diff = end - start;
-  const double runtime = diff.count();
-  context.secs_elapsed += runtime;
-  context.secs_available += runtime * config.num_threads;
-
-  erase_status_output();
-  if (config.verboseflag) {
-    jpout << "Finished on: " << current_time_string();
-  }
-  if (context.assignments.size() > 0) {
-    jpout << "\nPARTIAL RESULTS:\n";
-  }
-  print_search_description();
-  print_results();
-  return true;
 }
 
 //------------------------------------------------------------------------------

@@ -1,9 +1,8 @@
 //
-// CoordinatorCuda.cu
+// CoordinatorCUDA.cu
 //
-// Core graph search routines, implemented as iterative functions that are drop-
-// in replacements for recursive versions in GenLoopsRecursive.cc. These
-// routines are by far the most performance-critical portions of jprime.
+// Routines for executing the search on a CUDA-enabled GPU. This file should
+// be compiled with `nvcc`, part of the CUDA Toolkit.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
@@ -21,8 +20,9 @@ __global__ void helloCUDA(int* a, int* b, int* c) {
   c[i] = a[i] + b[i];
 }
 
+// Run the search on a CUDA-enabled GPU.
 
-bool Coordinator::run_cuda() {
+void Coordinator::run_cuda() {
   std::vector<int> a, b, c;
 
   for (int i = 0; i < 100; ++i) {
@@ -37,6 +37,4 @@ bool Coordinator::run_cuda() {
   for (int i = 0; i < c.size(); ++i) {
     std::cout << c[i] << "\n";
   }
-
-  return true;
 }
