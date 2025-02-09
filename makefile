@@ -43,9 +43,13 @@ clean:
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from NVIDIA.
 
 _OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
+NVCCFLAGS = -std=c++20 -O3 -Xcudafe --diag_suppress=68 \
+            -gencode arch=compute_60,code=compute_60 \
+            -gencode arch=compute_89,code=sm_89 \
+            -Wno-deprecated-gpu-targets
 
-cuda: $(SDIR)/CoordinatorCuda.cu $(_OBJ_CUDA)
-	nvcc -std=c++20 -O3 -o jprime src/CoordinatorCuda.cu $(_OBJ_CUDA)
+cuda: $(SDIR)/CoordinatorCUDA.cu $(_OBJ_CUDA)
+	nvcc $(NVCCFLAGS) -o jprime src/CoordinatorCUDA.cu $(_OBJ_CUDA)
 
 $(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) | builddir_cuda
 	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS)
