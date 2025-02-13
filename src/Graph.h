@@ -40,6 +40,7 @@ class Graph {
   std::vector<State> state;
   std::vector<unsigned> cyclenum;
   std::vector<unsigned> cycleperiod;
+  unsigned maxoutdegree = 0;
 
   // updated as states are activated/deactivated
   std::vector<bool> state_active;

@@ -77,35 +77,46 @@ class Coordinator {
   bool run();
 
  private:
-  void run_cpu();
-  void run_cuda();
-  void message_worker(const MessageC2W& msg, unsigned worker_id) const;
-  void give_assignments();
-  void process_inbox();
-  void process_search_result(const MessageW2C& msg);
-  void process_worker_idle(const MessageW2C& msg);
-  void process_returned_work(const MessageW2C& msg);
-  void process_returned_stats(const MessageW2C& msg);
-  void process_worker_update(const MessageW2C& msg);
-  void collect_stats();
-  void steal_work();
-  unsigned find_stealing_target_mostremaining() const;
   void calc_graph_size();
   bool passes_prechecks();
-  bool is_worker_idle(const unsigned id) const;
-  bool is_worker_splitting(const unsigned id) const;
-  void record_data_from_message(const MessageW2C& msg);
-  void start_workers();
-  void stop_workers();
   double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
-  void print_pattern(const MessageW2C& msg);
+  void process_search_result(const MessageW2C& msg);
   void print_search_description() const;
   void print_results() const;
   void erase_status_output() const;
   void print_status_output();
   static std::string current_time_string();
+  void record_data_from_message(const MessageW2C& msg);
   std::string make_worker_status(const MessageW2C& msg);
+
+ // defined in CoordinatorCPU.cc
+
+ private:
+  void run_cpu();
+  void message_worker(const MessageC2W& msg, unsigned worker_id) const;
+  void give_assignments();
+  void steal_work();
+  unsigned find_stealing_target_mostremaining() const;
+  void collect_stats();
+  void process_inbox();
+  void process_worker_idle(const MessageW2C& msg);
+  void process_returned_work(const MessageW2C& msg);
+  void process_returned_stats(const MessageW2C& msg);
+  void process_worker_update(const MessageW2C& msg);
+  void start_workers();
+  void stop_workers();
+  bool is_worker_idle(const unsigned id) const;
+  bool is_worker_splitting(const unsigned id) const;
+
+ // defined in CoordinatorCUDA.cu
+
+  using statenum_t = uint16_t;
+  
+ private:
+  void run_cuda();
+  void process_pattern_buffer(statenum_t* const pb_d,
+    const Graph& graph, const uint32_t pattern_buffer_size);
 };
 
 #endif

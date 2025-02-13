@@ -16,8 +16,8 @@ CFLAGS = -Wall -Wextra -std=c++20 -O3
 SDIR = src
 ODIR = build
 OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
-      GenLoopsIterative.o Coordinator.o WorkAssignment.o SearchConfig.o \
-      SearchContext.o Pattern.o
+      GenLoopsIterative.o Coordinator.o CoordinatorCPU.o WorkAssignment.o \
+			SearchConfig.o SearchContext.o Pattern.o
 DEP = Graph.h State.h Worker.h Coordinator.h WorkAssignment.h SearchConfig.h \
       SearchContext.h Pattern.h
 
@@ -38,7 +38,7 @@ builddir:
 clean:
 	rm -rf $(ODIR)
 
-# Optional support for CUDA target.
+# Optional support for CUDA target. Build with `make cuda`.
 #
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from NVIDIA.
 

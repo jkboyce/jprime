@@ -77,7 +77,7 @@ void Graph::init() {
 
   // allocate arrays to be filled in later by build_graph() and
   // find_exclude_states()
-  unsigned maxoutdegree = 0;
+  maxoutdegree = 0;
   for (size_t i = 0; i <= h; ++i) {
     if (!xarray.at(i)) {
       ++maxoutdegree;

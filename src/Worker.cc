@@ -909,6 +909,17 @@ void Worker::initialize_working_variables() {
 // console output is done by the coordinator, not the worker threads.
 
 void Worker::report_pattern() const {
+  MessageW2C msg;
+  msg.type = MessageW2C::Type::SEARCH_RESULT;
+  msg.pattern = pattern_output_format(config, pattern, start_state);
+  msg.period = pos + 1;
+  message_coordinator(msg);
+}
+
+// Format a pattern for output.
+
+std::string pattern_output_format(const SearchConfig& config,
+    const std::vector<int>& pattern, const unsigned start_state) {
   std::ostringstream buffer;
 
   if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH) {
@@ -967,9 +978,5 @@ void Worker::report_pattern() const {
     }
   }
 
-  MessageW2C msg;
-  msg.type = MessageW2C::Type::SEARCH_RESULT;
-  msg.pattern = buffer.str();
-  msg.period = pos + 1;
-  message_coordinator(msg);
+  return buffer.str();
 }

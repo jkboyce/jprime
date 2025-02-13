@@ -136,6 +136,9 @@ class Worker {
   void iterative_handle_finished_pattern();
 };
 
+std::string pattern_output_format(const SearchConfig& config,
+  const std::vector<int>& pattern, const unsigned start_state);
+
 class JprimeStopException : public std::exception {
 };
 
