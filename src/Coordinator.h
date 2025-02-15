@@ -115,6 +115,7 @@ class Coordinator {
   
  private:
   void run_cuda();
+  unsigned select_CUDA_search_algorithm(const Graph& graph) const;
   void process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
 };

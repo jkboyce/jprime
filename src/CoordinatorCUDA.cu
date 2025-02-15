@@ -14,30 +14,16 @@
 
 #include <iostream>
 #include <vector>
+#include <format>
 #include <sstream>
 #include <stdexcept>
 
+#include <cuda_runtime.h>
 
-// Helper function to handle CUDA errors.
 
-void throw_on_cuda_error(cudaError_t code, const char *file, int line) {
-  if (code != cudaSuccess) {
-    std::stringstream ss;
-    ss << "CUDA error: " << cudaGetErrorString(code) << " in file "
-       << file << " at line " << line;
-    throw std::runtime_error(ss.str());
-  }
-}
-
+// ----------------------- Data types -----------------------
 
 using statenum_t = uint16_t;
-
-
-struct GraphInfo {
-  uint16_t maxoutdegree;
-  uint16_t numstates;
-  uint32_t pattern_buffer_size;
-};
 
 
 struct WorkerInfo {
@@ -45,145 +31,168 @@ struct WorkerInfo {
   statenum_t end_state = 0;  // highest value of `start_state` (input)
   uint16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
   uint64_t nnodes = 0;  // number of nodes completed (output)
-  uint16_t done = 0;  // 1 if worker is done, 0 otherwise (output)
+  uint16_t done = 1;  // 1 if worker is done, 0 otherwise (output)
 };
 
 
 struct WorkAssignmentCell {
-  uint16_t col = 0;
-  uint16_t col_limit = 0;
+  uint8_t col = 0;
+  uint8_t col_limit = 0;
   statenum_t from_state = 0;
-  statenum_t to_state = 0;
   uint32_t count = 0;  // output
 };
 
+
+// ----------------------- Function prototypes -----------------------
+
+void throw_on_cuda_error(cudaError_t code, const char *file, int line);
+
+void load_work_assignment(const WorkAssignment& wa,
+  const unsigned j, std::vector<WorkerInfo>& wi_h,
+  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph,
+  const SearchConfig& config, unsigned n_max);
+
+// ----------------------- GPU memory layout -----------------------
 
 // GPU constant memory
 //
 // Every NVIDIA GPU from capability 5.0 through 12.0 has 64 KB of constant
 // memory. This is where we place the juggling graph data.
 
-__device__ __constant__ GraphInfo graphinfo_d;
-__device__ __constant__ statenum_t graphmatrix_d[65535 / sizeof(statenum_t)
-                                                 - sizeof(GraphInfo)];
+__device__ __constant__ statenum_t graphmatrix_d[65536 / sizeof(statenum_t)];
 
 
-// static global variables in device memory
+// GPU global memory
 
+__device__ uint8_t maxoutdegree_d;
+__device__ uint16_t numstates_d;
+__device__ uint32_t pattern_buffer_size_d;
 __device__ uint32_t pattern_index_d = 0;
 
 
+// ----------------------- GPU kernels -----------------------
 
-__global__ void cuda_gen_loops_normal(statenum_t* patterns_d, WorkerInfo* wi_d,
-        WorkAssignmentCell* wa_d, unsigned n_min, unsigned n_max) {
-  int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-  /*
-  printf("worker %d: numstates = %d\n", i, graphinfo_d.numstates);
-  //statenum_t* gm = &graphmatrix_d;
-  printf("worker %d: state 40 graphmatrix = ", i);
-  for (unsigned j = 0; j < graphinfo_d.maxoutdegree + 1; ++j) {
-    printf("%d ", graphmatrix_d[(40 - 1) * (graphinfo_d.maxoutdegree + 1) + j]);
-  }
-  printf("\n");
-  printf("worker %d: pattern buffer size = %d\n", i, graphinfo_d.pattern_buffer_size);
-  printf("worker %d: n_max = %d\n", i, n_max);
-  */
+__global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
+        WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
+        const unsigned n_min, const unsigned n_max, const unsigned steps,
+        const bool report) {
+  const int i = blockDim.x * blockIdx.x + threadIdx.x;
 
   if (wi_d[i].done) {
     return;
   }
-  int pos = wi_d[i].pos;
-  uint64_t nnodes = 0;
-
-  __shared__ uint8_t used[100];
-  for (int j = 0; j < 100; ++j) {
-    used[j] = 0;
-  }
-  for (int j = 0; j <= n_max; ++j) {
-    wa_d[j].count = 0;
-  }
-
-  // Note that beat 0 is stored at index 1 in the `WorkAssignmentCell` array.
-  // We do this to provide a guard since wa_d[0].col is modified at the end of
-  // the search.
-  WorkAssignmentCell* ss = &wa_d[pos + 1];
 
   statenum_t st_state = wi_d[i].start_state;
+  int pos = wi_d[i].pos;
+  uint64_t nnodes = wi_d[i].nnodes;
+  const uint8_t outdegree = maxoutdegree_d;
+  WorkAssignmentCell* ss = &wa_d[pos];
 
-  // main search loop
-  while (pos >= 0) {
-    // begin with any necessary cleanup from previous marking operations
-    if (ss->to_state != 0) {
-      used[ss->to_state] = 0;
-      ss->to_state = 0;
-    }
+  // set up shared memory
+  __shared__ uint8_t used[100];
+  for (int j = 0; j <= numstates_d; ++j) {
+    used[j] = 0;
+  }
+  for (int j = 1; j <= pos; ++j) {
+    used[wa_d[j].from_state] = 1;
+  }
 
-    skip_unmarking:
+  for (unsigned step = 0; step < steps; ++step) {
+
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
-      --pos;
-      --ss;
-      ++ss->col;
+      used[ss->from_state] = 0;
       ++nnodes;
-      continue;
+
+      if (pos == 0) {
+        if (st_state == wi_d[i].end_state) {
+          wi_d[i].done = 1;
+          break;
+        }
+        ++st_state;
+        ss->col = 0;
+        ss->col_limit = outdegree;
+        ss->from_state = st_state;
+        continue;
+      } else {
+        --pos;
+        --ss;
+        ++ss->col;
+        continue;
+      }
     }
 
     const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
-          (graphinfo_d.maxoutdegree + 1) + ss->col];
-    if (to_state < st_state) {
-      --pos;
-      --ss;
-      ++ss->col;
+          outdegree + ss->col];
+
+    if (to_state == 0) {
+      // beat is finished, go back to previous one
+      used[ss->from_state] = 0;
       ++nnodes;
-      continue;
+
+      if (pos == 0) {
+        if (st_state == wi_d[i].end_state) {
+          wi_d[i].done = 1;
+          break;
+        }
+        ++st_state;
+        ss->col = 0;
+        ss->col_limit = outdegree;
+        ss->from_state = st_state;
+        continue;
+      } else {
+        --pos;
+        --ss;
+        ++ss->col;
+        continue;
+      }
     }
     
     if (to_state == st_state) {
       // found a valid pattern
-      ++ss->count;
-      if (pos + 1 >= n_min) {
+      if (report && pos + 1 >= n_min) {
         const uint32_t idx = atomicAdd(&pattern_index_d, 1);
-        if (idx < graphinfo_d.pattern_buffer_size) {
+        if (idx < pattern_buffer_size_d) {
           for (int j = 0; j <= pos; ++j) {
-            patterns_d[idx * n_max + j] = wa_d[j + 1].from_state;
+            patterns_d[idx * n_max + j] = wa_d[j].from_state;
           }
           if (pos + 1 < n_max) {
             patterns_d[idx * n_max + pos + 1] = 0;
           }
         }
       }
-
+      ++ss->count;
       ++ss->col;
-      goto skip_unmarking;
+      continue;
+    }
+
+    if (to_state < st_state) {
+      ++ss->col;
+      continue;
     }
 
     if (used[to_state]) {
       ++ss->col;
-      goto skip_unmarking;
+      continue;
     }
 
     if (pos + 1 == n_max) {
       ++ss->col;
-      goto skip_unmarking;
+      continue;
     }
 
     // current throw is valid, so advance to next beat
-    used[to_state] = 1;
-    ss->to_state = to_state;
     ++pos;
     ++ss;
     ss->col = 0;
-    ss->col_limit = graphinfo_d.maxoutdegree;
+    ss->col_limit = outdegree;
     ss->from_state = to_state;
-    ss->to_state = 0;
-    goto skip_unmarking;
+    used[to_state] = 1;
   }
 
-  ++pos;
+  wi_d[i].start_state = st_state;
   wi_d[i].pos = pos;
   wi_d[i].nnodes = nnodes;
-  wi_d[i].done = 1;
 }
 
 
@@ -193,22 +202,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* patterns_d, WorkerInfo* wi_d,
 // jprime 3 8 -g -count -cuda
 // runtime = 18.7906 sec
 
-
-
-// in kernel call, pass in:
-//  - pointer to WorkerInfo array (global memory)
-//          WorkerInfo[NUM_WORKERS]
-//  - pointer to WorkAssignment array (global memory)
-//          WorkAssignmentCell[NUM_WORKERS * (n_max + 1)]
-//  - pointer to PatternBuffer (global memory)
-//          2 * uint32_t + statenum_t[PATTERN_BUFFER_SIZE * n_max]
-//  - n_max
-
-// graph data:
-//  - maxoutdegree (uint16_t)
-//  - numstates (uint16_t)
-//  - array of statenum_t[numstates * (maxoutdegree + 1)]
-
+// ----------------------- Execution entry point -----------------------
 
 // Run the search on a CUDA-enabled GPU.
 //
@@ -216,8 +210,10 @@ __global__ void cuda_gen_loops_normal(statenum_t* patterns_d, WorkerInfo* wi_d,
 // relevant error message.
 
 void Coordinator::run_cuda() {
-  unsigned num_workers = 1;
-  unsigned pattern_buffer_size = 100000;
+  const unsigned num_blocks = 1;
+  const unsigned num_threadsperblock = 1;
+  const unsigned num_workers = num_blocks * num_threadsperblock;
+  const unsigned pattern_buffer_size = 100000;
 
   // build juggling graph
 
@@ -228,33 +224,32 @@ void Coordinator::run_cuda() {
   // TODO: call customize_graph() here
   graph.reduce_graph();
 
+  // choose which search algorithm to use
+  const unsigned alg = select_CUDA_search_algorithm(graph);
+
   // will graph fit into GPU constant memory?
-  size_t graph_buffer_size = graph.numstates * (graph.maxoutdegree + 1);
+  const unsigned graphcols = (alg < 2) ? graph.maxoutdegree :
+                    graph.maxoutdegree + 1;
+  const size_t graph_buffer_size = graph.numstates * graphcols;
   if (graph_buffer_size > sizeof(graphmatrix_d)) {
     throw std::runtime_error("CUDA error: Juggling graph too large");
   }
-
-  // GraphInfo in GPU constant memory
-
-  GraphInfo gi_h = {static_cast<uint16_t>(graph.maxoutdegree),
-                    static_cast<uint16_t>(graph.numstates),
-                    static_cast<uint32_t>(pattern_buffer_size)};
-  throw_on_cuda_error(
-    cudaMemcpyToSymbol(graphinfo_d, &gi_h, sizeof(GraphInfo)),
-    __FILE__, __LINE__
-  );
-  jpout << "host: numstates = " << graph.numstates << "\n";
 
   // Graph matrix data in GPU constant memory
 
   std::vector<statenum_t> graph_buffer(graph_buffer_size, 0);
   for (unsigned i = 1; i <= graph.numstates; ++i) {
     for (unsigned j = 0; j < graph.outdegree.at(i); ++j) {
-      graph_buffer.at((i - 1) * (graph.maxoutdegree + 1) + j) =
-          graph.outmatrix.at(i).at(j);
+      graph_buffer.at((i - 1) * graphcols + j) = graph.outmatrix.at(i).at(j);
     }
-    graph_buffer.at((i - 1) * (graph.maxoutdegree + 1) + graph.maxoutdegree) =
-        graph.upstream_state(i);
+    if (alg == 2) {
+      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
+          graph.upstream_state(i);
+    }
+    if (alg == 3 || alg == 4) {
+      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
+          graph.cyclenum.at(i);
+    }
   }
   throw_on_cuda_error(
     cudaMemcpyToSymbol(graphmatrix_d, graph_buffer.data(),
@@ -270,6 +265,27 @@ void Coordinator::run_cuda() {
     __FILE__, __LINE__
   );
 
+  // Static global variables (global memory)
+
+  uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
+  uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
+  uint32_t pattern_buffer_size_h = pattern_buffer_size;
+  throw_on_cuda_error(
+    cudaMemcpyToSymbol(maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t)),
+    __FILE__, __LINE__
+  );
+  throw_on_cuda_error(
+    cudaMemcpyToSymbol(numstates_d, &numstates_h, sizeof(uint16_t)),
+    __FILE__, __LINE__
+  );
+  throw_on_cuda_error(
+    cudaMemcpyToSymbol(pattern_buffer_size_d, &pattern_buffer_size_h,
+        sizeof(uint32_t)), __FILE__, __LINE__
+  );
+  throw_on_cuda_error(
+    cudaMemset(&pattern_index_d, 0, sizeof(uint32_t)), __FILE__, __LINE__
+  );
+
   // Arrays for WorkerInfo and WorkAssignmentCells (global memory)
 
   WorkerInfo* wi_d;
@@ -279,71 +295,199 @@ void Coordinator::run_cuda() {
     __FILE__, __LINE__
   );
   throw_on_cuda_error(
-    cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * num_workers * (n_max + 1)),
+    cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * num_workers * n_max),
     __FILE__, __LINE__
   );
 
   std::vector<WorkerInfo> wi_h(num_workers);
-  std::vector<WorkAssignmentCell> wa_h(num_workers * (n_max + 1));
+  std::vector<WorkAssignmentCell> wa_h(num_workers * n_max);
   
-  // TODO: initialize WorkerInfo and WorkAssignmentCell arrays here
-  // initialize a simple ground state search
-  wi_h.at(0).start_state = 1;
-  wi_h.at(0).end_state = 1;
+  for (int j = 0; j < num_workers; ++j) {
+    if (context.assignments.size() > 0) {
+      WorkAssignment wa = context.assignments.front();
+      context.assignments.pop_front();
+      load_work_assignment(wa, j, wi_h, wa_h, graph, config, n_max);
 
-  wa_h.at(1).col = 0;
-  wa_h.at(1).col_limit = gi_h.maxoutdegree;
-  wa_h.at(1).from_state = 1;
-  wa_h.at(1).to_state = 0;
-  wa_h.at(1).count = 0;
-
-  throw_on_cuda_error(
-    cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * num_workers,
-        cudaMemcpyHostToDevice),
-    __FILE__, __LINE__
-  );
-  throw_on_cuda_error(
-    cudaMemcpy(wa_d, wa_h.data(), sizeof(WorkAssignmentCell) * num_workers *
-        (n_max + 1), cudaMemcpyHostToDevice),
-    __FILE__, __LINE__
-  );
-  
-  // ----------------------- launch kernel -----------------------
-
-  cuda_gen_loops_normal<<<1, num_workers>>>(pb_d, wi_d, wa_d, config.n_min, n_max);
-  cudaDeviceSynchronize();
-
-  // ----------------- copy results back to host -----------------
-
-  throw_on_cuda_error(
-    cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * num_workers,
-        cudaMemcpyDeviceToHost),
-    __FILE__, __LINE__
-  );
-  throw_on_cuda_error(
-    cudaMemcpy(wa_h.data(), wa_d, sizeof(WorkAssignmentCell) * num_workers *
-        (n_max + 1), cudaMemcpyDeviceToHost),
-    __FILE__, __LINE__
-  );
-
-  for (int i = 0; i < num_workers; ++i) {
-    MessageW2C msg;
-    msg.worker_id = i;
-    msg.count.assign(n_max + 1, 0);
-    for (unsigned j = 0; j <= n_max; ++j) {
-      msg.count.at(j) = wa_h.at(i * (n_max + 1) + j).count;
+      if (config.verboseflag) {
+        erase_status_output();
+        jpout << std::format("worker {} given work:\n  ", j)
+              << wa << std::endl;
+        print_status_output();
+      }
+    } else {
+      wi_h.at(j).done = 1;
     }
-    msg.nnodes = wi_h.at(i).nnodes;
-    record_data_from_message(msg);
   }
 
-  // patterns in pattern buffer
-  process_pattern_buffer(pb_d, graph, pattern_buffer_size);
+  while (true) {
+    throw_on_cuda_error(
+      cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * num_workers,
+          cudaMemcpyHostToDevice),
+      __FILE__, __LINE__
+    );
+    throw_on_cuda_error(
+      cudaMemcpy(wa_d, wa_h.data(), sizeof(WorkAssignmentCell) * num_workers *
+          n_max, cudaMemcpyHostToDevice),
+      __FILE__, __LINE__
+    );
+    
+    // ----------------------- launch kernel -----------------------
+
+    switch (alg) {
+      case 0:
+        cuda_gen_loops_normal<<<num_blocks, num_threadsperblock>>>
+            (pb_d, wi_d, wa_d, config.n_min, n_max, 100000, !config.countflag);
+        break;
+      default:
+        throw std::runtime_error("CUDA error: algorithm not implemented");
+    }
+
+    cudaDeviceSynchronize();
+
+    // ----------------- copy results back to host -----------------
+
+    throw_on_cuda_error(
+      cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * num_workers,
+          cudaMemcpyDeviceToHost),
+      __FILE__, __LINE__
+    );
+    throw_on_cuda_error(
+      cudaMemcpy(wa_h.data(), wa_d, sizeof(WorkAssignmentCell) * num_workers *
+          n_max, cudaMemcpyDeviceToHost),
+      __FILE__, __LINE__
+    );
+
+    bool all_done = true;
+
+    for (int i = 0; i < num_workers; ++i) {
+      if (!wi_h.at(i).done) {
+        all_done = false;
+      }
+
+      MessageW2C msg;
+      msg.worker_id = i;
+      msg.count.assign(n_max + 1, 0);
+      for (unsigned j = 1; j <= n_max; ++j) {
+        msg.count.at(j) = wa_h.at(i * n_max + j - 1).count;
+        wa_h.at(i * n_max + j - 1).count = 0;
+      }
+      msg.nnodes = wi_h.at(i).nnodes;
+      wi_h.at(i).nnodes = 0;
+      record_data_from_message(msg);
+    }
+
+    // patterns in pattern buffer
+    process_pattern_buffer(pb_d, graph, pattern_buffer_size);
+
+    if (Coordinator::stopping || all_done) {
+      break;
+    }
+  }
 
   // free GPU memory
   cudaFree(pb_d);
   cudaFree(wi_d);
   cudaFree(wa_d);
+
+  // TODO: move unfinished work assignments back into `context.assignments`
+  
+}
+
+// ----------------------- Helper functions -----------------------
+
+// choose a search algorithm to use
+
+unsigned Coordinator::select_CUDA_search_algorithm(const Graph& graph) const {
+  unsigned max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
+      ? graph.superprime_period_bound(config.shiftlimit)
+      : graph.prime_period_bound();
+
+  unsigned alg = -1;
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+        static_cast<double>(config.n_min) >
+        0.66 * static_cast<double>(max_possible)) {
+      // the overhead of marking is only worth it for long-period patterns
+      alg = 1;
+    } else if (config.countflag) {
+      alg = 0;
+    } else {
+      alg = 0;
+    }
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    if (config.shiftlimit == 0) {
+      alg = 3;
+    } else {
+      alg = 2;
+    }
+  }
+
+  if (config.verboseflag) {
+    static const std::vector<std::string> algs = {
+      "cuda_gen_loops_normal()",
+      "cuda_gen_loops_normal_marking()",
+      "cuda_gen_loops_super()",
+      "cuda_gen_loops_super0()",
+    };
+    jpout << std::format("selected algorithm {}", algs.at(alg)) << std::endl;
+  }
+
+  return alg;
+}
+
+// Handle CUDA errors by throwing a `std::runtime_error` exception with a
+// relevant error message.
+
+void throw_on_cuda_error(cudaError_t code, const char *file, int line) {
+  if (code != cudaSuccess) {
+    std::stringstream ss;
+    ss << "CUDA error: " << cudaGetErrorString(code) << " in file "
+       << file << " at line " << line;
+    throw std::runtime_error(ss.str());
+  }
+}
+
+// Load a work assignment into a worker's slot in the `WorkerInfo` and
+// `WorkAssignmentCell` arrays.
+
+void load_work_assignment(const WorkAssignment& wa,
+    const unsigned id, std::vector<WorkerInfo>& wi_h,
+    std::vector<WorkAssignmentCell>& wa_h, const Graph& graph,
+    const SearchConfig& config, unsigned n_max) {
+  unsigned start_state = wa.start_state;
+  unsigned end_state = wa.end_state;
+  if (start_state == 0) {
+    start_state = (config.groundmode ==
+        SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+  }
+  if (end_state == 0) {
+    end_state = (config.groundmode ==
+        SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
+  }
+
+  wi_h.at(id).start_state = start_state;
+  wi_h.at(id).end_state = end_state;
+  wi_h.at(id).pos = 0;
+  wi_h.at(id).nnodes = 0;
+  wi_h.at(id).done = 0;
+
+  // set up WorkAssignmentCells based on the work assignment
+  // TODO: fix this
+
+
+  wa_h.at(id * n_max).col = 0;
+  wa_h.at(id * n_max).col_limit = static_cast<uint8_t>(graph.maxoutdegree);
+  wa_h.at(id * n_max).from_state = start_state;
+  wa_h.at(id * n_max).count = 0;
+
+  /*
+  if (config.statusflag) {
+    worker_options_left_start.at(id).resize(0);
+    worker_options_left_last.at(id).resize(0);
+    worker_longest_start.at(id) = 0;
+    worker_longest_last.at(id) = 0;
+  }
+  */
 }
 
 // Process the pattern buffer, copying any patterns to `context` and printing
@@ -360,7 +504,9 @@ void Coordinator::process_pattern_buffer(statenum_t* const pb_d,
     cudaMemcpyFromSymbol(&pattern_count, pattern_index_d, sizeof(uint32_t)),
     __FILE__, __LINE__
   );
-  if (pattern_count > pattern_buffer_size) {
+  if (pattern_count == 0) {
+    return;
+  } else if (pattern_count > pattern_buffer_size) {
     throw std::runtime_error("CUDA error: pattern buffer overflow");
   }
   
