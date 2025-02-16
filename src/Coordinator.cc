@@ -53,7 +53,7 @@ bool Coordinator::run() {
   // the search is a go and `n_bound` fits into an unsigned int
   n_max = (config.n_max > 0) ? config.n_max
       : static_cast<unsigned>(context.n_bound);
-  context.count.assign(n_max + 1, 0);
+  context.count.resize(n_max + 1, 0);
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -415,8 +415,7 @@ void Coordinator::record_data_from_message(const MessageW2C& msg) {
 
   // pattern counts by period
   assert(msg.count.size() == n_max + 1);
-  assert(context.count.size() <= msg.count.size());
-  context.count.resize(msg.count.size(), 0);
+  assert(context.count.size() == n_max + 1);
 
   for (size_t i = 1; i < msg.count.size(); ++i) {
     context.count.at(i) += msg.count.at(i);
