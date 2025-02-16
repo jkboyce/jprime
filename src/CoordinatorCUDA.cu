@@ -47,10 +47,12 @@ struct WorkAssignmentCell {
 
 void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 
-void load_work_assignment(const WorkAssignment& wa,
-  const unsigned j, std::vector<WorkerInfo>& wi_h,
-  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph,
-  const SearchConfig& config, unsigned n_max);
+void load_work_assignment(const unsigned id, const WorkAssignment& wa,
+  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+  const Graph& graph, const SearchConfig& config, unsigned n_max);
+
+WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
+  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph);
 
 // ----------------------- GPU memory layout -----------------------
 
@@ -97,8 +99,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
     used[wa_d[j].from_state] = 1;
   }
 
-  for (unsigned step = 0; step < steps; ++step) {
-
+  for (unsigned step = 0; ; ++step) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
       used[ss->from_state] = 0;
@@ -182,6 +183,10 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
     }
 
     // current throw is valid, so advance to next beat
+
+    if (step > steps)
+      break;
+
     ++pos;
     ++ss;
     ss->col = 0;
@@ -302,20 +307,20 @@ void Coordinator::run_cuda() {
   std::vector<WorkerInfo> wi_h(num_workers);
   std::vector<WorkAssignmentCell> wa_h(num_workers * n_max);
   
-  for (int j = 0; j < num_workers; ++j) {
+  for (int id = 0; id < num_workers; ++id) {
     if (context.assignments.size() > 0) {
       WorkAssignment wa = context.assignments.front();
       context.assignments.pop_front();
-      load_work_assignment(wa, j, wi_h, wa_h, graph, config, n_max);
-
+      load_work_assignment(id, wa, wi_h, wa_h, graph, config, n_max);
+    
       if (config.verboseflag) {
         erase_status_output();
-        jpout << std::format("worker {} given work:\n  ", j)
+        jpout << std::format("worker {} given work:\n  ", id)
               << wa << std::endl;
         print_status_output();
       }
     } else {
-      wi_h.at(j).done = 1;
+      wi_h.at(id).done = 1;
     }
   }
 
@@ -359,24 +364,24 @@ void Coordinator::run_cuda() {
 
     bool all_done = true;
 
-    for (int i = 0; i < num_workers; ++i) {
-      if (!wi_h.at(i).done) {
+    for (int id = 0; id < num_workers; ++id) {
+      if (!wi_h.at(id).done) {
         all_done = false;
       }
 
       MessageW2C msg;
-      msg.worker_id = i;
+      msg.worker_id = id;
       msg.count.assign(n_max + 1, 0);
-      for (unsigned j = 1; j <= n_max; ++j) {
-        msg.count.at(j) = wa_h.at(i * n_max + j - 1).count;
-        wa_h.at(i * n_max + j - 1).count = 0;
+      for (unsigned j = 0; j < n_max; ++j) {
+        msg.count.at(j + 1) = wa_h.at(id * n_max + j).count;
+        wa_h.at(id * n_max + j).count = 0;
       }
-      msg.nnodes = wi_h.at(i).nnodes;
-      wi_h.at(i).nnodes = 0;
+      msg.nnodes = wi_h.at(id).nnodes;
+      wi_h.at(id).nnodes = 0;
       record_data_from_message(msg);
     }
 
-    // patterns in pattern buffer
+    // handle patterns that have accumulated in the buffer
     process_pattern_buffer(pb_d, graph, pattern_buffer_size);
 
     if (Coordinator::stopping || all_done) {
@@ -389,9 +394,24 @@ void Coordinator::run_cuda() {
   cudaFree(wi_d);
   cudaFree(wa_d);
 
-  // TODO: move unfinished work assignments back into `context.assignments`
-  
+  // move unfinished work assignments back into `context.assignments`
+  for (unsigned id = 0; id < num_workers; ++id) {
+    if (!wi_h.at(id).done) {
+      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph);
+      context.assignments.push_back(wa);
+    }
+  }
+
 }
+
+/*
+jprime 3 8 -count -cuda
+
+prime search for period: 1- (bound 49)
+graph: 56 states, 7 shift cycles, 0 short cycles
+11906414 patterns in range (11906414 seen, 49962563 nodes)
+runtime = 15.9088 sec (3.1M nodes/sec)
+*/
 
 // ----------------------- Helper functions -----------------------
 
@@ -450,10 +470,9 @@ void throw_on_cuda_error(cudaError_t code, const char *file, int line) {
 // Load a work assignment into a worker's slot in the `WorkerInfo` and
 // `WorkAssignmentCell` arrays.
 
-void load_work_assignment(const WorkAssignment& wa,
-    const unsigned id, std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h, const Graph& graph,
-    const SearchConfig& config, unsigned n_max) {
+void load_work_assignment(const unsigned id, const WorkAssignment& wa,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    const Graph& graph, const SearchConfig& config, unsigned n_max) {
   unsigned start_state = wa.start_state;
   unsigned end_state = wa.end_state;
   if (start_state == 0) {
@@ -467,18 +486,58 @@ void load_work_assignment(const WorkAssignment& wa,
 
   wi_h.at(id).start_state = start_state;
   wi_h.at(id).end_state = end_state;
-  wi_h.at(id).pos = 0;
+  wi_h.at(id).pos = wa.partial_pattern.size() == 0 ? 0 :
+      wa.partial_pattern.size() - 1;
   wi_h.at(id).nnodes = 0;
   wi_h.at(id).done = 0;
 
-  // set up WorkAssignmentCells based on the work assignment
-  // TODO: fix this
+  // set up WorkAssignmentCells
 
+  for (unsigned i = 0; i < n_max; ++i) {
+    wa_h.at(id * n_max + i).count = 0;
+  }
 
+  // default if `wa.partial_pattern` is empty
   wa_h.at(id * n_max).col = 0;
   wa_h.at(id * n_max).col_limit = static_cast<uint8_t>(graph.maxoutdegree);
   wa_h.at(id * n_max).from_state = start_state;
-  wa_h.at(id * n_max).count = 0;
+
+  unsigned from_state = start_state;
+
+  for (unsigned i = 0; i < wa.partial_pattern.size(); ++i) {
+    const unsigned tv = wa.partial_pattern.at(i);
+    unsigned to_state = 0;
+
+    for (unsigned j = 0; j < graph.outdegree.at(from_state); ++j) {
+      if (graph.outthrowval.at(from_state).at(j) != tv)
+        continue;
+
+      to_state = graph.outmatrix.at(from_state).at(j);
+
+      wa_h.at(id * n_max + i).col = static_cast<uint8_t>(j);
+      wa_h.at(id * n_max + i).col_limit = (i < wa.root_pos ?
+          static_cast<uint8_t>(j + 1) :
+          static_cast<uint8_t>(graph.maxoutdegree));
+
+      wa_h.at(id * n_max + i + 1).col = 0;
+      wa_h.at(id * n_max + i + 1).col_limit =
+          static_cast<uint8_t>(graph.maxoutdegree);
+      wa_h.at(id * n_max + i + 1).from_state = to_state;
+      break;
+    }
+    if (to_state == 0) {
+      throw std::runtime_error("CUDA error: problem loading work assignment");
+    }
+
+    from_state = to_state;
+  }
+
+  // fix `col_limit` at position `root_pos`
+  if (wa.root_throwval_options.size() > 0) {
+    wa_h.at(id * n_max + wa.root_pos).col_limit =
+        wa_h.at(id * n_max + wa.root_pos).col + 1 +
+        static_cast<uint8_t>(wa.root_throwval_options.size());
+  }
 
   /*
   if (config.statusflag) {
@@ -488,6 +547,39 @@ void load_work_assignment(const WorkAssignment& wa,
     worker_longest_last.at(id) = 0;
   }
   */
+}
+
+// Read out the current work assignment for worker `id`.
+
+WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
+      std::vector<WorkAssignmentCell>& wa_h, const Graph& graph) {
+  WorkAssignment wa;
+
+  wa.start_state = wi_h.at(id).start_state;
+  wa.end_state = wi_h.at(id).end_state;
+
+  bool root_pos_found = false;
+
+  for (unsigned i = 0; i <= wi_h.at(id).pos; ++i) {
+    const unsigned from_state = wa_h.at(id * graph.maxoutdegree + i).from_state;
+    unsigned col = wa_h.at(id * graph.maxoutdegree + i).col;
+    const unsigned col_limit = wa_h.at(id * graph.maxoutdegree + i).col_limit;
+
+    wa.partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
+
+    if (col < col_limit - 1 && !root_pos_found) {
+      wa.root_pos = i;
+      root_pos_found = true;
+
+      ++col;
+      while (col < col_limit) {
+        wa.root_throwval_options.push_back(
+            graph.outthrowval.at(from_state).at(col));
+        ++col;
+      }
+    }
+  }
+  return wa;
 }
 
 // Process the pattern buffer, copying any patterns to `context` and printing
