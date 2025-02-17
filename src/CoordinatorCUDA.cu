@@ -16,6 +16,7 @@
 #include <vector>
 #include <format>
 #include <sstream>
+#include <algorithm>
 #include <stdexcept>
 
 #include <cuda_runtime.h>
@@ -43,6 +44,12 @@ struct WorkAssignmentCell {
 };
 
 
+struct WorkAssignmentLine {
+  unsigned id;
+  WorkAssignment wa;
+};
+
+
 // ----------------------- Function prototypes -----------------------
 
 void throw_on_cuda_error(cudaError_t code, const char *file, int line);
@@ -52,7 +59,7 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
   const Graph& graph, const SearchConfig& config, unsigned n_max);
 
 WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
-  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph);
+  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph, unsigned n_max);
 
 // ----------------------- GPU memory layout -----------------------
 
@@ -78,26 +85,28 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
         const unsigned n_min, const unsigned n_max, const unsigned steps,
         const bool report) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-  if (wi_d[i].done) {
+  const int id = blockDim.x * blockIdx.x + threadIdx.x;
+  if (wi_d[id].done) {
     return;
   }
 
-  statenum_t st_state = wi_d[i].start_state;
-  int pos = wi_d[i].pos;
-  uint64_t nnodes = wi_d[i].nnodes;
+  // set up register variables
+  statenum_t st_state = wi_d[id].start_state;
+  int pos = wi_d[id].pos;
+  uint64_t nnodes = wi_d[id].nnodes;
   const uint8_t outdegree = maxoutdegree_d;
-  WorkAssignmentCell* ss = &wa_d[pos];
 
   // set up shared memory
-  __shared__ uint8_t used[100];
+  extern __shared__ uint32_t shared[];
+  uint32_t* used = &shared[threadIdx.x * (numstates_d + 1)];
   for (int j = 0; j <= numstates_d; ++j) {
     used[j] = 0;
   }
   for (int j = 1; j <= pos; ++j) {
-    used[wa_d[j].from_state] = 1;
+    used[wa_d[id * n_max + j].from_state] = 1;
   }
+
+  WorkAssignmentCell* ss = &wa_d[id * n_max + pos];
 
   for (unsigned step = 0; ; ++step) {
     if (ss->col == ss->col_limit) {
@@ -106,8 +115,8 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
       ++nnodes;
 
       if (pos == 0) {
-        if (st_state == wi_d[i].end_state) {
-          wi_d[i].done = 1;
+        if (st_state == wi_d[id].end_state) {
+          wi_d[id].done = 1;
           break;
         }
         ++st_state;
@@ -132,8 +141,8 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
       ++nnodes;
 
       if (pos == 0) {
-        if (st_state == wi_d[i].end_state) {
-          wi_d[i].done = 1;
+        if (st_state == wi_d[id].end_state) {
+          wi_d[id].done = 1;
           break;
         }
         ++st_state;
@@ -195,9 +204,9 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
     used[to_state] = 1;
   }
 
-  wi_d[i].start_state = st_state;
-  wi_d[i].pos = pos;
-  wi_d[i].nnodes = nnodes;
+  wi_d[id].start_state = st_state;
+  wi_d[id].pos = pos;
+  wi_d[id].nnodes = nnodes;
 }
 
 
@@ -206,6 +215,14 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 //
 // jprime 3 8 -g -count -cuda
 // runtime = 18.7906 sec
+/*
+jprime 3 8 -count -cuda
+
+prime search for period: 1- (bound 49)
+graph: 56 states, 7 shift cycles, 0 short cycles
+11906414 patterns in range (11906414 seen, 49962563 nodes)
+runtime = 15.9088 sec (3.1M nodes/sec)
+*/
 
 // ----------------------- Execution entry point -----------------------
 
@@ -216,7 +233,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
 void Coordinator::run_cuda() {
   const unsigned num_blocks = 1;
-  const unsigned num_threadsperblock = 1;
+  const unsigned num_threadsperblock = 5;
   const unsigned num_workers = num_blocks * num_threadsperblock;
   const unsigned pattern_buffer_size = 100000;
 
@@ -340,7 +357,8 @@ void Coordinator::run_cuda() {
 
     switch (alg) {
       case 0:
-        cuda_gen_loops_normal<<<num_blocks, num_threadsperblock>>>
+        cuda_gen_loops_normal<<<num_blocks, num_threadsperblock,
+            num_threadsperblock * (graph.numstates + 1) * sizeof(uint32_t)>>>
             (pb_d, wi_d, wa_d, config.n_min, n_max, 100000, !config.countflag);
         break;
       default:
@@ -363,9 +381,12 @@ void Coordinator::run_cuda() {
     );
 
     bool all_done = true;
+    bool any_done = false;
 
     for (int id = 0; id < num_workers; ++id) {
-      if (!wi_h.at(id).done) {
+      if (wi_h.at(id).done) {
+        any_done = true;
+      } else {
         all_done = false;
       }
 
@@ -381,11 +402,65 @@ void Coordinator::run_cuda() {
       record_data_from_message(msg);
     }
 
-    // handle patterns that have accumulated in the buffer
+    // handle any patterns in the buffer
     process_pattern_buffer(pb_d, graph, pattern_buffer_size);
 
-    if (Coordinator::stopping || all_done) {
+    if (Coordinator::stopping || all_done)
       break;
+    if (!any_done)
+      continue;
+
+    // some workers are done; split some running job(s) to give to them
+    //
+    // sort the running work assignments to find the best ones to split
+
+    std::vector<WorkAssignmentLine> sorted_assignments;
+    for (unsigned id = 0; id < num_workers; ++id) {
+      if (!wi_h.at(id).done) {
+        WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph, n_max);
+        sorted_assignments.push_back({id, wa});
+      }
+    }
+
+    // compare function returns true if the first argument appears before the
+    // second in a strict weak ordering, and false otherwise
+
+    std::sort(sorted_assignments.begin(), sorted_assignments.end(),
+        [](WorkAssignmentLine wal1, WorkAssignmentLine wal2) {
+          return work_assignment_compare(wal1.wa, wal2.wa);
+        }
+    );
+
+    unsigned index = 0;
+    for (unsigned id = 0; id < num_workers; ++id) {
+      if (!wi_h.at(id).done)
+        continue;
+      if (index == sorted_assignments.size())
+        break;
+
+      WorkAssignmentLine& wal = sorted_assignments.at(index);
+      WorkAssignment wa = wal.wa;
+
+      /*
+      std::cout << std::format("worker {} went idle\n", id);
+      std::cout << std::format("stealing from worker {}\n", wal.id);
+      std::cout << "work before:\n" << wa << '\n';
+      */
+      WorkAssignment wa2 = wa.split(graph, config.split_alg);
+      load_work_assignment(wal.id, wa, wi_h, wa_h, graph, config, n_max);
+      load_work_assignment(id, wa2, wi_h, wa_h, graph, config, n_max);
+      /*
+      std::cout << "work after:\n" << wa << '\n';
+      std::cout << std::format("new work for worker {}:\n", id) << wa2 << '\n';
+      */
+      // Avoid double counting nodes: Each of the "prefix" nodes up to and
+      // including `wa2.root_pos` will be reported twice: by the worker that
+      // was running, and by the worker `id` who just got job `wa2`.
+      if (wa.start_state == wa2.start_state) {
+        wi_h.at(id).nnodes -= (wa2.root_pos + 1);
+      }
+      ++context.splits_total;
+      ++index;
     }
   }
 
@@ -397,21 +472,12 @@ void Coordinator::run_cuda() {
   // move unfinished work assignments back into `context.assignments`
   for (unsigned id = 0; id < num_workers; ++id) {
     if (!wi_h.at(id).done) {
-      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph);
+      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph, n_max);
       context.assignments.push_back(wa);
     }
   }
 
 }
-
-/*
-jprime 3 8 -count -cuda
-
-prime search for period: 1- (bound 49)
-graph: 56 states, 7 shift cycles, 0 short cycles
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-runtime = 15.9088 sec (3.1M nodes/sec)
-*/
 
 // ----------------------- Helper functions -----------------------
 
@@ -486,8 +552,8 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
 
   wi_h.at(id).start_state = start_state;
   wi_h.at(id).end_state = end_state;
-  wi_h.at(id).pos = wa.partial_pattern.size() == 0 ? 0 :
-      wa.partial_pattern.size() - 1;
+  wi_h.at(id).pos = wa.partial_pattern.size(); /* == 0 ? 0 :
+      wa.partial_pattern.size() - 1;*/
   wi_h.at(id).nnodes = 0;
   wi_h.at(id).done = 0;
 
@@ -532,11 +598,29 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
     from_state = to_state;
   }
 
-  // fix `col_limit` at position `root_pos`
+  // fix `col` and `col_limit` at position `root_pos`
   if (wa.root_throwval_options.size() > 0) {
-    wa_h.at(id * n_max + wa.root_pos).col_limit =
-        wa_h.at(id * n_max + wa.root_pos).col + 1 +
-        static_cast<uint8_t>(wa.root_throwval_options.size());
+    statenum_t from_state = wa_h.at(id * n_max + wa.root_pos).from_state;
+    unsigned col = graph.maxoutdegree;
+    unsigned col_limit = 0;
+
+    for (unsigned i = 0; i < graph.outdegree.at(from_state); ++i) {
+      const unsigned tv = graph.outthrowval.at(from_state).at(i);
+      auto it = std::find(wa.root_throwval_options.begin(),
+          wa.root_throwval_options.end(), tv);
+      if (it != wa.root_throwval_options.end()) {
+        col = std::min(i, col);
+        col_limit = i + 1;
+      }
+      if (wa.root_pos < wa.partial_pattern.size() &&
+          tv == wa.partial_pattern.at(wa.root_pos)) {
+        col = std::min(i, col);
+        col_limit = i + 1;
+      }
+    }
+
+    wa_h.at(id * n_max + wa.root_pos).col = col;
+    wa_h.at(id * n_max + wa.root_pos).col_limit = col_limit;
   }
 
   /*
@@ -552,7 +636,8 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
 // Read out the current work assignment for worker `id`.
 
 WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
-      std::vector<WorkAssignmentCell>& wa_h, const Graph& graph) {
+      std::vector<WorkAssignmentCell>& wa_h, const Graph& graph,
+      unsigned n_max) {
   WorkAssignment wa;
 
   wa.start_state = wi_h.at(id).start_state;
@@ -561,9 +646,10 @@ WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
   bool root_pos_found = false;
 
   for (unsigned i = 0; i <= wi_h.at(id).pos; ++i) {
-    const unsigned from_state = wa_h.at(id * graph.maxoutdegree + i).from_state;
-    unsigned col = wa_h.at(id * graph.maxoutdegree + i).col;
-    const unsigned col_limit = wa_h.at(id * graph.maxoutdegree + i).col_limit;
+    const unsigned from_state = wa_h.at(id * n_max + i).from_state;
+    unsigned col = wa_h.at(id * n_max + i).col;
+    const unsigned col_limit = std::min(graph.outdegree.at(from_state),
+                  static_cast<unsigned>(wa_h.at(id * n_max + i).col_limit));
 
     wa.partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
 

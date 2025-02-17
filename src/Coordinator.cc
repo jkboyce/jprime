@@ -344,7 +344,7 @@ void Coordinator::print_results() const {
   jpout << std::format("runtime = {:.4f} sec ({:.1f}M nodes/sec",
              context.secs_elapsed, static_cast<double>(context.nnodes) /
              context.secs_elapsed / 1000000);
-  if (config.num_threads > 1) {
+  if (config.num_threads > 1 || config.cudaflag) {
     jpout << std::format(", {:.1f} % util, {} {})\n",
                (context.secs_working / context.secs_available) * 100,
                context.splits_total,
