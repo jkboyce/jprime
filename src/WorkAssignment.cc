@@ -16,6 +16,7 @@
 #include <sstream>
 #include <regex>
 #include <cassert>
+#include <stdexcept>
 
 
 // Initialize from a string.
@@ -97,6 +98,9 @@ std::string WorkAssignment::to_string() const {
 
 // Return a work assignment that corresponds to a portion of the current work
 // assignment, for handing off to another worker.
+//
+// If a work assignment cannot be split, throw a std::invalid_argument
+// exception with a relevant error message.
 
 WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg) {
   if (end_state > start_state) {
@@ -165,7 +169,10 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       ++iter;
     }
   }
-  assert(root_throwval_options.size() > 0);
+  if (root_throwval_options.size() == 0) {
+    throw std::invalid_argument(
+        "Cannot split work assignment; root_throw_options_1");
+  }
 
   // move `take_count` unexplored root_pos options to the new work assignment
   auto take_count =
@@ -233,7 +240,10 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
 
       from_state = graph.outmatrix.at(from_state).at(col);
     }
-    assert(new_root_pos != -1u);
+    if (new_root_pos == -1u) {
+      throw std::invalid_argument("Cannot split work assignment; root_pos");
+    }
+
     root_pos = new_root_pos;
 
     // rebuild the list of throw options at `root_pos`
@@ -241,7 +251,10 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     for (unsigned i = col + 1; i < graph.outdegree.at(from_state); ++i) {
       root_throwval_options.push_back(graph.outthrowval.at(from_state).at(i));
     }
-    assert(root_throwval_options.size() > 0);
+    if (root_throwval_options.size() == 0) {
+      throw std::invalid_argument(
+          "Cannot split work assignment; root_throw_options_2");
+    }
   }
 
   return wa;
