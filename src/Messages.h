@@ -4,7 +4,7 @@
 // Defines messages that may be sent from the worker to the coordinator and
 // vice versa.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

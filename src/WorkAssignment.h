@@ -4,7 +4,7 @@
 // Defines a work assignment to hand off between workers. Together with
 // SearchConfig these completely define the computation.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //

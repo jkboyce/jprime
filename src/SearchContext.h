@@ -8,7 +8,7 @@
 // Only the coordinator has access to this data structure; the workers report
 // all results and changes to the coordinator via messages.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
