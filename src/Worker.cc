@@ -7,7 +7,7 @@
 // with a work stealing scheme to balance work among the threads. Each worker
 // communicates only with the coordinator thread, via a set of message types.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -896,9 +896,16 @@ void Worker::initialize_working_variables() {
   shiftcount = 0;
   exitcyclesleft =
       std::count(graph.isexitcycle.cbegin(), graph.isexitcycle.cend(), true);
-  max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
-      ? graph.superprime_period_bound(config.shiftlimit)
-      : graph.prime_period_bound();
+
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+    max_possible = graph.prime_period_bound();
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    if (config.shiftlimit == -1u) {
+      max_possible = graph.superprime_period_bound();
+    } else {
+      max_possible = graph.superprime_period_bound(config.shiftlimit);
+    }
+  }
 }
 
 //------------------------------------------------------------------------------

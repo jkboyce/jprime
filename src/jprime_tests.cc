@@ -3,7 +3,7 @@
 //
 // Collection of tests for jprime functionality.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -38,6 +38,7 @@ const std::vector<TestCase> tests {
   { "jprime 3 18 47 -super 1",                  50,  128149175,  307570492 },
   { "jprime 3 20 58 -super 1 -threads 4",       92, 2661959187, 6400527070 },
   { "jprime 3 21 64 -super 0",                   1,  388339361,  876591490 },
+  { "jprime 3 9 -super -count",          133410514,  133410514,  792615946 },
 };
 
 // Run a single test case and compare against known values, outputting results

@@ -4,7 +4,7 @@
 // State variables specific to a particular time step (position) in the pattern,
 // used for the iterative search algorithms.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -24,7 +24,7 @@ struct SearchState {
   unsigned* excludes_catch = nullptr;
   unsigned* deadstates_catch = nullptr;
   int to_cycle = -1;
-  unsigned shifts_remaining = 0;
+  unsigned shiftcount = 0;
   unsigned exitcycles_remaining = 0;
 };
 

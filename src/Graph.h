@@ -3,7 +3,7 @@
 //
 // Data structures related to the juggling graph for B objects, max throw H.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -63,7 +63,7 @@ class Graph {
   void reduce_graph();
   void find_exclude_states();
   unsigned prime_period_bound() const;
-  unsigned superprime_period_bound(unsigned shifts) const;
+  unsigned superprime_period_bound(unsigned shifts = -1u) const;
   unsigned get_statenum(const State& s) const;
   unsigned advance_state(unsigned statenum, unsigned throwval) const;
   unsigned reverse_state(unsigned statenum) const;
