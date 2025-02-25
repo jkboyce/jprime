@@ -18,6 +18,7 @@
 #include <sstream>
 #include <algorithm>
 #include <stdexcept>
+#include <cassert>
 
 #include <cuda_runtime.h>
 
@@ -81,6 +82,10 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
 WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
   std::vector<WorkAssignmentCell>& wa_h, const Graph& graph, unsigned n_max);
 
+void assign_new_jobs(const SearchConfig& config, SearchContext& context, 
+  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+  const Graph& graph, unsigned n_max, unsigned num_workers);
+
 //------------------------------------------------------------------------------
 // GPU memory layout
 //------------------------------------------------------------------------------
@@ -96,6 +101,7 @@ __device__ __constant__ statenum_t graphmatrix_d[65536 / sizeof(statenum_t)];
 // GPU global memory
 
 __device__ uint8_t maxoutdegree_d;
+__device__ uint8_t unused_d;
 __device__ uint16_t numstates_d;
 __device__ uint32_t pattern_buffer_size_d;
 __device__ uint32_t pattern_index_d = 0;
@@ -146,20 +152,20 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
   printf("shared memory size (device) = %d bytes\n", shared_memory_size_bytes);
   */
 
-  // initialize used[] array
-  for (int i = 0; i <= numstates_d; ++i) {
-    used[i].used = 0;
-  }
-  for (int i = 1; i <= pos; ++i) {
-    used[wa_d[id * n_max + i].from_state].used = 1;
-  }
-
   // initialize workcell[] array
   for (int i = 0; i < n_max; ++i) {
     workcell[i].col = wa_d[id * n_max + i].col;
     workcell[i].col_limit = wa_d[id * n_max + i].col_limit;
     workcell[i].from_state = wa_d[id * n_max + i].from_state;
     workcell[i].count = wa_d[id * n_max + i].count;
+  }
+
+  // initialize used[] array
+  for (int i = 0; i <= numstates_d; ++i) {
+    used[i].used = 0;
+  }
+  for (int i = 1; i <= pos; ++i) {
+    used[workcell[i].from_state].used = 1;
   }
 
   ThreadStorageWorkCell* ss = &workcell[pos];
@@ -220,7 +226,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
         const uint32_t idx = atomicAdd(&pattern_index_d, 1);
         if (idx < pattern_buffer_size_d) {
           for (int j = 0; j <= pos; ++j) {
-            patterns_d[idx * n_max + j] = wa_d[id * n_max + j].from_state;
+            patterns_d[idx * n_max + j] = workcell[j].from_state;
           }
           if (pos + 1 < n_max) {
             patterns_d[idx * n_max + pos + 1] = 0;
@@ -468,11 +474,13 @@ void Coordinator::run_cuda() {
   cudaGetDeviceProperties(&prop, 0);
   printf("Device Number: %d\n", 0);
   printf("  Device name: %s\n", prop.name);
+  printf("  Multiprocessor count: %d\n", prop.multiProcessorCount);
   printf("  Total global memory (bytes): %ld\n", prop.totalGlobalMem);
   printf("  Total constant memory (bytes): %ld\n", prop.totalConstMem);
   printf("  Shared memory per block (bytes): %ld\n", prop.sharedMemPerBlock);
-  printf("  Multiprocessor count: %d\n", prop.multiProcessorCount);
-
+  printf("  Shared memory per block, maximum opt-in (bytes): %ld\n",
+      prop.sharedMemPerBlockOptin);
+  
   // build juggling graph
 
   Graph graph = {config.b, config.h, config.xarray,
@@ -485,10 +493,12 @@ void Coordinator::run_cuda() {
   // choose which search algorithm to use
   const unsigned alg = select_CUDA_search_algorithm(graph);
 
-  // will graph fit into GPU constant memory?
+  // will graph fit into GPU constant memory? Calculate constant memory
+  // needed, in bytes
   const unsigned graphcols = (alg == 0) ? graph.maxoutdegree :
                     graph.maxoutdegree + 1;
-  const size_t graph_buffer_size = graph.numstates * graphcols;
+  const size_t graph_buffer_size =
+      graph.numstates * graphcols * sizeof(statenum_t);
   if (graph_buffer_size > sizeof(graphmatrix_d)) {
     throw std::runtime_error("CUDA error: Juggling graph too large");
   }
@@ -546,6 +556,7 @@ void Coordinator::run_cuda() {
   uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
   uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
   uint32_t pattern_buffer_size_h = pattern_buffer_size;
+  uint32_t pattern_index_h = 0;
   throw_on_cuda_error(
     cudaMemcpyToSymbol(maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t)),
     __FILE__, __LINE__
@@ -559,7 +570,8 @@ void Coordinator::run_cuda() {
         sizeof(uint32_t)), __FILE__, __LINE__
   );
   throw_on_cuda_error(
-    cudaMemset(&pattern_index_d, 0, sizeof(uint32_t)), __FILE__, __LINE__
+    cudaMemcpyToSymbol(pattern_index_d, &pattern_index_h, sizeof(uint32_t)),
+    __FILE__, __LINE__
   );
 
   // Arrays for WorkerInfo and WorkAssignmentCells (global memory)
@@ -640,6 +652,7 @@ void Coordinator::run_cuda() {
       __FILE__, __LINE__
     );
 
+    // process updated worker records
     bool all_done = true;
     bool any_done = false;
     int num_working = 0;
@@ -673,75 +686,9 @@ void Coordinator::run_cuda() {
 
     if (Coordinator::stopping || all_done)
       break;
-    if (!any_done)
-      continue;
 
-    // some workers are done; split some running job(s) to give to them
-    //
-    // sort the running work assignments to find the best ones to split
-
-    std::vector<WorkAssignmentLine> sorted_assignments;
-    for (unsigned id = 0; id < num_workers; ++id) {
-      if (!wi_h.at(id).done) {
-        WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph, n_max);
-        sorted_assignments.push_back({id, wa});
-      }
-    }
-
-    // compare function returns true if the first argument appears before the
-    // second in a strict weak ordering, and false otherwise
-
-    std::sort(sorted_assignments.begin(), sorted_assignments.end(),
-        [](WorkAssignmentLine wal1, WorkAssignmentLine wal2) {
-          return work_assignment_compare(wal1.wa, wal2.wa);
-        }
-    );
-
-    unsigned index = 0;
-    for (unsigned id = 0; id < num_workers; ++id) {
-      if (!wi_h.at(id).done)
-        continue;
-
-      // split one of the running jobs and give it to worker `id`
-
-      bool success = false;
-      while (!success) {
-        if (index == sorted_assignments.size())
-          break;
-
-        WorkAssignmentLine& wal = sorted_assignments.at(index);
-        WorkAssignment wa = wal.wa;
-
-        /*
-        std::cout << std::format("worker {} went idle\n", id);
-        std::cout << std::format("stealing from worker {}\n", wal.id);
-        std::cout << "work before:\n" << wa << '\n';
-        */
-
-        try {
-          WorkAssignment wa2 = wa.split(graph, config.split_alg);
-          load_work_assignment(wal.id, wa, wi_h, wa_h, graph, config, n_max);
-          load_work_assignment(id, wa2, wi_h, wa_h, graph, config, n_max);
-          /*
-          std::cout << "work after:\n" << wa << '\n';
-          std::cout << std::format("new work for worker {}:\n", id) << wa2 << '\n';
-          */
-
-          // Avoid double counting nodes: Each of the "prefix" nodes up to and
-          // including `wa2.root_pos` will be reported twice: by the worker that
-          // was running, and by the worker `id` who just got job `wa2`.
-          if (wa.start_state == wa2.start_state) {
-            wi_h.at(id).nnodes -= (wa2.root_pos + 1);
-          }
-          ++context.splits_total;
-          success = true;
-        } catch (const std::invalid_argument& ia) {
-        }
-        ++index;
-      }
-
-      if (index == sorted_assignments.size())
-        break;
+    if (any_done) {
+      assign_new_jobs(config, context, wi_h, wa_h, graph, n_max, num_workers);
     }
   }
 
@@ -757,7 +704,6 @@ void Coordinator::run_cuda() {
       context.assignments.push_back(wa);
     }
   }
-
 }
 
 //------------------------------------------------------------------------------
@@ -835,8 +781,7 @@ void load_work_assignment(const unsigned id, const WorkAssignment& wa,
 
   wi_h.at(id).start_state = start_state;
   wi_h.at(id).end_state = end_state;
-  wi_h.at(id).pos = wa.partial_pattern.size(); /* == 0 ? 0 :
-      wa.partial_pattern.size() - 1;*/
+  wi_h.at(id).pos = wa.partial_pattern.size();
   wi_h.at(id).nnodes = 0;
   wi_h.at(id).done = 0;
 
@@ -948,6 +893,7 @@ WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
       }
     }
   }
+
   return wa;
 }
 
@@ -965,12 +911,13 @@ void Coordinator::process_pattern_buffer(statenum_t* const pb_d,
     cudaMemcpyFromSymbol(&pattern_count, pattern_index_d, sizeof(uint32_t)),
     __FILE__, __LINE__
   );
+
   if (pattern_count == 0) {
     return;
   } else if (pattern_count > pattern_buffer_size) {
     throw std::runtime_error("CUDA error: pattern buffer overflow");
   }
-  
+    
   // copy pattern data to host
   std::vector<statenum_t> patterns_h(n_max * pattern_count);
   throw_on_cuda_error(
@@ -1044,8 +991,86 @@ void Coordinator::process_pattern_buffer(statenum_t* const pb_d,
 
   // reset the pattern buffer index
 
+  uint32_t pattern_index_h = 0;
   throw_on_cuda_error(
-    cudaMemset(&pattern_index_d, 0, sizeof(uint32_t)),
+    cudaMemcpyToSymbol(pattern_index_d, &pattern_index_h, sizeof(uint32_t)),
     __FILE__, __LINE__
   );
+}
+
+// Assign new jobs to idle workers
+
+void assign_new_jobs(const SearchConfig& config, SearchContext& context, 
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    const Graph& graph, unsigned n_max, unsigned num_workers) {
+
+  // sort the running work assignments to find the best ones to split
+  std::vector<WorkAssignmentLine> sorted_assignments;
+  for (unsigned id = 0; id < num_workers; ++id) {
+    if (!wi_h.at(id).done) {
+      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph, n_max);
+      sorted_assignments.push_back({id, wa});
+    }
+  }
+
+  // compare function returns true if the first argument appears before the
+  // second in a strict weak ordering, and false otherwise
+  std::sort(sorted_assignments.begin(), sorted_assignments.end(),
+      [](WorkAssignmentLine wal1, WorkAssignmentLine wal2) {
+        return work_assignment_compare(wal1.wa, wal2.wa);
+      }
+  );
+
+  unsigned index = 0;
+  for (unsigned id = 0; id < num_workers; ++id) {
+    if (!wi_h.at(id).done)
+      continue;
+
+    if (context.assignments.size() > 0) {
+      WorkAssignment wa = context.assignments.front();
+      context.assignments.pop_front();
+      load_work_assignment(id, wa, wi_h, wa_h, graph, config, n_max);
+      continue;
+    }
+  
+    // split one of the running jobs and give it to worker `id`
+
+    bool success = false;
+    while (!success) {
+      if (index == sorted_assignments.size())
+        break;
+
+      WorkAssignmentLine& wal = sorted_assignments.at(index);
+      WorkAssignment wa = wal.wa;
+
+      /*
+      std::cout << std::format("worker {} went idle\n", id);
+      std::cout << std::format("stealing from worker {}\n", wal.id);
+      std::cout << "work before:\n" << wa << '\n';
+      */
+      try {
+        WorkAssignment wa2 = wa.split(graph, config.split_alg);
+        load_work_assignment(wal.id, wa, wi_h, wa_h, graph, config, n_max);
+        load_work_assignment(id, wa2, wi_h, wa_h, graph, config, n_max);
+        
+        /*
+        std::cout << "work after:\n" << wa << '\n';
+        std::cout << std::format("new work for worker {}:\n", id) << wa2 << '\n';
+        */
+        // Avoid double counting nodes: Each of the "prefix" nodes up to and
+        // including `wa2.root_pos` will be reported twice: by the worker that
+        // was running, and by the worker `id` who just got job `wa2`.
+        if (wa.start_state == wa2.start_state) {
+          wi_h.at(id).nnodes -= (wa2.root_pos + 1);
+        }
+        ++context.splits_total;
+        success = true;
+      } catch (const std::invalid_argument& ia) {
+      }
+      ++index;
+    }
+
+    if (index == sorted_assignments.size())
+      break;
+  }
 }

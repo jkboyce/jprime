@@ -15,6 +15,7 @@
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "Worker.h"
+#include "Graph.h"
 
 #include <queue>
 #include <mutex>
