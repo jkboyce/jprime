@@ -279,140 +279,6 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
   }
 }
 
-// -----------------------------------------------------------------------------
-
-// Version that uses global memory for WorkAssignmentCell[] array
-//
-// Runs `jprime 3 8 -cuda -count` in 3.06 sec (32 threads)
-
-__global__ void cuda_gen_loops_normal_old(statenum_t* const patterns_d,
-  WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
-  const unsigned n_min, const unsigned n_max, const unsigned steps,
-  const bool report) {
-const int id = blockDim.x * blockIdx.x + threadIdx.x;
-if (wi_d[id].done) {
-return;
-}
-
-// set up register variables
-statenum_t st_state = wi_d[id].start_state;
-int pos = wi_d[id].pos;
-uint64_t nnodes = wi_d[id].nnodes;
-const uint8_t outdegree = maxoutdegree_d;
-
-// set up shared memory
-extern __shared__ uint32_t shared[];
-uint32_t* used = &shared[threadIdx.x * (numstates_d + 1)];
-for (int j = 0; j <= numstates_d; ++j) {
-used[j] = 0;
-}
-for (int j = 1; j <= pos; ++j) {
-used[wa_d[id * n_max + j].from_state] = 1;
-}
-
-WorkAssignmentCell* ss = &wa_d[id * n_max + pos];
-
-for (unsigned step = 0; ; ++step) {
-if (ss->col == ss->col_limit) {
-// beat is finished, go back to previous one
-used[ss->from_state] = 0;
-++nnodes;
-
-if (pos == 0) {
-  if (st_state == wi_d[id].end_state) {
-    wi_d[id].done = 1;
-    break;
-  }
-  ++st_state;
-  ss->col = 0;
-  ss->col_limit = outdegree;
-  ss->from_state = st_state;
-  continue;
-} else {
-  --pos;
-  --ss;
-  ++ss->col;
-  continue;
-}
-}
-
-const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
-    outdegree + ss->col];
-
-if (to_state == 0) {
-// beat is finished, go back to previous one
-used[ss->from_state] = 0;
-++nnodes;
-
-if (pos == 0) {
-  if (st_state == wi_d[id].end_state) {
-    wi_d[id].done = 1;
-    break;
-  }
-  ++st_state;
-  ss->col = 0;
-  ss->col_limit = outdegree;
-  ss->from_state = st_state;
-  continue;
-} else {
-  --pos;
-  --ss;
-  ++ss->col;
-  continue;
-}
-}
-
-if (to_state == st_state) {
-// found a valid pattern
-if (report && pos + 1 >= n_min) {
-  const uint32_t idx = atomicAdd(&pattern_index_d, 1);
-  if (idx < pattern_buffer_size_d) {
-    for (int j = 0; j <= pos; ++j) {
-      patterns_d[idx * n_max + j] = wa_d[id * n_max + j].from_state;
-    }
-    if (pos + 1 < n_max) {
-      patterns_d[idx * n_max + pos + 1] = 0;
-    }
-  }
-}
-++ss->count;
-++ss->col;
-continue;
-}
-
-if (to_state < st_state) {
-++ss->col;
-continue;
-}
-
-if (used[to_state]) {
-++ss->col;
-continue;
-}
-
-if (pos + 1 == n_max) {
-++ss->col;
-continue;
-}
-
-// current throw is valid, so advance to next beat
-
-if (step > steps)
-break;
-
-++pos;
-++ss;
-ss->col = 0;
-ss->col_limit = outdegree;
-ss->from_state = to_state;
-used[to_state] = 1;
-}
-
-wi_d[id].start_state = st_state;
-wi_d[id].pos = pos;
-wi_d[id].nnodes = nnodes;
-}
-
 
 //------------------------------------------------------------------------------
 // Benchmarks
@@ -464,10 +330,10 @@ runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
 // relevant error message.
 
 void Coordinator::run_cuda() {
-  const unsigned num_blocks = 50;
-  const unsigned num_threadsperblock = 96;
+  const unsigned num_blocks = 1;
+  const unsigned num_threadsperblock = 64;
   const unsigned num_workers = num_blocks * num_threadsperblock;
-  const unsigned num_steps = 200000;
+  const unsigned num_steps = 20000;
   const unsigned pattern_buffer_size = 100000;
 
   cudaDeviceProp prop;
@@ -517,8 +383,6 @@ void Coordinator::run_cuda() {
     throw std::runtime_error("CUDA error: Not enough shared memory");
   }
   cudaFuncSetAttribute(cuda_gen_loops_normal,
-      cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
-  cudaFuncSetAttribute(cuda_gen_loops_normal_old,
       cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
 
   // Graph matrix data in GPU constant memory
@@ -723,7 +587,7 @@ unsigned Coordinator::select_CUDA_search_algorithm(const Graph& graph) const {
         static_cast<double>(config.n_min) >
         0.66 * static_cast<double>(max_possible)) {
       // the overhead of marking is only worth it for long-period patterns
-      alg = 1;
+      alg = 0;  // 1;
     } else if (config.countflag) {
       alg = 0;
     } else {
