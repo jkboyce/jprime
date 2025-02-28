@@ -42,6 +42,7 @@ clean:
 #
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from NVIDIA.
 
+CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include
 _OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
 NVCCFLAGS = -std=c++20 -O3 -Xcudafe --diag_suppress=68 \
             -gencode arch=compute_60,code=compute_60 \
@@ -52,7 +53,7 @@ cuda: $(SDIR)/CoordinatorCUDA.cu $(_OBJ_CUDA)
 	nvcc $(NVCCFLAGS) -o jprime src/CoordinatorCUDA.cu $(_OBJ_CUDA)
 
 $(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) | builddir_cuda
-	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS)
+	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS_CUDA)
 
 builddir_cuda:
 	mkdir -p $(ODIR)/cuda

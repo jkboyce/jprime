@@ -12,6 +12,8 @@
 #include "Coordinator.h"
 #include "Graph.h"
 
+#include "CoordinatorCUDA.cuh"
+
 #include <iostream>
 #include <vector>
 #include <format>
@@ -23,68 +25,6 @@
 #include <cuda_runtime.h>
 
 
-//------------------------------------------------------------------------------
-// Data types
-//------------------------------------------------------------------------------
-
-using statenum_t = uint16_t;
-
-
-struct WorkerInfo {
-  statenum_t start_state = 0;  // current value of `start_state` (input/output)
-  statenum_t end_state = 0;  // highest value of `start_state` (input)
-  uint16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
-  uint64_t nnodes = 0;  // number of nodes completed (output)
-  uint16_t done = 1;  // 1 if worker is done, 0 otherwise (output)
-};
-
-
-struct WorkAssignmentCell {
-  uint8_t col = 0;
-  uint8_t col_limit = 0;
-  statenum_t from_state = 0;
-  uint32_t count = 0;  // output
-};
-
-
-struct WorkAssignmentLine {
-  unsigned id;
-  WorkAssignment wa;
-};
-
-
-struct ThreadStorageUsed {  // 128 bytes
-  uint32_t used;
-  uint32_t unused[31];
-};
-
-
-struct ThreadStorageWorkCell {  // 256 bytes
-  uint8_t col;
-  uint8_t col_limit;
-  statenum_t from_state;
-  uint32_t unused1[31];
-  uint32_t count;
-  uint32_t unused2[31];
-};
-
-
-//------------------------------------------------------------------------------
-// Function prototypes
-//------------------------------------------------------------------------------
-
-void throw_on_cuda_error(cudaError_t code, const char *file, int line);
-
-void load_work_assignment(const unsigned id, const WorkAssignment& wa,
-  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
-  const Graph& graph, const SearchConfig& config, unsigned n_max);
-
-WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
-  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph, unsigned n_max);
-
-void assign_new_jobs(const SearchConfig& config, SearchContext& context, 
-  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
-  const Graph& graph, unsigned n_max, unsigned num_workers);
 
 //------------------------------------------------------------------------------
 // GPU memory layout
@@ -110,8 +50,6 @@ __device__ uint32_t pattern_index_d = 0;
 //------------------------------------------------------------------------------
 // GPU kernels
 //------------------------------------------------------------------------------
-
-// Runs `jprime 3 8 -cuda -count` in 1.81 sec (32 threads)
 
 __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
@@ -317,7 +255,6 @@ steps per kernel call = 200000
 30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
 runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
 --> 61.0728 sec on 10 CPU cores
-
 */
 
 //------------------------------------------------------------------------------
@@ -328,7 +265,7 @@ runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
 //
 // In the event of an error, throw a `std::runtime_error` exception with a
 // relevant error message.
-
+/*
 void Coordinator::run_cuda() {
   const unsigned num_blocks = 1;
   const unsigned num_threadsperblock = 64;
@@ -568,6 +505,322 @@ void Coordinator::run_cuda() {
       context.assignments.push_back(wa);
     }
   }
+}
+*/
+
+
+//------------------------------------------------------------------------------
+// Helper functions (newly created)
+//------------------------------------------------------------------------------
+
+// Initialize CUDA device and check properties.
+
+cudaDeviceProp Coordinator::initialize_cuda_device() {
+  cudaDeviceProp prop;
+  cudaGetDeviceProperties(&prop, 0);
+
+  printf("Device Number: %d\n", 0);
+  printf("  Device name: %s\n", prop.name);
+  printf("  Multiprocessor count: %d\n", prop.multiProcessorCount);
+  printf("  Total global memory (bytes): %ld\n", prop.totalGlobalMem);
+  printf("  Total constant memory (bytes): %ld\n", prop.totalConstMem);
+  printf("  Shared memory per block (bytes): %ld\n", prop.sharedMemPerBlock);
+  printf("  Shared memory per block, maximum opt-in (bytes): %ld\n",
+         prop.sharedMemPerBlockOptin);
+
+  return prop;
+}
+
+// Build and reduce the juggling graph.
+
+Graph Coordinator::build_and_reduce_graph() {
+  Graph graph = {
+      config.b,
+      config.h,
+      config.xarray,
+      config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH
+                     ? config.n_min : 0
+  };
+  graph.build_graph();
+  // TODO: call customize_graph() here
+  graph.reduce_graph();
+  return graph;
+}
+
+// Check if the graph and work data fit in GPU memory.
+
+void Coordinator::check_memory_limits(const Graph& graph, unsigned alg,
+        unsigned num_threadsperblock) {
+  const unsigned graphcols =
+      (alg == 0) ? graph.maxoutdegree : graph.maxoutdegree + 1;
+  const size_t graph_buffer_size =
+      graph.numstates * graphcols * sizeof(statenum_t);
+
+  if (graph_buffer_size > sizeof(graphmatrix_d)) {
+    throw std::runtime_error("CUDA error: Juggling graph too large");
+  }
+
+  shared_memory_size = ((num_threadsperblock + 31) / 32) * (
+      128 * (graph.numstates + 1) +  // used[]
+      256 * n_max                    // WorkAssignentCell[]
+  );
+
+  std::cout << "num_workers = " << num_workers << '\n'
+            << "shared memory size = " << shared_memory_size << " bytes\n"
+            << "steps per kernel call = " << num_steps << std::endl;
+  if (shared_memory_size > 99 * 1024) {
+    throw std::runtime_error("CUDA error: Not enough shared memory");
+  }
+}
+
+// Set up CUDA shared memory configuration.
+
+void Coordinator::configure_cuda_shared_memory(const Graph& graph,
+                                               unsigned num_threadsperblock) {
+  cudaFuncSetAttribute(cuda_gen_loops_normal,
+      cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
+}
+
+// Copy graph data to GPU constant memory.
+
+void Coordinator::copy_graph_to_gpu(const Graph& graph, unsigned alg) {
+  const unsigned graphcols =
+      (alg == 0) ? graph.maxoutdegree : graph.maxoutdegree + 1;
+  const size_t graph_buffer_size =
+      graph.numstates * graphcols * sizeof(statenum_t);
+
+  std::vector<statenum_t> graph_buffer(graph_buffer_size, 0);
+
+  for (unsigned i = 1; i <= graph.numstates; ++i) {
+    for (unsigned j = 0; j < graph.outdegree.at(i); ++j) {
+      graph_buffer.at((i - 1) * graphcols + j) = graph.outmatrix.at(i).at(j);
+    }
+    if (alg == 1) {
+      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
+          graph.upstream_state(i);
+    }
+    if (alg == 2 || alg == 3) {
+      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
+          graph.cyclenum.at(i);
+    }
+  }
+
+  throw_on_cuda_error(
+      cudaMemcpyToSymbol(graphmatrix_d, graph_buffer.data(),
+                         sizeof(statenum_t) * graph_buffer.size()),
+      __FILE__, __LINE__);
+}
+
+// Allocate GPU memory for patterns, WorkerInfo, and WorkAssignmentCells.
+
+void Coordinator::allocate_gpu_memory() {
+  throw_on_cuda_error(
+      cudaMalloc(&pb_d, sizeof(statenum_t) * n_max * pattern_buffer_size),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMalloc(&wi_d, sizeof(WorkerInfo) * num_workers),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * num_workers * n_max),
+      __FILE__, __LINE__);
+}
+
+// Copy static global variables to GPU global memory.
+
+void Coordinator::copy_static_vars_to_gpu(const Graph& graph) {
+  uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
+  uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
+  uint32_t pattern_buffer_size_h = pattern_buffer_size;
+  uint32_t pattern_index_h = 0;
+  throw_on_cuda_error(
+      cudaMemcpyToSymbol(maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t)),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMemcpyToSymbol(numstates_d, &numstates_h, sizeof(uint16_t)),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMemcpyToSymbol(pattern_buffer_size_d, &pattern_buffer_size_h,
+                         sizeof(uint32_t)),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMemcpyToSymbol(pattern_index_d, &pattern_index_h, sizeof(uint32_t)),
+      __FILE__, __LINE__);
+}
+
+// Load initial work assignments.
+
+void Coordinator::load_initial_work_assignments(const Graph& graph,
+      std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h)  {
+  for (int id = 0; id < num_workers; ++id) {
+    if (context.assignments.size() > 0) {
+      WorkAssignment wa = context.assignments.front();
+      context.assignments.pop_front();
+      load_work_assignment(id, wa, wi_h, wa_h, graph, config, n_max);
+
+      if (config.verboseflag) {
+        erase_status_output();
+        jpout << std::format("worker {} given work:\n  ", id)
+              << wa << std::endl;
+        print_status_output();
+      }
+    } else {
+      wi_h.at(id).done = 1;
+    }
+  }
+}
+
+// Launch the appropriate CUDA kernel.
+
+void Coordinator::launch_cuda_kernel(unsigned alg, unsigned num_blocks,
+      unsigned num_threadsperblock) {
+  switch (alg) {
+    case 0:
+      cuda_gen_loops_normal
+        <<<num_blocks, num_threadsperblock, shared_memory_size>>>
+        (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
+      break;
+    default:
+      throw std::runtime_error("CUDA error: algorithm not implemented");
+  }
+
+  cudaError_t err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    throw std::runtime_error(std::format("CUDA Error: {}",
+        cudaGetErrorString(err)));
+  }
+
+  cudaDeviceSynchronize();
+}
+
+// Process worker results and handle pattern buffer.
+
+void Coordinator::process_worker_results(const Graph& graph,
+      std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h) {
+  int num_working = 0;
+  int num_idle = 0;
+
+  for (int id = 0; id < num_workers; ++id) {
+    if (wi_h.at(id).done) {
+      ++num_idle;
+    } else {
+      ++num_working;
+    }
+
+    MessageW2C msg;
+    msg.worker_id = id;
+    msg.count.assign(n_max + 1, 0);
+    for (unsigned j = 0; j < n_max; ++j) {
+      msg.count.at(j + 1) = wa_h.at(id * n_max + j).count;
+      wa_h.at(id * n_max + j).count = 0;
+    }
+    msg.nnodes = wi_h.at(id).nnodes;
+    wi_h.at(id).nnodes = 0;
+    record_data_from_message(msg);
+  }
+
+  process_pattern_buffer(pb_d, graph, pattern_buffer_size);
+}
+
+// Clean up GPU memory.
+
+void Coordinator::cleanup_gpu_memory() {
+  cudaFree(pb_d);
+  cudaFree(wi_d);
+  cudaFree(wa_d);
+}
+
+// Gather unfinished work assignments.
+
+void Coordinator::gather_unfinished_work_assignments(const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h) {
+  for (unsigned id = 0; id < num_workers; ++id) {
+    if (!wi_h.at(id).done) {
+      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph, n_max);
+      context.assignments.push_back(wa);
+    }
+  }
+}
+
+//------------------------------------------------------------------------------
+// Execution entry point
+//------------------------------------------------------------------------------
+
+void Coordinator::run_cuda() {
+  const unsigned num_blocks = 1;
+  const unsigned num_threadsperblock = 64;
+  num_workers = num_blocks * num_threadsperblock;
+  num_steps = 20000;
+  pattern_buffer_size = 100000;
+  
+  // 1. Initialization
+
+  (void)initialize_cuda_device();
+  Graph graph = build_and_reduce_graph();
+  unsigned alg = select_CUDA_search_algorithm(graph);
+  check_memory_limits(graph, alg, num_threadsperblock);
+  configure_cuda_shared_memory(graph, num_threadsperblock);
+  copy_graph_to_gpu(graph, alg);
+  allocate_gpu_memory();
+  copy_static_vars_to_gpu(graph);
+
+  std::vector<WorkerInfo> wi_h(num_workers); // Initialize wi_h
+  std::vector<WorkAssignmentCell> wa_h(num_workers * n_max); // Initialize wa_h
+  load_initial_work_assignments(graph, wi_h, wa_h);
+
+  // 2. Main Loop
+
+  while (true) {
+    throw_on_cuda_error(
+        cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * num_workers,
+            cudaMemcpyHostToDevice),
+        __FILE__, __LINE__);
+    throw_on_cuda_error(
+        cudaMemcpy(wa_d, wa_h.data(),
+            sizeof(WorkAssignmentCell) * num_workers * n_max,
+            cudaMemcpyHostToDevice),
+        __FILE__, __LINE__);
+
+    launch_cuda_kernel(alg, num_blocks, num_threadsperblock);
+
+    throw_on_cuda_error(
+        cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * num_workers,
+                   cudaMemcpyDeviceToHost),
+        __FILE__, __LINE__);
+    throw_on_cuda_error(
+        cudaMemcpy(wa_h.data(), wa_d,
+            sizeof(WorkAssignmentCell) * num_workers * n_max,
+            cudaMemcpyDeviceToHost),
+        __FILE__, __LINE__);
+
+    process_worker_results(graph, wi_h, wa_h);
+
+    // Termination condition
+    bool all_done = true;
+    for (const auto &wi : wi_h) {
+      if (!wi.done) {
+        all_done = false;
+        break;
+      }
+    }
+    if (Coordinator::stopping || all_done) break;
+
+    bool any_done = false;
+    for (const auto &wi : wi_h) {
+      if (wi.done) {
+        any_done = true;
+        break;
+      }
+    }
+
+    if (any_done) {
+      assign_new_jobs(config, context, wi_h, wa_h, graph, n_max, num_workers);
+    }
+  }
+
+  // 3. Cleanup
+
+  cleanup_gpu_memory();
+  gather_unfinished_work_assignments(graph, wi_h, wa_h);
 }
 
 //------------------------------------------------------------------------------

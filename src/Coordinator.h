@@ -17,6 +17,10 @@
 #include "Worker.h"
 #include "Graph.h"
 
+//#ifdef CUDA_ENABLED
+#include "CoordinatorCUDA.cuh"
+//#endif
+
 #include <queue>
 #include <mutex>
 #include <list>
@@ -110,15 +114,49 @@ class Coordinator {
   bool is_worker_idle(const unsigned id) const;
   bool is_worker_splitting(const unsigned id) const;
 
+
+//#ifdef CUDA_ENABLED
+
+ private:
+  unsigned num_workers;
+  unsigned num_steps;
+  unsigned pattern_buffer_size;
+  size_t shared_memory_size;
+
+  statenum_t* pb_d;
+  WorkerInfo* wi_d;
+  WorkAssignmentCell* wa_d;
+
  // defined in CoordinatorCUDA.cu
 
-  using statenum_t = uint16_t;
-  
  private:
   void run_cuda();
   unsigned select_CUDA_search_algorithm(const Graph& graph) const;
   void process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
+
+  // New helper functions for CUDA (private)
+  cudaDeviceProp initialize_cuda_device();
+  Graph build_and_reduce_graph();
+  void check_memory_limits(const Graph& graph, unsigned alg,
+    unsigned num_threadsperblock);
+  void configure_cuda_shared_memory(const Graph& graph,
+    unsigned num_threadsperblock);
+  void copy_graph_to_gpu(const Graph& graph, unsigned alg);
+  void allocate_gpu_memory();
+  void copy_static_vars_to_gpu(const Graph& graph);
+  void load_initial_work_assignments(const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+  void launch_cuda_kernel(unsigned alg, unsigned num_blocks,
+    unsigned num_threadsperblock);
+  void process_worker_results(const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+  void cleanup_gpu_memory();
+  void gather_unfinished_work_assignments(const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+
+
+//#endif
 };
 
 #endif
