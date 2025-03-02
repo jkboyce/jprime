@@ -65,22 +65,24 @@ struct ThreadStorageWorkCell {  // 256 bytes
   uint32_t unused2[31];
 };
 
-//------------------------------------------------------------------------------
-// Function prototypes
-//------------------------------------------------------------------------------
 
-void throw_on_cuda_error(cudaError_t code, const char *file, int line);
+enum class CudaAlgorithm {
+  NONE,
+  NORMAL,
+  NORMAL_GLOBAL,
+  NORMAL_MARKING,
+  SUPER,
+  SUPER0,
+};
 
-void load_work_assignment(const unsigned id, const WorkAssignment& wa,
-  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
-  const Graph& graph, const SearchConfig& config, unsigned n_max);
-
-WorkAssignment read_work_assignment(unsigned id, std::vector<WorkerInfo>& wi_h,
-  std::vector<WorkAssignmentCell>& wa_h, const Graph& graph, unsigned n_max);
-
-void assign_new_jobs(const SearchConfig& config, SearchContext& context, 
-  std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
-  const Graph& graph, unsigned n_max, unsigned num_workers);
+constexpr std::array cuda_algs = {
+  "no_algorithm",
+  "cuda_gen_loops_normal()",
+  "cuda_gen_loops_normal_global()",
+  "cuda_gen_loops_normal_marking()",
+  "cuda_gen_loops_super()",
+  "cuda_gen_loops_super0()",
+};
 
 #endif
 

@@ -119,7 +119,6 @@ class Coordinator {
 
  private:
   unsigned num_workers;
-  unsigned num_steps;
   unsigned pattern_buffer_size;
   size_t shared_memory_size;
 
@@ -131,30 +130,49 @@ class Coordinator {
 
  private:
   void run_cuda();
-  unsigned select_CUDA_search_algorithm(const Graph& graph) const;
-  void process_pattern_buffer(statenum_t* const pb_d,
-    const Graph& graph, const uint32_t pattern_buffer_size);
 
-  // New helper functions for CUDA (private)
+  // setup
   cudaDeviceProp initialize_cuda_device();
   Graph build_and_reduce_graph();
-  void check_memory_limits(const Graph& graph, unsigned alg,
+  CudaAlgorithm select_CUDA_search_algorithm(const Graph& graph) const;
+  void check_memory_limits(const Graph& graph, CudaAlgorithm alg,
     unsigned num_threadsperblock);
-  void configure_cuda_shared_memory(const Graph& graph,
-    unsigned num_threadsperblock);
-  void copy_graph_to_gpu(const Graph& graph, unsigned alg);
+  void configure_cuda_shared_memory();
   void allocate_gpu_memory();
+  void copy_graph_to_gpu(const Graph& graph, CudaAlgorithm alg);
   void copy_static_vars_to_gpu(const Graph& graph);
-  void load_initial_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
-  void launch_cuda_kernel(unsigned alg, unsigned num_blocks,
-    unsigned num_threadsperblock);
+
+  // main loop
+  void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
+    std::vector<WorkAssignmentCell>& wa_h);
+  void launch_cuda_kernel(CudaAlgorithm alg, unsigned num_blocks,
+    unsigned num_threadsperblock, unsigned num_steps);
+  void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
+      std::vector<WorkAssignmentCell>& wa_h);
   void process_worker_results(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+  void process_pattern_buffer(statenum_t* const pb_d,
+    const Graph& graph, const uint32_t pattern_buffer_size);
+    
+  // cleanup
   void cleanup_gpu_memory();
   void gather_unfinished_work_assignments(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
 
+  // manage work assignments
+  void load_initial_work_assignments(const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+  void load_work_assignment(const unsigned id, const WorkAssignment& wa,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    const Graph& graph);
+  WorkAssignment read_work_assignment(unsigned id,
+    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    const Graph& graph);
+  void assign_new_jobs(const Graph& graph, std::vector<WorkerInfo>& wi_h,
+    std::vector<WorkAssignmentCell>& wa_h);
+    
+  // helper
+  void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 
 //#endif
 };
