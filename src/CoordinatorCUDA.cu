@@ -68,7 +68,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
   // set up shared memory
   //
-  // unused[] arrays for 32 threads are stored in (numstates_d + 1) instances
+  // used[] arrays for 32 threads are stored in (numstates_d + 1) instances
   // of ThreadStorageUsed, each of which is 32 uint32s
   //
   // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
@@ -202,6 +202,175 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
     ss->col_limit = outdegree;
     ss->from_state = to_state;
     used[to_state].used = 1;
+  }
+
+  wi_d[id].start_state = st_state;
+  wi_d[id].pos = pos;
+  wi_d[id].nnodes = nnodes;
+
+  // save workcell[] array
+  for (int i = 0; i < n_max; ++i) {
+    wa_d[id * n_max + i].col = workcell[i].col;
+    wa_d[id * n_max + i].col_limit = workcell[i].col_limit;
+    wa_d[id * n_max + i].from_state = workcell[i].from_state;
+    wa_d[id * n_max + i].count = workcell[i].count;
+  }
+}
+
+
+__global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
+        WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
+        const unsigned n_min, const unsigned n_max, const unsigned steps,
+        const bool report) {
+  const int id = blockDim.x * blockIdx.x + threadIdx.x;
+  if (wi_d[id].done) {
+    return;
+  }
+
+  // set up register variables
+  statenum_t st_state = wi_d[id].start_state;
+  int pos = wi_d[id].pos;
+  uint64_t nnodes = wi_d[id].nnodes;
+  const uint8_t outdegree = maxoutdegree_d;
+
+  // set up shared memory
+  //
+  // unused[] arrays for 32 threads are stored in (numstates_d + 1) instances
+  // of ThreadStorageUsed, each of which is 32 uint32s
+  //
+  // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
+  // instances of ThreadStorageWorkCell, each of which is 64 uint32s
+
+  extern __shared__ uint32_t shared[];
+  ThreadStorageUsed2* tsu = (ThreadStorageUsed2*)
+      &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 3) / 4)
+            + (threadIdx.x % 32)];
+  ThreadStorageWorkCell* workcell = (ThreadStorageWorkCell*)
+      &shared[
+          ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 3) / 4) +
+          (threadIdx.x / 32) * 64 * n_max + (threadIdx.x % 32)
+      ];
+
+    /*
+    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+        128 * (((num_states + 1) + 3) / 4) +  // used[]
+        256 * n_max                           // WorkAssignentCell[]
+    );
+    */
+
+  // initialize workcell[] array
+  for (int i = 0; i < n_max; ++i) {
+    workcell[i].col = wa_d[id * n_max + i].col;
+    workcell[i].col_limit = wa_d[id * n_max + i].col_limit;
+    workcell[i].from_state = wa_d[id * n_max + i].from_state;
+    workcell[i].count = wa_d[id * n_max + i].count;
+  }
+
+  // initialize used[] array
+  for (int i = 0; i <= numstates_d; ++i) {
+    tsu[i / 4].used[i % 4] = 0;
+  }
+  for (int i = 1; i <= pos; ++i) {
+    const statenum_t from = workcell[i].from_state;
+    tsu[from / 4].used[from % 4] = 1;
+  }
+
+  ThreadStorageWorkCell* ss = &workcell[pos];
+
+  for (unsigned step = 0; ; ++step) {
+    if (ss->col == ss->col_limit) {
+      // beat is finished, go back to previous one
+      tsu[ss->from_state / 4].used[ss->from_state % 4] = 0;
+      ++nnodes;
+
+      if (pos == 0) {
+        if (st_state == wi_d[id].end_state) {
+          wi_d[id].done = 1;
+          break;
+        }
+        ++st_state;
+        ss->col = 0;
+        ss->col_limit = outdegree;
+        ss->from_state = st_state;
+        continue;
+      } else {
+        --pos;
+        --ss;
+        ++ss->col;
+        continue;
+      }
+    }
+
+    const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
+          outdegree + ss->col];
+
+    if (to_state == 0) {
+      // beat is finished, go back to previous one
+      tsu[ss->from_state / 4].used[ss->from_state % 4] = 0;
+      ++nnodes;
+
+      if (pos == 0) {
+        if (st_state == wi_d[id].end_state) {
+          wi_d[id].done = 1;
+          break;
+        }
+        ++st_state;
+        ss->col = 0;
+        ss->col_limit = outdegree;
+        ss->from_state = st_state;
+        continue;
+      } else {
+        --pos;
+        --ss;
+        ++ss->col;
+        continue;
+      }
+    }
+    
+    if (to_state == st_state) {
+      // found a valid pattern
+      if (report && pos + 1 >= n_min) {
+        const uint32_t idx = atomicAdd(&pattern_index_d, 1);
+        if (idx < pattern_buffer_size_d) {
+          for (int j = 0; j <= pos; ++j) {
+            patterns_d[idx * n_max + j] = workcell[j].from_state;
+          }
+          if (pos + 1 < n_max) {
+            patterns_d[idx * n_max + pos + 1] = 0;
+          }
+        }
+      }
+      ++ss->count;
+      ++ss->col;
+      continue;
+    }
+
+    if (to_state < st_state) {
+      ++ss->col;
+      continue;
+    }
+
+    if (tsu[to_state / 4].used[to_state % 4]) {
+      ++ss->col;
+      continue;
+    }
+
+    if (pos + 1 == n_max) {
+      ++ss->col;
+      continue;
+    }
+
+    // current throw is valid, so advance to next beat
+
+    if (step > steps)
+      break;
+
+    ++pos;
+    ++ss;
+    ss->col = 0;
+    ss->col_limit = outdegree;
+    ss->from_state = to_state;
+    tsu[to_state / 4].used[to_state % 4] = 1;
   }
 
   wi_d[id].start_state = st_state;
@@ -390,11 +559,13 @@ shared memory size = 89472 bytes
 steps per kernel call = 200000
 30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
 runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
-89.9 sec (20000 steps, 56 x 96)
-33.7 sec (200000 steps, 56 x 96)
-32.1 sec (300000 steps, 56 x 96) *
-53.1 sec (300000 steps, global memory, 56 x 96)
-43.1 sec (300000 steps, global memory, 56 x 288) *
+89.9 sec (20000 steps, normal, 56 x 96)
+33.7 sec (200000 steps, normal, 56 x 96)
+32.1 sec (300000 steps, normal, 56 x 96) *
+53.1 sec (300000 steps, global, 56 x 96)
+43.1 sec (300000 steps, global, 56 x 288) *
+32.8 sec (300000 steps, normal2, 56 x 96)
+26.3 sec (300000 steps, normal2, 56 x 128)
 --> 61.0728 sec on 10 CPU cores
 
 
@@ -406,38 +577,42 @@ runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
 
 void Coordinator::run_cuda() {
   const unsigned num_blocks = 56;
-  const unsigned num_threadsperblock = 32 * 3;
+  const unsigned num_threadsperblock = 32 * 4;
   num_workers = num_blocks * num_threadsperblock;
   unsigned num_steps = 300000;
   pattern_buffer_size = 100000;
   
   // 1. Initialization
 
-  (void)initialize_cuda_device();
-  Graph graph = build_and_reduce_graph();
+  const auto prop = initialize_cuda_device();
+  const auto graph = build_and_reduce_graph();
+
   jpout << "Execution parameters:\n"
         << "  num_blocks = " << num_blocks
         << "\n  num_threadsperblock = " << num_threadsperblock
         << "\n  num_workers = " << num_workers
         << "\n  steps per kernel call = " << num_steps << std::endl;
-  CudaAlgorithm alg = select_CUDA_search_algorithm(graph);
-  check_memory_limits(graph, alg, num_threadsperblock);
-  configure_cuda_shared_memory();
+
+  const auto alg = select_CUDA_search_algorithm(graph);
+  const auto graph_buffer = make_graph_buffer(graph, alg);
+  const auto shared_memory_size = calc_shared_memory_size(alg, graph.numstates,
+      num_threadsperblock);
+  configure_cuda_shared_memory(shared_memory_size);
 
   allocate_gpu_memory();
-  copy_graph_to_gpu(graph, alg);
+  copy_graph_to_gpu(graph_buffer);
   copy_static_vars_to_gpu(graph);
 
   std::vector<WorkerInfo> wi_h(num_workers);
   std::vector<WorkAssignmentCell> wa_h(num_workers * n_max);
-
   load_initial_work_assignments(graph, wi_h, wa_h);
 
-  // 2. Main Loop
+  // 2. Main loop
 
   while (true) {
     copy_worker_data_to_gpu(wi_h, wa_h);
-    launch_cuda_kernel(alg, num_blocks, num_threadsperblock, num_steps);
+    launch_cuda_kernel(num_blocks, num_threadsperblock, shared_memory_size, alg,
+        num_steps);
     copy_worker_data_from_gpu(wi_h, wa_h);
 
     process_worker_results(graph, wi_h, wa_h);
@@ -453,7 +628,6 @@ void Coordinator::run_cuda() {
       }
     }
     
-    // Termination condition
     if (Coordinator::stopping || all_done)
       break;
 
@@ -508,8 +682,7 @@ Graph Coordinator::build_and_reduce_graph() {
 
 // choose a search algorithm to use
 
-CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph)
-      const {
+CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph) {
   unsigned max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
       ? graph.superprime_period_bound(config.shiftlimit)
       : graph.prime_period_bound();
@@ -521,11 +694,11 @@ CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph)
         static_cast<double>(config.n_min) >
         0.66 * static_cast<double>(max_possible)) {
       // the overhead of marking is only worth it for long-period patterns
-      alg = CudaAlgorithm::NORMAL_MARKING;
+      alg = CudaAlgorithm::NORMAL;
     } else if (config.countflag) {
-      alg = CudaAlgorithm::NORMAL;
+      alg = CudaAlgorithm::NORMAL2;
     } else {
-      alg = CudaAlgorithm::NORMAL;
+      alg = CudaAlgorithm::NORMAL2;
     }
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     if (config.shiftlimit == 0) {
@@ -535,55 +708,92 @@ CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph)
     }
   }
 
-  if (config.verboseflag) {
-    jpout << "selected algorithm " << cuda_algs[static_cast<int>(alg)]
-          << std::endl;
-  }
+  jpout << "  algorithm = " << cuda_algs[static_cast<int>(alg)]
+        << std::endl;
 
   return alg;
 }
 
-// Check if the graph and work data fit in GPU memory.
+// Return a version of the graph for the GPU.
+//
+// If the resulting graph is too large to fit into the GPU's constant memory,
+// throw a `std::runtime_error` exception with a relevant error message.
 
-void Coordinator::check_memory_limits(const Graph& graph, CudaAlgorithm alg,
-        unsigned num_threadsperblock) {
-  const unsigned graphcols =
-      (alg == CudaAlgorithm::NORMAL || alg == CudaAlgorithm::NORMAL_GLOBAL)
-      ? graph.maxoutdegree : graph.maxoutdegree + 1;
-  const size_t graph_buffer_size =
-      graph.numstates * graphcols * sizeof(statenum_t);
+std::vector<statenum_t> Coordinator::make_graph_buffer(const Graph& graph,
+      CudaAlgorithm alg) {
+  std::vector<statenum_t> graph_buffer;
 
-  if (graph_buffer_size > sizeof(graphmatrix_d)) {
+  for (unsigned i = 1; i <= graph.numstates; ++i) {
+    for (unsigned j = 0; j < graph.maxoutdegree; ++j) {
+      if (j < graph.outdegree.at(i)) {
+        graph_buffer.push_back(graph.outmatrix.at(i).at(j));
+      } else {
+        graph_buffer.push_back(0);
+      }
+    }
+
+    // add an extra column with needed information
+    if (alg == CudaAlgorithm::NORMAL_MARKING) {
+      graph_buffer.push_back(graph.upstream_state(i));
+    }
+    if (alg == CudaAlgorithm::SUPER0 || alg == CudaAlgorithm::SUPER) {
+      graph_buffer.push_back(graph.cyclenum.at(i));
+    }
+  }
+
+  if (graph_buffer.size() * sizeof(statenum_t) > sizeof(graphmatrix_d)) {
     throw std::runtime_error("CUDA error: Juggling graph too large");
   }
 
-  if (alg == CudaAlgorithm::NORMAL || alg == CudaAlgorithm::NORMAL_MARKING) {
-    // put WorkAssignmentCells in shared memory
-    shared_memory_size = ((num_threadsperblock + 31) / 32) * (
-        128 * (graph.numstates + 1) +  // used[]
-        256 * n_max                    // WorkAssignentCell[]
+  return graph_buffer;
+}
+
+// Return the amount of shared memory needed per block, in bytes.
+//
+// If the required shared memory is too large, throw a `std::runtime_error`
+// exception with a relevant error message.
+
+size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
+        unsigned num_states, unsigned num_threadsperblock) {
+  size_t shared_bytes = 0;
+  if (alg == CudaAlgorithm::NORMAL) {
+    // used[] as uint32s
+    // WorkAssignmentCells in shared memory
+    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+        128 * (num_states + 1) +  // used[]
+        256 * n_max               // WorkAssignentCell[]
+    );
+  } else if (alg == CudaAlgorithm::NORMAL2) {
+    // used[] as uint8s
+    // WorkAssignmentCells in shared memory
+    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+        128 * (((num_states + 1) + 3) / 4) +  // used[]
+        256 * n_max                           // WorkAssignentCell[]
     );
   } else if (alg == CudaAlgorithm::NORMAL_GLOBAL) {
-    // leave WorkAssignmentCells in global memory
-    shared_memory_size = ((num_threadsperblock + 31) / 32) * (
-        128 * (graph.numstates + 1)    // used[]
+    // used[] as uint32s
+    // WorkAssignmentCells in global memory
+    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+        128 * (num_states + 1)    // used[]
     );
   }
 
-  jpout << "  shared memory req'd = " << shared_memory_size << " bytes"
+  jpout << "  shared memory req'd = " << shared_bytes << " bytes"
         << std::endl;
 
-
-  if (shared_memory_size > 99 * 1024) {
+  if (shared_bytes > 99 * 1024) {
     // TODO: This comparison should be based on queried device properties
     throw std::runtime_error("CUDA error: Not enough shared memory");
   }
+  return shared_bytes;
 }
 
 // Set up CUDA shared memory configuration.
 
-void Coordinator::configure_cuda_shared_memory() {
+void Coordinator::configure_cuda_shared_memory(size_t shared_memory_size) {
   cudaFuncSetAttribute(cuda_gen_loops_normal,
+    cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
+  cudaFuncSetAttribute(cuda_gen_loops_normal2,
     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
   cudaFuncSetAttribute(cuda_gen_loops_normal_global,
     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
@@ -605,29 +815,8 @@ void Coordinator::allocate_gpu_memory() {
 
 // Copy graph data to GPU constant memory.
 
-void Coordinator::copy_graph_to_gpu(const Graph& graph, CudaAlgorithm alg) {
-  const unsigned graphcols =
-      (alg == CudaAlgorithm::NORMAL || alg == CudaAlgorithm::NORMAL_GLOBAL)
-      ? graph.maxoutdegree : graph.maxoutdegree + 1;
-  const size_t graph_buffer_size =
-      graph.numstates * graphcols * sizeof(statenum_t);
-
-  std::vector<statenum_t> graph_buffer(graph_buffer_size, 0);
-
-  for (unsigned i = 1; i <= graph.numstates; ++i) {
-    for (unsigned j = 0; j < graph.outdegree.at(i); ++j) {
-      graph_buffer.at((i - 1) * graphcols + j) = graph.outmatrix.at(i).at(j);
-    }
-    if (alg == CudaAlgorithm::NORMAL_MARKING) {
-      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
-          graph.upstream_state(i);
-    }
-    if (alg == CudaAlgorithm::SUPER0 || alg == CudaAlgorithm::SUPER) {
-      graph_buffer.at((i - 1) * graphcols + graph.maxoutdegree) =
-          graph.cyclenum.at(i);
-    }
-  }
-
+void Coordinator::copy_graph_to_gpu(
+      const std::vector<statenum_t>& graph_buffer) {
   throw_on_cuda_error(
       cudaMemcpyToSymbol(graphmatrix_d, graph_buffer.data(),
                          sizeof(statenum_t) * graph_buffer.size()),
@@ -677,11 +866,17 @@ void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
 
 // Launch the appropriate CUDA kernel.
 
-void Coordinator::launch_cuda_kernel(CudaAlgorithm alg, unsigned num_blocks,
-      unsigned num_threadsperblock, unsigned num_steps) {
+void Coordinator::launch_cuda_kernel(unsigned num_blocks,
+    unsigned num_threadsperblock, size_t shared_memory_size, CudaAlgorithm alg,
+    unsigned num_steps) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal
+        <<<num_blocks, num_threadsperblock, shared_memory_size>>>
+        (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
+      break;
+    case CudaAlgorithm::NORMAL2:
+      cuda_gen_loops_normal2
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
         (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
       break;

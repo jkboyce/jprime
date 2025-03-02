@@ -119,8 +119,7 @@ class Coordinator {
 
  private:
   unsigned num_workers;
-  unsigned pattern_buffer_size;
-  size_t shared_memory_size;
+  size_t pattern_buffer_size;
 
   statenum_t* pb_d;
   WorkerInfo* wi_d;
@@ -134,19 +133,21 @@ class Coordinator {
   // setup
   cudaDeviceProp initialize_cuda_device();
   Graph build_and_reduce_graph();
-  CudaAlgorithm select_CUDA_search_algorithm(const Graph& graph) const;
-  void check_memory_limits(const Graph& graph, CudaAlgorithm alg,
+  CudaAlgorithm select_CUDA_search_algorithm(const Graph& graph);
+  std::vector<statenum_t> make_graph_buffer(const Graph& graph,
+    CudaAlgorithm alg);
+  size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
     unsigned num_threadsperblock);
-  void configure_cuda_shared_memory();
+  void configure_cuda_shared_memory(size_t shared_memory_size);
   void allocate_gpu_memory();
-  void copy_graph_to_gpu(const Graph& graph, CudaAlgorithm alg);
+  void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
   void copy_static_vars_to_gpu(const Graph& graph);
 
   // main loop
   void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<WorkAssignmentCell>& wa_h);
-  void launch_cuda_kernel(CudaAlgorithm alg, unsigned num_blocks,
-    unsigned num_threadsperblock, unsigned num_steps);
+  void launch_cuda_kernel(unsigned num_blocks, unsigned num_threadsperblock,
+    size_t shared_memory_size, CudaAlgorithm alg, unsigned num_steps);
   void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
       std::vector<WorkAssignmentCell>& wa_h);
   void process_worker_results(const Graph& graph,

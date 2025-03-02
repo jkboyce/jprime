@@ -56,6 +56,12 @@ struct ThreadStorageUsed {  // 128 bytes
 };
 
 
+struct ThreadStorageUsed2 {  // 128 bytes
+  uint8_t used[4];
+  uint32_t unused[31];
+};
+
+
 struct ThreadStorageWorkCell {  // 256 bytes
   uint8_t col;
   uint8_t col_limit;
@@ -69,6 +75,7 @@ struct ThreadStorageWorkCell {  // 256 bytes
 enum class CudaAlgorithm {
   NONE,
   NORMAL,
+  NORMAL2,
   NORMAL_GLOBAL,
   NORMAL_MARKING,
   SUPER,
@@ -78,6 +85,7 @@ enum class CudaAlgorithm {
 constexpr std::array cuda_algs = {
   "no_algorithm",
   "cuda_gen_loops_normal()",
+  "cuda_gen_loops_normal2()",
   "cuda_gen_loops_normal_global()",
   "cuda_gen_loops_normal_marking()",
   "cuda_gen_loops_super()",
