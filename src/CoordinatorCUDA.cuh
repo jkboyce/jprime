@@ -27,7 +27,7 @@
 using statenum_t = uint16_t;
 
 
-struct WorkerInfo {
+struct WorkerInfo {  // 16 bytes
   statenum_t start_state = 0;  // current value of `start_state` (input/output)
   statenum_t end_state = 0;  // highest value of `start_state` (input)
   uint16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
@@ -36,7 +36,7 @@ struct WorkerInfo {
 };
 
 
-struct WorkAssignmentCell {
+struct WorkAssignmentCell {  // 8 bytes
   uint8_t col = 0;
   uint8_t col_limit = 0;
   statenum_t from_state = 0;
@@ -52,12 +52,6 @@ struct WorkAssignmentLine {
 
 struct ThreadStorageUsed {  // 128 bytes
   uint32_t used;
-  uint32_t unused[31];
-};
-
-
-struct ThreadStorageUsed2 {  // 128 bytes
-  uint8_t used[4];
   uint32_t unused[31];
 };
 

@@ -51,14 +51,17 @@ __device__ uint32_t pattern_index_d = 0;
 // GPU kernels
 //------------------------------------------------------------------------------
 
+
 __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
-        const unsigned n_min, const unsigned n_max, const unsigned steps,
-        const bool report) {
+        const unsigned n_min, const unsigned n_max, const bool report,
+        uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].done) {
     return;
   }
+
+  const auto end_clock = clock64() + cycles;
 
   // set up register variables
   statenum_t st_state = wi_d[id].start_state;
@@ -68,7 +71,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
   // set up shared memory
   //
-  // used[] arrays for 32 threads are stored in (numstates_d + 1) instances
+  // used[] arrays for 32 threads are stored in (numstates_d + 1)/32 instances
   // of ThreadStorageUsed, each of which is 32 uint32s
   //
   // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
@@ -76,19 +79,13 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
   extern __shared__ uint32_t shared[];
   ThreadStorageUsed* used = (ThreadStorageUsed*)
-      &shared[(threadIdx.x / 32) * 32 * (numstates_d + 1) + (threadIdx.x % 32)];
+      &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
+            (threadIdx.x % 32)];
   ThreadStorageWorkCell* workcell = (ThreadStorageWorkCell*)
       &shared[
-          ((blockDim.x + 31) / 32) * 32 * (numstates_d + 1) +
+          ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
           (threadIdx.x / 32) * 64 * n_max + (threadIdx.x % 32)
       ];
-
-  /*
-  int shared_memory_size_bytes =
-      ((blockDim.x + 31) / 32) * 128 * (numstates_d + 1) +
-      ((blockDim.x + 31) / 32) * 256 * n_max;
-  printf("shared memory size (device) = %d bytes\n", shared_memory_size_bytes);
-  */
 
   // initialize workcell[] array
   for (int i = 0; i < n_max; ++i) {
@@ -99,19 +96,20 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
   }
 
   // initialize used[] array
-  for (int i = 0; i <= numstates_d; ++i) {
+  for (int i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].used = 0;
   }
   for (int i = 1; i <= pos; ++i) {
-    used[workcell[i].from_state].used = 1;
+    const statenum_t from = workcell[i].from_state;
+    used[from / 32].used |= (1u << (from & 31));
   }
 
   ThreadStorageWorkCell* ss = &workcell[pos];
 
-  for (unsigned step = 0; ; ++step) {
+  while (true) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
-      used[ss->from_state].used = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -137,7 +135,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
     if (to_state == 0) {
       // beat is finished, go back to previous one
-      used[ss->from_state].used = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -181,7 +179,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
       continue;
     }
 
-    if (used[to_state].used) {
+    if (used[to_state / 32].used & (1u << (to_state & 31))) {
       ++ss->col;
       continue;
     }
@@ -193,7 +191,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
     // current throw is valid, so advance to next beat
 
-    if (step > steps)
+    if (clock64() > end_clock)
       break;
 
     ++pos;
@@ -201,7 +199,7 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
     ss->col = 0;
     ss->col_limit = outdegree;
     ss->from_state = to_state;
-    used[to_state].used = 1;
+    used[to_state / 32].used |= (1u << (to_state & 31));
   }
 
   wi_d[id].start_state = st_state;
@@ -220,12 +218,15 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
 __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
-        const unsigned n_min, const unsigned n_max, const unsigned steps,
-        const bool report) {
+        ThreadStorageWorkCell* tswc_d,
+        unsigned n_min, const unsigned n_max, const bool report,
+        const uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].done) {
     return;
   }
+
+  const auto end_clock = clock64() + cycles;
 
   // set up register variables
   statenum_t st_state = wi_d[id].start_state;
@@ -235,28 +236,27 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
 
   // set up shared memory
   //
-  // unused[] arrays for 32 threads are stored in (numstates_d + 1) instances
-  // of ThreadStorageUsed, each of which is 32 uint32s
+  // used[] is stored as a bitfield in uint32s, with 32 threads interleaved
+  // in ThreadStorageUsed to avoid memory bank contention. Each thread uses
+  // storage from (numstates_d + 1)/32 instances of ThreadStorageUsed.
   //
   // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
   // instances of ThreadStorageWorkCell, each of which is 64 uint32s
 
   extern __shared__ uint32_t shared[];
-  ThreadStorageUsed2* tsu = (ThreadStorageUsed2*)
-      &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 3) / 4)
-            + (threadIdx.x % 32)];
-  ThreadStorageWorkCell* workcell = (ThreadStorageWorkCell*)
+  ThreadStorageUsed* used = (ThreadStorageUsed*)
+      &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
+            (threadIdx.x % 32)];
+  ThreadStorageWorkCell* workcell_s = (ThreadStorageWorkCell*)
       &shared[
-          ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 3) / 4) +
+          ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
           (threadIdx.x / 32) * 64 * n_max + (threadIdx.x % 32)
       ];
+  
+  // workcells in global memory
+  ThreadStorageWorkCell* workcell_g = 0; // TODO
 
-    /*
-    shared_bytes = ((num_threadsperblock + 31) / 32) * (
-        128 * (((num_states + 1) + 3) / 4) +  // used[]
-        256 * n_max                           // WorkAssignentCell[]
-    );
-    */
+  ThreadStorageWorkCell* workcell = workcell_s;
 
   // initialize workcell[] array
   for (int i = 0; i < n_max; ++i) {
@@ -267,20 +267,20 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
   }
 
   // initialize used[] array
-  for (int i = 0; i <= numstates_d; ++i) {
-    tsu[i / 4].used[i % 4] = 0;
+  for (int i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
+    used[i].used = 0;
   }
   for (int i = 1; i <= pos; ++i) {
     const statenum_t from = workcell[i].from_state;
-    tsu[from / 4].used[from % 4] = 1;
+    used[from / 32].used |= (1u << (from & 31));
   }
 
   ThreadStorageWorkCell* ss = &workcell[pos];
 
-  for (unsigned step = 0; ; ++step) {
+  while (true) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
-      tsu[ss->from_state / 4].used[ss->from_state % 4] = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -306,7 +306,7 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
 
     if (to_state == 0) {
       // beat is finished, go back to previous one
-      tsu[ss->from_state / 4].used[ss->from_state % 4] = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -350,7 +350,7 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
       continue;
     }
 
-    if (tsu[to_state / 4].used[to_state % 4]) {
+    if (used[to_state / 32].used & (1u << (to_state & 31))) {
       ++ss->col;
       continue;
     }
@@ -362,7 +362,7 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
 
     // current throw is valid, so advance to next beat
 
-    if (step > steps)
+    if (clock64() > end_clock)
       break;
 
     ++pos;
@@ -370,7 +370,7 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
     ss->col = 0;
     ss->col_limit = outdegree;
     ss->from_state = to_state;
-    tsu[to_state / 4].used[to_state % 4] = 1;
+    used[to_state / 32].used |= (1u << (to_state & 31));
   }
 
   wi_d[id].start_state = st_state;
@@ -389,12 +389,14 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
 
 __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
-        const unsigned n_min, const unsigned n_max, const unsigned steps,
-        const bool report) {
+        const unsigned n_min, const unsigned n_max, const bool report,
+        const uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].done) {
     return;
   }
+
+  const auto end_clock = clock64() + cycles;
 
   // set up register variables
   statenum_t st_state = wi_d[id].start_state;
@@ -421,7 +423,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 
   WorkAssignmentCell* ss = &wa_d[id * n_max + pos];
 
-  for (unsigned step = 0; ; ++step) {
+  while (true) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
       used[ss->from_state].used = 0;
@@ -506,7 +508,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 
     // current throw is valid, so advance to next beat
 
-    if (step > steps)
+    if (clock64() > end_clock)
       break;
 
     ++pos;
@@ -528,45 +530,15 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 //------------------------------------------------------------------------------
 
 /*
-20 blocks, 32 threads/block:
+jprime 3 8 -cuda -count
+11906414 patterns in range (11906414 seen, 49962563 nodes)
+1.53 sec (300000 steps, normal, 56 x 96) 38400 bytes
+
+
 jprime 3 9 -cuda -count
 30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
-runtime = 238.0548 sec (596.2M nodes/sec, 0.0 % util, 14803 splits)
-
-1 block, 32 threads/block:
-jprime 3 8 -cuda -count
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-runtime = 1.7509 sec (28.5M nodes/sec, 0.0 % util, 306 splits)
-
-1 block, 64 threads/block:
-jprime 3 8 -cuda -count
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-runtime = 1.0728 sec (46.6M nodes/sec, 0.0 % util, 533 splits)
-
-1 block, 96 threads/block:
-jprime 3 8 -cuda -count
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-runtime = 0.8166 sec (61.2M nodes/sec, 0.0 % util, 765 splits)
-
-2 blocks, 32 threads/block:
-jprime 3 8 -cuda -count
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-runtime = 1.0862 sec (46.0M nodes/sec, 0.0 % util, 533 splits)
-
-50 blocks, 96 threads/block:
-jprime 3 9 -cuda -count
-shared memory size = 89472 bytes
-steps per kernel call = 200000
-30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
-runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
-89.9 sec (20000 steps, normal, 56 x 96)
-33.7 sec (200000 steps, normal, 56 x 96)
-32.1 sec (300000 steps, normal, 56 x 96) *
-53.1 sec (300000 steps, global, 56 x 96)
-43.1 sec (300000 steps, global, 56 x 288) *
-32.8 sec (300000 steps, normal2, 56 x 96)
-26.3 sec (300000 steps, normal2, 56 x 128)
 --> 61.0728 sec on 10 CPU cores
+22.2 sec (normal, 56 x 160) 96640 bytes
 
 
 */
@@ -577,10 +549,10 @@ runtime = 36.7760 sec (3859.4M nodes/sec, 0.0 % util, 81821 splits)
 
 void Coordinator::run_cuda() {
   const unsigned num_blocks = 56;
-  const unsigned num_threadsperblock = 32 * 4;
+  const unsigned num_threadsperblock = 32 * 5;
   num_workers = num_blocks * num_threadsperblock;
-  unsigned num_steps = 300000;
   pattern_buffer_size = 100000;
+  uint32_t cycles = 1000000;
   
   // 1. Initialization
 
@@ -591,7 +563,7 @@ void Coordinator::run_cuda() {
         << "  num_blocks = " << num_blocks
         << "\n  num_threadsperblock = " << num_threadsperblock
         << "\n  num_workers = " << num_workers
-        << "\n  steps per kernel call = " << num_steps << std::endl;
+        << std::endl;
 
   const auto alg = select_CUDA_search_algorithm(graph);
   const auto graph_buffer = make_graph_buffer(graph, alg);
@@ -609,31 +581,43 @@ void Coordinator::run_cuda() {
 
   // 2. Main loop
 
-  while (true) {
-    copy_worker_data_to_gpu(wi_h, wa_h);
-    launch_cuda_kernel(num_blocks, num_threadsperblock, shared_memory_size, alg,
-        num_steps);
-    copy_worker_data_from_gpu(wi_h, wa_h);
+  std::chrono::time_point<std::chrono::system_clock> before_kernel;
+  std::chrono::time_point<std::chrono::system_clock> after_kernel;
+  after_kernel = std::chrono::system_clock::now();
 
+  while (true) {
+    const auto prev_after_kernel = after_kernel;
+    copy_worker_data_to_gpu(wi_h, wa_h);
+
+    before_kernel = std::chrono::high_resolution_clock::now();
+    launch_cuda_kernel(num_blocks, num_threadsperblock, shared_memory_size, alg,
+        cycles);
+    after_kernel = std::chrono::high_resolution_clock::now();
+
+    copy_worker_data_from_gpu(wi_h, wa_h);
     process_worker_results(graph, wi_h, wa_h);
     process_pattern_buffer(pb_d, graph, pattern_buffer_size);
 
-    bool any_done = false;
+    unsigned num_done = 0;
     bool all_done = true;
     for (const auto &wi : wi_h) {
       if (wi.done) {
-        any_done = true;
+        ++num_done;
       } else {
         all_done = false;
       }
     }
-    
+  
     if (Coordinator::stopping || all_done)
       break;
 
-    if (any_done) {
+    if (num_done != 0) {
       assign_new_jobs(graph, wi_h, wa_h);
     }
+
+    // update kernel cycles to run based on timing and progress
+    cycles = calc_next_kernel_cycles(cycles, prev_after_kernel, before_kernel,
+        after_kernel, num_done);
   }
 
   // 3. Cleanup
@@ -696,9 +680,9 @@ CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph) {
       // the overhead of marking is only worth it for long-period patterns
       alg = CudaAlgorithm::NORMAL;
     } else if (config.countflag) {
-      alg = CudaAlgorithm::NORMAL2;
+      alg = CudaAlgorithm::NORMAL;
     } else {
-      alg = CudaAlgorithm::NORMAL2;
+      alg = CudaAlgorithm::NORMAL;
     }
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     if (config.shiftlimit == 0) {
@@ -757,18 +741,18 @@ size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
         unsigned num_states, unsigned num_threadsperblock) {
   size_t shared_bytes = 0;
   if (alg == CudaAlgorithm::NORMAL) {
-    // used[] as uint32s
+    // used[] as individual bits in uint32s
     // WorkAssignmentCells in shared memory
     shared_bytes = ((num_threadsperblock + 31) / 32) * (
-        128 * (num_states + 1) +  // used[]
-        256 * n_max               // WorkAssignentCell[]
+        128 * (((num_states + 1) + 31) / 32) +  // used[]
+        256 * n_max                             // WorkAssignentCell[]
     );
   } else if (alg == CudaAlgorithm::NORMAL2) {
-    // used[] as uint8s
+    // used[] as individual bits in uint32s
     // WorkAssignmentCells in shared memory
     shared_bytes = ((num_threadsperblock + 31) / 32) * (
-        128 * (((num_states + 1) + 3) / 4) +  // used[]
-        256 * n_max                           // WorkAssignentCell[]
+        128 * (((num_states + 1) + 31) / 32) +  // used[]
+        256 * n_max                             // WorkAssignentCell[]
     );
   } else if (alg == CudaAlgorithm::NORMAL_GLOBAL) {
     // used[] as uint32s
@@ -809,7 +793,11 @@ void Coordinator::allocate_gpu_memory() {
       cudaMalloc(&wi_d, sizeof(WorkerInfo) * num_workers),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * num_workers * n_max),
+      cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * n_max * num_workers),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMalloc(&tswc_d, sizeof(ThreadStorageWorkCell) * n_max *
+          ((num_workers + 31) / 32)),
       __FILE__, __LINE__);
 }
 
@@ -868,22 +856,23 @@ void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
 
 void Coordinator::launch_cuda_kernel(unsigned num_blocks,
     unsigned num_threadsperblock, size_t shared_memory_size, CudaAlgorithm alg,
-    unsigned num_steps) {
+    unsigned cycles) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
-        (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
+        (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag, cycles);
       break;
     case CudaAlgorithm::NORMAL2:
       cuda_gen_loops_normal2
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
-        (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
+        (pb_d, wi_d, wa_d, tswc_d, config.n_min, n_max, !config.countflag,
+        cycles);
       break;
     case CudaAlgorithm::NORMAL_GLOBAL:
       cuda_gen_loops_normal_global
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
-        (pb_d, wi_d, wa_d, config.n_min, n_max, num_steps, !config.countflag);
+        (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag, cycles);
       break;
     default:
       throw std::runtime_error("CUDA error: algorithm not implemented");
@@ -1041,6 +1030,37 @@ void Coordinator::process_pattern_buffer(statenum_t* const pb_d,
   );
 }
 
+// Calculate the next number of kernel cycles to run, based on timing and
+// progress.
+
+uint64_t Coordinator::calc_next_kernel_cycles(uint64_t last_cycles,
+      std::chrono::time_point<std::chrono::system_clock> prev_after_kernel,
+      std::chrono::time_point<std::chrono::system_clock> before_kernel,
+      std::chrono::time_point<std::chrono::system_clock> after_kernel,
+      unsigned num_done) {
+  const std::chrono::duration<double> kernel_diff =
+      after_kernel - before_kernel;
+  const std::chrono::duration<double> host_diff =
+      before_kernel - prev_after_kernel;
+  const double kernel_runtime = kernel_diff.count();
+  const double host_runtime = host_diff.count();
+
+  // calculate kernel runtime that will maximize work done per unit time
+  double target_kernel_runtime = sqrt(host_runtime * host_runtime +
+      2 * static_cast<double>(num_workers) * host_runtime * kernel_runtime /
+      static_cast<double>(num_done == 0 ? 1 : num_done)) - host_runtime;
+  target_kernel_runtime = std::min(1.0, target_kernel_runtime);  // 1 sec max
+
+  jpout << std::format(
+      "kernel = {:.5}, host = {:.5}, done = {}, kernel target = {:.5}\n",
+      kernel_runtime, host_runtime, num_done, target_kernel_runtime);
+
+  auto new_cycles = static_cast<uint64_t>(static_cast<double>(last_cycles) *
+      target_kernel_runtime / kernel_runtime);
+  new_cycles = std::max(100000ul, new_cycles);
+
+  return new_cycles;
+}
 
 //------------------------------------------------------------------------------
 // Cleanup
@@ -1052,6 +1072,7 @@ void Coordinator::cleanup_gpu_memory() {
   cudaFree(pb_d);
   cudaFree(wi_d);
   cudaFree(wa_d);
+  cudaFree(tswc_d);
 }
 
 // Gather unfinished work assignments.

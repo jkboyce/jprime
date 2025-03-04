@@ -121,11 +121,11 @@ class Coordinator {
   unsigned num_workers;
   size_t pattern_buffer_size;
 
+  // memory blocks in GPU global memory
   statenum_t* pb_d;
   WorkerInfo* wi_d;
   WorkAssignmentCell* wa_d;
-
- // defined in CoordinatorCUDA.cu
+  ThreadStorageWorkCell* tswc_d;
 
  private:
   void run_cuda();
@@ -147,13 +147,18 @@ class Coordinator {
   void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<WorkAssignmentCell>& wa_h);
   void launch_cuda_kernel(unsigned num_blocks, unsigned num_threadsperblock,
-    size_t shared_memory_size, CudaAlgorithm alg, unsigned num_steps);
+    size_t shared_memory_size, CudaAlgorithm alg, unsigned cycles);
   void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
       std::vector<WorkAssignmentCell>& wa_h);
   void process_worker_results(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
   void process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
+  uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
+    std::chrono::time_point<std::chrono::system_clock> prev_after_kernel,
+    std::chrono::time_point<std::chrono::system_clock> before_kernel,
+    std::chrono::time_point<std::chrono::system_clock> after_kernel,
+    unsigned num_done);
     
   // cleanup
   void cleanup_gpu_memory();
