@@ -77,8 +77,8 @@ __global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
 
   // set up shared memory
   //
-  // used[] arrays for 32 threads are stored in (numstates_d + 1)/32 instances
-  // of ThreadStorageUsed, each of which is 32 uint32s
+  // used[] bitfields for 32 threads are stored in (numstates_d + 1)/32
+  // instances of ThreadStorageUsed, each of which is 32 uint32s
   //
   // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
   // instances of ThreadStorageWorkCell, each of which is 64 uint32s
@@ -224,8 +224,8 @@ __global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
 
 __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
-        unsigned n_min, const unsigned n_max, const bool report,
-        const uint64_t cycles) {
+        const unsigned n_min, const unsigned n_max, const bool report,
+        uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].done) {
     return;
@@ -239,11 +239,16 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   uint64_t nnodes = wi_d[id].nnodes;
   const uint8_t outdegree = maxoutdegree_d;
 
+  // find base address of ThreadStorageWorkCell[] for this thread
+  ThreadStorageWorkCell* start_warp = &wa_d[(id / 32) * n_max];
+  uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
+  ThreadStorageWorkCell* const tswc =
+      reinterpret_cast<ThreadStorageWorkCell*>(&start_warp_u32[id & 31]);
+
   // set up shared memory
   //
-  // used[] is stored as a bitfield in uint32s, with 32 threads interleaved
-  // in ThreadStorageUsed to avoid memory bank contention. Each thread uses
-  // storage from (numstates_d + 1)/32 instances of ThreadStorageUsed.
+  // used[] bitfields for 32 threads are stored in (numstates_d + 1)/32
+  // instances of ThreadStorageUsed, each of which is 32 uint32s
   //
   // WorkAssignmentCell[] arrays for 32 threads are stored in (n_max)
   // instances of ThreadStorageWorkCell, each of which is 64 uint32s
@@ -251,24 +256,19 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   extern __shared__ uint32_t shared[];
   ThreadStorageUsed* used = (ThreadStorageUsed*)
       &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
-            (threadIdx.x % 32)];
-  ThreadStorageWorkCell* workcell_s = (ThreadStorageWorkCell*)
+            (threadIdx.x & 31)];
+  ThreadStorageWorkCell* workcell = (ThreadStorageWorkCell*)
       &shared[
           ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
-          (threadIdx.x / 32) * 64 * n_max + (threadIdx.x % 32)
+          (threadIdx.x / 32) * 64 * n_max + (threadIdx.x & 31)
       ];
-  
-  // workcells in global memory
-  ThreadStorageWorkCell* workcell_g = 0; // TODO
-
-  ThreadStorageWorkCell* workcell = workcell_s;
 
   // initialize workcell[] array
   for (int i = 0; i < n_max; ++i) {
-    workcell[i].col = wa_d[id * n_max + i].col;
-    workcell[i].col_limit = wa_d[id * n_max + i].col_limit;
-    workcell[i].from_state = wa_d[id * n_max + i].from_state;
-    workcell[i].count = wa_d[id * n_max + i].count;
+    workcell[i].col = tswc[i].col;
+    workcell[i].col_limit = tswc[i].col_limit;
+    workcell[i].from_state = tswc[i].from_state;
+    workcell[i].count = tswc[i].count;
   }
 
   // initialize used[] array
@@ -384,10 +384,10 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
 
   // save workcell[] array
   for (int i = 0; i < n_max; ++i) {
-    wa_d[id * n_max + i].col = workcell[i].col;
-    wa_d[id * n_max + i].col_limit = workcell[i].col_limit;
-    wa_d[id * n_max + i].from_state = workcell[i].from_state;
-    wa_d[id * n_max + i].count = workcell[i].count;
+    tswc[i].col = workcell[i].col;
+    tswc[i].col_limit = workcell[i].col_limit;
+    tswc[i].from_state = workcell[i].from_state;
+    tswc[i].count = workcell[i].count;
   }
 }
 
@@ -417,19 +417,21 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 
   // set up shared memory
   //
-  // unused[] arrays for 32 threads are stored in (numstates_d + 1) instances
-  // of ThreadStorageUsed, each of which is 32 uint32s
+  // used[] bitfields for 32 threads are stored in (numstates_d + 1)/32
+  // instances of ThreadStorageUsed, each of which is 32 uint32s
 
   extern __shared__ uint32_t shared[];
   ThreadStorageUsed* used = (ThreadStorageUsed*)
-      &shared[(threadIdx.x / 32) * 32 * (numstates_d + 1) + (threadIdx.x & 31)];
+      &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
+            (threadIdx.x & 31)];
 
   // initialize used[] array
-  for (int i = 0; i <= numstates_d; ++i) {
+  for (int i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].used = 0;
   }
   for (int i = 1; i <= pos; ++i) {
-    used[tswc[i].from_state].used = 1;
+    const statenum_t from = tswc[i].from_state;
+    used[from / 32].used |= (1u << (from & 31));
   }
 
   ThreadStorageWorkCell* ss = &tswc[pos];
@@ -437,7 +439,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
   while (true) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
-      used[ss->from_state].used = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -463,7 +465,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 
     if (to_state == 0) {
       // beat is finished, go back to previous one
-      used[ss->from_state].used = 0;
+      used[ss->from_state / 32].used &= ~(1u << (ss->from_state & 31));
       ++nnodes;
 
       if (pos == 0) {
@@ -507,7 +509,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
       continue;
     }
 
-    if (used[to_state].used) {
+    if (used[to_state / 32].used & (1u << (to_state & 31))) {
       ++ss->col;
       continue;
     }
@@ -527,7 +529,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
     ss->col = 0;
     ss->col_limit = outdegree;
     ss->from_state = to_state;
-    used[to_state].used = 1;
+    used[to_state / 32].used |= (1u << (to_state & 31));
   }
 
   wi_d[id].start_state = st_state;
@@ -550,7 +552,8 @@ jprime 3 9 -cuda -count
 30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
 --> 61.0728 sec on 10 CPU cores
 22.2 sec (shared, 56 x 160) 96640 bytes
-33.2 sec (global, 56 x 160) 54400 bytes
+32.9 sec (global, 56 x 160) 1920 bytes
+27.7 sec (global, 56 x 480) 5760 bytes
 
 
 jprime 3 11 1-25 -count
@@ -699,9 +702,9 @@ CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph) {
       // the overhead of marking is only worth it for long-period patterns
       alg = CudaAlgorithm::NORMAL_MARKING;
     } else if (config.countflag) {
-      alg = CudaAlgorithm::NORMAL;
+      alg = CudaAlgorithm::NORMAL2;
     } else {
-      alg = CudaAlgorithm::NORMAL;
+      alg = CudaAlgorithm::NORMAL2;
     }
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     if (config.shiftlimit == 0) {
@@ -777,7 +780,7 @@ size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
     // used[] as uint32s
     // WorkAssignmentCells in global memory
     shared_bytes = ((num_threadsperblock + 31) / 32) * (
-        128 * (num_states + 1)    // used[]
+      128 * (((num_states + 1) + 31) / 32)    // used[]
     );
   }
 
