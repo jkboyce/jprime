@@ -43,18 +43,27 @@ struct WorkAssignmentCell {  // 8 bytes
   uint32_t count = 0;  // output
 };
 
+// For sorting WorkAssignments during splitting
 
 struct WorkAssignmentLine {
   unsigned id;
   WorkAssignment wa;
 };
 
+// Storage for used[] bitarray, for 32 threads = 32 bits per thread. Each state
+// in the graph maps onto a single bit.
+//
+// Data layout gives each thread its own bank in shared memory
 
 struct ThreadStorageUsed {  // 128 bytes
   uint32_t used;
   uint32_t unused[31];
 };
 
+// Storage for a single work cell (single value of `pos`), for 32 threads =
+// 8 bytes per thread
+//
+// Data layout gives each thread its own bank in shared memory
 
 struct ThreadStorageWorkCell {  // 256 bytes
   uint8_t col;

@@ -52,8 +52,8 @@ __device__ uint32_t pattern_index_d = 0;
 //------------------------------------------------------------------------------
 
 
-__global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
-        WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
+__global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
+        WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
         const unsigned n_min, const unsigned n_max, const bool report,
         uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -69,6 +69,12 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
   uint64_t nnodes = wi_d[id].nnodes;
   const uint8_t outdegree = maxoutdegree_d;
 
+  // find base address of ThreadStorageWorkCell[] for this thread
+  ThreadStorageWorkCell* start_warp = &wa_d[(id / 32) * n_max];
+  uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
+  ThreadStorageWorkCell* const tswc =
+      reinterpret_cast<ThreadStorageWorkCell*>(&start_warp_u32[id & 31]);
+
   // set up shared memory
   //
   // used[] arrays for 32 threads are stored in (numstates_d + 1)/32 instances
@@ -80,19 +86,19 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
   extern __shared__ uint32_t shared[];
   ThreadStorageUsed* used = (ThreadStorageUsed*)
       &shared[(threadIdx.x / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
-            (threadIdx.x % 32)];
+            (threadIdx.x & 31)];
   ThreadStorageWorkCell* workcell = (ThreadStorageWorkCell*)
       &shared[
           ((blockDim.x + 31) / 32) * 32 * (((numstates_d + 1) + 31) / 32) +
-          (threadIdx.x / 32) * 64 * n_max + (threadIdx.x % 32)
+          (threadIdx.x / 32) * 64 * n_max + (threadIdx.x & 31)
       ];
 
   // initialize workcell[] array
   for (int i = 0; i < n_max; ++i) {
-    workcell[i].col = wa_d[id * n_max + i].col;
-    workcell[i].col_limit = wa_d[id * n_max + i].col_limit;
-    workcell[i].from_state = wa_d[id * n_max + i].from_state;
-    workcell[i].count = wa_d[id * n_max + i].count;
+    workcell[i].col = tswc[i].col;
+    workcell[i].col_limit = tswc[i].col_limit;
+    workcell[i].from_state = tswc[i].from_state;
+    workcell[i].count = tswc[i].count;
   }
 
   // initialize used[] array
@@ -208,17 +214,16 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
   // save workcell[] array
   for (int i = 0; i < n_max; ++i) {
-    wa_d[id * n_max + i].col = workcell[i].col;
-    wa_d[id * n_max + i].col_limit = workcell[i].col_limit;
-    wa_d[id * n_max + i].from_state = workcell[i].from_state;
-    wa_d[id * n_max + i].count = workcell[i].count;
+    tswc[i].col = workcell[i].col;
+    tswc[i].col_limit = workcell[i].col_limit;
+    tswc[i].from_state = workcell[i].from_state;
+    tswc[i].count = workcell[i].count;
   }
 }
 
 
-__global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
-        WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
-        ThreadStorageWorkCell* tswc_d,
+__global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
+        WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
         unsigned n_min, const unsigned n_max, const bool report,
         const uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -388,7 +393,7 @@ __global__ void cuda_gen_loops_normal2(statenum_t* const patterns_d,
 
 
 __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
-        WorkerInfo* const wi_d, WorkAssignmentCell* const wa_d,
+        WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
         const unsigned n_min, const unsigned n_max, const bool report,
         const uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -404,6 +409,12 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
   uint64_t nnodes = wi_d[id].nnodes;
   const uint8_t outdegree = maxoutdegree_d;
 
+  // find base address of ThreadStorageWorkCell[] for this thread
+  ThreadStorageWorkCell* start_warp = &wa_d[(id / 32) * n_max];
+  uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
+  ThreadStorageWorkCell* const tswc =
+      reinterpret_cast<ThreadStorageWorkCell*>(&start_warp_u32[id & 31]);
+
   // set up shared memory
   //
   // unused[] arrays for 32 threads are stored in (numstates_d + 1) instances
@@ -411,17 +422,17 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
 
   extern __shared__ uint32_t shared[];
   ThreadStorageUsed* used = (ThreadStorageUsed*)
-      &shared[(threadIdx.x / 32) * 32 * (numstates_d + 1) + (threadIdx.x % 32)];
+      &shared[(threadIdx.x / 32) * 32 * (numstates_d + 1) + (threadIdx.x & 31)];
 
   // initialize used[] array
   for (int i = 0; i <= numstates_d; ++i) {
     used[i].used = 0;
   }
   for (int i = 1; i <= pos; ++i) {
-    used[wa_d[id * n_max + i].from_state].used = 1;
+    used[tswc[i].from_state].used = 1;
   }
 
-  WorkAssignmentCell* ss = &wa_d[id * n_max + pos];
+  ThreadStorageWorkCell* ss = &tswc[pos];
 
   while (true) {
     if (ss->col == ss->col_limit) {
@@ -479,7 +490,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
         const uint32_t idx = atomicAdd(&pattern_index_d, 1);
         if (idx < pattern_buffer_size_d) {
           for (int j = 0; j <= pos; ++j) {
-            patterns_d[idx * n_max + j] = wa_d[id * n_max + j].from_state;
+            patterns_d[idx * n_max + j] = tswc[j].from_state;
           }
           if (pos + 1 < n_max) {
             patterns_d[idx * n_max + pos + 1] = 0;
@@ -538,8 +549,16 @@ jprime 3 8 -cuda -count
 jprime 3 9 -cuda -count
 30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
 --> 61.0728 sec on 10 CPU cores
-22.2 sec (normal, 56 x 160) 96640 bytes
+22.2 sec (shared, 56 x 160) 96640 bytes
+33.2 sec (global, 56 x 160) 54400 bytes
 
+
+jprime 3 11 1-25 -count
+19638164481 patterns in range (19638164481 seen, 94368010897 nodes)
+--> 62.8 sec on 10 CPU cores
+18.10 sec (shared, 56 x 160) 34560 bytes
+10.57 sec (shared, 56 x 320) 71680 bytes
+8.69 sec (shared, 56 x 448) 100352 bytes
 
 */
 
@@ -576,7 +595,7 @@ void Coordinator::run_cuda() {
   copy_static_vars_to_gpu(graph);
 
   std::vector<WorkerInfo> wi_h(num_workers);
-  std::vector<WorkAssignmentCell> wa_h(num_workers * n_max);
+  std::vector<ThreadStorageWorkCell> wa_h(((num_workers + 31) / 32) * n_max);
   load_initial_work_assignments(graph, wi_h, wa_h);
 
   // 2. Main loop
@@ -678,7 +697,7 @@ CudaAlgorithm Coordinator::select_CUDA_search_algorithm(const Graph& graph) {
         static_cast<double>(config.n_min) >
         0.66 * static_cast<double>(max_possible)) {
       // the overhead of marking is only worth it for long-period patterns
-      alg = CudaAlgorithm::NORMAL;
+      alg = CudaAlgorithm::NORMAL_MARKING;
     } else if (config.countflag) {
       alg = CudaAlgorithm::NORMAL;
     } else {
@@ -775,9 +794,9 @@ size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
 // Set up CUDA shared memory configuration.
 
 void Coordinator::configure_cuda_shared_memory(size_t shared_memory_size) {
-  cudaFuncSetAttribute(cuda_gen_loops_normal,
+  cudaFuncSetAttribute(cuda_gen_loops_normal_shared,
     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
-  cudaFuncSetAttribute(cuda_gen_loops_normal2,
+  cudaFuncSetAttribute(cuda_gen_loops_normal_hybrid,
     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
   cudaFuncSetAttribute(cuda_gen_loops_normal_global,
     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
@@ -793,10 +812,7 @@ void Coordinator::allocate_gpu_memory() {
       cudaMalloc(&wi_d, sizeof(WorkerInfo) * num_workers),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMalloc(&wa_d, sizeof(WorkAssignmentCell) * n_max * num_workers),
-      __FILE__, __LINE__);
-  throw_on_cuda_error(
-      cudaMalloc(&tswc_d, sizeof(ThreadStorageWorkCell) * n_max *
+      cudaMalloc(&wa_d, sizeof(ThreadStorageWorkCell) * n_max *
           ((num_workers + 31) / 32)),
       __FILE__, __LINE__);
 }
@@ -837,17 +853,30 @@ void Coordinator::copy_static_vars_to_gpu(const Graph& graph) {
 // Main loop
 //------------------------------------------------------------------------------
 
+// Return a reference to the ThreadStorageWorkCell for thread `id`, position
+// `pos`, with `n_max` workcells per thread.
+
+ThreadStorageWorkCell& tswc(std::vector<ThreadStorageWorkCell>& wa_h,
+      unsigned n_max, unsigned id, unsigned pos) {
+  ThreadStorageWorkCell* start_warp = &wa_h.at((id / 32) * n_max);
+  uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
+
+  ThreadStorageWorkCell* start_thread =
+      reinterpret_cast<ThreadStorageWorkCell*>(&start_warp_u32[id & 31]);
+  return start_thread[pos];
+}
+
+
 // Copy worker data to the GPU.
 
 void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h) {
+    std::vector<ThreadStorageWorkCell>& wa_h) {
   throw_on_cuda_error(
-      cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * num_workers,
+      cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * wi_h.size(),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(wa_d, wa_h.data(),
-          sizeof(WorkAssignmentCell) * num_workers * n_max,
+      cudaMemcpy(wa_d, wa_h.data(), sizeof(ThreadStorageWorkCell) * wa_h.size(),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
 }
@@ -859,14 +888,14 @@ void Coordinator::launch_cuda_kernel(unsigned num_blocks,
     unsigned cycles) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
-      cuda_gen_loops_normal
+      cuda_gen_loops_normal_shared
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
         (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag, cycles);
       break;
     case CudaAlgorithm::NORMAL2:
-      cuda_gen_loops_normal2
+      cuda_gen_loops_normal_hybrid
         <<<num_blocks, num_threadsperblock, shared_memory_size>>>
-        (pb_d, wi_d, wa_d, tswc_d, config.n_min, n_max, !config.countflag,
+        (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag,
         cycles);
       break;
     case CudaAlgorithm::NORMAL_GLOBAL:
@@ -890,14 +919,13 @@ void Coordinator::launch_cuda_kernel(unsigned num_blocks,
 // Copy worker data from the GPU.
 
 void Coordinator::copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h) {
+    std::vector<ThreadStorageWorkCell>& wa_h) {
   throw_on_cuda_error(
-      cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * num_workers,
+      cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * wi_h.size(),
           cudaMemcpyDeviceToHost),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(wa_h.data(), wa_d,
-          sizeof(WorkAssignmentCell) * num_workers * n_max,
+      cudaMemcpy(wa_h.data(), wa_d, sizeof(ThreadStorageWorkCell) * wa_h.size(),
           cudaMemcpyDeviceToHost),
       __FILE__, __LINE__);
 }
@@ -905,7 +933,7 @@ void Coordinator::copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
 // Process worker results and handle pattern buffer.
 
 void Coordinator::process_worker_results(const Graph& graph,
-      std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h) {
+      std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
   int num_working = 0;
   int num_idle = 0;
 
@@ -920,8 +948,8 @@ void Coordinator::process_worker_results(const Graph& graph,
     msg.worker_id = id;
     msg.count.assign(n_max + 1, 0);
     for (unsigned j = 0; j < n_max; ++j) {
-      msg.count.at(j + 1) = wa_h.at(id * n_max + j).count;
-      wa_h.at(id * n_max + j).count = 0;
+      msg.count.at(j + 1) = tswc(wa_h, n_max, id, j).count;
+      tswc(wa_h, n_max, id, j).count = 0;
     }
     msg.nnodes = wi_h.at(id).nnodes;
     wi_h.at(id).nnodes = 0;
@@ -1072,13 +1100,12 @@ void Coordinator::cleanup_gpu_memory() {
   cudaFree(pb_d);
   cudaFree(wi_d);
   cudaFree(wa_d);
-  cudaFree(tswc_d);
 }
 
 // Gather unfinished work assignments.
 
 void Coordinator::gather_unfinished_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h) {
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
   for (unsigned id = 0; id < num_workers; ++id) {
     if (!wi_h.at(id).done) {
       WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph);
@@ -1094,7 +1121,7 @@ void Coordinator::gather_unfinished_work_assignments(const Graph& graph,
 // Load initial work assignments.
 
 void Coordinator::load_initial_work_assignments(const Graph& graph,
-      std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h)  {
+      std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h)  {
   for (int id = 0; id < num_workers; ++id) {
     if (context.assignments.size() > 0) {
       WorkAssignment wa = context.assignments.front();
@@ -1114,11 +1141,11 @@ void Coordinator::load_initial_work_assignments(const Graph& graph,
 }
 
 // Load a work assignment into a worker's slot in the `WorkerInfo` and
-// `WorkAssignmentCell` arrays.
+// `ThreadStorageWorkCell` arrays.
 
 void Coordinator::load_work_assignment(const unsigned id,
     const WorkAssignment& wa, std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h, const Graph& graph) {
+    std::vector<ThreadStorageWorkCell>& wa_h, const Graph& graph) {
   unsigned start_state = wa.start_state;
   unsigned end_state = wa.end_state;
   if (start_state == 0) {
@@ -1136,16 +1163,16 @@ void Coordinator::load_work_assignment(const unsigned id,
   wi_h.at(id).nnodes = 0;
   wi_h.at(id).done = 0;
 
-  // set up WorkAssignmentCells
+  // set up workcells
 
   for (unsigned i = 0; i < n_max; ++i) {
-    wa_h.at(id * n_max + i).count = 0;
+    tswc(wa_h, n_max, id, i).count = 0;
   }
 
   // default if `wa.partial_pattern` is empty
-  wa_h.at(id * n_max).col = 0;
-  wa_h.at(id * n_max).col_limit = static_cast<uint8_t>(graph.maxoutdegree);
-  wa_h.at(id * n_max).from_state = start_state;
+  tswc(wa_h, n_max, id, 0).col = 0;
+  tswc(wa_h, n_max, id, 0).col_limit = static_cast<uint8_t>(graph.maxoutdegree);
+  tswc(wa_h, n_max, id, 0).from_state = start_state;
 
   unsigned from_state = start_state;
 
@@ -1159,15 +1186,15 @@ void Coordinator::load_work_assignment(const unsigned id,
 
       to_state = graph.outmatrix.at(from_state).at(j);
 
-      wa_h.at(id * n_max + i).col = static_cast<uint8_t>(j);
-      wa_h.at(id * n_max + i).col_limit = (i < wa.root_pos ?
+      tswc(wa_h, n_max, id, i).col = static_cast<uint8_t>(j);
+      tswc(wa_h, n_max, id, i).col_limit = (i < wa.root_pos ?
           static_cast<uint8_t>(j + 1) :
           static_cast<uint8_t>(graph.maxoutdegree));
 
-      wa_h.at(id * n_max + i + 1).col = 0;
-      wa_h.at(id * n_max + i + 1).col_limit =
+      tswc(wa_h, n_max, id, i + 1).col = 0;
+      tswc(wa_h, n_max, id, i + 1).col_limit =
           static_cast<uint8_t>(graph.maxoutdegree);
-      wa_h.at(id * n_max + i + 1).from_state = to_state;
+      tswc(wa_h, n_max, id, i + 1).from_state = to_state;
       break;
     }
     if (to_state == 0) {
@@ -1184,7 +1211,7 @@ void Coordinator::load_work_assignment(const unsigned id,
 
   // fix `col` and `col_limit` at position `root_pos`
   if (wa.root_throwval_options.size() > 0) {
-    statenum_t from_state = wa_h.at(id * n_max + wa.root_pos).from_state;
+    statenum_t from_state = tswc(wa_h, n_max, id, wa.root_pos).from_state;
     unsigned col = graph.maxoutdegree;
     unsigned col_limit = 0;
 
@@ -1203,8 +1230,8 @@ void Coordinator::load_work_assignment(const unsigned id,
       }
     }
 
-    wa_h.at(id * n_max + wa.root_pos).col = col;
-    wa_h.at(id * n_max + wa.root_pos).col_limit = col_limit;
+    tswc(wa_h, n_max, id, wa.root_pos).col = col;
+    tswc(wa_h, n_max, id, wa.root_pos).col_limit = col_limit;
   }
 
   /*
@@ -1220,7 +1247,7 @@ void Coordinator::load_work_assignment(const unsigned id,
 // Read out the current work assignment for worker `id`.
 
 WorkAssignment Coordinator::read_work_assignment(unsigned id,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph) {
   WorkAssignment wa;
 
@@ -1230,10 +1257,10 @@ WorkAssignment Coordinator::read_work_assignment(unsigned id,
   bool root_pos_found = false;
 
   for (unsigned i = 0; i <= wi_h.at(id).pos; ++i) {
-    const unsigned from_state = wa_h.at(id * n_max + i).from_state;
-    unsigned col = wa_h.at(id * n_max + i).col;
+    const unsigned from_state = tswc(wa_h, n_max, id, i).from_state;
+    unsigned col = tswc(wa_h, n_max, id, i).col;
     const unsigned col_limit = std::min(graph.outdegree.at(from_state),
-                  static_cast<unsigned>(wa_h.at(id * n_max + i).col_limit));
+                  static_cast<unsigned>(tswc(wa_h, n_max, id, i).col_limit));
 
     wa.partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
 
@@ -1256,7 +1283,7 @@ WorkAssignment Coordinator::read_work_assignment(unsigned id,
 // Assign new jobs to idle workers
 
 void Coordinator::assign_new_jobs(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h) {
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
 
   // sort the running work assignments to find the best ones to split
   std::vector<WorkAssignmentLine> sorted_assignments;

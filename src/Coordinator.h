@@ -124,8 +124,7 @@ class Coordinator {
   // memory blocks in GPU global memory
   statenum_t* pb_d;
   WorkerInfo* wi_d;
-  WorkAssignmentCell* wa_d;
-  ThreadStorageWorkCell* tswc_d;
+  ThreadStorageWorkCell* wa_d;
 
  private:
   void run_cuda();
@@ -145,13 +144,13 @@ class Coordinator {
 
   // main loop
   void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h);
+    std::vector<ThreadStorageWorkCell>& wa_h);
   void launch_cuda_kernel(unsigned num_blocks, unsigned num_threadsperblock,
     size_t shared_memory_size, CudaAlgorithm alg, unsigned cycles);
   void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
-      std::vector<WorkAssignmentCell>& wa_h);
+      std::vector<ThreadStorageWorkCell>& wa_h);
   void process_worker_results(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
   void process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
@@ -163,19 +162,19 @@ class Coordinator {
   // cleanup
   void cleanup_gpu_memory();
   void gather_unfinished_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
 
   // manage work assignments
   void load_initial_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h);
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
   void load_work_assignment(const unsigned id, const WorkAssignment& wa,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph);
   WorkAssignment read_work_assignment(unsigned id,
-    std::vector<WorkerInfo>& wi_h, std::vector<WorkAssignmentCell>& wa_h,
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph);
   void assign_new_jobs(const Graph& graph, std::vector<WorkerInfo>& wi_h,
-    std::vector<WorkAssignmentCell>& wa_h);
+    std::vector<ThreadStorageWorkCell>& wa_h);
     
   // helper
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
