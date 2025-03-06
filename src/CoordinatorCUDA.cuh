@@ -32,7 +32,7 @@ struct WorkerInfo {  // 16 bytes
   statenum_t end_state = 0;  // highest value of `start_state` (input)
   uint16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
   uint64_t nnodes = 0;  // number of nodes completed (output)
-  uint16_t done = 1;  // 1 if worker is done, 0 otherwise (output)
+  uint16_t status = 1;  // bit 0 = is worker done, other bits unused
 };
 
 

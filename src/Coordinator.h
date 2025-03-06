@@ -125,6 +125,10 @@ class Coordinator {
   statenum_t* pb_d;
   WorkerInfo* wi_d;
   ThreadStorageWorkCell* wa_d;
+  unsigned hybrid_lower_pos_shared = 0;
+  unsigned hybrid_upper_pos_shared = 0;
+  double total_kernel_time = 0;
+  double total_host_time = 0;
 
  private:
   void run_cuda();
