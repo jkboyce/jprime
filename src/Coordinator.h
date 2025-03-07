@@ -118,17 +118,22 @@ class Coordinator {
 //#ifdef CUDA_ENABLED
 
  private:
-  unsigned num_workers;
-  size_t pattern_buffer_size;
+  double total_kernel_time = 0;
+  double total_host_time = 0;
 
   // memory blocks in GPU global memory
   statenum_t* pb_d;
   WorkerInfo* wi_d;
   ThreadStorageWorkCell* wa_d;
-  unsigned hybrid_lower_pos_shared = 0;
-  unsigned hybrid_upper_pos_shared = 0;
-  double total_kernel_time = 0;
-  double total_host_time = 0;
+
+  // GPU runtime parameters
+  unsigned num_blocks;
+  unsigned num_threadsperblock;
+  unsigned num_workers;
+  size_t pattern_buffer_size;
+  size_t shared_memory_size;
+  unsigned window_lower;
+  unsigned window_upper;
 
  private:
   void run_cuda();
@@ -136,13 +141,15 @@ class Coordinator {
   // setup
   cudaDeviceProp initialize_cuda_device();
   Graph build_and_reduce_graph();
-  CudaAlgorithm select_CUDA_search_algorithm(const Graph& graph);
+  CudaAlgorithm select_cuda_search_algorithm(const Graph& graph);
   std::vector<statenum_t> make_graph_buffer(const Graph& graph,
     CudaAlgorithm alg);
+  void set_runtime_params(const cudaDeviceProp& prop, CudaAlgorithm alg,
+    unsigned num_states);
   size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
-    unsigned num_threadsperblock);
+    unsigned threadsperblock);
   void configure_cuda_shared_memory(size_t shared_memory_size);
-  void allocate_gpu_memory();
+  void allocate_gpu_device_memory();
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
   void copy_static_vars_to_gpu(const Graph& graph);
 
