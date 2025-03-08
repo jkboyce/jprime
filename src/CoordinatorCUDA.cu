@@ -225,7 +225,7 @@ __global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
 __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
         const unsigned n_min, const unsigned n_max,
-        const unsigned pos_lower_shared, const unsigned pos_upper_shared,
+        const unsigned pos_lower_s, const unsigned pos_upper_s,
         const bool report, uint64_t cycles) {
   const int id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].status & 1) {
@@ -243,9 +243,9 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   // find base address of workcell[] in device memory, for this thread
 
   ThreadStorageWorkCell* const warp_start = &wa_d[(id / 32) * n_max];
-  uint32_t* const start_warp_u32 = reinterpret_cast<uint32_t*>(warp_start);
+  uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
   ThreadStorageWorkCell* const workcell_d =
-      reinterpret_cast<ThreadStorageWorkCell*>(&start_warp_u32[id & 31]);
+      reinterpret_cast<ThreadStorageWorkCell*>(&warp_start_u32[id & 31]);
 
   // set up shared memory
   //
@@ -263,13 +263,14 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   ThreadStorageUsed* const used_s = (ThreadStorageUsed*)
       &shared[(threadIdx.x / 32) * (sizeof(ThreadStorageUsed) / 4) *
             (((numstates_d + 1) + 31) / 32) + (threadIdx.x & 31)];
-  const unsigned upper = (n_max < pos_upper_shared ? n_max : pos_upper_shared);
-  ThreadStorageWorkCell* const workcell_s = (pos_lower_shared < n_max) ?
+  const unsigned upper = (n_max < pos_upper_s ? n_max : pos_upper_s);
+  ThreadStorageWorkCell* const workcell_s =
+      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
       (ThreadStorageWorkCell*)&shared[
           ((blockDim.x + 31) / 32) * (sizeof(ThreadStorageUsed) / 4) *
                 (((numstates_d + 1) + 31) / 32) +
           (threadIdx.x / 32) * (sizeof(ThreadStorageWorkCell) / 4) *
-                (upper - pos_lower_shared) + (threadIdx.x & 31)
+                (upper - pos_lower_s) + (threadIdx.x & 31)
       ] : nullptr;
 
   // initialize used_s[]
@@ -282,31 +283,36 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   }
 
   // initialize workcell_s[]
-  for (int i = pos_lower_shared; i < pos_upper_shared; ++i) {
+  for (int i = pos_lower_s; i < pos_upper_s; ++i) {
     if (workcell_s != nullptr && i < n_max) {
-      workcell_s[i - pos_lower_shared].col = workcell_d[i].col;
-      workcell_s[i - pos_lower_shared].col_limit = workcell_d[i].col_limit;
-      workcell_s[i - pos_lower_shared].from_state = workcell_d[i].from_state;
-      workcell_s[i - pos_lower_shared].count = workcell_d[i].count;
+      workcell_s[i - pos_lower_s].col = workcell_d[i].col;
+      workcell_s[i - pos_lower_s].col_limit = workcell_d[i].col_limit;
+      workcell_s[i - pos_lower_s].from_state = workcell_d[i].from_state;
+      workcell_s[i - pos_lower_s].count = workcell_d[i].count;
     }
   }
 
   // set up four pointers to indicate when we're moving between the portions of
   // workcell[] in device memory and shared memory
   ThreadStorageWorkCell* const workcell_pos_lower_minus1 =
-      (pos_lower_shared > 0 && pos_lower_shared <= n_max) ?
-      &workcell_d[pos_lower_shared - 1] : nullptr;
+      (pos_lower_s > 0 && pos_lower_s <= n_max &&
+            pos_lower_s < pos_upper_s) ?
+      &workcell_d[pos_lower_s - 1] : nullptr;
   ThreadStorageWorkCell* const workcell_pos_lower =
-      (pos_lower_shared < n_max) ? &workcell_s[0] : nullptr;
+      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
+      &workcell_s[0] : nullptr;
   ThreadStorageWorkCell* const workcell_pos_upper =
-      (pos_lower_shared < pos_upper_shared && pos_upper_shared < n_max) ?
-      &workcell_s[pos_upper_shared - pos_lower_shared - 1] : nullptr;
+      (pos_lower_s < pos_upper_s && pos_upper_s < n_max &&
+          pos_lower_s < pos_upper_s) ?
+      &workcell_s[pos_upper_s - pos_lower_s - 1] : nullptr;
   ThreadStorageWorkCell* const workcell_pos_upper_plus1 =
-      (pos_upper_shared < n_max) ? &workcell_d[pos_upper_shared] : nullptr;
+      (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
+      &workcell_d[pos_upper_s] : nullptr;
 
+  // initialize current workcell pointer
   ThreadStorageWorkCell* ss =
-      (pos >= pos_lower_shared && pos < pos_upper_shared) ?
-      &workcell_s[pos - pos_lower_shared] : &workcell_d[pos];
+      (pos >= pos_lower_s && pos < pos_upper_s) ?
+      &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
 
   while (true) {
     if (ss->col == ss->col_limit) {
@@ -375,10 +381,11 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
       if (report && pos + 1 >= n_min) {
         const uint32_t idx = atomicAdd(&pattern_index_d, 1);
         if (idx < pattern_buffer_size_d) {
+          // write to the pattern buffer
           for (int j = 0; j <= pos; ++j) {
-            patterns_d[idx * n_max + j] = 
-              (j >= pos_lower_shared && j < pos_upper_shared) ?
-              workcell_s[j - pos_lower_shared].from_state :
+            patterns_d[idx * n_max + j] =
+              (j >= pos_lower_s && j < pos_upper_s) ?
+              workcell_s[j - pos_lower_s].from_state :
               workcell_d[j].from_state;
           }
           if (pos + 1 < n_max) {
@@ -431,12 +438,12 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   wi_d[id].nnodes = nnodes;
 
   // save workcell_s[] to device memory
-  for (int i = pos_lower_shared; i < pos_upper_shared; ++i) {
+  for (int i = pos_lower_s; i < pos_upper_s; ++i) {
     if (workcell_s != nullptr && i < n_max) {
-      workcell_d[i].col = workcell_s[i - pos_lower_shared].col;
-      workcell_d[i].col_limit = workcell_s[i - pos_lower_shared].col_limit;
-      workcell_d[i].from_state = workcell_s[i - pos_lower_shared].from_state;
-      workcell_d[i].count = workcell_s[i - pos_lower_shared].count;
+      workcell_d[i].col = workcell_s[i - pos_lower_s].col;
+      workcell_d[i].col_limit = workcell_s[i - pos_lower_s].col_limit;
+      workcell_d[i].from_state = workcell_s[i - pos_lower_s].from_state;
+      workcell_d[i].count = workcell_s[i - pos_lower_s].count;
     }
   }
 }
@@ -801,6 +808,48 @@ std::vector<statenum_t> Coordinator::make_graph_buffer(const Graph& graph,
   return graph_buffer;
 }
 
+// Speedup as a function of number of warps per block, for different different
+// locations for the workcell[] array
+//
+// columns are {warps, shared memory, global memory}
+
+const double throughput[33][3] = {
+  {  0,  0.000, 0.000 },
+  {  1,  1.000, 0.984 },  // measured
+  {  2,  1.987, 1.944 },
+  {  3,  2.936, 2.875 },
+  {  4,  3.873, 3.784 },
+  {  5,  4.715, 4.607 },
+  {  6,  5.600, 5.438 },
+  {  7,  6.421, 6.225 },
+  {  8,  7.223, 6.982 },
+  {  9,  7.961, 7.675 },
+  { 10,  8.691, 8.291 },
+  { 11,  9.354, 8.634 },
+  { 12, 10.060, 8.893 },
+  { 13, 10.618, 8.850 },
+  { 14, 11.186, 8.988 },
+  { 15, 11.758, 9.068 },
+  { 16, 12.260, 9.131 },
+  { 17, 12.683, 9.077 },
+  { 18, 13.155, 9.260 },
+  { 19, 13.522, 9.204 },
+  { 20, 13.869, 9.186 },
+  { 21, 14.234, 9.186 },
+  { 22, 14.390, 9.077 },
+  { 23, 14.618, 9.122 },
+  { 24, 14.927, 9.077 },
+  { 25, 15.049, 8.919 },
+  { 26, 15.148, 8.774 },
+
+  { 27, 15.307, 8.774 },  // extrapolated
+  { 28, 15.466, 8.774 },
+  { 29, 15.624, 8.774 },
+  { 30, 15.783, 8.774 },
+  { 31, 15.941, 8.774 },
+  { 32, 16.100, 8.774 },
+};
+
 // Determine an optimal runtime configuration for the GPU hardware available
 //
 // If the calculation cannot run in any case, throw a `std::runtime_error`
@@ -808,26 +857,93 @@ std::vector<statenum_t> Coordinator::make_graph_buffer(const Graph& graph,
 
 void Coordinator::set_runtime_params(const cudaDeviceProp& prop,
       CudaAlgorithm alg, unsigned num_states) {
-  num_blocks = prop.multiProcessorCount;
-  num_threadsperblock = 32 * 20;
-  num_workers = num_blocks * num_threadsperblock;
-  pattern_buffer_size = 100000;
-  window_lower = 12;
-  window_upper = 30;
-
-  shared_memory_size = calc_shared_memory_size(alg, num_states,
-    num_threadsperblock);
-  
-  if (shared_memory_size > prop.sharedMemPerBlockOptin) {
+  // error if we can't run with one warp and zero window
+  size_t shared_mem = calc_shared_memory_size(alg, num_states,
+      32, n_max, n_max, n_max);
+  if (shared_mem > prop.sharedMemPerBlockOptin) {
     throw std::runtime_error("CUDA error: Not enough shared memory");
   }  
   
+  // create a model for what fraction of memory accesses will occur at each
+  // position in the workcell array; accesses follow a normal distribution
+  const double pos_mean = 0.48 * static_cast<double>(num_states) - 1;
+  const double pos_fwhm = sqrt(pos_mean + 1) * (config.b == 2 ? 3.25 : 2.26);
+  const double pos_sigma = pos_fwhm / (2 * sqrt(2 * log(2)));
+
+  std::vector<double> access_fraction(n_max, 0);
+  double sum = 0;
+  for (int i = 0; i < n_max; ++i) {
+    const auto x = static_cast<double>(i);
+    const double val = exp(-(x - pos_mean) * (x - pos_mean) /
+        (2 * pos_sigma * pos_sigma));
+    access_fraction.at(i) = val;
+    sum += val;
+  }
+  for (int i = 0; i < n_max; ++i) {
+    access_fraction.at(i) /= sum;
+  }
+
+  // consider each warp value in turn, and estimate throughput for each
+  unsigned best_warps = 1;
+  unsigned best_lower = 0;
+  unsigned best_upper = 0;
+  double best_throughput = 0;
+  const int max_warps = prop.maxThreadsPerBlock / 32;
+
+  for (int warps = 1; warps <= max_warps; ++warps) {
+    // find the maximum window size that fits into shared memory
+    unsigned lower = 0;
+    unsigned upper = n_max;
+    for (; upper != 0; --upper) {
+      shared_mem = calc_shared_memory_size(alg, num_states, 32 * warps, n_max,
+            lower, upper);
+      if (shared_mem <= prop.sharedMemPerBlockOptin)
+        break;
+    }
+
+    // slide the window to maximize the area contained by it
+    while (upper < n_max &&
+          access_fraction.at(lower) < access_fraction.at(upper)) {
+      ++lower;
+      ++upper;
+    }
+    double S = 0;
+    for (int i = lower; i < upper; ++i) {
+      S += access_fraction.at(i);
+    }
+
+    // estimate throughput
+    double throughput_avg = throughput[warps][1] * S +
+        throughput[warps][2] * (1 - S);
+    if (throughput_avg > best_throughput + 0.25) {
+      best_throughput = throughput_avg;
+      best_warps = warps;
+      best_lower = lower;
+      best_upper = upper;
+    }
+
+    /*
+    jpout << std::format("warps {}: window [{},{}) S = {}, throughput = {}\n",
+          warps, lower, upper, S, throughput_avg);*/
+  }
+
+  num_blocks = prop.multiProcessorCount;
+  num_threadsperblock = 32 * best_warps;
+  window_lower = best_lower;
+  window_upper = best_upper;
+  num_workers = num_blocks * num_threadsperblock;
+
+  shared_memory_size = calc_shared_memory_size(alg, num_states,
+      num_threadsperblock, n_max, window_lower, window_upper);
+  pattern_buffer_size = (prop.totalGlobalMem / 16) / sizeof(statenum_t) / n_max;
+
   jpout << "Execution parameters:\n"
         << "  algorithm = " << cuda_algs[static_cast<int>(alg)]
         << "\n  num_blocks = " << num_blocks
+        << "\n  warpsperblock = " << best_warps
         << "\n  num_threadsperblock = " << num_threadsperblock
         << "\n  num_workers = " << num_workers
-        << "\n  pattern buffer size = " << pattern_buffer_size << " bytes"
+        << "\n  pattern buffer size = " << pattern_buffer_size << " patterns"
         << "\n  shared memory size = " << shared_memory_size << " bytes"
         << "\n  pos window in shared = [" << window_lower << ','
         << window_upper << ')'
@@ -837,7 +953,8 @@ void Coordinator::set_runtime_params(const cudaDeviceProp& prop,
 // Return the amount of shared memory needed per block, in bytes.
 
 size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
-        unsigned num_states, unsigned num_threadsperblock) {
+        unsigned num_states, unsigned num_threadsperblock, unsigned n_max,
+        unsigned window_lower, unsigned window_upper) {
   size_t shared_bytes = 0;
   if (alg == CudaAlgorithm::NORMAL) {
     // used[] as individual bits in uint32s
@@ -883,9 +1000,11 @@ void Coordinator::configure_cuda_shared_memory(size_t shared_memory_size) {
 // Allocate GPU memory for patterns, WorkerInfo, and WorkAssignmentCells.
 
 void Coordinator::allocate_gpu_device_memory() {
-  throw_on_cuda_error(
-      cudaMalloc(&pb_d, sizeof(statenum_t) * n_max * pattern_buffer_size),
-      __FILE__, __LINE__);
+  if (!config.countflag) {
+    throw_on_cuda_error(
+        cudaMalloc(&pb_d, sizeof(statenum_t) * n_max * pattern_buffer_size),
+        __FILE__, __LINE__);
+  }
   throw_on_cuda_error(
       cudaMalloc(&wi_d, sizeof(WorkerInfo) * num_workers),
       __FILE__, __LINE__);
@@ -1043,6 +1162,9 @@ void Coordinator::process_worker_results(const Graph& graph,
 
 void Coordinator::process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size) {
+  if (config.countflag)
+      return;
+
   // get the number of patterns in the buffer
   uint32_t pattern_count;
   throw_on_cuda_error(
@@ -1162,8 +1284,8 @@ uint64_t Coordinator::calc_next_kernel_cycles(uint64_t last_cycles,
   target_kernel_runtime = std::min(1.0, target_kernel_runtime);  // 1 sec max
 
   jpout << std::format(
-      "kernel = {:.5}, host = {:.5}, done = {}, kernel target = {:.5}\n",
-      kernel_runtime, host_runtime, num_done, target_kernel_runtime);
+      "kernel = {:.5}, host = {:.5}, done = {}\n", kernel_runtime,
+      host_runtime, num_done);
 
   auto new_cycles = static_cast<uint64_t>(static_cast<double>(last_cycles) *
       target_kernel_runtime / kernel_runtime);
@@ -1179,7 +1301,9 @@ uint64_t Coordinator::calc_next_kernel_cycles(uint64_t last_cycles,
 // Clean up GPU memory.
 
 void Coordinator::cleanup_gpu_memory() {
-  cudaFree(pb_d);
+  if (!config.countflag) {
+    cudaFree(pb_d);
+  }
   cudaFree(wi_d);
   cudaFree(wa_d);
 }

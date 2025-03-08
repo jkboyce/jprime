@@ -147,7 +147,8 @@ class Coordinator {
   void set_runtime_params(const cudaDeviceProp& prop, CudaAlgorithm alg,
     unsigned num_states);
   size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
-    unsigned threadsperblock);
+    unsigned threadsperblock, unsigned n_max, unsigned window_lower,
+    unsigned window_upper);
   void configure_cuda_shared_memory(size_t shared_memory_size);
   void allocate_gpu_device_memory();
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
