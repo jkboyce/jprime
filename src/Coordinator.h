@@ -118,22 +118,16 @@ class Coordinator {
 //#ifdef CUDA_ENABLED
 
  private:
-  double total_kernel_time = 0;
-  double total_host_time = 0;
-
   // memory blocks in GPU global memory
-  statenum_t* pb_d;
-  WorkerInfo* wi_d;
-  ThreadStorageWorkCell* wa_d;
+  statenum_t* pb_d = nullptr;  // if needed
+  WorkerInfo* wi_d = nullptr;
+  ThreadStorageWorkCell* wa_d = nullptr;
+  statenum_t* graphmatrix_d = nullptr;  // if needed
 
   // GPU runtime parameters
-  unsigned num_blocks;
-  unsigned num_threadsperblock;
   unsigned num_workers;
-  size_t pattern_buffer_size;
-  size_t shared_memory_size;
-  unsigned window_lower;
-  unsigned window_upper;
+  double total_kernel_time = 0;
+  double total_host_time = 0;
 
  private:
   void run_cuda();
@@ -144,21 +138,23 @@ class Coordinator {
   CudaAlgorithm select_cuda_search_algorithm(const Graph& graph);
   std::vector<statenum_t> make_graph_buffer(const Graph& graph,
     CudaAlgorithm alg);
-  void set_runtime_params(const cudaDeviceProp& prop, CudaAlgorithm alg,
-    unsigned num_states);
+  CudaRuntimeParams find_runtime_params(const cudaDeviceProp& prop,
+    CudaAlgorithm alg, unsigned num_states);
   size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
     unsigned threadsperblock, unsigned n_max, unsigned window_lower,
     unsigned window_upper);
-  void configure_cuda_shared_memory(size_t shared_memory_size);
-  void allocate_gpu_device_memory();
+  void configure_cuda_shared_memory(const CudaRuntimeParams& params);
+  void allocate_gpu_device_memory(const CudaRuntimeParams& params,
+    const std::vector<statenum_t>& graph_buffer);
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
-  void copy_static_vars_to_gpu(const Graph& graph);
+  void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
+    const Graph& graph);
 
   // main loop
   void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h);
-  void launch_cuda_kernel(unsigned num_blocks, unsigned num_threadsperblock,
-    size_t shared_memory_size, CudaAlgorithm alg, unsigned cycles);
+  void launch_cuda_kernel(const CudaRuntimeParams& params, CudaAlgorithm alg,
+      unsigned cycles);
   void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
       std::vector<ThreadStorageWorkCell>& wa_h);
   void process_worker_results(const Graph& graph,

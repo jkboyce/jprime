@@ -35,7 +35,7 @@
 // Every NVIDIA GPU from capability 5.0 through 12.0 has 64 KB of constant
 // memory. This is where we place the juggling graph data.
 
-__device__ __constant__ statenum_t graphmatrix_d[65536 / sizeof(statenum_t)];
+__device__ __constant__ statenum_t graphmatrix_c[65536 / sizeof(statenum_t)];
 
 
 // GPU global memory
@@ -136,7 +136,7 @@ __global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
       }
     }
 
-    const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
+    const statenum_t to_state = graphmatrix_c[(ss->from_state - 1) *
           outdegree + ss->col];
 
     if (to_state == 0) {
@@ -224,6 +224,7 @@ __global__ void cuda_gen_loops_normal_shared(statenum_t* const patterns_d,
 
 __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wa_d,
+        const statenum_t* const graphmatrix_d,
         const unsigned n_min, const unsigned n_max,
         const unsigned pos_lower_s, const unsigned pos_upper_s,
         const bool report, uint64_t cycles) {
@@ -239,6 +240,8 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
   int pos = wi_d[id].pos;
   uint64_t nnodes = wi_d[id].nnodes;
   const uint8_t outdegree = maxoutdegree_d;
+  const statenum_t* const graphmatrix = (graphmatrix_d == nullptr ?
+      graphmatrix_c : graphmatrix_d);
 
   // find base address of workcell[] in device memory, for this thread
 
@@ -344,7 +347,7 @@ __global__ void cuda_gen_loops_normal_hybrid(statenum_t* const patterns_d,
       }
     }
 
-    const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
+    const statenum_t to_state = graphmatrix[(ss->from_state - 1) *
           outdegree + ss->col];
 
     if (to_state == 0) {
@@ -517,7 +520,7 @@ __global__ void cuda_gen_loops_normal_global(statenum_t* const patterns_d,
       }
     }
 
-    const statenum_t to_state = graphmatrix_d[(ss->from_state - 1) *
+    const statenum_t to_state = graphmatrix_c[(ss->from_state - 1) *
           outdegree + ss->col];
 
     if (to_state == 0) {
@@ -644,11 +647,11 @@ void Coordinator::run_cuda() {
   const auto alg = select_cuda_search_algorithm(graph);
   const auto graph_buffer = make_graph_buffer(graph, alg);
 
-  set_runtime_params(prop, alg, graph.numstates);
-  configure_cuda_shared_memory(shared_memory_size);
-  allocate_gpu_device_memory();
+  CudaRuntimeParams params = find_runtime_params(prop, alg, graph.numstates);
+  configure_cuda_shared_memory(params);
+  allocate_gpu_device_memory(params, graph_buffer);
   copy_graph_to_gpu(graph_buffer);
-  copy_static_vars_to_gpu(graph);
+  copy_static_vars_to_gpu(params, graph);
 
   std::vector<WorkerInfo> wi_h(num_workers);
   std::vector<ThreadStorageWorkCell> wa_h(((num_workers + 31) / 32) * n_max);
@@ -666,13 +669,12 @@ void Coordinator::run_cuda() {
     copy_worker_data_to_gpu(wi_h, wa_h);
 
     before_kernel = std::chrono::high_resolution_clock::now();
-    launch_cuda_kernel(num_blocks, num_threadsperblock, shared_memory_size, alg,
-        cycles);
+    launch_cuda_kernel(params, alg, cycles);
     after_kernel = std::chrono::high_resolution_clock::now();
 
     copy_worker_data_from_gpu(wi_h, wa_h);
     process_worker_results(graph, wi_h, wa_h);
-    process_pattern_buffer(pb_d, graph, pattern_buffer_size);
+    process_pattern_buffer(pb_d, graph, params.pattern_buffer_size);
 
     unsigned num_done = 0;
     bool all_done = true;
@@ -801,17 +803,13 @@ std::vector<statenum_t> Coordinator::make_graph_buffer(const Graph& graph,
     }
   }
 
-  if (graph_buffer.size() * sizeof(statenum_t) > sizeof(graphmatrix_d)) {
-    throw std::runtime_error("CUDA error: Juggling graph too large");
-  }
-
   return graph_buffer;
 }
 
 // Speedup as a function of number of warps per block, for different different
 // locations for the workcell[] array
 //
-// columns are {warps, shared memory, global memory}
+// columns are {warps, shared memory speedup, global memory speedup}
 
 const double throughput[33][3] = {
   {  0,  0.000, 0.000 },
@@ -855,7 +853,7 @@ const double throughput[33][3] = {
 // If the calculation cannot run in any case, throw a `std::runtime_error`
 // exception with a relevant error message.
 
-void Coordinator::set_runtime_params(const cudaDeviceProp& prop,
+CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
       CudaAlgorithm alg, unsigned num_states) {
   // error if we can't run with one warp and zero window
   size_t shared_mem = calc_shared_memory_size(alg, num_states,
@@ -900,6 +898,8 @@ void Coordinator::set_runtime_params(const cudaDeviceProp& prop,
       if (shared_mem <= prop.sharedMemPerBlockOptin)
         break;
     }
+    if (upper == 0)
+      break;  // used[] array is too big to fit
 
     // slide the window to maximize the area contained by it
     while (upper < n_max &&
@@ -927,27 +927,33 @@ void Coordinator::set_runtime_params(const cudaDeviceProp& prop,
           warps, lower, upper, S, throughput_avg);*/
   }
 
-  num_blocks = prop.multiProcessorCount;
-  num_threadsperblock = 32 * best_warps;
-  window_lower = best_lower;
-  window_upper = best_upper;
-  num_workers = num_blocks * num_threadsperblock;
+  CudaRuntimeParams params;
+  params.num_blocks = prop.multiProcessorCount;
+  params.num_threadsperblock = 32 * best_warps;
+  params.window_lower = best_lower;
+  params.window_upper = best_upper;
+  num_workers = params.num_blocks * params.num_threadsperblock;
 
-  shared_memory_size = calc_shared_memory_size(alg, num_states,
-      num_threadsperblock, n_max, window_lower, window_upper);
-  pattern_buffer_size = (prop.totalGlobalMem / 16) / sizeof(statenum_t) / n_max;
+  params.shared_memory_size = calc_shared_memory_size(alg, num_states,
+      params.num_threadsperblock, n_max, params.window_lower,
+      params.window_upper);
+  params.pattern_buffer_size =
+      (prop.totalGlobalMem / 16) / sizeof(statenum_t) / n_max;
 
   jpout << "Execution parameters:\n"
         << "  algorithm = " << cuda_algs[static_cast<int>(alg)]
-        << "\n  num_blocks = " << num_blocks
+        << "\n  num_blocks = " << params.num_blocks
         << "\n  warpsperblock = " << best_warps
-        << "\n  num_threadsperblock = " << num_threadsperblock
+        << "\n  num_threadsperblock = " << params.num_threadsperblock
         << "\n  num_workers = " << num_workers
-        << "\n  pattern buffer size = " << pattern_buffer_size << " patterns"
-        << "\n  shared memory size = " << shared_memory_size << " bytes"
-        << "\n  pos window in shared = [" << window_lower << ','
-        << window_upper << ')'
+        << "\n  pattern buffer size = " << params.pattern_buffer_size
+        << " patterns"
+        << "\n  shared memory size = " << params.shared_memory_size << " bytes"
+        << "\n  pos window in shared = [" << params.window_lower << ','
+        << params.window_upper << ')'
         << std::endl;
+
+  return params;
 }
 
 // Return the amount of shared memory needed per block, in bytes.
@@ -988,21 +994,24 @@ size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
 
 // Set up CUDA shared memory configuration.
 
-void Coordinator::configure_cuda_shared_memory(size_t shared_memory_size) {
+void Coordinator::configure_cuda_shared_memory(const CudaRuntimeParams& p) {
   cudaFuncSetAttribute(cuda_gen_loops_normal_shared,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
+    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
   cudaFuncSetAttribute(cuda_gen_loops_normal_hybrid,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
+    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
   cudaFuncSetAttribute(cuda_gen_loops_normal_global,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, shared_memory_size);
+    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
 }
 
-// Allocate GPU memory for patterns, WorkerInfo, and WorkAssignmentCells.
+// Allocate GPU memory for patterns, WorkerInfo, ThreadStorageWorkCell, and
+// the juggling graph if it doesn't fit into constant memory.
 
-void Coordinator::allocate_gpu_device_memory() {
+void Coordinator::allocate_gpu_device_memory(const CudaRuntimeParams& params,
+     const std::vector<statenum_t>& graph_buffer) {
   if (!config.countflag) {
     throw_on_cuda_error(
-        cudaMalloc(&pb_d, sizeof(statenum_t) * n_max * pattern_buffer_size),
+        cudaMalloc(&pb_d, sizeof(statenum_t) * n_max *
+            params.pattern_buffer_size),
         __FILE__, __LINE__);
   }
   throw_on_cuda_error(
@@ -1012,24 +1021,39 @@ void Coordinator::allocate_gpu_device_memory() {
       cudaMalloc(&wa_d, sizeof(ThreadStorageWorkCell) * n_max *
           ((num_workers + 31) / 32)),
       __FILE__, __LINE__);
+  if (graph_buffer.size() * sizeof(statenum_t) > sizeof(graphmatrix_c)) {
+    // graph doesn't fit in constant memory
+    throw_on_cuda_error(
+        cudaMalloc(&graphmatrix_d, graph_buffer.size() * sizeof(statenum_t)),
+        __FILE__, __LINE__);
+  }
 }
 
-// Copy graph data to GPU constant memory.
+// Copy graph data to GPU.
 
 void Coordinator::copy_graph_to_gpu(
       const std::vector<statenum_t>& graph_buffer) {
-  throw_on_cuda_error(
-      cudaMemcpyToSymbol(graphmatrix_d, graph_buffer.data(),
-                         sizeof(statenum_t) * graph_buffer.size()),
-      __FILE__, __LINE__);
+  if (graphmatrix_d != nullptr) {
+    throw_on_cuda_error(
+        cudaMemcpy(graphmatrix_d, graph_buffer.data(),
+            sizeof(statenum_t) * graph_buffer.size(), cudaMemcpyHostToDevice),
+        __FILE__, __LINE__);
+
+  } else {
+    throw_on_cuda_error(
+        cudaMemcpyToSymbol(graphmatrix_c, graph_buffer.data(),
+                          sizeof(statenum_t) * graph_buffer.size()),
+        __FILE__, __LINE__);
+  }
 }
 
 // Copy static global variables to GPU global memory.
 
-void Coordinator::copy_static_vars_to_gpu(const Graph& graph) {
+void Coordinator::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
+      const Graph& graph) {
   uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
   uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
-  uint32_t pattern_buffer_size_h = pattern_buffer_size;
+  uint32_t pattern_buffer_size_h = params.pattern_buffer_size;
   uint32_t pattern_index_h = 0;
   throw_on_cuda_error(
       cudaMemcpyToSymbol(maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t)),
@@ -1080,24 +1104,23 @@ void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
 
 // Launch the appropriate CUDA kernel.
 
-void Coordinator::launch_cuda_kernel(unsigned num_blocks,
-    unsigned num_threadsperblock, size_t shared_memory_size, CudaAlgorithm alg,
-    unsigned cycles) {
+void Coordinator::launch_cuda_kernel(const CudaRuntimeParams& p,
+    CudaAlgorithm alg, unsigned cycles) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal_shared
-        <<<num_blocks, num_threadsperblock, shared_memory_size>>>
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>
         (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag, cycles);
       break;
     case CudaAlgorithm::NORMAL2:
       cuda_gen_loops_normal_hybrid
-        <<<num_blocks, num_threadsperblock, shared_memory_size>>>
-        (pb_d, wi_d, wa_d, config.n_min, n_max, window_lower, window_upper,
-        !config.countflag, cycles);
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>
+        (pb_d, wi_d, wa_d, graphmatrix_d, config.n_min, n_max, p.window_lower,
+          p.window_upper, !config.countflag, cycles);
       break;
     case CudaAlgorithm::NORMAL_GLOBAL:
       cuda_gen_loops_normal_global
-        <<<num_blocks, num_threadsperblock, shared_memory_size>>>
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>
         (pb_d, wi_d, wa_d, config.n_min, n_max, !config.countflag, cycles);
       break;
     default:
@@ -1306,6 +1329,10 @@ void Coordinator::cleanup_gpu_memory() {
   }
   cudaFree(wi_d);
   cudaFree(wa_d);
+  if (graphmatrix_d != nullptr) {
+    cudaFree(graphmatrix_d);
+    graphmatrix_d = nullptr;
+  }
 }
 
 // Gather unfinished work assignments.
