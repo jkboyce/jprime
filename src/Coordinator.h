@@ -123,6 +123,7 @@ class Coordinator {
   WorkerInfo* wi_d = nullptr;
   ThreadStorageWorkCell* wa_d = nullptr;
   statenum_t* graphmatrix_d = nullptr;  // if needed
+  ThreadStorageUsed* used_d = nullptr;  // if needed
 
   // GPU runtime parameters
   unsigned num_workers;
@@ -144,7 +145,7 @@ class Coordinator {
     unsigned n_max, const CudaRuntimeParams& p);
   void configure_cuda_shared_memory(const CudaRuntimeParams& params);
   void allocate_gpu_device_memory(const CudaRuntimeParams& params,
-    const std::vector<statenum_t>& graph_buffer);
+    const std::vector<statenum_t>& graph_buffer, unsigned num_states);
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
   void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
     const Graph& graph);
