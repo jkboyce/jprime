@@ -141,8 +141,7 @@ class Coordinator {
   CudaRuntimeParams find_runtime_params(const cudaDeviceProp& prop,
     CudaAlgorithm alg, unsigned num_states);
   size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
-    unsigned threadsperblock, unsigned n_max, unsigned window_lower,
-    unsigned window_upper);
+    unsigned n_max, const CudaRuntimeParams& p);
   void configure_cuda_shared_memory(const CudaRuntimeParams& params);
   void allocate_gpu_device_memory(const CudaRuntimeParams& params,
     const std::vector<statenum_t>& graph_buffer);

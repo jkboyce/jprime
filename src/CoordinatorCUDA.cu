@@ -855,9 +855,14 @@ const double throughput[33][3] = {
 
 CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
       CudaAlgorithm alg, unsigned num_states) {
+  CudaRuntimeParams ptemp;
+  ptemp.num_blocks = prop.multiProcessorCount;
+  ptemp.num_threadsperblock = 32;
+  ptemp.used_in_shared = true;
+  ptemp.window_lower = ptemp.window_upper = 0;
+
   // error if we can't run with one warp and zero window
-  size_t shared_mem = calc_shared_memory_size(alg, num_states,
-      32, n_max, n_max, n_max);
+  size_t shared_mem = calc_shared_memory_size(alg, num_states, n_max, ptemp);
   if (shared_mem > prop.sharedMemPerBlockOptin) {
     throw std::runtime_error("CUDA error: Not enough shared memory");
   }  
@@ -869,13 +874,21 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
   const double pos_sigma = pos_fwhm / (2 * sqrt(2 * log(2)));
 
   std::vector<double> access_fraction(n_max, 0);
-  double sum = 0;
+  double maxval = 0;
   for (int i = 0; i < n_max; ++i) {
     const auto x = static_cast<double>(i);
-    const double val = exp(-(x - pos_mean) * (x - pos_mean) /
-        (2 * pos_sigma * pos_sigma));
+    // be careful to avoid underflowing exp(-x^2)
+    const double val = -(x - pos_mean) * (x - pos_mean) /
+        (2 * pos_sigma * pos_sigma);
     access_fraction.at(i) = val;
-    sum += val;
+    if (i == 0 || val > maxval) {
+      maxval = val;
+    }
+  }
+  double sum = 0;
+  for (int i = 0; i < n_max; ++i) {
+    access_fraction.at(i) = exp(access_fraction.at(i) - maxval);
+    sum += access_fraction.at(i);
   }
   for (int i = 0; i < n_max; ++i) {
     access_fraction.at(i) /= sum;
@@ -885,16 +898,22 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
   unsigned best_warps = 1;
   unsigned best_lower = 0;
   unsigned best_upper = 0;
-  double best_throughput = 0;
+  double best_throughput = -1;
   const int max_warps = prop.maxThreadsPerBlock / 32;
 
   for (int warps = 1; warps <= max_warps; ++warps) {
+    // jpout << "calculating for " << warps << " warps:\n";
+
     // find the maximum window size that fits into shared memory
     unsigned lower = 0;
     unsigned upper = n_max;
     for (; upper != 0; --upper) {
-      shared_mem = calc_shared_memory_size(alg, num_states, 32 * warps, n_max,
-            lower, upper);
+      ptemp.num_threadsperblock = 32 * warps;
+      ptemp.window_lower = lower;
+      ptemp.window_upper = upper;
+      shared_mem = calc_shared_memory_size(alg, num_states, n_max, ptemp);
+      // jpout << "  upper = " << upper << ", mem = " << shared_mem << '\n';
+
       if (shared_mem <= prop.sharedMemPerBlockOptin)
         break;
     }
@@ -915,7 +934,11 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
     // estimate throughput
     double throughput_avg = throughput[warps][1] * S +
         throughput[warps][2] * (1 - S);
+    /* jpout << "  window [" << lower << ',' << upper
+          << "), S = " << S << ", T = " << throughput_avg << '\n'; */
+    
     if (throughput_avg > best_throughput + 0.25) {
+      // jpout << "  new best warps: " << warps << '\n';
       best_throughput = throughput_avg;
       best_warps = warps;
       best_lower = lower;
@@ -934,9 +957,9 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
   params.window_upper = best_upper;
   num_workers = params.num_blocks * params.num_threadsperblock;
 
-  params.shared_memory_size = calc_shared_memory_size(alg, num_states,
-      params.num_threadsperblock, n_max, params.window_lower,
-      params.window_upper);
+  params.shared_memory_size = calc_shared_memory_size(alg, num_states, n_max,
+      params);
+  params.used_in_shared = true;
   params.pattern_buffer_size =
       (prop.totalGlobalMem / 16) / sizeof(statenum_t) / n_max;
 
@@ -959,32 +982,33 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
 // Return the amount of shared memory needed per block, in bytes.
 
 size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
-        unsigned num_states, unsigned num_threadsperblock, unsigned n_max,
-        unsigned window_lower, unsigned window_upper) {
+        unsigned num_states, unsigned n_max, const CudaRuntimeParams& p) {
   size_t shared_bytes = 0;
   if (alg == CudaAlgorithm::NORMAL) {
     // used[] as individual bits in uint32s
     // workcell[] in shared memory
-    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+    shared_bytes = ((p.num_threadsperblock + 31) / 32) * (
         sizeof(ThreadStorageUsed) * (((num_states + 1) + 31) / 32) +  // used[]
         sizeof(ThreadStorageWorkCell) * n_max  // WorkAssignentCell[]
     );
   } else if (alg == CudaAlgorithm::NORMAL2) {
-    // used[] as individual bits in uint32s
-    shared_bytes = ((num_threadsperblock + 31) / 32) * (
-        sizeof(ThreadStorageUsed) * (((num_states + 1) + 31) / 32)  // used[]
-    );
-    if (window_lower < window_upper && window_lower < n_max) {
+    if (p.used_in_shared) {
+      // used[] as individual bits in uint32s
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) * (
+          sizeof(ThreadStorageUsed) * (((num_states + 1) + 31) / 32)
+      );
+    }
+    if (p.window_lower < p.window_upper && p.window_lower < n_max) {
       // workcell[] partially in shared memory
-      const unsigned upper = std::min(n_max, window_upper);
-      shared_bytes += ((num_threadsperblock + 31) / 32) * (
-        sizeof(ThreadStorageWorkCell) * (upper - window_lower)
+      const unsigned upper = std::min(n_max, p.window_upper);
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) * (
+        sizeof(ThreadStorageWorkCell) * (upper - p.window_lower)
       );
     }
   } else if (alg == CudaAlgorithm::NORMAL_GLOBAL) {
     // used[] as uint32s
     // workcell[] in global memory
-    shared_bytes = ((num_threadsperblock + 31) / 32) * (
+    shared_bytes = ((p.num_threadsperblock + 31) / 32) * (
       sizeof(ThreadStorageUsed) * (((num_states + 1) + 31) / 32)    // used[]
     );
   }
@@ -1034,12 +1058,16 @@ void Coordinator::allocate_gpu_device_memory(const CudaRuntimeParams& params,
 void Coordinator::copy_graph_to_gpu(
       const std::vector<statenum_t>& graph_buffer) {
   if (graphmatrix_d != nullptr) {
+    jpout << "  placing graph into device memory ("
+          << sizeof(statenum_t) * graph_buffer.size() << " bytes)\n";
     throw_on_cuda_error(
         cudaMemcpy(graphmatrix_d, graph_buffer.data(),
             sizeof(statenum_t) * graph_buffer.size(), cudaMemcpyHostToDevice),
         __FILE__, __LINE__);
 
   } else {
+    jpout << "  placing graph into constant memory ("
+          << sizeof(statenum_t) * graph_buffer.size() << " bytes)\n";
     throw_on_cuda_error(
         cudaMemcpyToSymbol(graphmatrix_c, graph_buffer.data(),
                           sizeof(statenum_t) * graph_buffer.size()),

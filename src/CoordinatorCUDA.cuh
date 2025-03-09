@@ -97,12 +97,13 @@ constexpr std::array cuda_algs = {
 
 
 struct CudaRuntimeParams {
-  unsigned num_blocks;
-  unsigned num_threadsperblock;
-  size_t pattern_buffer_size;
-  size_t shared_memory_size;
-  unsigned window_lower;
-  unsigned window_upper;
+  unsigned num_blocks = 1;
+  unsigned num_threadsperblock = 32;
+  size_t pattern_buffer_size = 1;
+  size_t shared_memory_size = 0;
+  bool used_in_shared = true;
+  unsigned window_lower = 0;
+  unsigned window_upper = 0;
 };
 
 
