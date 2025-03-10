@@ -6,7 +6,7 @@
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -36,6 +36,7 @@
 // 2024.04.03  Version 6.6 adds efficiency improvements.
 // 2024.04.15  Version 6.7 code refactoring.
 // 2024.06.16  Version 6.8 adds analyzer and efficiency improvements for (b,2b).
+// 2025.02.20  Version 6.9 makes <shifts> optional in -super mode.
 //
 
 #include "SearchConfig.h"
@@ -59,8 +60,8 @@ void do_tests();  // defined in jprime_tests.cc
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.8 (2024.06.16)\n"
-    "Copyright (C) 1998-2024 Jack Boyce <jboyce@gmail.com>\n"
+    "jprime version 6.9 (2025.02.20)\n"
+    "Copyright (C) 1998-2025 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for prime siteswap juggling patterns. For an explanation\n"
     "of these terms see http://wikipedia.org/wiki/Siteswap\n"
@@ -71,32 +72,32 @@ void print_help() {
     "   jprime -test\n"
     "\n"
     "where:\n"
-    "   <# objects>       = number of objects\n"
-    "   <max. throw>      = largest allowed throw value\n"
-    "   <period(s)>       = pattern period(s) to find, assumed all if omitted\n"
-    "   <pattern> [/<h>]  = pattern to analyze, with optional suffix indicating\n"
+    "   <# objects>        = number of objects\n"
+    "   <max. throw>       = largest allowed throw value\n"
+    "   <period(s)>        = pattern period(s) to find, assumed all if omitted\n"
+    "   <pattern> [/<h>]   = pattern to analyze, with optional suffix indicating\n"
     "                          beats per state\n"
     "\n"
     "Recognized search options:\n"
-    "   -super <shifts>   find superprime patterns, allowing at most the given\n"
-    "                        number of shift throws\n"
-    "   -g                find ground-state patterns only\n"
-    "   -ng               find excited-state patterns only\n"
+    "   -super [<shifts>]  find superprime patterns, optionally restricting to at\n"
+    "                         most the given number of shift throws\n"
+    "   -g                 find ground-state patterns only\n"
+    "   -ng                find excited-state patterns only\n"
     "   -x <throw1 throw2 ...>\n"
-    "                     exclude listed throw values\n"
-    "   -inverse          print/save inverse pattern, if it exists\n"
-    "   -noplus           print/save without using +, - for h and 0\n"
-    "   -info             print info without executing search\n"
-    "   -noprint          do not print patterns\n"
-    "   -count            print/save pattern counts only\n"
-    "   -status           display live search status (needs ANSI terminal)\n"
-    "   -verbose          print worker diagnostic information during search\n"
-    "   -recursive        use recursive search algorithms instead of iterative\n"
-    "   -threads <num>    run with the given number of worker threads (default 1)\n"
-    "   -file <name>      use the named file for checkpointing (when jprime is\n"
-    "                        interrupted via ctrl-c), resuming, and final output\n"
+    "                      exclude listed throw values\n"
+    "   -inverse           print/save inverse pattern, if it exists\n"
+    "   -noplus            print/save without using +, - for h and 0\n"
+    "   -info              print info without executing search\n"
+    "   -noprint           do not print patterns\n"
+    "   -count             print/save pattern counts only\n"
+    "   -status            display live search status (needs ANSI terminal)\n"
+    "   -verbose           print worker diagnostic information during search\n"
+    "   -recursive         use recursive search algorithms instead of iterative\n"
+    "   -threads <num>     run with the given number of worker threads (default 1)\n"
+    "   -file <name>       use the named file for checkpointing (when jprime is\n"
+    "                         interrupted via ctrl-c), resuming, and final output\n"
 #ifdef CUDA_ENABLED
-    "   -cuda             run search on CUDA-enabled GPU\n"
+    "   -cuda              run search on CUDA-enabled GPU\n"
 #endif
     "\n"
     "When resuming a calculation from a checkpoint file, the other parts of the\n"

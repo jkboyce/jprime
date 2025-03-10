@@ -239,7 +239,10 @@ void Worker::gen_loops_super() {
 
       pattern[pos] = throwval;
       if (to == start_state) {
-        handle_finished_pattern();
+        if (shiftcount < pos) {
+          // don't allow all shift throws
+          handle_finished_pattern();
+        }
       } else if (pos + 1 == n_max) {
         continue;
       } else {

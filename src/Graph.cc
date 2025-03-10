@@ -465,8 +465,11 @@ unsigned Graph::prime_period_bound() const {
   return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the period of superprime patterns with `shifts`
-// shift throws, using states that are currently active.
+// Calculate an upper bound on the period of superprime patterns, using states
+// that are currently active.
+//
+// Optional parameter `shifts` specifies an upper limit on the number of shift
+// throws allowed in the pattern.
 
 unsigned Graph::superprime_period_bound(unsigned shifts) const {
   std::vector<bool> any_active(numcycles, false);
@@ -479,7 +482,13 @@ unsigned Graph::superprime_period_bound(unsigned shifts) const {
   const auto cycles_active = static_cast<unsigned>(
       std::count(any_active.cbegin(), any_active.cend(), true));
 
-  return (cycles_active > 1 ? cycles_active + shifts : 0);
+  if (cycles_active < 2) {
+    return 0;
+  }
+  if (shifts == -1u) {
+    return prime_period_bound();
+  }
+  return std::min(prime_period_bound(), cycles_active + shifts);
 }
 
 // Return the index in the `state` array that corresponds to a given state.

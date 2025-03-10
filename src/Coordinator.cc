@@ -129,8 +129,15 @@ void Coordinator::calc_graph_size() {
     context.n_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
         context.full_numstates - context.full_numcycles);
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    context.n_bound = (context.full_numcycles > 1 ?
-        context.full_numcycles + config.shiftlimit : 0);
+    if (context.full_numcycles < 2) {
+      context.n_bound = 0;
+    } else if (config.shiftlimit == -1u) {
+      context.n_bound = context.full_numstates - context.full_numcycles;
+    } else {
+      context.n_bound =
+          std::min(context.full_numstates - context.full_numcycles,
+              context.full_numcycles + config.shiftlimit);
+    }
   }
 
   // number of states that will be resident in memory if we build the graph
@@ -295,16 +302,16 @@ void Coordinator::print_search_description() const {
       (config.dualflag ? config.h - config.b : config.b), config.h);
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    jpout << "prime ";
+    jpout << "prime";
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    jpout << "superprime ";
+    jpout << "superprime";
     if (config.shiftlimit == 1) {
-      jpout << "(+1 shift) ";
-    } else {
-      jpout << std::format("(+{} shifts) ", config.shiftlimit);
+      jpout << " (+1 shift)";
+    } else if (config.shiftlimit != -1u) {
+      jpout << std::format(" (+{} shifts)", config.shiftlimit);
     }
   }
-  jpout << "search for period: " << config.n_min;
+  jpout << " search for period: " << config.n_min;
   if (config.n_max != config.n_min) {
     if (config.n_max == 0) {
       jpout << '-';

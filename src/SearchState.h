@@ -24,7 +24,7 @@ struct SearchState {
   unsigned* excludes_catch = nullptr;
   unsigned* deadstates_catch = nullptr;
   int to_cycle = -1;
-  unsigned shifts_remaining = 0;
+  unsigned shiftcount = 0;
   unsigned exitcycles_remaining = 0;
 };
 

@@ -4,7 +4,7 @@
 // This structure defines the calculation requested by the user, as specified
 // by command line arguments.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -88,8 +88,8 @@ struct SearchConfig {
   // number of worker threads to use
   unsigned num_threads = 1;
 
-  // for super mode, number of shift throws to allow
-  unsigned shiftlimit = 0;
+  // for super mode, number of shift throws to allow (-1u means no limit)
+  unsigned shiftlimit = -1u;
 
   // throw values to exclude from search
   std::vector<bool> xarray;

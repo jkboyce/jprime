@@ -420,7 +420,7 @@ void Worker::iterative_gen_loops_super() {
         goto skip_unmarking;
       }
 
-      if ((SUPER0 || ss->shifts_remaining == 0) &&
+      if ((SUPER0 || ss->shiftcount == config.shiftlimit) &&
           ss->exitcycles_remaining == 0) {
         ++ss->col;
         goto skip_unmarking;
@@ -448,10 +448,10 @@ void Worker::iterative_gen_loops_super() {
         }
       }
 
-      unsigned next_shifts_remaining;
+      unsigned next_shiftcount;
       if (!SUPER0) {
         u[to_state] = 1;
-        next_shifts_remaining = ss->shifts_remaining;
+        next_shiftcount = ss->shiftcount;
       }
       cu[to_cycle] = true;
       ss->to_state = to_state;
@@ -467,21 +467,24 @@ void Worker::iterative_gen_loops_super() {
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
       if (!SUPER0) {
-        ss->shifts_remaining = next_shifts_remaining;
+        ss->shiftcount = next_shiftcount;
       }
       ss->exitcycles_remaining = next_exitcycles_remaining;
       goto skip_unmarking;
     } else {  // shift throw
-      const unsigned next_shifts_remaining = ss->shifts_remaining;
+      const unsigned next_shiftcount = ss->shiftcount;
 
-      if (next_shifts_remaining == 0) {
+      if (next_shiftcount == config.shiftlimit) {
         ++ss->col;
         goto skip_unmarking;
       }
 
       if (to_state == start_state) {
         pos = p;
-        iterative_handle_finished_pattern();
+        if (ss->shiftcount < pos) {
+          // don't allow all shift throws
+          iterative_handle_finished_pattern();
+        }
         ++ss->col;
         goto skip_unmarking;
       }
@@ -503,7 +506,7 @@ void Worker::iterative_gen_loops_super() {
       ss->to_state = 0;
       ss->outmatrix = outmatrix[to_state];
       ss->to_cycle = -1;
-      ss->shifts_remaining = next_shifts_remaining - 1;
+      ss->shiftcount = next_shiftcount + 1;
       ss->exitcycles_remaining = next_exitcycles_remaining;
       goto skip_unmarking;
     }
@@ -548,7 +551,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
     ss.to_cycle = -1;
-    ss.shifts_remaining = config.shiftlimit;
+    ss.shiftcount = 0;
     ss.exitcycles_remaining = exitcyclesleft;
     return true;
   }
@@ -558,7 +561,7 @@ bool Worker::iterative_init_workspace(bool marking) {
 
   loading_work = false;
   unsigned last_from_state = start_state;
-  auto shifts_remaining = static_cast<int>(config.shiftlimit);
+  unsigned shiftcount = 0;
   auto exitcycles_remaining = static_cast<int>(exitcyclesleft);
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
@@ -592,8 +595,8 @@ bool Worker::iterative_init_workspace(bool marking) {
       ss.col_limit = ss.col + 1;
     }
 
-    if (shifts_remaining < 0) {
-      std::cerr << "shifts_remaining went negative during init\n";
+    if (shiftcount > config.shiftlimit) {
+      std::cerr << "shiftcount went beyond config.shiftlimit during init\n";
       return false;
     }
     if (exitcycles_remaining < 0) {
@@ -606,7 +609,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
     ss.to_cycle = graph.cyclenum.at(ss.to_state);
-    ss.shifts_remaining = static_cast<unsigned>(shifts_remaining);
+    ss.shiftcount = shiftcount;
     ss.exitcycles_remaining = static_cast<unsigned>(exitcycles_remaining);
 
     if (marking && tv != 0 && tv != graph.h) {
@@ -647,10 +650,10 @@ bool Worker::iterative_init_workspace(bool marking) {
           --exitcycles_remaining;
         }
       } else {
-        if (shifts_remaining == 0) {
+        if (shiftcount == config.shiftlimit) {
           return false;
         }
-        --shifts_remaining;
+        ++shiftcount;
         ss.to_cycle = -1;
       }
     }
@@ -675,7 +678,7 @@ bool Worker::iterative_init_workspace(bool marking) {
     rss.excludes_throw = nullptr;
     rss.excludes_catch = nullptr;
     rss.to_cycle = -1;
-    rss.shifts_remaining = shifts_remaining;
+    rss.shiftcount = shiftcount;
     rss.exitcycles_remaining = exitcycles_remaining;
 
     // Set `col` at `root_pos`; it's equal to the lowest index of the throws

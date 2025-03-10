@@ -3,7 +3,7 @@
 //
 // Methods for intializing a SearchConfig structure from command line arguments.
 //
-// Copyright (C) 1998-2024 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -74,24 +74,26 @@ void SearchConfig::from_args(size_t argc, char** argv) {
     } else if (!strcmp(argv[i], "-noplus")) {
       noplusminusflag = true;
     } else if (!strcmp(argv[i], "-super")) {
+      mode = RunMode::SUPER_SEARCH;
       if (i + 1 < argc) {
-        ++i;
-        mode = RunMode::SUPER_SEARCH;
+        std::string error;
         try {
-          val = std::stoi(argv[i]);
+          val = std::stoi(argv[i + 1]);
+          if (val >= 0) {
+            shiftlimit = static_cast<unsigned>(val);
+            if (shiftlimit == 0) {
+              xarray.at(0) = xarray.at(h) = true;
+            }
+          } else {
+            error = "Shift limit must be non-negative";
+          }
+          ++i;
         } catch (const std::invalid_argument& ie) {
-          throw std::invalid_argument(
-              std::format("Error parsing shift limit: {}", argv[i]));
+          // next arg didn't parse as a number; retain it
         }
-        if (val < 0) {
-          throw std::invalid_argument("Shift limit must be non-negative");
+        if (error.size() > 0) {
+          throw std::invalid_argument(error);
         }
-        shiftlimit = static_cast<unsigned>(val);
-        if (shiftlimit == 0) {
-          xarray.at(0) = xarray.at(h) = true;
-        }
-      } else {
-        throw std::invalid_argument("No shift limit provided after -super");
       }
     } else if (!strcmp(argv[i], "-file")) {
       if (i + 1 < argc) {
