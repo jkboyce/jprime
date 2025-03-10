@@ -159,13 +159,13 @@ class Coordinator {
       std::vector<ThreadStorageWorkCell>& wa_h);
   void process_worker_results(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
-  void process_pattern_buffer(statenum_t* const pb_d,
+  uint32_t process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
     std::chrono::time_point<std::chrono::system_clock> prev_after_kernel,
     std::chrono::time_point<std::chrono::system_clock> before_kernel,
     std::chrono::time_point<std::chrono::system_clock> after_kernel,
-    unsigned num_done);
+    unsigned num_done, uint32_t pattern_count, CudaRuntimeParams params);
     
   // cleanup
   void cleanup_gpu_memory();
