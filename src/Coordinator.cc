@@ -36,7 +36,6 @@
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b,
     std::ostream& c) : config(a), context(b), jpout(c) {}
 
-
 // Factory method to return the correct type of Coordinator for the search
 // requested.
 
@@ -102,7 +101,7 @@ bool Coordinator::run() {
   return true;
 }
 
-// Empty method; subclasses override this to do the search
+// Empty method; subclasses override this
 
 void Coordinator::run_search() {}
 
@@ -544,9 +543,9 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
 
   Pattern pat(pattern, config.h);
   if (config.dualflag) {
-    buffer << pat.dual().to_string(config.throwdigits, !config.noplusminusflag);
+    buffer << pat.dual().to_string(config.throwdigits, !config.noblockflag);
   } else {
-    buffer << pat.to_string(config.throwdigits, !config.noplusminusflag);
+    buffer << pat.to_string(config.throwdigits, !config.noblockflag);
   }
 
   if (start_state != 1) {
@@ -582,10 +581,10 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
       }
       if (config.dualflag) {
         buffer << " : " << inverse.dual().to_string(config.throwdigits,
-            !config.noplusminusflag);
+            !config.noblockflag);
       } else {
         buffer << " : " << inverse.to_string(config.throwdigits,
-            !config.noplusminusflag);
+            !config.noblockflag);
       }
     }
   }

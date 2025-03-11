@@ -73,7 +73,7 @@ struct SearchConfig {
   bool infoflag = false;
 
   // print without using +, - for h and 0 (when throwdigits == 0)?
-  bool noplusminusflag = false;
+  bool noblockflag = false;
 
   // keep a record of patterns seen at each period?
   bool countflag = false;

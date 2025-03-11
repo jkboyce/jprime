@@ -71,8 +71,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
       groundmode = GroundMode::GROUND_SEARCH;
     } else if (!strcmp(argv[i], "-ng")) {
       groundmode = GroundMode::EXCITED_SEARCH;
-    } else if (!strcmp(argv[i], "-noplus")) {
-      noplusminusflag = true;
+    } else if (!strcmp(argv[i], "-noblock")) {
+      noblockflag = true;
     } else if (!strcmp(argv[i], "-super")) {
       mode = RunMode::SUPER_SEARCH;
       if (i + 1 < argc) {
@@ -248,6 +248,9 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (cudaflag && num_threads > 1) {
     throw std::invalid_argument("Cannot use -cuda with -threads option");
   }
+  if (cudaflag && recursiveflag) {
+    throw std::invalid_argument("Cannot use -cuda with -recursive option");
+  }
 
   // graph type
   if (n_min == n_max && n_min < h) {
@@ -268,7 +271,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
   if (max_throw_value < 36) {
     throwdigits = 0;  // 'z' = 35
   } else {
-    noplusminusflag = true;
+    noblockflag = true;
     throwdigits = 1;
     for (unsigned temp = 10; temp <= max_throw_value; temp *= 10) {
       ++throwdigits;
