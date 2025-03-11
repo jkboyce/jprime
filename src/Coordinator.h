@@ -14,6 +14,7 @@
 
 #include "SearchConfig.h"
 #include "SearchContext.h"
+#include "Graph.h"
 
 #include <vector>
 #include <string>
@@ -48,10 +49,14 @@ class Coordinator {
 
  protected:
   virtual void run_search();
+
+  // helper functions
   void calc_graph_size();
   bool passes_prechecks();
   double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
+
+  // handle terminal output
   void print_search_description() const;
   void print_results() const;
   void erase_status_output();
@@ -60,6 +65,8 @@ class Coordinator {
   void process_search_result(const std::string& pattern);
 
  public:
+  // utility methods
+  void customize_graph(Graph& graph);
   std::string pattern_output_format(const std::vector<int>& pattern,
     const unsigned start_state);
 };
