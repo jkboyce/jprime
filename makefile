@@ -18,8 +18,8 @@ ODIR = build
 OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
       GenLoopsIterative.o Coordinator.o CoordinatorCPU.o WorkAssignment.o \
 			SearchConfig.o SearchContext.o Pattern.o
-DEP = Graph.h State.h Worker.h Coordinator.h WorkAssignment.h SearchConfig.h \
-      SearchContext.h Pattern.h
+DEP = Graph.h State.h Worker.h Coordinator.h CoordinatorCPU.h WorkAssignment.h \
+      SearchConfig.h SearchContext.h Pattern.h
 
 _OBJ = $(patsubst %,$(ODIR)/%,$(OBJ))
 _DEP = $(patsubst %,$(SDIR)/%,$(DEP))

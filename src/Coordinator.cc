@@ -17,6 +17,7 @@
 #ifdef CUDA_ENABLED
 #include "CoordinatorCUDA.cuh"
 #endif
+#include "Graph.h"
 
 #include <iostream>
 #include <iomanip>
