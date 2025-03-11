@@ -63,6 +63,8 @@ class CoordinatorCPU : public Coordinator {
 
  protected:
   virtual void run_search() override;
+
+  // handle interactions with worker threads
   void message_worker(const MessageC2W& msg, unsigned worker_id) const;
   void give_assignments();
   void steal_work();
@@ -73,10 +75,14 @@ class CoordinatorCPU : public Coordinator {
   void process_returned_work(const MessageW2C& msg);
   void process_returned_stats(const MessageW2C& msg);
   void process_worker_update(const MessageW2C& msg);
+
+  // helper functions
   void start_workers();
   void stop_workers();
   bool is_worker_idle(const unsigned id) const;
   bool is_worker_splitting(const unsigned id) const;
+
+  // manage worker status
   void record_data_from_message(const MessageW2C& msg);
   std::string make_worker_status(const MessageW2C& msg);
 };
