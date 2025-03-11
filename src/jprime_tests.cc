@@ -78,10 +78,10 @@ bool run_one_test(const TestCase& tc) {
     context.assignments.push_back(wa);
 
     std::ostringstream buffer;
-    Coordinator coordinator(config, context, buffer);
+    auto coordinator = Coordinator::make_coordinator(config, context, buffer);
 
     // run test
-    if (!coordinator.run()) {
+    if (!coordinator->run()) {
       std::cout << "TEST FAILED TO EXECUTE\n" << std::endl;
       success = false;
       continue;

@@ -9,10 +9,8 @@
 // This file is distributed under the MIT License.
 //
 
-#include "Coordinator.h"
-#include "Graph.h"
-
 #include "CoordinatorCUDA.cuh"
+#include "Worker.h"  // for pattern_output_format()
 
 #include <iostream>
 #include <vector>
@@ -21,9 +19,6 @@
 #include <algorithm>
 #include <stdexcept>
 #include <cassert>
-
-#include <cuda_runtime.h>
-
 
 
 //------------------------------------------------------------------------------
@@ -335,7 +330,15 @@ jprime 3 11 1-25 -count
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void Coordinator::run_cuda() {
+CoordinatorCUDA::CoordinatorCUDA(const SearchConfig& a, SearchContext& b,
+    std::ostream& c) : Coordinator(a, b, c) {
+  for (int i = 0; i < 12; ++i) {
+    status_lines.push_back("IDLE");
+  }  
+}
+
+
+void CoordinatorCUDA::run_search() {
   // 1. Initialization
 
   const auto prop = initialize_cuda_device();
@@ -369,7 +372,7 @@ void Coordinator::run_cuda() {
     after_kernel = std::chrono::high_resolution_clock::now();
 
     copy_worker_data_from_gpu(wi_h, wa_h);
-    process_worker_results(graph, wi_h, wa_h);
+    process_worker_results(wi_h, wa_h);
     const auto pattern_count = process_pattern_buffer(pb_d, graph,
         params.pattern_buffer_size);
 
@@ -410,7 +413,7 @@ void Coordinator::run_cuda() {
 
 // Initialize CUDA device and check properties.
 
-cudaDeviceProp Coordinator::initialize_cuda_device() {
+cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
 
@@ -428,7 +431,7 @@ cudaDeviceProp Coordinator::initialize_cuda_device() {
 
 // Build and reduce the juggling graph.
 
-Graph Coordinator::build_and_reduce_graph() {
+Graph CoordinatorCUDA::build_and_reduce_graph() {
   Graph graph = {
       config.b,
       config.h,
@@ -444,7 +447,8 @@ Graph Coordinator::build_and_reduce_graph() {
 
 // Choose a search algorithm to use.
 
-CudaAlgorithm Coordinator::select_cuda_search_algorithm(const Graph& graph) {
+CudaAlgorithm
+  CoordinatorCUDA::select_cuda_search_algorithm(const Graph& graph) {
   unsigned max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
       ? graph.superprime_period_bound(config.shiftlimit)
       : graph.prime_period_bound();
@@ -478,7 +482,7 @@ CudaAlgorithm Coordinator::select_cuda_search_algorithm(const Graph& graph) {
 // If the resulting graph is too large to fit into the GPU's constant memory,
 // throw a `std::runtime_error` exception with a relevant error message.
 
-std::vector<statenum_t> Coordinator::make_graph_buffer(const Graph& graph,
+std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer(const Graph& graph,
       CudaAlgorithm alg) {
   std::vector<statenum_t> graph_buffer;
 
@@ -547,7 +551,7 @@ const double throughput[33][3] = {
 
 // Determine an optimal runtime configuration for the GPU hardware available
 
-CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
+CudaRuntimeParams CoordinatorCUDA::find_runtime_params(const cudaDeviceProp& prop,
       CudaAlgorithm alg, unsigned num_states) {
   CudaRuntimeParams params;
   params.num_blocks = prop.multiProcessorCount;
@@ -677,7 +681,7 @@ CudaRuntimeParams Coordinator::find_runtime_params(const cudaDeviceProp& prop,
 
 // Return the amount of shared memory needed per block, in bytes.
 
-size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
+size_t CoordinatorCUDA::calc_shared_memory_size(CudaAlgorithm alg,
         unsigned num_states, unsigned n_max, const CudaRuntimeParams& p) {
   size_t shared_bytes = 0;
 
@@ -702,7 +706,7 @@ size_t Coordinator::calc_shared_memory_size(CudaAlgorithm alg,
 
 // Set up CUDA shared memory configuration.
 
-void Coordinator::configure_cuda_shared_memory(const CudaRuntimeParams& p) {
+void CoordinatorCUDA::configure_cuda_shared_memory(const CudaRuntimeParams& p) {
   cudaFuncSetAttribute(cuda_gen_loops_normal,
     cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
 }
@@ -710,7 +714,7 @@ void Coordinator::configure_cuda_shared_memory(const CudaRuntimeParams& p) {
 // Allocate GPU memory for patterns, WorkerInfo, ThreadStorageWorkCell, and
 // the juggling graph if it doesn't fit into constant memory.
 
-void Coordinator::allocate_gpu_device_memory(const CudaRuntimeParams& params,
+void CoordinatorCUDA::allocate_gpu_device_memory(const CudaRuntimeParams& params,
      const std::vector<statenum_t>& graph_buffer, unsigned num_states) {
   if (!config.countflag) {
     throw_on_cuda_error(
@@ -743,7 +747,7 @@ void Coordinator::allocate_gpu_device_memory(const CudaRuntimeParams& params,
 
 // Copy graph data to GPU.
 
-void Coordinator::copy_graph_to_gpu(
+void CoordinatorCUDA::copy_graph_to_gpu(
       const std::vector<statenum_t>& graph_buffer) {
   if (graphmatrix_d != nullptr) {
     jpout << "  placing graph into device memory ("
@@ -765,7 +769,7 @@ void Coordinator::copy_graph_to_gpu(
 
 // Copy static global variables to GPU global memory.
 
-void Coordinator::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
+void CoordinatorCUDA::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
       const Graph& graph) {
   uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
   uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
@@ -806,7 +810,7 @@ ThreadStorageWorkCell& workcell(std::vector<ThreadStorageWorkCell>& wa_h,
 
 // Copy worker data to the GPU.
 
-void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
+void CoordinatorCUDA::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h) {
   throw_on_cuda_error(
       cudaMemcpy(wi_d, wi_h.data(), sizeof(WorkerInfo) * wi_h.size(),
@@ -820,7 +824,7 @@ void Coordinator::copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
 
 // Launch the appropriate CUDA kernel.
 
-void Coordinator::launch_cuda_kernel(const CudaRuntimeParams& p,
+void CoordinatorCUDA::launch_cuda_kernel(const CudaRuntimeParams& p,
     CudaAlgorithm alg, unsigned cycles) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
@@ -844,7 +848,7 @@ void Coordinator::launch_cuda_kernel(const CudaRuntimeParams& p,
 
 // Copy worker data from the GPU.
 
-void Coordinator::copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
+void CoordinatorCUDA::copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h) {
   throw_on_cuda_error(
       cudaMemcpy(wi_h.data(), wi_d, sizeof(WorkerInfo) * wi_h.size(),
@@ -858,28 +862,22 @@ void Coordinator::copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
 
 // Process worker results and handle pattern buffer.
 
-void Coordinator::process_worker_results(const Graph& graph,
-      std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
-  int num_working = 0;
-  int num_idle = 0;
-
+void CoordinatorCUDA::process_worker_results(std::vector<WorkerInfo>& wi_h,
+    std::vector<ThreadStorageWorkCell>& wa_h) {
   for (int id = 0; id < num_workers; ++id) {
-    if (wi_h.at(id).status & 1) {
-      ++num_idle;
-    } else {
-      ++num_working;
-    }
-
-    MessageW2C msg;
-    msg.worker_id = id;
-    msg.count.assign(n_max + 1, 0);
-    for (unsigned j = 0; j < n_max; ++j) {
-      msg.count.at(j + 1) = workcell(wa_h, n_max, id, j).count;
-      workcell(wa_h, n_max, id, j).count = 0;
-    }
-    msg.nnodes = wi_h.at(id).nnodes;
+    context.nnodes += wi_h.at(id).nnodes;
     wi_h.at(id).nnodes = 0;
-    record_data_from_message(msg);
+    // context.secs_working += msg.secs_working;
+  
+    for (size_t i = 0; i < n_max; ++i) {
+      const auto num = workcell(wa_h, n_max, id, i).count;
+      workcell(wa_h, n_max, id, i).count = 0;
+      context.count.at(i + 1) += num;
+      context.ntotal += num;
+      if (i + 1 >= config.n_min && i + 1 <= n_max) {
+        context.npatterns += num;
+      }
+    }
   }
 }
 
@@ -891,7 +889,7 @@ void Coordinator::process_worker_results(const Graph& graph,
 // In the event of a buffer overflow, throw a `std::runtime_error` exception
 // with a relevant error message.
 
-uint32_t Coordinator::process_pattern_buffer(statenum_t* const pb_d,
+uint32_t CoordinatorCUDA::process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size) {
   if (config.countflag) {
     return 0;
@@ -974,11 +972,9 @@ uint32_t Coordinator::process_pattern_buffer(statenum_t* const pb_d,
       from_state = to_state;
     }
 
-    MessageW2C msg;
-    msg.worker_id = 0;
-    msg.pattern = pattern_output_format(config, pattern_throws, start_state);
-    msg.period = period;
-    process_search_result(msg);
+    const std::string pattern =
+        pattern_output_format(config, pattern_throws, start_state);
+    process_search_result(pattern);
   }
 
   // reset the pattern buffer index
@@ -995,7 +991,7 @@ uint32_t Coordinator::process_pattern_buffer(statenum_t* const pb_d,
 // Calculate the next number of kernel cycles to run, based on timing and
 // progress.
 
-uint64_t Coordinator::calc_next_kernel_cycles(uint64_t last_cycles,
+uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       std::chrono::time_point<std::chrono::system_clock> prev_after_kernel,
       std::chrono::time_point<std::chrono::system_clock> before_kernel,
       std::chrono::time_point<std::chrono::system_clock> after_kernel,
@@ -1046,7 +1042,7 @@ uint64_t Coordinator::calc_next_kernel_cycles(uint64_t last_cycles,
 
 // Clean up GPU memory.
 
-void Coordinator::cleanup_gpu_memory() {
+void CoordinatorCUDA::cleanup_gpu_memory() {
   if (!config.countflag) {
     cudaFree(pb_d);
   }
@@ -1064,7 +1060,7 @@ void Coordinator::cleanup_gpu_memory() {
 
 // Gather unfinished work assignments.
 
-void Coordinator::gather_unfinished_work_assignments(const Graph& graph,
+void CoordinatorCUDA::gather_unfinished_work_assignments(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
   for (unsigned id = 0; id < num_workers; ++id) {
     if (!wi_h.at(id).status & 1) {
@@ -1080,7 +1076,7 @@ void Coordinator::gather_unfinished_work_assignments(const Graph& graph,
 
 // Load initial work assignments.
 
-void Coordinator::load_initial_work_assignments(const Graph& graph,
+void CoordinatorCUDA::load_initial_work_assignments(const Graph& graph,
       std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h)  {
   for (int id = 0; id < num_workers; ++id) {
     if (context.assignments.size() > 0) {
@@ -1103,7 +1099,7 @@ void Coordinator::load_initial_work_assignments(const Graph& graph,
 // Load a work assignment into a worker's slot in the `WorkerInfo` and
 // `ThreadStorageWorkCell` arrays.
 
-void Coordinator::load_work_assignment(const unsigned id,
+void CoordinatorCUDA::load_work_assignment(const unsigned id,
     const WorkAssignment& wa, std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h, const Graph& graph) {
   unsigned start_state = wa.start_state;
@@ -1206,7 +1202,7 @@ void Coordinator::load_work_assignment(const unsigned id,
 
 // Read out the current work assignment for worker `id`.
 
-WorkAssignment Coordinator::read_work_assignment(unsigned id,
+WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned id,
     std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph) {
   WorkAssignment wa;
@@ -1242,7 +1238,7 @@ WorkAssignment Coordinator::read_work_assignment(unsigned id,
 
 // Assign new jobs to idle workers
 
-void Coordinator::assign_new_jobs(const Graph& graph,
+void CoordinatorCUDA::assign_new_jobs(const Graph& graph,
     std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h) {
 
   // sort the running work assignments to find the best ones to split
@@ -1335,7 +1331,7 @@ void Coordinator::assign_new_jobs(const Graph& graph,
 // Handle CUDA errors by throwing a `std::runtime_error` exception with a
 // relevant error message.
 
-void Coordinator::throw_on_cuda_error(cudaError_t code, const char *file,
+void CoordinatorCUDA::throw_on_cuda_error(cudaError_t code, const char *file,
       int line) {
   if (code != cudaSuccess) {
     std::stringstream ss;

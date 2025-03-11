@@ -13,23 +13,44 @@
 //
 
 #include "Coordinator.h"
+#include "CoordinatorCPU.h"
+#ifdef CUDA_ENABLED
+#include "CoordinatorCUDA.cuh"
+#endif
 
 #include <iostream>
 #include <iomanip>
 #include <sstream>
-#include <thread>
 #include <chrono>
 #include <algorithm>
 #include <cmath>
 #include <csignal>
 #include <cassert>
 #include <format>
+#include <cstring>
 #include <stdexcept>
 
 
 Coordinator::Coordinator(const SearchConfig& a, SearchContext& b,
     std::ostream& c) : config(a), context(b), jpout(c) {}
 
+
+// Factory method to return the correct type of Coordinator for the search
+// requested.
+
+std::unique_ptr<Coordinator> Coordinator::make_coordinator(
+    const SearchConfig& config, SearchContext& context, std::ostream& jpout) {
+  if (config.cudaflag) {
+#ifdef CUDA_ENABLED
+    return make_unique<CoordinatorCUDA>(config, context, jpout);
+#else
+    throw std::runtime_error("CUDA support not enabled");
+#endif
+  } else {
+    return make_unique<CoordinatorCPU>(config, context, jpout);
+  }
+}
+  
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
@@ -59,20 +80,7 @@ bool Coordinator::run() {
   signal(SIGINT, Coordinator::signal_handler);
 
   const auto start = std::chrono::high_resolution_clock::now();
-  #ifdef CUDA_ENABLED
-  if (config.cudaflag) {
-    try {
-      run_cuda();
-    } catch (const std::runtime_error& re) {
-      jpout << re.what() << '\n';
-      return false;
-    }
-  } else {
-    run_cpu();
-  }
-  #else
-  run_cpu();
-  #endif
+  run_search();
   const auto end = std::chrono::high_resolution_clock::now();
 
   const std::chrono::duration<double> diff = end - start;
@@ -82,7 +90,7 @@ bool Coordinator::run() {
 
   erase_status_output();
   if (config.verboseflag) {
-    jpout << "Finished on: " << current_time_string();
+    jpout << "Finished on: " << current_time_string() << '\n';
   }
   if (context.assignments.size() > 0) {
     jpout << "\nPARTIAL RESULTS:\n";
@@ -91,6 +99,10 @@ bool Coordinator::run() {
   print_results();
   return true;
 }
+
+// Empty method; subclasses override this to do the search
+
+void Coordinator::run_search() {}
 
 //------------------------------------------------------------------------------
 // Helper functions
@@ -282,17 +294,13 @@ void Coordinator::signal_handler(int signum) {
 // Handle a pattern sent to us by a worker. We store it and optionally print it
 // to the terminal.
 
-void Coordinator::process_search_result(const MessageW2C& msg) {
+void Coordinator::process_search_result(const std::string& pattern) {
   // workers only send patterns in the target period range
-  context.patterns.push_back(msg.pattern);
+  context.patterns.push_back(pattern);
 
   if (config.printflag) {
     erase_status_output();
-    if (config.verboseflag) {
-      jpout << msg.worker_id << ": " << msg.pattern << std::endl;
-    } else {
-      jpout << msg.pattern << std::endl;
-    }
+    jpout << pattern << '\n';
     print_status_output();
   }
 }
@@ -368,188 +376,34 @@ void Coordinator::print_results() const {
   }
 }
 
-void Coordinator::erase_status_output() const {
-  if (!config.statusflag || !stats_printed)
+void Coordinator::erase_status_output() {
+  if (!config.statusflag || !status_printed)
     return;
-  for (unsigned i = 0; i < config.num_threads + 2; ++i) {
+  for (int i = 0; i < status_line_count_last; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
+  status_line_count_last = 0;
 }
 
 void Coordinator::print_status_output() {
   if (!config.statusflag)
     return;
 
-  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && n_max > 3 * STATUS_WIDTH);
-  std::cout << "Status on: " << current_time_string();
-  std::cout << " cur/ end  rp options remaining at position";
-  if (compressed) {
-    std::cout << " (compressed view)";
-    for (int i = 47; i < STATUS_WIDTH; ++i) {
-      std::cout << ' ';
-    }
-  } else {
-    for (int i = 29; i < STATUS_WIDTH; ++i) {
-      std::cout << ' ';
-    }
+  status_line_count_last = 0;
+  status_printed = true;
+  for (const std::string& line : status_lines) {
+    std::cout << line << '\n';
+    ++status_line_count_last;
   }
-  std::cout << "    period\n";
-  for (unsigned i = 0; i < config.num_threads; ++i) {
-    std::cout << worker_status.at(i) << std::endl;
-  }
-
-  stats_printed = true;
+  std::flush(std::cout);
 }
 
 std::string Coordinator::current_time_string() {
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_timet = std::chrono::system_clock::to_time_t(now);
-  return std::ctime(&now_timet);
+  const auto now = std::chrono::system_clock::now();
+  const auto now_timet = std::chrono::system_clock::to_time_t(now);
+  char* now_str = std::ctime(&now_timet);
+  now_str[strlen(now_str) - 1] = '\0';  // remove trailing carraige return
+  return now_str;
 }
 
-//------------------------------------------------------------------------------
-// Manage worker status
-//------------------------------------------------------------------------------
-
-// Copy status data out of the worker message, into appropriate data structures
-// in the coordinator.
-
-void Coordinator::record_data_from_message(const MessageW2C& msg) {
-  context.nnodes += msg.nnodes;
-  context.secs_working += msg.secs_working;
-
-  // pattern counts by period
-  assert(msg.count.size() == n_max + 1);
-  assert(context.count.size() == n_max + 1);
-
-  for (size_t i = 1; i < msg.count.size(); ++i) {
-    context.count.at(i) += msg.count.at(i);
-    context.ntotal += msg.count.at(i);
-    if (i >= config.n_min && i <= n_max) {
-      context.npatterns += msg.count.at(i);
-    }
-    if (config.statusflag && msg.count.at(i) > 0) {
-      worker_longest_start.at(msg.worker_id) = std::max(
-          worker_longest_start.at(msg.worker_id), static_cast<unsigned>(i));
-      worker_longest_last.at(msg.worker_id) = std::max(
-          worker_longest_last.at(msg.worker_id), static_cast<unsigned>(i));
-    }
-  }
-}
-
-// Create a status display for a worker, showing its current state in the
-// search.
-
-std::string Coordinator::make_worker_status(const MessageW2C& msg) {
-  std::ostringstream buffer;
-
-  if (!msg.running) {
-    buffer << "   -/   -   - IDLE";
-    for (int i = 1; i < STATUS_WIDTH; ++i) {
-      buffer << ' ';
-    }
-    buffer << "-    -";
-    return buffer.str();
-  }
-
-  const unsigned id = msg.worker_id;
-  const unsigned root_pos = worker_rootpos.at(id);
-  const std::vector<unsigned>& ops = msg.worker_options_left;
-  const std::vector<unsigned>& ds_extra = msg.worker_deadstates_extra;
-  std::vector<unsigned>& ops_start = worker_options_left_start.at(id);
-  std::vector<unsigned>& ops_last = worker_options_left_last.at(id);
-
-  buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
-  buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
-  buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
-
-  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
-      && n_max > 3 * STATUS_WIDTH);
-  const bool show_deadstates =
-      (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
-      config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
-  const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH);
-
-  unsigned printed = 0;
-  bool hl_start = false;
-  bool did_hl_start = false;
-  bool hl_last = false;
-  bool did_hl_last = false;
-  bool hl_deadstate = false;
-  bool hl_shift = false;
-
-  assert(ops.size() == msg.worker_throw.size());
-  assert(ops.size() == ds_extra.size());
-
-  for (size_t i = 0; i < ops.size(); ++i) {
-    const unsigned throwval = msg.worker_throw.at(i);
-
-    if (!hl_start && !did_hl_start && i < ops_start.size() &&
-        ops.at(i) != ops_start.at(i)) {
-      hl_start = did_hl_start = true;
-    }
-    if (!hl_last && !did_hl_last && i < ops_last.size() &&
-        ops.at(i) != ops_last.at(i)) {
-      hl_last = did_hl_last = true;
-    }
-    if (show_deadstates && i < ds_extra.size() && ds_extra.at(i) > 0) {
-      hl_deadstate = true;
-    }
-    if (show_shifts && i < msg.worker_throw.size() && (throwval == 0 ||
-        throwval == config.h)) {
-      hl_shift = true;
-    }
-
-    if (i < root_pos)
-      continue;
-
-    char ch = '\0';
-
-    if (compressed) {
-      if (i == root_pos) {
-        ch = '0' + ops.at(i);
-      } else if (throwval == 0 || throwval == config.h) {
-        // skip
-      } else {
-        ch = '0' + ops.at(i);
-      }
-    } else {
-      ch = '0' + ops.at(i);
-    }
-
-    if (ch == '\0')
-      continue;
-
-    // use ANSI terminal codes to do inverse, bolding, and color
-    const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
-    if (escape) { buffer << '\x1B' << '['; }
-    if (hl_start) { buffer << "7;"; }
-    if (hl_last) { buffer << "1;"; }
-    if (hl_deadstate || hl_shift) { buffer << "32"; }
-    if (escape) { buffer << 'm'; }
-    buffer << ch;
-    if (escape) { buffer << '\x1B' << "[0m"; }
-    hl_start = hl_last = hl_deadstate = hl_shift = false;
-
-    if (++printed >= STATUS_WIDTH)
-      break;
-  }
-
-  while (printed < STATUS_WIDTH) {
-    buffer << ' ';
-    ++printed;
-  }
-
-  buffer << std::setw(5) << worker_longest_last.at(id)
-         << std::setw(5) << worker_longest_start.at(id);
-
-  ops_last = ops;
-  if (ops_start.size() == 0) {
-    ops_start = ops;
-  }
-  worker_longest_last.at(id) = 0;
-
-  return buffer.str();
-}

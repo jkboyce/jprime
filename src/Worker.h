@@ -24,11 +24,11 @@
 #include <cstdint>
 
 
-class Coordinator;
+class CoordinatorCPU;
 
 class Worker {
  public:
-  Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
+  Worker(const SearchConfig& config, CoordinatorCPU& coord, unsigned id,
       unsigned n_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
@@ -41,7 +41,7 @@ class Worker {
  private:
   // set during construction and do not change
   const SearchConfig config;
-  Coordinator& coordinator;
+  CoordinatorCPU& coordinator;
   const unsigned worker_id;
   const unsigned n_min;  // minimum period to find
   const unsigned n_max;  // maximum period

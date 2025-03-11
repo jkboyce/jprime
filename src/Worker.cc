@@ -13,7 +13,7 @@
 //
 
 #include "Worker.h"
-#include "Coordinator.h"
+#include "CoordinatorCPU.h"
 #include "Pattern.h"
 
 #include <iostream>
@@ -26,7 +26,7 @@
 #include <format>
 
 
-Worker::Worker(const SearchConfig& config, Coordinator& coord, unsigned id,
+Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, unsigned id,
     unsigned n_max)
     : config(config), coordinator(coord), worker_id(id), n_min(config.n_min),
       n_max(n_max) {}

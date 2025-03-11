@@ -8,7 +8,7 @@
 // This file is distributed under the MIT License.
 //
 
-#include "Coordinator.h"
+#include "CoordinatorCPU.h"
 
 #include <iostream>
 #include <iomanip>
@@ -23,9 +23,13 @@
 #include <stdexcept>
 
 
+CoordinatorCPU::CoordinatorCPU(const SearchConfig& a, SearchContext& b,
+    std::ostream& c) : Coordinator(a, b, c) {}
+
+
 // Run the search on the CPU, using one or more worker threads.
 
-void Coordinator::run_cpu() {
+void CoordinatorCPU::run_search() {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
     static_cast<long>(NANOSECS_PER_INBOX_CHECK));
   start_workers();
@@ -33,7 +37,7 @@ void Coordinator::run_cpu() {
   while (true) {
     give_assignments();
     steal_work();
-    collect_stats();
+    collect_status();
     process_inbox();
 
     if (Coordinator::stopping || (workers_idle.size() == config.num_threads
@@ -55,7 +59,7 @@ void Coordinator::run_cpu() {
 
 // Deliver a message to a given worker's inbox.
 
-void Coordinator::message_worker(const MessageC2W& msg,
+void CoordinatorCPU::message_worker(const MessageC2W& msg,
     unsigned worker_id) const {
   std::unique_lock<std::mutex> lck(worker.at(worker_id)->inbox_lock);
   worker.at(worker_id)->inbox.push(msg);
@@ -64,7 +68,7 @@ void Coordinator::message_worker(const MessageC2W& msg,
 // Give assignments to workers, while there are available assignments and idle
 // workers to take them.
 
-void Coordinator::give_assignments() {
+void CoordinatorCPU::give_assignments() {
   while (workers_idle.size() > 0 && context.assignments.size() > 0) {
     auto iter = workers_idle.begin();
     auto id = *iter;
@@ -100,7 +104,7 @@ void Coordinator::give_assignments() {
 // Identify a (not idle) worker to steal work from, and send it a SPLIT_WORK
 // message.
 
-void Coordinator::steal_work() {
+void CoordinatorCPU::steal_work() {
   bool sent_split_request = false;
 
   while (workers_idle.size() > workers_splitting.size()) {
@@ -147,7 +151,7 @@ void Coordinator::steal_work() {
 // First look at most remaining `start_state` values, and if no workers have
 // unexplored start states then find the lowest `root_pos` value.
 
-unsigned Coordinator::find_stealing_target_mostremaining() const {
+unsigned CoordinatorCPU::find_stealing_target_mostremaining() const {
   int id_startstates = -1;
   int id_rootpos = -1;
   unsigned max_startstates_remaining = 0;
@@ -176,9 +180,29 @@ unsigned Coordinator::find_stealing_target_mostremaining() const {
 
 // Send messages to all workers requesting a status update.
 
-void Coordinator::collect_stats() {
+void CoordinatorCPU::collect_status() {
   if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
     return;
+
+  status_lines.assign(config.num_threads + 2, "IDLE");
+  status_lines.at(0) = "Status on: " + current_time_string();
+
+  std::stringstream ss;
+  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
+      && n_max > 3 * STATUS_WIDTH);
+  ss << " cur/ end  rp options remaining at position";
+  if (compressed) {
+    ss << " (compressed view)";
+    for (int i = 47; i < STATUS_WIDTH; ++i) {
+      ss << ' ';
+    }
+  } else {
+    for (int i = 29; i < STATUS_WIDTH; ++i) {
+      ss << ' ';
+    }
+  }
+  ss << "    period";
+  status_lines.at(1) = ss.str();
 
   stats_counter = 0;
   stats_received = 0;
@@ -191,14 +215,14 @@ void Coordinator::collect_stats() {
 
 // Receive and handle messages from the worker threads.
 
-void Coordinator::process_inbox() {
+void CoordinatorCPU::process_inbox() {
   std::unique_lock<std::mutex> lck(inbox_lock);
   while (!inbox.empty()) {
     MessageW2C msg = inbox.front();
     inbox.pop();
 
     if (msg.type == MessageW2C::Type::SEARCH_RESULT) {
-      process_search_result(msg);
+      process_search_result(msg.pattern);
     } else if (msg.type == MessageW2C::Type::WORKER_IDLE) {
       process_worker_idle(msg);
     } else if (msg.type == MessageW2C::Type::RETURN_WORK) {
@@ -215,7 +239,7 @@ void Coordinator::process_inbox() {
 
 // Handle a notification that a worker is now idle.
 
-void Coordinator::process_worker_idle(const MessageW2C& msg) {
+void CoordinatorCPU::process_worker_idle(const MessageW2C& msg) {
   workers_idle.insert(msg.worker_id);
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
@@ -232,7 +256,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
       jpout << std::format(", removed from splitting queue ({} splitting)",
                  (workers_splitting.size() - 1));
     }
-    jpout << " on: " << current_time_string();
+    jpout << " on: " << current_time_string() << '\n';
     print_status_output();
   }
 
@@ -246,7 +270,7 @@ void Coordinator::process_worker_idle(const MessageW2C& msg) {
 // This happens in two contexts: (a) when the worker is responding to a
 // SPLIT_WORK request, and (b) when the worker is notified to quit.
 
-void Coordinator::process_returned_work(const MessageW2C& msg) {
+void CoordinatorCPU::process_returned_work(const MessageW2C& msg) {
   if (workers_splitting.count(msg.worker_id) > 0) {
     ++context.splits_total;
     workers_splitting.erase(msg.worker_id);
@@ -268,12 +292,12 @@ void Coordinator::process_returned_work(const MessageW2C& msg) {
 // We create a status string for each worker as their stats return, and once all
 // workers have responded we print it.
 
-void Coordinator::process_returned_stats(const MessageW2C& msg) {
+void CoordinatorCPU::process_returned_stats(const MessageW2C& msg) {
   record_data_from_message(msg);
   if (!config.statusflag)
     return;
 
-  worker_status.at(msg.worker_id) = make_worker_status(msg);
+  status_lines.at(msg.worker_id + 2) = make_worker_status(msg);
   if (++stats_received == config.num_threads) {
     erase_status_output();
     print_status_output();
@@ -287,7 +311,7 @@ void Coordinator::process_returned_stats(const MessageW2C& msg) {
 // and `root_pos`, which are used by the coordinator when it needs to select a
 // worker to send a SPLIT_WORK request to.
 
-void Coordinator::process_worker_update(const MessageW2C& msg) {
+void CoordinatorCPU::process_worker_update(const MessageW2C& msg) {
   if (msg.meta.size() > 0) {
     if (config.verboseflag) {
       erase_status_output();
@@ -344,7 +368,7 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
       }
       jpout << " new root_pos " << msg.root_pos;
     }
-    jpout << " on: " << current_time_string();
+    jpout << " on: " << current_time_string() << '\n';
     print_status_output();
   }
 }
@@ -356,9 +380,9 @@ void Coordinator::process_worker_update(const MessageW2C& msg) {
 // Start all of the worker threads into a ready state, and initialize data
 // structures for tracking them.
 
-void Coordinator::start_workers() {
+void CoordinatorCPU::start_workers() {
   if (config.verboseflag) {
-    jpout << "Started on: " << current_time_string();
+    jpout << "Started on: " << current_time_string() << '\n';
   }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
@@ -373,7 +397,6 @@ void Coordinator::start_workers() {
     worker_endstate.push_back(0);
     worker_rootpos.push_back(0);
     if (config.statusflag) {
-      worker_status.push_back("     ");
       worker_options_left_start.push_back({});
       worker_options_left_last.push_back({});
       worker_longest_start.push_back(0);
@@ -385,7 +408,7 @@ void Coordinator::start_workers() {
 
 // Stop all workers.
 
-void Coordinator::stop_workers() {
+void CoordinatorCPU::stop_workers() {
   if (config.verboseflag) {
     erase_status_output();
   }
@@ -407,11 +430,155 @@ void Coordinator::stop_workers() {
   }
 }
 
-bool Coordinator::is_worker_idle(const unsigned id) const {
+bool CoordinatorCPU::is_worker_idle(const unsigned id) const {
   return (workers_idle.count(id) != 0);
 }
 
-bool Coordinator::is_worker_splitting(const unsigned id) const {
+bool CoordinatorCPU::is_worker_splitting(const unsigned id) const {
   return (workers_splitting.count(id) != 0);
 }
 
+//------------------------------------------------------------------------------
+// Manage worker status
+//------------------------------------------------------------------------------
+
+// Copy status data out of the worker message, into appropriate data structures
+// in the coordinator.
+
+void CoordinatorCPU::record_data_from_message(const MessageW2C& msg) {
+  context.nnodes += msg.nnodes;
+  context.secs_working += msg.secs_working;
+
+  // pattern counts by period
+  assert(msg.count.size() == n_max + 1);
+  assert(context.count.size() == n_max + 1);
+
+  for (size_t i = 1; i < msg.count.size(); ++i) {
+    context.count.at(i) += msg.count.at(i);
+    context.ntotal += msg.count.at(i);
+    if (i >= config.n_min && i <= n_max) {
+      context.npatterns += msg.count.at(i);
+    }
+    if (config.statusflag && msg.count.at(i) > 0) {
+      worker_longest_start.at(msg.worker_id) = std::max(
+          worker_longest_start.at(msg.worker_id), static_cast<unsigned>(i));
+      worker_longest_last.at(msg.worker_id) = std::max(
+          worker_longest_last.at(msg.worker_id), static_cast<unsigned>(i));
+    }
+  }
+}
+
+// Create a status display for a worker, showing its current state in the
+// search.
+
+std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg) {
+  std::ostringstream buffer;
+
+  if (!msg.running) {
+    buffer << "   -/   -   - IDLE";
+    for (int i = 1; i < STATUS_WIDTH; ++i) {
+      buffer << ' ';
+    }
+    buffer << "-    -";
+    return buffer.str();
+  }
+
+  const unsigned id = msg.worker_id;
+  const unsigned root_pos = worker_rootpos.at(id);
+  const std::vector<unsigned>& ops = msg.worker_options_left;
+  const std::vector<unsigned>& ds_extra = msg.worker_deadstates_extra;
+  std::vector<unsigned>& ops_start = worker_options_left_start.at(id);
+  std::vector<unsigned>& ops_last = worker_options_left_last.at(id);
+
+  buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
+  buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
+  buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
+
+  const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
+      && n_max > 3 * STATUS_WIDTH);
+  const bool show_deadstates =
+      (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
+      config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
+  const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH);
+
+  unsigned printed = 0;
+  bool hl_start = false;
+  bool did_hl_start = false;
+  bool hl_last = false;
+  bool did_hl_last = false;
+  bool hl_deadstate = false;
+  bool hl_shift = false;
+
+  assert(ops.size() == msg.worker_throw.size());
+  assert(ops.size() == ds_extra.size());
+
+  for (size_t i = 0; i < ops.size(); ++i) {
+    const unsigned throwval = msg.worker_throw.at(i);
+
+    if (!hl_start && !did_hl_start && i < ops_start.size() &&
+        ops.at(i) != ops_start.at(i)) {
+      hl_start = did_hl_start = true;
+    }
+    if (!hl_last && !did_hl_last && i < ops_last.size() &&
+        ops.at(i) != ops_last.at(i)) {
+      hl_last = did_hl_last = true;
+    }
+    if (show_deadstates && i < ds_extra.size() && ds_extra.at(i) > 0) {
+      hl_deadstate = true;
+    }
+    if (show_shifts && i < msg.worker_throw.size() && (throwval == 0 ||
+        throwval == config.h)) {
+      hl_shift = true;
+    }
+
+    if (i < root_pos)
+      continue;
+
+    char ch = '\0';
+
+    if (compressed) {
+      if (i == root_pos) {
+        ch = '0' + ops.at(i);
+      } else if (throwval == 0 || throwval == config.h) {
+        // skip
+      } else {
+        ch = '0' + ops.at(i);
+      }
+    } else {
+      ch = '0' + ops.at(i);
+    }
+
+    if (ch == '\0')
+      continue;
+
+    // use ANSI terminal codes to do inverse, bolding, and color
+    const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
+    if (escape) { buffer << '\x1B' << '['; }
+    if (hl_start) { buffer << "7;"; }
+    if (hl_last) { buffer << "1;"; }
+    if (hl_deadstate || hl_shift) { buffer << "32"; }
+    if (escape) { buffer << 'm'; }
+    buffer << ch;
+    if (escape) { buffer << '\x1B' << "[0m"; }
+    hl_start = hl_last = hl_deadstate = hl_shift = false;
+
+    if (++printed >= STATUS_WIDTH)
+      break;
+  }
+
+  while (printed < STATUS_WIDTH) {
+    buffer << ' ';
+    ++printed;
+  }
+
+  buffer << std::setw(5) << worker_longest_last.at(id)
+         << std::setw(5) << worker_longest_start.at(id);
+
+  ops_last = ops;
+  if (ops_start.size() == 0) {
+    ops_start = ops;
+  }
+  worker_longest_last.at(id) = 0;
+
+  return buffer.str();
+}
