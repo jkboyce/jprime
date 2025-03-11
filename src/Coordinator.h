@@ -26,13 +26,16 @@ class Coordinator {
   Coordinator(const SearchConfig& config, SearchContext& context,
       std::ostream& jpout);
   Coordinator() = delete;
+  static std::unique_ptr<Coordinator> make_coordinator(
+    const SearchConfig& config, SearchContext& context, std::ostream& jpout);
 
  protected:
   const SearchConfig& config;
   SearchContext& context;
-  std::ostream& jpout;  // all console output goes here
+  std::ostream& jpout;  // all console output goes here except status display
   unsigned n_max = 0;  // max pattern period to find
 
+  // live status display
   std::vector<std::string> status_lines;
   bool status_printed = false;
   int status_line_count_last = 0;
@@ -41,8 +44,6 @@ class Coordinator {
   static constexpr unsigned MAX_STATES = 1000000u;  // memory limit
 
  public:
-  static std::unique_ptr<Coordinator> make_coordinator(
-    const SearchConfig& config, SearchContext& context, std::ostream& jpout);
   bool run();
 
  protected:
@@ -57,6 +58,10 @@ class Coordinator {
   void print_status_output();
   static std::string current_time_string();
   void process_search_result(const std::string& pattern);
+
+ public:
+  std::string pattern_output_format(const std::vector<int>& pattern,
+    const unsigned start_state);
 };
 
 #endif

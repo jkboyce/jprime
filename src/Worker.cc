@@ -918,72 +918,7 @@ void Worker::initialize_working_variables() {
 void Worker::report_pattern() const {
   MessageW2C msg;
   msg.type = MessageW2C::Type::SEARCH_RESULT;
-  msg.pattern = pattern_output_format(config, pattern, start_state);
+  msg.pattern = coordinator.pattern_output_format(pattern, start_state);
   msg.period = pos + 1;
   message_coordinator(msg);
-}
-
-// Format a pattern for output.
-
-std::string pattern_output_format(const SearchConfig& config,
-    const std::vector<int>& pattern, const unsigned start_state) {
-  std::ostringstream buffer;
-
-  if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH) {
-    if (start_state == 1) {
-      buffer << "  ";
-    } else {
-      buffer << "* ";
-    }
-  }
-
-  Pattern pat(pattern, config.h);
-  if (config.dualflag) {
-    buffer << pat.dual().to_string(config.throwdigits, !config.noplusminusflag);
-  } else {
-    buffer << pat.to_string(config.throwdigits, !config.noplusminusflag);
-  }
-
-  if (start_state != 1) {
-    buffer << " *";
-  }
-
-  if (config.invertflag) {
-    Pattern inverse = pat.inverse();
-
-    if ((inverse.period() != 0) != pat.is_superprime()) {
-      std::cerr << "error with inverse of:\n"
-                << "  " << pat << " :\n"
-                << "  " << inverse << '\n'
-                << "inverse.period() = " << inverse.period() << '\n'
-                << "pat.is_superprime() = " << pat.is_superprime()
-                << '\n';
-    }
-    if (pat.is_superprime() != inverse.is_superprime()) {
-      std::cerr << "error with inverse of:\n"
-                << "  " << pat << " :\n"
-                << "  " << inverse << '\n'
-                << "pat.is_superprime() = " << pat.is_superprime() << '\n'
-                << "inverse.is_superprime() = " << inverse.is_superprime()
-                << '\n';
-    }
-    assert((inverse.period() != 0) == pat.is_superprime());
-    assert(pat.is_superprime() == inverse.is_superprime());
-
-    if (inverse.is_valid()) {
-      if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH &&
-          start_state == 1) {
-        buffer << "  ";
-      }
-      if (config.dualflag) {
-        buffer << " : " << inverse.dual().to_string(config.throwdigits,
-            !config.noplusminusflag);
-      } else {
-        buffer << " : " << inverse.to_string(config.throwdigits,
-            !config.noplusminusflag);
-      }
-    }
-  }
-
-  return buffer.str();
 }

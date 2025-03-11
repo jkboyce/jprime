@@ -10,7 +10,6 @@
 //
 
 #include "CoordinatorCUDA.cuh"
-#include "Worker.h"  // for pattern_output_format()
 
 #include <iostream>
 #include <vector>
@@ -670,9 +669,9 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(const cudaDeviceProp& pro
         << "\n  pattern buffer size = " << params.pattern_buffer_size
         << " patterns"
         << "\n  shared memory size = " << params.shared_memory_size << " bytes"
-        << std::format("\n  placing used into {} memory",
+        << std::format("\n  placing used[] into {} memory",
               params.used_in_shared ? "shared" : "device")
-        << "\n  workcell window in shared = [" << params.window_lower << ','
+        << "\n  workcell[] window in shared = [" << params.window_lower << ','
         << params.window_upper << ')'
         << std::endl;
 
@@ -973,7 +972,7 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(statenum_t* const pb_d,
     }
 
     const std::string pattern =
-        pattern_output_format(config, pattern_throws, start_state);
+        pattern_output_format(pattern_throws, start_state);
     process_search_result(pattern);
   }
 
