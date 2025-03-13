@@ -102,7 +102,7 @@ void print_help() {
     "input are ignored and can be omitted. For example: jprime -file testrun\n"
     "\n"
     "Examples:\n"
-    "   jprime 5 7 -noplus\n"
+    "   jprime 5 7 -noblock\n"
     "   jprime 6 10 187-188\n"
     "   jprime 4 9 14- -super 0 -inverse\n"
     "   jprime 7 42 6 -g -file 7_42_6_g\n"
