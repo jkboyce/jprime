@@ -19,19 +19,22 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <chrono>
 #include <csignal>
 
 
 class Coordinator {
  public:
-  Coordinator(const SearchConfig& config, SearchContext& context,
-      std::ostream& jpout);
+  Coordinator(SearchConfig& config, SearchContext& context,
+    std::ostream& jpout);
   Coordinator() = delete;
+
+  // factory method
   static std::unique_ptr<Coordinator> make_coordinator(
-    const SearchConfig& config, SearchContext& context, std::ostream& jpout);
+    SearchConfig& config, SearchContext& context, std::ostream& jpout);
 
  protected:
-  const SearchConfig& config;
+  SearchConfig& config;
   SearchContext& context;
   std::ostream& jpout;  // all console output goes here except status display
   unsigned n_max = 0;  // max pattern period to find
@@ -41,14 +44,14 @@ class Coordinator {
   bool status_printed = false;
   int status_line_count_last = 0;
 
-  static volatile sig_atomic_t stopping;
+  static volatile sig_atomic_t stopping;  // to handle ctrl-c
   static constexpr unsigned MAX_STATES = 1000000u;  // memory limit
 
  public:
   bool run();
 
  protected:
-  virtual void run_search();
+  virtual void run_search();  // subclasses define this
 
   // helper functions
   void calc_graph_size();
@@ -69,6 +72,9 @@ class Coordinator {
   void customize_graph(Graph& graph);
   std::string pattern_output_format(const std::vector<int>& pattern,
     const unsigned start_state);
+  static double calc_duration_secs(
+    const std::chrono::time_point<std::chrono::system_clock>& before,
+    const std::chrono::time_point<std::chrono::system_clock>& after);
 };
 
 #endif

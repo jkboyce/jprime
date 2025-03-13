@@ -23,7 +23,6 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
-#include <chrono>
 #include <algorithm>
 #include <cmath>
 #include <csignal>
@@ -33,14 +32,14 @@
 #include <stdexcept>
 
 
-Coordinator::Coordinator(const SearchConfig& a, SearchContext& b,
-    std::ostream& c) : config(a), context(b), jpout(c) {}
+Coordinator::Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c) :
+    config(a), context(b), jpout(c) {}
 
 // Factory method to return the correct type of Coordinator for the search
 // requested.
 
 std::unique_ptr<Coordinator> Coordinator::make_coordinator(
-    const SearchConfig& config, SearchContext& context, std::ostream& jpout) {
+    SearchConfig& config, SearchContext& context, std::ostream& jpout) {
   if (config.cudaflag) {
 #ifdef CUDA_ENABLED
     return make_unique<CoordinatorCUDA>(config, context, jpout);
@@ -84,8 +83,7 @@ bool Coordinator::run() {
   run_search();
   const auto end = std::chrono::high_resolution_clock::now();
 
-  const std::chrono::duration<double> diff = end - start;
-  const double runtime = diff.count();
+  const double runtime = calc_duration_secs(start, end);
   context.secs_elapsed += runtime;
   context.secs_available += runtime * config.num_threads;
 
@@ -590,4 +588,13 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
   }
 
   return buffer.str();
+}
+
+// Return the duration between two time points, in seconds.
+
+double Coordinator::calc_duration_secs(
+    const std::chrono::time_point<std::chrono::system_clock>& before,
+    const std::chrono::time_point<std::chrono::system_clock>& after) {
+  const std::chrono::duration<double> diff = after - before;
+  return diff.count();
 }

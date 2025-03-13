@@ -101,13 +101,41 @@ struct CudaRuntimeParams {
 };
 
 
+struct CudaWorkerSummary {
+  unsigned root_pos_min;  // minimum `root_pos` across all active workers
+  statenum_t max_start_state;  // maximum `start_state` across all workers
+
+  // vectors containing ids of workers in various states; note that all ids in
+  // multiple_start_states are in other vectors as well!
+  std::vector<unsigned> workers_idle;  // idle workers
+  std::vector<unsigned> workers_multiple_start_states;
+  std::vector<unsigned> workers_rpm_plus0;  // root_pos == root_pos_min
+  std::vector<unsigned> workers_rpm_plus1;  // root_pos == root_pos_min + 1
+  std::vector<unsigned> workers_rpm_plus2;
+  std::vector<unsigned> workers_rpm_plus3;
+  std::vector<unsigned> workers_rpm_plus4p;
+
+  // vectors containing counts of active workers, indexed by start_state
+  std::vector<unsigned> count_rpm_plus0;
+  std::vector<unsigned> count_rpm_plus1;
+  std::vector<unsigned> count_rpm_plus2;
+  std::vector<unsigned> count_rpm_plus3;
+  std::vector<unsigned> count_rpm_plus4p;
+
+  // values from `context` captured at a point in time
+  uint64_t npatterns = 0;
+  uint64_t ntotal = 0;
+  uint64_t nnodes = 0;
+};
+
+
 //------------------------------------------------------------------------------
 // Coordinator subclass
 //------------------------------------------------------------------------------
 
 class CoordinatorCUDA : public Coordinator {
  public:
-  CoordinatorCUDA(const SearchConfig& config, SearchContext& context,
+  CoordinatorCUDA(SearchConfig& config, SearchContext& context,
     std::ostream& jpout);
 
  protected:
@@ -118,10 +146,14 @@ class CoordinatorCUDA : public Coordinator {
   statenum_t* graphmatrix_d = nullptr;  // if needed
   ThreadStorageUsed* used_d = nullptr;  // if needed
 
-  // GPU runtime parameters
-  unsigned num_workers;
+  // timing parameters specific to GPU
   double total_kernel_time = 0;
   double total_host_time = 0;
+
+ protected:
+  // live status display
+  std::vector<unsigned> longest_by_startstate_ever;
+  std::vector<unsigned> longest_by_startstate_current;
 
  protected:
   virtual void run_search() override;
@@ -150,15 +182,15 @@ class CoordinatorCUDA : public Coordinator {
     unsigned cycles);
   void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h);
-  void process_worker_results(std::vector<WorkerInfo>& wi_h,
+  void process_worker_counters(std::vector<WorkerInfo>& wi_h,
     std::vector<ThreadStorageWorkCell>& wa_h);
   uint32_t process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
-  uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
-    std::chrono::time_point<std::chrono::system_clock> prev_after_kernel,
-    std::chrono::time_point<std::chrono::system_clock> before_kernel,
-    std::chrono::time_point<std::chrono::system_clock> after_kernel,
-    unsigned num_done, uint32_t pattern_count, CudaRuntimeParams params);
+  void record_working_time(double host_time, double kernel_time,
+    unsigned idle_before, unsigned idle_after);
+  uint64_t calc_next_kernel_cycles(uint64_t last_cycles, double host_time,
+    double kernel_time, unsigned idle_start, unsigned idle_end,
+    uint32_t pattern_count, CudaRuntimeParams p);
     
   // cleanup
   void cleanup_gpu_memory();
@@ -174,11 +206,19 @@ class CoordinatorCUDA : public Coordinator {
   WorkAssignment read_work_assignment(unsigned id,
     std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph);
-  void assign_new_jobs(const Graph& graph, std::vector<WorkerInfo>& wi_h,
-    std::vector<ThreadStorageWorkCell>& wa_h);
-    
+  unsigned assign_new_jobs(const CudaWorkerSummary& summary, const Graph& graph,
+    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
+
+  // summarization and status display
+  CudaWorkerSummary summarize_worker_status(const Graph& graph,
+    const std::vector<WorkerInfo>& wi_h,
+    const std::vector<ThreadStorageWorkCell>& wa_h);
+  void do_status_display(const CudaWorkerSummary& summary,
+    const CudaWorkerSummary& last_summary, double host_time,
+    double kernel_time);
+
   // helper
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 };
 
-#endif  // JPRIME_COORDINATORCUDA_CUH_
+#endif

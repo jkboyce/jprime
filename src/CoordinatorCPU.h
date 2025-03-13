@@ -27,8 +27,8 @@
 
 class CoordinatorCPU : public Coordinator {
  public:
-  CoordinatorCPU(const SearchConfig& config, SearchContext& context,
-      std::ostream& jpout);
+  CoordinatorCPU(SearchConfig& config, SearchContext& context,
+    std::ostream& jpout);
 
  public:
   // for communicating with workers

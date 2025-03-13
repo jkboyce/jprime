@@ -23,7 +23,7 @@
 #include <stdexcept>
 
 
-CoordinatorCPU::CoordinatorCPU(const SearchConfig& a, SearchContext& b,
+CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
     std::ostream& c) : Coordinator(a, b, c) {}
 
 
@@ -187,7 +187,7 @@ void CoordinatorCPU::collect_status() {
   status_lines.assign(config.num_threads + 2, "IDLE");
   status_lines.at(0) = "Status on: " + current_time_string();
 
-  std::stringstream ss;
+  std::ostringstream ss;
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
       && n_max > 3 * STATUS_WIDTH);
   ss << " cur/ end  rp options remaining at position";
