@@ -1310,7 +1310,7 @@ unsigned CoordinatorCUDA::assign_new_jobs(const CudaWorkerSummary& summary,
         it = summary.workers_rpm_plus4p.begin();
       }
       if (it == summary.workers_rpm_plus4p.end()) {
-        break;
+        return idle_remaining;
       }
 
       if (has_split.at(*it)) {
