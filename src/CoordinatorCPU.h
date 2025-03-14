@@ -1,7 +1,7 @@
 //
 // CoordinatorCPU.h
 //
-// Defines data types and classes for executing the search on a CPU.
+// Coordinator that manages the search on a multicore CPU.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //

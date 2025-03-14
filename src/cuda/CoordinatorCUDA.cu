@@ -1,8 +1,8 @@
 //
 // CoordinatorCUDA.cu
 //
-// Routines for executing the search on a CUDA-enabled GPU. This file should
-// be compiled with `nvcc`, part of the CUDA Toolkit.
+// Coordinator that executes the search on a CUDA GPU. This file should be
+// compiled with `nvcc`, part of the CUDA Toolkit.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
@@ -30,7 +30,6 @@
 // memory. This is where we place the juggling graph data.
 
 __device__ __constant__ statenum_t graphmatrix_c[65536 / sizeof(statenum_t)];
-
 
 // GPU global memory
 
@@ -326,12 +325,10 @@ jprime 3 11 1-25 -count
 
 */
 
-//------------------------------------------------------------------------------
-// CoordinatorCUDA
-//------------------------------------------------------------------------------
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
     std::ostream& c) : Coordinator(a, b, c) {}
+
 
 //------------------------------------------------------------------------------
 // Execution entry point

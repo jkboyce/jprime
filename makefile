@@ -12,7 +12,7 @@
 #
 
 CC = g++
-CFLAGS = -Wall -Wextra -std=c++20 -O3
+CFLAGS = -Wall -Wextra -std=c++20 -O3 -Isrc -Isrc/cuda
 SDIR = src
 ODIR = build
 OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
@@ -42,15 +42,16 @@ clean:
 #
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from NVIDIA.
 
-CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include
+CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include \
+              -Isrc -Isrc/cuda
 _OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
 NVCCFLAGS = -std=c++20 -O3 -Xcudafe --diag_suppress=68 \
             -gencode arch=compute_60,code=compute_60 \
             -gencode arch=compute_89,code=sm_89 \
-            -Wno-deprecated-gpu-targets
+            -Wno-deprecated-gpu-targets -Isrc -Isrc/cuda
 
-cuda: $(SDIR)/CoordinatorCUDA.cu $(_OBJ_CUDA)
-	nvcc $(NVCCFLAGS) -o jprime src/CoordinatorCUDA.cu $(_OBJ_CUDA)
+cuda: $(SDIR)/cuda/CoordinatorCUDA.cu $(_OBJ_CUDA)
+	nvcc $(NVCCFLAGS) -o jprime src/cuda/CoordinatorCUDA.cu $(_OBJ_CUDA)
 
 $(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) | builddir_cuda
 	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS_CUDA)
