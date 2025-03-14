@@ -289,46 +289,11 @@ __global__ void cuda_gen_loops_normal(statenum_t* const patterns_d,
 
 
 //------------------------------------------------------------------------------
-// Benchmarks
+// Host code
 //------------------------------------------------------------------------------
-
-/*
-jprime 3 8 -cuda -count
-11906414 patterns in range (11906414 seen, 49962563 nodes)
-1.53 sec (300000 steps, normal, 56 x 96) 38400 bytes
-
-
-jprime 3 9 -cuda -count
-30513071763 patterns in range (30513071763 seen, 141933075458 nodes)
---> 61.0728 sec on 10 CPU cores
-22.2 sec (shared, 56 x 160) 96640 bytes
-32.9 sec (global, 56 x 160) 1920 bytes
-27.7 sec (global, 56 x 480) 5760 bytes
-56.7 sec (hybrid, 56 x 64) 11520 bytes [29,49]
-16.9 sec (hybrid, 56 x 320) 57600 bytes [29,49]
-14.8 sec (hybrid, 56 x 480) 86400 bytes [29,49]
-15.2 sec (hybrid, 56 x 384) 99840 bytes [24,54]
-27.4 sec (hybrid, 56 x 480) 5760 bytes [74,74]  --> same result as _global
-26.6 sec (hybrid, 56 x 160) 96640 bytes [0,73]  --> slower than _shared
-14.7 sec (hybrid, 56 x 480) 97920 bytes [27,50]
-
-
-jprime 3 11 1-25 -count
-19638164481 patterns in range (19638164481 seen, 94368010897 nodes)
---> 62.8 sec on 10 CPU cores
-18.10 sec (shared, 56 x 160) 34560 bytes
-10.57 sec (shared, 56 x 320) 71680 bytes
-8.69 sec (shared, 56 x 448) 100352 bytes
-10.76 sec (hybrid, 56 x 384) 49152 bytes [12,24]
-8.67 sec (hybrid, 56 x 640) 81920 bytes [12,24]
-11.67 sec (hybrid, 56 x 448) 100352 bytes [0,24]
-
-*/
-
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
     std::ostream& c) : Coordinator(a, b, c) {}
-
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -360,6 +325,7 @@ void CoordinatorCUDA::run_search() {
   // idle workers at kernel start
   auto summary = summarize_worker_status(graph, wi_h, wa_h);
   unsigned idle_start = summary.workers_idle.size();
+  int kernel_runs = 0;
 
   while (true) {
     const auto prev_after_kernel = after_kernel;
@@ -368,6 +334,7 @@ void CoordinatorCUDA::run_search() {
     before_kernel = std::chrono::high_resolution_clock::now();
     launch_cuda_kernel(params, alg, cycles);
     after_kernel = std::chrono::high_resolution_clock::now();
+    ++kernel_runs;
 
     // process worker results
     copy_worker_data_from_gpu(wi_h, wa_h);
@@ -405,6 +372,8 @@ void CoordinatorCUDA::run_search() {
     erase_status_output();
     jpout << "total kernel time = " << total_kernel_time
           << "\ntotal host time = " << total_host_time << '\n';
+    jpout << "host time per kernel run = " << (total_host_time / kernel_runs)
+          << '\n';
   }
 }
 
@@ -1035,8 +1004,8 @@ void CoordinatorCUDA::record_working_time(double host_time, double kernel_time,
   total_kernel_time += kernel_time;
   total_host_time += host_time;
 
-  // assume that the workers that went idle did during the last kernel
-  // execution did so with uniform probability over the kernel runtime
+  // assume that the workers that went idle during the last kernel run did so
+  // with uniform probability over the kernel runtime
   assert(idle_after >= idle_before);
   context.secs_working += kernel_time *
       (config.num_threads - idle_before / 2 - idle_after / 2);
@@ -1305,26 +1274,9 @@ unsigned CoordinatorCUDA::assign_new_jobs(const CudaWorkerSummary& summary,
   if (summary.workers_idle.size() == 0)
     return 0;
 
-  // sort the running work assignments to find the best ones to split
-  std::vector<WorkAssignmentLine> sorted_assignments;
-  for (unsigned id = 0; id < config.num_threads; ++id) {
-    if ((wi_h.at(id).status & 1) == 0) {
-      WorkAssignment wa = read_work_assignment(id, wi_h, wa_h, graph);
-      sorted_assignments.push_back({id, wa});
-    }
-  }
-  //jpout << "  splittable job count = " << sorted_assignments.size() << '\n';
-
-  // compare function returns true if the first argument appears before the
-  // second in a strict weak ordering, and false otherwise
-  std::sort(sorted_assignments.begin(), sorted_assignments.end(),
-      [](WorkAssignmentLine wal1, WorkAssignmentLine wal2) {
-        return work_assignment_compare(wal1.wa, wal2.wa);
-      }
-  );
-
-  unsigned index = 0;
   unsigned idle_remaining = summary.workers_idle.size();
+  std::vector<int> has_split(config.num_threads, 0);
+  auto it = summary.workers_multiple_start_states.begin();
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if ((wi_h.at(id).status & 1) == 0)
@@ -1336,60 +1288,59 @@ unsigned CoordinatorCUDA::assign_new_jobs(const CudaWorkerSummary& summary,
       context.assignments.pop_front();
       load_work_assignment(id, wa, wi_h, wa_h, graph);
       --idle_remaining;
-      /*
-      if (config.verboseflag) {
-        jpout << std::format("worker {} given work:\n   ", id)
-              << wa << '\n';
-      }*/
       continue;
     }
   
     // otherwise, split one of the running jobs
     bool success = false;
     while (!success) {
-      if (index == sorted_assignments.size())
+      if (it == summary.workers_multiple_start_states.end()) {
+        it = summary.workers_rpm_plus0.begin();
+      }
+      if (it == summary.workers_rpm_plus0.end()) {
+        it = summary.workers_rpm_plus1.begin();
+      }
+      if (it == summary.workers_rpm_plus1.end()) {
+        it = summary.workers_rpm_plus2.begin();
+      }
+      if (it == summary.workers_rpm_plus2.end()) {
+        it = summary.workers_rpm_plus3.begin();
+      }
+      if (it == summary.workers_rpm_plus3.end()) {
+        it = summary.workers_rpm_plus4p.begin();
+      }
+      if (it == summary.workers_rpm_plus4p.end()) {
         break;
+      }
 
-      WorkAssignmentLine& wal = sorted_assignments.at(index);
-      WorkAssignment wa = wal.wa;
+      if (has_split.at(*it)) {
+        ++it;
+        continue;
+      }
+      has_split.at(*it) = 1;
 
-      /*
-      if (config.verboseflag) {
-        jpout << std::format("worker {} went idle\n", id)
-              << std::format("stealing from worker {}\n", wal.id)
-              << "work before:\n" << wa << '\n';
-      }*/
+      WorkAssignment wa = read_work_assignment(*it, wi_h, wa_h, graph);
 
       try {
         // split() throws an exception if the WorkAssignment isn't splittable
         WorkAssignment wa2 = wa.split(graph, config.split_alg);
-        load_work_assignment(wal.id, wa, wi_h, wa_h, graph);
+        load_work_assignment(*it, wa, wi_h, wa_h, graph);
         load_work_assignment(id, wa2, wi_h, wa_h, graph);
-        --idle_remaining;
-
-        /*
-        if (config.verboseflag) {
-          jpout << "work after:\n" << wa << '\n'
-                << std::format("new work for worker {}:\n", id)
-                << wa2 << '\n';
-        }*/
 
         // Avoid double counting nodes: Each of the "prefix" nodes up to and
         // including `wa2.root_pos` will be reported twice: by the worker that
-        // was running, and by the worker `id` who just got job `wa2`.
+        // was running, and by the worker `id` that just got job `wa2`.
         if (wa.start_state == wa2.start_state) {
           wi_h.at(id).nnodes -= (wa2.root_pos + 1);
         }
         
         ++context.splits_total;
+        --idle_remaining;
         success = true;
       } catch (const std::invalid_argument& ia) {
       }
-      ++index;
+      ++it;
     }
-
-    if (index == sorted_assignments.size())
-      break;
   }
   return idle_remaining;
 }

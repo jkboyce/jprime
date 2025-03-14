@@ -32,12 +32,6 @@ struct WorkerInfo {  // 16 bytes
 };
 
 
-// for sorting WorkAssignments during splitting
-struct WorkAssignmentLine {
-  unsigned id;
-  WorkAssignment wa;
-};
-
 // storage for used[] bitarray, for 32 threads = 32 bits per thread; each state
 // in the graph maps onto a single bit.
 //
@@ -47,7 +41,8 @@ struct ThreadStorageUsed {  // 128 bytes
   uint32_t unused[31];
 };
 
-// Storage for a single work cell (single value of `pos`), for 32 threads =
+
+// storage for a single work cell (single value of `pos`), for 32 threads =
 // 8 bytes per thread
 //
 // Data layout gives each thread its own bank in shared memory
@@ -78,6 +73,7 @@ constexpr std::array cuda_algs = {
 };
 
 
+// defines how the algorithms are mapped onto the GPU hardware
 struct CudaRuntimeParams {
   unsigned num_blocks = 1;
   unsigned num_threadsperblock = 32;
