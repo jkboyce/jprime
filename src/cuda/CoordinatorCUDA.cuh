@@ -30,9 +30,14 @@ class CoordinatorCUDA : public Coordinator {
   // memory blocks in GPU global memory
   statenum_t* pb_d = nullptr;  // if needed
   WorkerInfo* wi_d = nullptr;
-  ThreadStorageWorkCell* wa_d = nullptr;
+  ThreadStorageWorkCell* wc_d = nullptr;
   statenum_t* graphmatrix_d = nullptr;  // if needed
   ThreadStorageUsed* used_d = nullptr;  // if needed
+
+  // memory blocks in host memory
+  WorkerInfo* wi_h = nullptr;
+  ThreadStorageWorkCell* wc_h = nullptr;
+  unsigned max_active_idx = 0;
 
   // timing parameters specific to GPU
   double total_kernel_time = 0;
@@ -57,21 +62,18 @@ class CoordinatorCUDA : public Coordinator {
   size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
     unsigned n_max, const CudaRuntimeParams& p);
   void configure_cuda_shared_memory(const CudaRuntimeParams& params);
-  void allocate_gpu_device_memory(const CudaRuntimeParams& params,
+  void allocate_memory(const CudaRuntimeParams& params,
     const std::vector<statenum_t>& graph_buffer, unsigned num_states);
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
   void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
     const Graph& graph);
 
   // main loop
-  void copy_worker_data_to_gpu(std::vector<WorkerInfo>& wi_h,
-    std::vector<ThreadStorageWorkCell>& wa_h);
+  void copy_worker_data_to_gpu(bool startup, unsigned max_idx);
   void launch_cuda_kernel(const CudaRuntimeParams& params, CudaAlgorithm alg,
     unsigned cycles);
-  void copy_worker_data_from_gpu(std::vector<WorkerInfo>& wi_h,
-    std::vector<ThreadStorageWorkCell>& wa_h);
-  void process_worker_counters(std::vector<WorkerInfo>& wi_h,
-    std::vector<ThreadStorageWorkCell>& wa_h);
+  void copy_worker_data_from_gpu(unsigned max_idx);
+  void process_worker_counters();
   uint32_t process_pattern_buffer(statenum_t* const pb_d,
     const Graph& graph, const uint32_t pattern_buffer_size);
   void record_working_time(double host_time, double kernel_time,
@@ -81,31 +83,25 @@ class CoordinatorCUDA : public Coordinator {
     uint32_t pattern_count, CudaRuntimeParams p);
     
   // cleanup
-  void cleanup_gpu_memory();
-  void gather_unfinished_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
+  void cleanup_memory();
+  void gather_unfinished_work_assignments(const Graph& graph);
 
   // manage work assignments
-  void load_initial_work_assignments(const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
+  void load_initial_work_assignments(const Graph& graph);
   void load_work_assignment(const unsigned id, const WorkAssignment& wa,
-    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
     const Graph& graph);
-  WorkAssignment read_work_assignment(unsigned id,
-    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h,
+  WorkAssignment read_work_assignment(unsigned id, const Graph& graph);
+  unsigned assign_new_jobs(const CudaWorkerSummary& summary,
     const Graph& graph);
-  unsigned assign_new_jobs(const CudaWorkerSummary& summary, const Graph& graph,
-    std::vector<WorkerInfo>& wi_h, std::vector<ThreadStorageWorkCell>& wa_h);
 
   // summarization and status display
-  CudaWorkerSummary summarize_worker_status(const Graph& graph,
-    const std::vector<WorkerInfo>& wi_h,
-    const std::vector<ThreadStorageWorkCell>& wa_h);
+  CudaWorkerSummary summarize_worker_status(const Graph& graph);
   void do_status_display(const CudaWorkerSummary& summary,
     const CudaWorkerSummary& last_summary, double host_time,
     double kernel_time);
 
   // helper
+  ThreadStorageWorkCell& workcell(unsigned id, unsigned pos);
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 };
 
