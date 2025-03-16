@@ -32,6 +32,7 @@ CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
 void CoordinatorCPU::run_search() {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
     static_cast<long>(NANOSECS_PER_INBOX_CHECK));
+  last_status_time = std::chrono::high_resolution_clock::now();
   start_workers();
 
   while (true) {
@@ -298,10 +299,50 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg) {
     return;
 
   status_lines.at(msg.worker_id + 2) = make_worker_status(msg);
-  if (++stats_received == config.num_threads) {
-    erase_status_output();
-    print_status_output();
-  }
+  if (++stats_received != config.num_threads)
+    return;
+
+  // add bottom line to status output
+  auto format2 = [](double a) {
+    if (a < 1 || a > 9999000000000) {
+      return std::string("-----");
+    }
+    if (a < 99999) {
+      auto result = std::format("{:5g}", a);
+      return result.substr(0, 5);
+    } else if (a < 1000000) {
+      auto result = std::format("{:4g}", a / 1000);
+      return result.substr(0, 4) + "K";
+    } else if (a < 1000000000) {
+      auto result = std::format("{:4g}", a / 1000000);
+      return result.substr(0, 4) + "M";
+    } else {
+      auto result = std::format("{:4g}", a / 1000000000);
+      return result.substr(0, 4) + "B";
+    }
+  };
+
+  const auto status_time = std::chrono::high_resolution_clock::now();
+  const double elapsed = calc_duration_secs(last_status_time, status_time);
+  const double nodespersec =
+      static_cast<double>(context.nnodes - last_nnodes) / elapsed;
+  const double patspersec =
+      static_cast<double>(context.ntotal - last_ntotal) / elapsed;
+
+  last_status_time = status_time;
+  last_nnodes = context.nnodes;
+  last_ntotal = context.ntotal;
+
+  status_lines.push_back(std::format(
+    "idled:{:7}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
+    workers_idle.size(),
+    format2(nodespersec),
+    format2(patspersec),
+    context.npatterns
+  ));
+
+  erase_status_output();
+  print_status_output();
 }
 
 // Handle an update from a worker on the state of its search.
@@ -499,7 +540,8 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg) {
   const bool show_deadstates =
       (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
       config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
-  const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH);
+  const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH
+      && config.shiftlimit != -1u);
 
   unsigned printed = 0;
   bool hl_start = false;
