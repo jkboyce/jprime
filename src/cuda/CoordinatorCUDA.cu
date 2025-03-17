@@ -261,6 +261,8 @@ __global__ void cuda_gen_loops_normal(
     if (clock64() > end_clock)
       break;
 
+    used[to_state / 32].used |= (1u << (to_state & 31));
+
     ++pos;
     if (ss == workcell_pos_lower_minus1) {
       ss = workcell_pos_lower;
@@ -272,7 +274,6 @@ __global__ void cuda_gen_loops_normal(
     ss->col = 0;
     ss->col_limit = outdegree;
     ss->from_state = to_state;
-    used[to_state / 32].used |= (1u << (to_state & 31));
   }
 
   wi_d[id].start_state = st_state;

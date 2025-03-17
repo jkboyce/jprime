@@ -18,7 +18,7 @@ struct SearchState {
   unsigned col_limit = 0;
   unsigned from_state = 0;
   unsigned to_state = 0;
-  unsigned* outmatrix = nullptr;
+  //unsigned* outmatrix = nullptr;
   unsigned* excludes_throw = nullptr;
   unsigned* deadstates_throw = nullptr;
   unsigned* excludes_catch = nullptr;
