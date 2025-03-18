@@ -58,12 +58,12 @@ class CoordinatorCUDA : public Coordinator {
   std::vector<statenum_t> make_graph_buffer(const Graph& graph,
     CudaAlgorithm alg);
   CudaRuntimeParams find_runtime_params(const cudaDeviceProp& prop,
-    CudaAlgorithm alg, unsigned num_states);
-  size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned num_states,
+    CudaAlgorithm alg, const Graph& graph);
+  size_t calc_shared_memory_size(CudaAlgorithm alg, const Graph& graph,
     unsigned n_max, const CudaRuntimeParams& p);
   void configure_cuda_shared_memory(const CudaRuntimeParams& params);
-  void allocate_memory(const CudaRuntimeParams& params,
-    const std::vector<statenum_t>& graph_buffer, unsigned num_states);
+  void allocate_memory(CudaAlgorithm alg, const CudaRuntimeParams& params,
+    const std::vector<statenum_t>& graph_buffer, const Graph& graph);
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
   void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
     const Graph& graph);
@@ -81,7 +81,7 @@ class CoordinatorCUDA : public Coordinator {
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles, double host_time,
     double kernel_time, unsigned idle_start, unsigned idle_end,
     uint32_t pattern_count, CudaRuntimeParams p);
-    
+
   // cleanup
   void cleanup_memory();
   void gather_unfinished_work_assignments(const Graph& graph);

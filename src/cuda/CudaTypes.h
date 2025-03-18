@@ -37,7 +37,7 @@ struct WorkerInfo {  // 16 bytes
 //
 // Data layout gives each thread its own bank in shared memory
 struct ThreadStorageUsed {  // 128 bytes
-  uint32_t used;
+  uint32_t data;
   uint32_t unused[31];
 };
 
