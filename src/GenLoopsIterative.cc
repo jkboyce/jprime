@@ -53,23 +53,27 @@ void Worker::iterative_gen_loops_normal() {
 
   SearchState* ss = &beat.at(pos);
 
+  // register-based state variables during search
+  unsigned from_state = ss->from_state;
+
   // main search loop
   while (true) {
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
-      u[ss->from_state] = 0;
-
+      u[from_state] = 0;
       ++nn;
+
       if (p == 0) {
         break;
       }
       --p;
       --ss;
+      from_state = ss->from_state;
       ++ss->col;
       continue;
     }
 
-    const unsigned to_state = outmatrix[ss->from_state][ss->col];
+    const unsigned to_state = outmatrix[from_state][ss->col];
 
     if (to_state == st_state) {
       // found a pattern
@@ -122,7 +126,7 @@ void Worker::iterative_gen_loops_normal() {
     ++ss;
     ss->col = 0;
     ss->col_limit = outdegree[to_state];
-    ss->from_state = to_state;
+    ss->from_state = from_state = to_state;
   }
 
   pos = p;
@@ -347,26 +351,11 @@ void Worker::iterative_gen_loops_super() {
     assert(false);
   }
 
-  std::vector<std::vector<unsigned>> is_linkthrow(graph.numstates + 1);
-  if (!SUPER0) {
-    for (size_t i = 1; i <= graph.numstates; ++i) {
-      for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
-        const unsigned tv = graph.outthrowval.at(i).at(j);
-        is_linkthrow.at(i).push_back(tv != 0 && tv != graph.h ? 1 : 0);
-      }
-    }
-  }
-
   std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
-  std::vector<unsigned*> ilt_row(graph.numstates + 1, nullptr);
   for (size_t i = 0; i <= graph.numstates; ++i) {
     om_row.at(i) = graph.outmatrix.at(i).data();
-    if (!SUPER0) {
-      ilt_row.at(i) = is_linkthrow.at(i).data();
-    }
   }
   unsigned** const outmatrix = om_row.data();
-  unsigned** const islinkthrow = ilt_row.data();
 
   unsigned p = pos;
   uint64_t nn = nnodes;
@@ -380,35 +369,67 @@ void Worker::iterative_gen_loops_super() {
 
   SearchState* ss = &beat.at(pos);
 
+  // register-based state variables during search
+  unsigned from_state = ss->from_state;
+  unsigned from_cycle = cyclenum[from_state];
+  unsigned shiftcount = 0;
+  unsigned exitcycles_left = 0;
+
+  // initialize
+  for (unsigned i = 0; i < graph.numcycles; ++i) {
+    if (isexitcycle[i]) {
+      ++exitcycles_left;
+    }
+  }
+  for (unsigned i = 0; i < pos; ++i) {
+    if (cyclenum[beat.at(i).from_state] ==
+          cyclenum[beat.at(i + 1).from_state]) {
+      ++shiftcount;
+    } else if (isexitcycle[cyclenum[beat.at(i + 1).from_state]]) {
+      --exitcycles_left;
+    }
+  }
+  assert(shiftcount == ss->shiftcount);
+  assert(exitcycles_left == ss->exitcycles_remaining);
+
   while (true) {
     if (ss->col == ss->col_limit) {
+      // beat is finished, go back to previous one
       if (!SUPER0) {
-        u[ss->from_state] = 0;
+        u[from_state] = 0;
       }
-
       ++nn;
+
       if (p == 0) {
         break;
       }
       --p;
       --ss;
-      if (ss->to_cycle != -1) {
-        cu[ss->to_cycle] = false;
-        ss->to_cycle = -1;
+      const unsigned to_cycle = from_cycle;
+      from_state = ss->from_state;
+      from_cycle = cyclenum[from_state];
+      if (from_cycle == to_cycle) {  // unwinding a shift throw
+        --shiftcount;
+      } else {  // link throw
+        cu[to_cycle] = false;
+        if (isexitcycle[to_cycle]) {
+          ++exitcycles_left;
+        }
       }
       ++ss->col;
       continue;
     }
 
-    const unsigned to_state = outmatrix[ss->from_state][ss->col];
-    //const unsigned to_state = ss->outmatrix[ss->col];
+    const unsigned to_state = outmatrix[from_state][ss->col];
 
     if (!SUPER0 && u[to_state]) {
       ++ss->col;
       continue;
     }
 
-    if (SUPER0 || islinkthrow[ss->from_state][ss->col]) {  // link throw
+    const unsigned to_cycle = cyclenum[to_state];
+
+    if (SUPER0 || (to_cycle != from_cycle)) {  // link throw
       if (to_state == start_state) {
         if ((p + 1) >= n_min && !config.countflag) {
           pos = p;
@@ -419,15 +440,12 @@ void Worker::iterative_gen_loops_super() {
         continue;
       }
 
-      const unsigned to_cycle = cyclenum[to_state];
-
       if (cu[to_cycle]) {
         ++ss->col;
         continue;
       }
 
-      if ((SUPER0 || ss->shiftcount == config.shiftlimit) &&
-          ss->exitcycles_remaining == 0) {
+      if ((SUPER0 || shiftcount == config.shiftlimit) && exitcycles_left == 0) {
         ++ss->col;
         continue;
       }
@@ -454,36 +472,21 @@ void Worker::iterative_gen_loops_super() {
         }
       }
 
-      unsigned next_shiftcount;
       if (!SUPER0) {
         u[to_state] = 1;
-        next_shiftcount = ss->shiftcount;
       }
       cu[to_cycle] = true;
-      ss->to_cycle = to_cycle;
-      const int next_exitcycles_remaining = (isexitcycle[to_cycle] ?
-          ss->exitcycles_remaining - 1 : ss->exitcycles_remaining);
-
-      ++p;
-      ++ss;
-      ss->col = 0;
-      ss->col_limit = outdegree[to_state];
-      ss->from_state = to_state;
-      //ss->outmatrix = outmatrix[to_state];
-      if (!SUPER0) {
-        ss->shiftcount = next_shiftcount;
+      if (isexitcycle[to_cycle]) {
+        --exitcycles_left;
       }
-      ss->exitcycles_remaining = next_exitcycles_remaining;
     } else {  // shift throw
-      const unsigned next_shiftcount = ss->shiftcount;
-
-      if (next_shiftcount == config.shiftlimit) {
+      if (shiftcount == config.shiftlimit) {
         ++ss->col;
         continue;
       }
 
       if (to_state == start_state) {
-        if (ss->shiftcount < p) {
+        if (shiftcount < p) {
           // don't allow all shift throws
           if ((p + 1) >= n_min && !config.countflag) {
             pos = p;
@@ -501,18 +504,16 @@ void Worker::iterative_gen_loops_super() {
       }
 
       u[to_state] = 1;
-      ss->to_cycle = -1;
-      const int next_exitcycles_remaining = ss->exitcycles_remaining;
-
-      ++p;
-      ++ss;
-      ss->col = 0;
-      ss->col_limit = outdegree[to_state];
-      ss->from_state = to_state;
-      //ss->outmatrix = outmatrix[to_state];
-      ss->shiftcount = next_shiftcount + 1;
-      ss->exitcycles_remaining = next_exitcycles_remaining;
+      ++shiftcount;
     }
+
+    // advance to next beat
+    ++p;
+    ++ss;
+    ss->col = 0;
+    ss->col_limit = outdegree[to_state];
+    ss->from_state = from_state = to_state;
+    from_cycle = to_cycle;
   }
 
   pos = p;
@@ -549,10 +550,8 @@ bool Worker::iterative_init_workspace(bool marking) {
     ss.col_limit = graph.outdegree.at(start_state);
     ss.from_state = start_state;
     ss.to_state = 0;
-    //ss.outmatrix = graph.outmatrix.at(start_state).data();
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
-    ss.to_cycle = -1;
     ss.shiftcount = 0;
     ss.exitcycles_remaining = exitcyclesleft;
     return true;
@@ -607,10 +606,9 @@ bool Worker::iterative_init_workspace(bool marking) {
     }
 
     ss.to_state = graph.outmatrix.at(ss.from_state).at(ss.col);
-    //ss.outmatrix = graph.outmatrix.at(ss.from_state).data();
     ss.excludes_throw = nullptr;
     ss.excludes_catch = nullptr;
-    ss.to_cycle = graph.cyclenum.at(ss.to_state);
+    unsigned to_cycle = graph.cyclenum.at(ss.to_state);
     ss.shiftcount = shiftcount;
     ss.exitcycles_remaining = static_cast<unsigned>(exitcycles_remaining);
 
@@ -646,9 +644,9 @@ bool Worker::iterative_init_workspace(bool marking) {
 
     if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
       if (tv != 0 && tv != graph.h) {
-        assert(!cycleused.at(ss.to_cycle));
-        cycleused.at(ss.to_cycle) = true;
-        if (graph.isexitcycle.at(ss.to_cycle)) {
+        assert(!cycleused.at(to_cycle));
+        cycleused.at(to_cycle) = true;
+        if (graph.isexitcycle.at(to_cycle)) {
           --exitcycles_remaining;
         }
       } else {
@@ -656,7 +654,6 @@ bool Worker::iterative_init_workspace(bool marking) {
           return false;
         }
         ++shiftcount;
-        ss.to_cycle = -1;
       }
     }
 
@@ -676,10 +673,8 @@ bool Worker::iterative_init_workspace(bool marking) {
     SearchState& rss = beat.at(root_pos);
     rss.from_state = last_from_state;
     rss.to_state = 0;
-    //rss.outmatrix = graph.outmatrix.at(rss.from_state).data();
     rss.excludes_throw = nullptr;
     rss.excludes_catch = nullptr;
-    rss.to_cycle = -1;
     rss.shiftcount = shiftcount;
     rss.exitcycles_remaining = exitcycles_remaining;
 
