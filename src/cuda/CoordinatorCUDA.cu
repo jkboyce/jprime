@@ -75,8 +75,8 @@ __global__ void cuda_gen_loops_normal(
   {
     ThreadStorageWorkCell* const warp_start = &wc_d[(id / 32) * n_max];
     uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-    workcell_d =
-        reinterpret_cast<ThreadStorageWorkCell*>(&warp_start_u32[id & 31]);
+    workcell_d = reinterpret_cast<ThreadStorageWorkCell*>(
+        &warp_start_u32[id & 31]);
   }
 
   // if used[] is in device memory, set up base address for this thread
@@ -159,39 +159,10 @@ __global__ void cuda_gen_loops_normal(
   unsigned from_state = ss->from_state;
 
   while (true) {
-    if (ss->col == ss->col_limit) {
-      // beat is finished, go back to previous one
-      used[from_state / 32].data &= ~(1u << (from_state & 31));
-      ++nnodes;
+    statenum_t to_state = 0;
 
-      if (pos == 0) {
-        if (st_state == wi_d[id].end_state) {
-          wi_d[id].status |= 1;
-          break;
-        }
-        ++st_state;
-        ss->col = 0;
-        ss->col_limit = outdegree;
-        ss->from_state = from_state = st_state;
-        continue;
-      }
-
-      --pos;
-      if (ss == workcell_pos_lower) {
-        ss = workcell_pos_lower_minus1;
-      } else if (ss == workcell_pos_upper_plus1) {
-        ss = workcell_pos_upper;
-      } else {
-        --ss;
-      }
-      from_state = ss->from_state;
-      ++ss->col;
-      continue;
-    }
-
-    const auto to_state = graphmatrix[(from_state - 1) * outdegree + ss->col];
-
-    if (to_state == 0) {
+    if (ss->col == ss->col_limit || (to_state =
+          graphmatrix[(from_state - 1) * outdegree + ss->col]) == 0) {
       // beat is finished, go back to previous one
       used[from_state / 32].data &= ~(1u << (from_state & 31));
       ++nnodes;
@@ -357,7 +328,8 @@ __global__ void cuda_gen_loops_super(
       ThreadStorageUsed* const warp_start = &used_d[device_base_u32 +
             (id / 32) * (((numstates_d + 1) + 31) / 32)];
       uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-      cycleused = reinterpret_cast<ThreadStorageUsed*>(&warp_start_u32[id & 31]);
+      cycleused = reinterpret_cast<ThreadStorageUsed*>(
+          &warp_start_u32[id & 31]);
       device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
           (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 31) / 32);
     }
@@ -366,7 +338,8 @@ __global__ void cuda_gen_loops_super(
       ThreadStorageUsed* const warp_start = &used_d[device_base_u32 +
             (id / 32) * (((numstates_d + 1) + 31) / 32)];
       uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-      isexitcycle = reinterpret_cast<ThreadStorageUsed*>(&warp_start_u32[id & 31]);
+      isexitcycle = reinterpret_cast<ThreadStorageUsed*>(
+          &warp_start_u32[id & 31]);
       device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
           (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 31) / 32);
     }
@@ -427,35 +400,44 @@ __global__ void cuda_gen_loops_super(
   }
 
   // initialize cycleused[], isexitcycle[], exitcycles_left, and shiftcount
-  for (unsigned i = 0; i < ((numcycles_d + 31) / 32); ++i) {
-    isexitcycle[i].data = 0;
-    cycleused[i].data = 0;
-  }
-  // TODO: fill in isexitcycle[] based on `start_state`
-
-  exitcycles_left = 10;  // temporary!!!
-
-
-  for (unsigned i = 0; i < numcycles_d; ++i) {
-    if (isexitcycle[i / 32].data & (1u << (i & 31))) {
-      ++exitcycles_left;
+  {
+    for (unsigned i = 0; i < ((numcycles_d + 31) / 32); ++i) {
+      cycleused[i].data = 0;
+      isexitcycle[i].data = 0;
     }
-  }
-
-  for (unsigned i = 0; i < pos; ++i) {
-    const statenum_t from_state = workcell_d[i].from_state;
-    const statenum_t from_cycle =
-        graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
-    const statenum_t to_state = workcell_d[i + 1].from_state;
-    const statenum_t to_cycle =
-        graphmatrix[(to_state - 1) * (outdegree + 1) + outdegree];
-    if (from_cycle != to_cycle) {
-      cycleused[to_cycle / 32].data |= (1u << (to_cycle & 31));
-      if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
-        --exitcycles_left;
+    for (unsigned i = st_state + 1; i <= numstates_d; ++i) {
+      for (unsigned j = 0; j < outdegree; ++j) {
+        if (graphmatrix[(i - 1) * (outdegree + 1) + j] == st_state) {
+          const auto cyc = graphmatrix[(i - 1) * (outdegree + 1) + outdegree];
+          isexitcycle[cyc / 32].data |= (1u << (cyc & 31));
+          break;
+        }
       }
-    } else {
-      ++shiftcount;
+    }
+    const auto st_cyc = graphmatrix[(st_state - 1) * (outdegree + 1) +
+        outdegree];
+    isexitcycle[st_cyc / 32].data &= ~(1u << (st_cyc & 31));
+    for (unsigned i = 0; i < numcycles_d; ++i) {
+      if (isexitcycle[i / 32].data & (1u << (i & 31))) {
+        ++exitcycles_left;
+      }
+    }
+
+    for (unsigned i = 0; i < pos; ++i) {
+      const statenum_t from_state = workcell_d[i].from_state;
+      const statenum_t from_cycle =
+          graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
+      const statenum_t to_state = workcell_d[i + 1].from_state;
+      const statenum_t to_cycle =
+          graphmatrix[(to_state - 1) * (outdegree + 1) + outdegree];
+      if (from_cycle == to_cycle) {
+        ++shiftcount;
+      } else {
+        cycleused[to_cycle / 32].data |= (1u << (to_cycle & 31));
+        if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
+          --exitcycles_left;
+        }
+      }
     }
   }
 
@@ -495,7 +477,10 @@ __global__ void cuda_gen_loops_super(
   from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
 
   while (true) {
-    if (ss->col == ss->col_limit) {
+    statenum_t to_state = 0;
+
+    if (ss->col == ss->col_limit || (to_state =
+          graphmatrix[(from_state - 1) * (outdegree + 1) + ss->col]) == 0) {
       // beat is finished, go back to previous one
       if (shiftlimit != 0) {
         used[from_state / 32].data &= ~(1u << (from_state & 31));
@@ -503,63 +488,44 @@ __global__ void cuda_gen_loops_super(
       ++nnodes;
 
       if (pos == 0) {
+        // done with search starting at `st_state`
         if (st_state == wi_d[id].end_state) {
           wi_d[id].status |= 1;
           break;
         }
         ++st_state;
-        // TODO: rebuild isexitcycle[] here
+
+        // rebuild isexitcycle[] for new start state
+        exitcycles_left = 0;
+        shiftcount = 0;
+        for (unsigned i = 0; i < ((numcycles_d + 31) / 32); ++i) {
+          cycleused[i].data = 0;
+          isexitcycle[i].data = 0;
+        }
+        for (unsigned i = st_state + 1; i <= numstates_d; ++i) {
+          for (unsigned j = 0; j < outdegree; ++j) {
+            if (graphmatrix[(i - 1) * (outdegree + 1) + j] == st_state) {
+              const auto cyc = graphmatrix[(i - 1) * (outdegree + 1) +
+                    outdegree];
+              isexitcycle[cyc / 32].data |= (1u << (cyc & 31));
+              break;
+            }
+          }
+        }
+        const auto st_cyc = graphmatrix[(st_state - 1) * (outdegree + 1) +
+            outdegree];
+        isexitcycle[st_cyc / 32].data &= ~(1u << (st_cyc & 31));
+        for (unsigned i = 0; i < numcycles_d; ++i) {
+          if (isexitcycle[i / 32].data & (1u << (i & 31))) {
+            ++exitcycles_left;
+          }
+        }
+
         ss->col = 0;
         ss->col_limit = outdegree;
         ss->from_state = from_state = st_state;
-        from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
-        continue;
-      }
-
-      --pos;
-      if (ss == workcell_pos_lower) {
-        ss = workcell_pos_lower_minus1;
-      } else if (ss == workcell_pos_upper_plus1) {
-        ss = workcell_pos_upper;
-      } else {
-        --ss;
-      }
-
-      const unsigned to_cycle = from_cycle;
-      from_state = ss->from_state;
-      from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
-      if (from_cycle == to_cycle) {  // unwinding a shift throw
-        --shiftcount;
-      } else {  // link throw
-        cycleused[to_cycle / 32].data &= ~(1u << (to_cycle & 31));
-        if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
-          ++exitcycles_left;
-        }
-      }
-      ++ss->col;
-      continue;
-    }
-
-    const auto to_state = graphmatrix[(from_state - 1) * (outdegree + 1) + ss->col];
-
-    if (to_state == 0) {
-      // beat is finished, go back to previous one
-      if (shiftlimit != 0) {
-        used[from_state / 32].data &= ~(1u << (from_state & 31));
-      }
-      ++nnodes;
-
-      if (pos == 0) {
-        if (st_state == wi_d[id].end_state) {
-          wi_d[id].status |= 1;
-          break;
-        }
-        ++st_state;
-        // TODO: rebuild isexitcycle[] here
-        ss->col = 0;
-        ss->col_limit = outdegree;
-        ss->from_state = from_state = st_state;
-        from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
+        from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) +
+            outdegree];
         continue;
       }
 
@@ -598,9 +564,10 @@ __global__ void cuda_gen_loops_super(
       continue;
     }
 
-    const unsigned to_cycle = graphmatrix[(to_state - 1) * (outdegree + 1) + outdegree];
+    const unsigned to_cycle = graphmatrix[(to_state - 1) * (outdegree + 1) +
+        outdegree];
 
-    if ((shiftlimit == 0) || (to_cycle != from_cycle)) {  // link throw
+    if (/* shiftlimit == 0 ||*/ to_cycle != from_cycle) {  // link throw
       if (to_state == st_state) {
         // found a valid pattern
         if (report && pos + 1 >= n_min) {
@@ -628,7 +595,8 @@ __global__ void cuda_gen_loops_super(
         continue;
       }
 
-      if ((shiftlimit == 0 || shiftcount == shiftlimit) && exitcycles_left == 0) {
+      if ((/* shiftlimit == 0 ||*/ shiftcount == shiftlimit) &&
+            exitcycles_left == 0) {
         ++ss->col;
         continue;
       }
@@ -658,7 +626,7 @@ __global__ void cuda_gen_loops_super(
 
       if (to_state == st_state) {
         if (shiftcount < pos) {
-          // don't allow all shift throws
+          // don't allow all shift throws in superprime pattern
           if (report && pos + 1 >= n_min) {
             const uint32_t idx = atomicAdd(&pattern_index_d, 1);
             if (idx < pattern_buffer_size_d) {
