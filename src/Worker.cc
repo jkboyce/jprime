@@ -254,7 +254,7 @@ void Worker::send_stats_to_coordinator() {
   msg.worker_options_left.assign(pos + 1, 0);
   msg.worker_deadstates_extra.assign(pos + 1, 0);
 
-  unsigned tempfrom = start_state;
+  unsigned from_state = start_state;
   std::vector<int> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
@@ -262,14 +262,15 @@ void Worker::send_stats_to_coordinator() {
     assert(pattern.at(i) >= 0);
     msg.worker_throw.at(i) = pattern.at(i);
 
-    for (unsigned col = 0; col < graph.outdegree.at(tempfrom); ++col) {
-      const auto throwval = graph.outthrowval.at(tempfrom).at(col);
+    bool found = false;
+    for (unsigned col = 0; col < graph.outdegree.at(from_state); ++col) {
+      const auto throwval = graph.outthrowval.at(from_state).at(col);
       if (throwval != static_cast<unsigned>(pattern.at(i)))
         continue;
 
-      const auto tempto = graph.outmatrix.at(tempfrom).at(col);
-      assert(tempto > 0);
-      assert(!u.at(tempto));
+      const auto to_state = graph.outmatrix.at(from_state).at(col);
+      assert(to_state > 0);
+      assert(!u.at(to_state));
 
       // unexplored options remaining at position `i`
       if (i < root_pos) {
@@ -278,7 +279,8 @@ void Worker::send_stats_to_coordinator() {
         msg.worker_options_left.at(i) =
             static_cast<unsigned>(root_throwval_options.size());
       } else {
-        msg.worker_options_left.at(i) = graph.outdegree.at(tempfrom) - col - 1;
+        msg.worker_options_left.at(i) =
+            graph.outdegree.at(from_state) - col - 1;
       }
 
       // number of deadstates induced by a link throw, above the
@@ -286,20 +288,20 @@ void Worker::send_stats_to_coordinator() {
       if (throwval != 0 && throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
-          auto es = graph.excludestates_throw.at(tempfrom).at(j);
+          auto es = graph.excludestates_throw.at(from_state).at(j);
           if (es == 0)
             break;
-          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(tempfrom)) > 1) {
+          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
 
         // catch
         for (size_t j = 0; ; ++j) {
-          auto es = graph.excludestates_catch.at(tempto).at(j);
+          auto es = graph.excludestates_catch.at(to_state).at(j);
           if (es == 0)
             break;
-          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(tempto)) > 1) {
+          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
@@ -307,17 +309,35 @@ void Worker::send_stats_to_coordinator() {
 
       if (i < pos) {
         // for i == pos we haven't yet marked used = 1 in gen_loops()
-        u.at(tempto) = 1;
+        u.at(to_state) = 1;
       }
-      tempfrom = tempto;
+      from_state = to_state;
+      found = true;
       break;
     }
+    assert(found);
   }
 
   if (config.mode != SearchConfig::RunMode::SUPER_SEARCH ||
       config.shiftlimit != 0) {
     // check that we're accounting for used states in the correct way above;
     // note that `used` isn't used in SUPER0 mode
+    /*
+    if (u != used) {
+      std::cout << "worker " << worker_id << ":\n";
+      for (unsigned i = 0; i <= pos; ++i) {
+        std::cout << "pattern[" << i << "] = " << pattern.at(i) << '\n';
+      }
+      for (unsigned i = 0; i <= graph.numstates; ++i) {
+        std::cout << "state = " << i << ", u = " << u.at(i) << ", used = "
+                  << used.at(i)
+                  << (u.at(i) != used.at(i) ? " ERROR" : "") << '\n';
+      }
+      for (unsigned st : statenum) {
+        std::cout << st << ',';
+      }
+      std::cout << '\n';
+    }*/
     assert(u == used);
   }
 

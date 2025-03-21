@@ -540,6 +540,8 @@ template void Worker::iterative_gen_loops_super<false>();
 // to do marking operations during setup (the `excludes` and `deadstates`
 // elements of SearchState).
 //
+// Also sets up `used`, `cycleused`
+//
 // Returns true on success, false on failure.
 
 bool Worker::iterative_init_workspace(bool marking) {
@@ -561,14 +563,14 @@ bool Worker::iterative_init_workspace(bool marking) {
   // set up `pattern`, `root_pos`, and `root_throwval_options`
 
   loading_work = false;
-  unsigned last_from_state = start_state;
+  unsigned from_state = start_state;
   unsigned shiftcount = 0;
   auto exitcycles_remaining = static_cast<int>(exitcyclesleft);
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
     pos = static_cast<unsigned>(i);
     SearchState& ss = beat.at(i);
-    ss.from_state = last_from_state;
+    ss.from_state = from_state;
     ss.col_limit = graph.outdegree.at(ss.from_state);
 
     const auto tv = static_cast<unsigned>(pattern.at(i));
@@ -659,19 +661,38 @@ bool Worker::iterative_init_workspace(bool marking) {
 
     // mark next state as used
     assert(used.at(ss.to_state) == 0);
-    if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH ||
-        config.shiftlimit > 0) {
+    if (config.mode != SearchConfig::RunMode::SUPER_SEARCH ||
+        config.shiftlimit != 0) {
       used.at(ss.to_state) = 1;
     }
 
-    last_from_state = ss.to_state;
+    from_state = ss.to_state;
   }
 
+  // Invariant: the state that beat `pos` is throwing to should not be marked as
+  // used. gen_loops() won't restart correctly if it is set. So undo the last
+  // marking above.
+  used.at(from_state) = 0;
+
   if (pattern.at(0) == -1 || pos < root_pos) {
-    // loading a work assignment that was stolen from another worker
+    // we're loading a work assignment that is either:
+    // (a) brand new (no pattern prefix), or
+    // (b) stolen from another worker (pos = root_pos - 1)
+    //
+    // either way we need to make some adjustments
     assert(pattern.at(0) == -1 || pos + 1 == root_pos);
+
+    // In case (b) we're going to increment `pos` by one so that it equals
+    // `root_pos`. This way we can set `col` and `col_limit` for that workcell
+    // to accurately reflect the set of throw options at `root_pos`.
+
+    if (pos + 1 == root_pos) {
+      used.at(from_state) = 1;
+      // TODO: should fix cycleused[] too
+    }
+
     SearchState& rss = beat.at(root_pos);
-    rss.from_state = last_from_state;
+    rss.from_state = from_state;
     rss.to_state = 0;
     rss.excludes_throw = nullptr;
     rss.excludes_catch = nullptr;
