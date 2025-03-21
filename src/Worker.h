@@ -125,10 +125,14 @@ class Worker {
   void handle_finished_pattern();
 
   // iterative search routines; defined in GenLoopsIterative.cc
-  template<bool REPORT> void iterative_gen_loops_normal();
-  void iterative_gen_loops_normal_marking();
-  template<bool SUPER0> void iterative_gen_loops_super();
-  bool iterative_init_workspace(bool marking);
+  template<bool REPORT, bool REPLAY>
+  void iterative_gen_loops_normal(unsigned replay_to_pos = 0);
+  template<bool REPLAY>
+  void iterative_gen_loops_normal_marking(unsigned replay_to_pos = 0);
+  template<bool SUPER0, bool REPLAY>
+  void iterative_gen_loops_super(unsigned replay_to_pos = 0);
+  bool iterative_init_workspace();
+  bool iterative_init_workspace_old(bool marking);
   bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();

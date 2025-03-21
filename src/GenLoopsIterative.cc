@@ -21,16 +21,27 @@
 // This is a non-recursive version of gen_loops_normal(), with identical
 // interface and behavior.
 //
-// It is slightly faster than the recursive version and also avoids potential
+// It is generally faster than the recursive version and also avoids potential
 // stack overflow on deeper searches.
 //
 // Template parameter `REPORT` specifies whether the patterns found are reported
-// to the Coordinator (true), or merely counted (false).
+// to the coordinator (true), or merely counted (false).
+// Template parameter `REPLAY` specifies whether we want to stop execution at a
+// particular value of `pos`; this is used for initialization.
 
-template<bool REPORT>
-void Worker::iterative_gen_loops_normal() {
-  if (!iterative_init_workspace(false)) {
-    assert(false);
+template<bool REPORT, bool REPLAY>
+void Worker::iterative_gen_loops_normal(unsigned replay_to_pos) {
+  if (!REPLAY) {
+    iterative_init_workspace();
+
+    // replay back through the algorithm up to and including position `pos`.
+    // this sets up variables like used[], etc.
+    const unsigned pos_orig = pos;
+    pos = 0;
+    iterative_gen_loops_normal<false, true>(pos_orig);
+    assert(pos == pos_orig);
+
+    // now we can resume
   }
 
   // temp storage to access matrix elements quickly
@@ -58,8 +69,15 @@ void Worker::iterative_gen_loops_normal() {
 
   // main search loop
   while (true) {
+    if (REPLAY && p == replay_to_pos) {
+      break;
+    }
+
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
+      if (REPLAY) {
+        assert(false);
+      }
       u[from_state] = 0;
       ++nn;
 
@@ -77,6 +95,9 @@ void Worker::iterative_gen_loops_normal() {
 
     if (to_state == st_state) {
       // found a pattern
+      if (REPLAY) {
+        assert(false);
+      }
       if (REPORT && (p + 1) >= n_min) {
         pos = p;
         iterative_handle_finished_pattern();
@@ -87,16 +108,22 @@ void Worker::iterative_gen_loops_normal() {
     }
 
     if (u[to_state]) {
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       continue;
     }
 
     if (p + 1 == nmax) {
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       continue;
     }
 
-    if (++steps >= steps_limit) {
+    if (!REPLAY && ++steps >= steps_limit) {
       // check the inbox for incoming messages, after doing some prep work
       // to ensure we can respond to any type of message we might receive
       //
@@ -124,21 +151,36 @@ void Worker::iterative_gen_loops_normal() {
 
     ++p;
     ++ss;
-    ss->col = 0;
-    ss->col_limit = outdegree[to_state];
+    if (REPLAY) {
+      assert(ss->from_state == to_state);
+    } else {
+      ss->col = 0;
+      ss->col_limit = outdegree[to_state];
+    }
     ss->from_state = from_state = to_state;
+  }
+
+  if (REPLAY) {
+    assert(p == replay_to_pos);
+    assert(nn == nnodes);
+  } else {
+    assert(p == 0);
   }
 
   pos = p;
   nnodes = nn;
-  assert(pos == 0);
 }
 
 // Non-recursive version of gen_loops_normal_marking().
 
-void Worker::iterative_gen_loops_normal_marking() {
-  if (!iterative_init_workspace(true)) {
-    assert(false);
+template<bool REPLAY>
+void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
+  if (!REPLAY) {
+    iterative_init_workspace();
+    const unsigned pos_orig = pos;
+    pos = 0;
+    iterative_gen_loops_normal_marking<true>(pos_orig);
+    assert(pos == pos_orig);
   }
 
   std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
@@ -185,7 +227,14 @@ void Worker::iterative_gen_loops_normal_marking() {
     }
 
     skip_unmarking2:
+    if (REPLAY && p == replay_to_pos) {
+      break;
+    }
+
     if (ss->col == ss->col_limit) {
+      if (REPLAY) {
+        assert(false);
+      }
       if (ss->excludes_throw) {
         unsigned* const ds = ss->deadstates_throw;
         unsigned* es = ss->excludes_throw;
@@ -210,6 +259,9 @@ void Worker::iterative_gen_loops_normal_marking() {
     // const unsigned to_state = ss->outmatrix[ss->col];
 
     if (to_state == st_state) {
+      if (REPLAY) {
+        assert(false);
+      }
       if ((p + 1) >= n_min && !config.countflag) {
         pos = p;
         iterative_handle_finished_pattern();
@@ -220,11 +272,17 @@ void Worker::iterative_gen_loops_normal_marking() {
     }
 
     if (u[to_state]) {
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       goto skip_unmarking2;
     }
 
     if (p + 1 == nmax) {
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       goto skip_unmarking2;
     }
@@ -248,6 +306,9 @@ void Worker::iterative_gen_loops_normal_marking() {
         }
 
         if (!valid1) {
+          if (REPLAY) {
+            assert(false);
+          }
           // undo marking operation and bail to previous beat
           es = ss->excludes_throw;
           for (unsigned statenum; (statenum = *es); ++es) {
@@ -287,8 +348,12 @@ void Worker::iterative_gen_loops_normal_marking() {
         ss->to_state = to_state;
         ++p;
         ++ss;
-        ss->col = 0;
-        ss->col_limit = outdegree[to_state];
+        if (REPLAY) {
+          assert(ss->from_state == to_state);
+        } else {
+          ss->col = 0;
+          ss->col_limit = outdegree[to_state];
+        }
         ss->from_state = to_state;
         ss->to_state = 0;
         // ss->outmatrix = outmatrix[to_state];
@@ -298,10 +363,13 @@ void Worker::iterative_gen_loops_normal_marking() {
       }
 
       // couldn't advance to next beat, so go to next column in this one
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       goto skip_unmarking1;
     } else {  // shift throw
-      if (++steps >= steps_limit) {
+      if (!REPLAY && ++steps >= steps_limit) {
         steps = 0;
 
         pos = p;
@@ -324,8 +392,12 @@ void Worker::iterative_gen_loops_normal_marking() {
       ss->to_state = to_state;
       ++p;
       ++ss;
-      ss->col = 0;
-      ss->col_limit = outdegree[to_state];
+      if (REPLAY) {
+        assert(ss->from_state == to_state);
+      } else {
+        ss->col = 0;
+        ss->col_limit = outdegree[to_state];
+      }
       ss->from_state = to_state;
       ss->to_state = 0;
       // ss->outmatrix = outmatrix[to_state];
@@ -335,9 +407,15 @@ void Worker::iterative_gen_loops_normal_marking() {
     }
   }
 
+  if (REPLAY) {
+    assert(p == replay_to_pos);
+    assert(nn == nnodes);
+  } else {
+    assert(p == 0);
+  }
+
   pos = p;
   nnodes = nn;
-  assert(pos == 0);
 }
 
 // Non-recursive version of gen_loops_super() and gen_loops_super0().
@@ -345,10 +423,14 @@ void Worker::iterative_gen_loops_normal_marking() {
 // Template parameter `SUPER0` specifies whether no shift throws are allowed.
 // When `SUPER0` == true then certain optimizations can be applied.
 
-template<bool SUPER0>
-void Worker::iterative_gen_loops_super() {
-  if (!iterative_init_workspace(false)) {
-    assert(false);
+template<bool SUPER0, bool REPLAY>
+void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
+  if (!REPLAY) {
+    iterative_init_workspace();
+    const unsigned pos_orig = pos;
+    pos = 0;
+    iterative_gen_loops_super<SUPER0, true>(pos_orig);
+    assert(pos == pos_orig);
   }
 
   std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
@@ -372,6 +454,8 @@ void Worker::iterative_gen_loops_super() {
   // register-based state variables during search
   unsigned from_state = ss->from_state;
   unsigned from_cycle = cyclenum[from_state];
+
+  /*
   unsigned shiftcount = 0;
   unsigned exitcycles_left = 0;
 
@@ -390,11 +474,18 @@ void Worker::iterative_gen_loops_super() {
     }
   }
   assert(shiftcount == ss->shiftcount);
-  assert(exitcycles_left == ss->exitcycles_remaining);
+  assert(exitcycles_left == ss->exitcycles_remaining);*/
 
   while (true) {
+    if (REPLAY && p == replay_to_pos) {
+      break;
+    }
+
     if (ss->col == ss->col_limit) {
       // beat is finished, go back to previous one
+      if (REPLAY) {
+        assert(false);
+      }
       if (!SUPER0) {
         u[from_state] = 0;
       }
@@ -413,7 +504,7 @@ void Worker::iterative_gen_loops_super() {
       } else {  // link throw
         cu[to_cycle] = false;
         if (isexitcycle[to_cycle]) {
-          ++exitcycles_left;
+          ++exitcyclesleft;
         }
       }
       ++ss->col;
@@ -423,6 +514,9 @@ void Worker::iterative_gen_loops_super() {
     const unsigned to_state = outmatrix[from_state][ss->col];
 
     if (!SUPER0 && u[to_state]) {
+      if (REPLAY) {
+        assert(false);
+      }
       ++ss->col;
       continue;
     }
@@ -431,6 +525,9 @@ void Worker::iterative_gen_loops_super() {
 
     if (SUPER0 || (to_cycle != from_cycle)) {  // link throw
       if (to_state == start_state) {
+        if (REPLAY) {
+          assert(false);
+        }
         if ((p + 1) >= n_min && !config.countflag) {
           pos = p;
           iterative_handle_finished_pattern();
@@ -441,21 +538,30 @@ void Worker::iterative_gen_loops_super() {
       }
 
       if (cu[to_cycle]) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++ss->col;
         continue;
       }
 
-      if ((SUPER0 || shiftcount == config.shiftlimit) && exitcycles_left == 0) {
+      if ((SUPER0 || shiftcount == config.shiftlimit) && exitcyclesleft == 0) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++ss->col;
         continue;
       }
 
       if (p + 1 == nmax) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++ss->col;
         continue;
       }
 
-      if (++steps >= steps_per_inbox_check) {
+      if (!REPLAY && ++steps >= steps_per_inbox_check) {
         steps = 0;
 
         pos = p;
@@ -477,15 +583,21 @@ void Worker::iterative_gen_loops_super() {
       }
       cu[to_cycle] = true;
       if (isexitcycle[to_cycle]) {
-        --exitcycles_left;
+        --exitcyclesleft;
       }
     } else {  // shift throw
       if (shiftcount == config.shiftlimit) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++ss->col;
         continue;
       }
 
       if (to_state == start_state) {
+        if (REPLAY) {
+          assert(false);
+        }
         if (shiftcount < p) {
           // don't allow all shift throws
           if ((p + 1) >= n_min && !config.countflag) {
@@ -499,6 +611,9 @@ void Worker::iterative_gen_loops_super() {
       }
 
       if (p + 1 == nmax) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++ss->col;
         continue;
       }
@@ -510,52 +625,70 @@ void Worker::iterative_gen_loops_super() {
     // advance to next beat
     ++p;
     ++ss;
-    ss->col = 0;
-    ss->col_limit = outdegree[to_state];
+    if (REPLAY) {
+      assert(ss->from_state == to_state);
+    } else {
+      ss->col = 0;
+      ss->col_limit = outdegree[to_state];
+    }
     ss->from_state = from_state = to_state;
     from_cycle = to_cycle;
   }
 
+  if (REPLAY) {
+    assert(p == replay_to_pos);
+    assert(nn == nnodes);
+  } else {
+    assert(p == 0);
+  }
+
   pos = p;
   nnodes = nn;
-  assert(pos == 0);
 }
 
 // Explicit template instantiations since template method definition is not in
 // the `.h` file.
 
-template void Worker::iterative_gen_loops_normal<true>();
-template void Worker::iterative_gen_loops_normal<false>();
-template void Worker::iterative_gen_loops_super<true>();
-template void Worker::iterative_gen_loops_super<false>();
+// non-replay (regular) versions
+template void Worker::iterative_gen_loops_normal<true, false>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_normal<false, false>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_normal_marking<false>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_super<true, false>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_super<false, false>(
+    unsigned replay_to_pos);
+
+// replay versions
+template void Worker::iterative_gen_loops_normal<false, true>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_normal_marking<true>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_super<true, true>(
+    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_super<false, true>(
+    unsigned replay_to_pos);
 
 //------------------------------------------------------------------------------
 // Helper methods
 //------------------------------------------------------------------------------
 
-// Set up the SearchState vector with initial values.
+// Set up the SearchState workcells with initial values for `ss.col`,
+// `ss.col_limit`, and `ss.from_state` based on the loaded work assignment.
 //
-// Leaves `pos` pointing to the last beat with loaded data, ready for the
-// iterative algorithm to resume. Input parameter `marking` indicates whether
-// to do marking operations during setup (the `excludes` and `deadstates`
-// elements of SearchState).
-//
-// Also sets up `used`, `cycleused`
+// Leaves `pos` pointing to the last beat with loaded data.
 //
 // Returns true on success, false on failure.
 
-bool Worker::iterative_init_workspace(bool marking) {
+bool Worker::iterative_init_workspace() {
   if (!loading_work) {
     pos = 0;
-    SearchState& ss = beat.at(pos);
+    SearchState& ss = beat.at(0);
     ss.col = 0;
     ss.col_limit = graph.outdegree.at(start_state);
     ss.from_state = start_state;
-    ss.to_state = 0;
-    ss.excludes_throw = nullptr;
-    ss.excludes_catch = nullptr;
-    ss.shiftcount = 0;
-    ss.exitcycles_remaining = exitcyclesleft;
     return true;
   }
 
@@ -564,8 +697,6 @@ bool Worker::iterative_init_workspace(bool marking) {
 
   loading_work = false;
   unsigned from_state = start_state;
-  unsigned shiftcount = 0;
-  auto exitcycles_remaining = static_cast<int>(exitcyclesleft);
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
     pos = static_cast<unsigned>(i);
@@ -579,6 +710,7 @@ bool Worker::iterative_init_workspace(bool marking) {
       if (graph.outthrowval.at(ss.from_state).at(ss.col) == tv)
         break;
     }
+
     if (ss.col == ss.col_limit) {
       std::cerr << "error loading work assignment:\n"
                 << "start_state: " << start_state
@@ -594,116 +726,31 @@ bool Worker::iterative_init_workspace(bool marking) {
       std::cerr << '\n';
     }
     assert(ss.col < ss.col_limit);
+
     if (pos < root_pos) {
       ss.col_limit = ss.col + 1;
     }
 
-    if (shiftcount > config.shiftlimit) {
-      std::cerr << "shiftcount went beyond config.shiftlimit during init\n";
-      return false;
-    }
-    if (exitcycles_remaining < 0) {
-      std::cerr << "exitcycles_remaining went negative during init\n";
-      return false;
-    }
-
-    ss.to_state = graph.outmatrix.at(ss.from_state).at(ss.col);
-    ss.excludes_throw = nullptr;
-    ss.excludes_catch = nullptr;
-    unsigned to_cycle = graph.cyclenum.at(ss.to_state);
-    ss.shiftcount = shiftcount;
-    ss.exitcycles_remaining = static_cast<unsigned>(exitcycles_remaining);
-
-    if (marking && tv != 0 && tv != graph.h) {
-      // mark unreachable states due to link throw
-      unsigned* ds = deadstates_bystate.at(ss.from_state);
-      unsigned* es = graph.excludestates_throw.at(ss.from_state).data();
-      ss.excludes_throw = es;
-      ss.deadstates_throw = ds;
-
-      for (unsigned statenum; (statenum = *es); ++es) {
-        if (++used.at(statenum) == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(n_min)) {
-          pos = 0;
-          return false;
-        }
-      }
-
-      // mark unreachable states due to link catch
-      ds = deadstates_bystate.at(ss.to_state);
-      es = graph.excludestates_catch.at(ss.to_state).data();
-      ss.excludes_catch = es;
-      ss.deadstates_catch = ds;
-
-      for (unsigned statenum; (statenum = *es); ++es) {
-        if (++used.at(statenum) == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(n_min)) {
-          pos = 0;
-          return false;
-        }
-      }
-    }
-
-    if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-      if (tv != 0 && tv != graph.h) {
-        assert(!cycleused.at(to_cycle));
-        cycleused.at(to_cycle) = true;
-        if (graph.isexitcycle.at(to_cycle)) {
-          --exitcycles_remaining;
-        }
-      } else {
-        if (shiftcount == config.shiftlimit) {
-          return false;
-        }
-        ++shiftcount;
-      }
-    }
-
-    // mark next state as used
-    assert(used.at(ss.to_state) == 0);
-    if (config.mode != SearchConfig::RunMode::SUPER_SEARCH ||
-        config.shiftlimit != 0) {
-      used.at(ss.to_state) = 1;
-    }
-
-    from_state = ss.to_state;
+    from_state = graph.outmatrix.at(ss.from_state).at(ss.col);;
   }
-
-  // Invariant: the state that beat `pos` is throwing to should not be marked as
-  // used. gen_loops() won't restart correctly if it is set. So undo the last
-  // marking above.
-  used.at(from_state) = 0;
 
   if (pattern.at(0) == -1 || pos < root_pos) {
     // we're loading a work assignment that is either:
     // (a) brand new (no pattern prefix), or
     // (b) stolen from another worker (pos = root_pos - 1)
     //
-    // either way we need to make some adjustments
+    // in either case we didn't initialize the workcell at `root_pos` in the
+    // loop above, so do it here
+
     assert(pattern.at(0) == -1 || pos + 1 == root_pos);
-
-    // In case (b) we're going to increment `pos` by one so that it equals
-    // `root_pos`. This way we can set `col` and `col_limit` for that workcell
-    // to accurately reflect the set of throw options at `root_pos`.
-
-    if (pos + 1 == root_pos) {
-      used.at(from_state) = 1;
-      // TODO: should fix cycleused[] too
-    }
 
     SearchState& rss = beat.at(root_pos);
     rss.from_state = from_state;
-    rss.to_state = 0;
-    rss.excludes_throw = nullptr;
-    rss.excludes_catch = nullptr;
-    rss.shiftcount = shiftcount;
-    rss.exitcycles_remaining = exitcycles_remaining;
 
-    // Set `col` at `root_pos`; it's equal to the lowest index of the throws
+    // Set `col` at `root_pos`. It's equal to the lowest index of the throws
     // in `root_throwval_options`. This works because the way we steal work
     // ensures that the unexplored throw options in `root_throwval_options`
     // have contiguous indices up to and including `col_limit` - 1.
-
     rss.col = -1;
     for (size_t i = 0; i < graph.outdegree.at(rss.from_state); ++i) {
       const unsigned throwval = graph.outthrowval.at(rss.from_state).at(i);

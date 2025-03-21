@@ -758,25 +758,25 @@ void Worker::gen_loops() {
       gen_loops_super0();
       break;
     case 4:
-      iterative_gen_loops_normal<false>();
+      iterative_gen_loops_normal<false, false>();
       break;
     case 5:
-      iterative_gen_loops_normal<true>();
+      iterative_gen_loops_normal<true, false>();
       break;
     case 6:
       graph.find_exclude_states();
-      iterative_gen_loops_normal_marking();
+      iterative_gen_loops_normal_marking<false>();
       break;
     case 7:
-      iterative_gen_loops_super<false>();
+      iterative_gen_loops_super<false, false>();
       break;
     case 8:
-      iterative_gen_loops_super<true>();
+      iterative_gen_loops_super<true, false>();
       break;
     default:
       assert(false);
   }
-  assert(used == used_start);
+  //assert(used == used_start);
 }
 
 // Initialize all working variables prior to gen_loops().
