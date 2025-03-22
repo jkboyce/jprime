@@ -21,6 +21,13 @@
 // Individual record for a test case
 
 struct TestCase {
+  // execution engines to test:
+  //   1 = interative
+  //   2 = recursive
+  //   4 = CUDA (if available)
+  //   8 = CUDA, where node counts do not need to match
+  uint32_t engines;
+
   // command line input
   std::string input;
 
@@ -31,14 +38,26 @@ struct TestCase {
 };
 
 const std::vector<TestCase> tests {
-  { "jprime 2 60 30 -threads 4 -count", 1391049900, 2591724915, 6595287598 },
-  { "jprime 3 16 524",                          30,   11920253,  291293062 },
-  { "jprime 5 13 10 -super 1 -count",       532478,     685522,    6778559 },
-  { "jprime 5 10 225 -threads 4",              838,   29762799, 1458188812 },
-  { "jprime 3 18 47 -super 1",                  50,  128149175,  307570492 },
-  { "jprime 3 20 58 -super 1 -threads 4",       92, 2661959187, 6400527070 },
-  { "jprime 3 21 64 -super 0",                   1,  388339361,  876591490 },
-  { "jprime 3 9 -super -count",          133410514,  133410514,  792615946 },
+  { 11, "jprime 2 60 30 -count",           1391049900, 2591724915, 6595287598 },
+  {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
+  { 11, "jprime 5 13 10 -super 1 -count",      532478,     685522,    6778559 },
+  {  3, "jprime 5 10 225",                        838,   29762799, 1458188812 },
+  { 11, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
+  { 11, "jprime 3 20 58 -super 1",                 92, 2661959187, 6400527070 },
+  { 11, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
+  { 11, "jprime 3 9 -super -count",         133410514,  133410514,  792615946 },
+
+  {  7, "jprime 3 8 -g -count",              11578732,   11578732,   47941320 },
+  {  7, "jprime 3 21 -super 0 -g -count",   388339361,  388339361,  876591490 },
+  {  7, "jprime 4 11 -super 1 -g -count",    69797298,   69797298,  334414789 },
+  {  7, "jprime 3 9 -super -g -count",      123417152,  123417152,  732374333 },
+  {  7, "jprime 4 56 14 -g -count",          66129382,   84454394,  497746428 },
+  {  7, "jprime 5 15 1-12 -g -count",        17996072,   17996072,  229780787 },
+  {  7, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   76552560 },
+
+  {  4, "jprime 3 9 -count",           30513071763, 30513071763, 141933075458 },
+  {  4, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70432165 },
+  {  4, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  371452127 },
 };
 
 // Run a single test case and compare against known values, outputting results
@@ -55,16 +74,26 @@ bool run_one_test(const TestCase& tc) {
                  tc.ntotal, tc.nnodes)
             << std::endl;
 
+  int run_limit = 2;
+  #ifdef CUDA_ENABLED
+  run_limit = 4;
+  #endif
+
   bool success = true;
 
-  for (int run = 0; run < 2; ++run) {
+  for (int run = 0; run < run_limit; ++run) {
+    if ((tc.engines & (1u << run)) == 0)
+      continue;
+
     // prep config
     SearchConfig config;
     try {
       if (run == 0) {
-        config.from_args(tc.input);
+        config.from_args(tc.input + " -status -threads 4");
+      } else if (run == 1) {
+        config.from_args(tc.input + " -status -threads 4 -recursive");
       } else {
-        config.from_args(tc.input + " -recursive");
+        config.from_args(tc.input + " -status -cuda");
       }
     } catch (const std::invalid_argument& ie) {
       std::cout << "Error parsing test input: " << ie.what() << '\n'
@@ -89,17 +118,23 @@ bool run_one_test(const TestCase& tc) {
 
     if (run == 0) {
       std::cout << "iterative";
-    } else {
+    } else if (run == 1) {
       std::cout << "recursive";
+    } else {
+      std::cout << "CUDA     ";
     }
     std::cout << std::format("  {:12}, {:12}, {:12},  {:.4f}",
                    context.npatterns, context.ntotal, context.nnodes,
                    context.secs_elapsed)
               << std::endl;
 
-    if (context.npatterns != tc.npatterns || context.ntotal != tc.ntotal ||
-        context.nnodes != tc.nnodes) {
+    if (context.npatterns != tc.npatterns) {
       success = false;
+    }
+    if (run < 3) {
+      if (context.ntotal != tc.ntotal || context.nnodes != tc.nnodes) {
+        success = false;
+      }
     }
   }
 
@@ -119,6 +154,11 @@ void do_tests() {
   int passes = 0;
 
   for (const auto& testcase : tests) {
+    #ifndef CUDA_ENABLED
+    if ((testcase.engines & 3) == 0)
+      continue;
+    #endif
+
     ++runs;
     std::cout << std::format("\nStarting test {}:\n\n", runs);
     if (run_one_test(testcase)) {
