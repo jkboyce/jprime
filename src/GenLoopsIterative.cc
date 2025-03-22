@@ -98,7 +98,7 @@ void Worker::iterative_gen_loops_normal(unsigned replay_to_pos) {
       if (REPLAY) {
         assert(false);
       }
-      if (REPORT && (p + 1) >= n_min) {
+      if (REPORT && p + 1 >= n_min) {
         pos = p;
         iterative_handle_finished_pattern();
       }
@@ -156,8 +156,9 @@ void Worker::iterative_gen_loops_normal(unsigned replay_to_pos) {
     } else {
       ss->col = 0;
       ss->col_limit = outdegree[to_state];
+      ss->from_state = to_state;
     }
-    ss->from_state = from_state = to_state;
+    from_state = to_state;
   }
 
   if (REPLAY) {
@@ -262,7 +263,7 @@ void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
       if (REPLAY) {
         assert(false);
       }
-      if ((p + 1) >= n_min && !config.countflag) {
+      if (p + 1 >= n_min && !config.countflag) {
         pos = p;
         iterative_handle_finished_pattern();
       }
@@ -288,7 +289,8 @@ void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
     }
 
     const unsigned throwval = outthrowval[ss->from_state][ss->col];
-    if (throwval != 0 && throwval != graph.h) {
+
+    if (throwval != 0 && throwval != graph.h) {  // link throw
       if (ss->excludes_throw == nullptr) {
         // mark states excluded by link throw; only need to do this once since
         // the link throws all come at the end of each row in `outmatrix`
@@ -397,8 +399,8 @@ void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
       } else {
         ss->col = 0;
         ss->col_limit = outdegree[to_state];
+        ss->from_state = to_state;
       }
-      ss->from_state = to_state;
       ss->to_state = 0;
       // ss->outmatrix = outmatrix[to_state];
       ss->excludes_throw = nullptr;
@@ -455,27 +457,6 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
   unsigned from_state = ss->from_state;
   unsigned from_cycle = cyclenum[from_state];
 
-  /*
-  unsigned shiftcount = 0;
-  unsigned exitcycles_left = 0;
-
-  // initialize
-  for (unsigned i = 0; i < graph.numcycles; ++i) {
-    if (isexitcycle[i]) {
-      ++exitcycles_left;
-    }
-  }
-  for (unsigned i = 0; i < pos; ++i) {
-    if (cyclenum[beat.at(i).from_state] ==
-          cyclenum[beat.at(i + 1).from_state]) {
-      ++shiftcount;
-    } else if (isexitcycle[cyclenum[beat.at(i + 1).from_state]]) {
-      --exitcycles_left;
-    }
-  }
-  assert(shiftcount == ss->shiftcount);
-  assert(exitcycles_left == ss->exitcycles_remaining);*/
-
   while (true) {
     if (REPLAY && p == replay_to_pos) {
       break;
@@ -528,7 +509,7 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
         if (REPLAY) {
           assert(false);
         }
-        if ((p + 1) >= n_min && !config.countflag) {
+        if (p + 1 >= n_min && !config.countflag) {
           pos = p;
           iterative_handle_finished_pattern();
         }
@@ -600,7 +581,7 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
         }
         if (shiftcount < p) {
           // don't allow all shift throws
-          if ((p + 1) >= n_min && !config.countflag) {
+          if (p + 1 >= n_min && !config.countflag) {
             pos = p;
             iterative_handle_finished_pattern();
           }
@@ -630,8 +611,9 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
     } else {
       ss->col = 0;
       ss->col_limit = outdegree[to_state];
+      ss->from_state = to_state;
     }
-    ss->from_state = from_state = to_state;
+    from_state = to_state;
     from_cycle = to_cycle;
   }
 
