@@ -32,7 +32,7 @@ class CoordinatorCUDA : public Coordinator {
   WorkerInfo* wi_d = nullptr;
   ThreadStorageWorkCell* wc_d = nullptr;
   statenum_t* graphmatrix_d = nullptr;  // if needed
-  ThreadStorageUsed* used_d = nullptr;  // if needed
+  uint32_t* used_d = nullptr;  // if needed
 
   // memory blocks in host memory
   WorkerInfo* wi_h = nullptr;

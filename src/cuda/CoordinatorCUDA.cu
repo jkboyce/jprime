@@ -51,7 +51,7 @@ __global__ void cuda_gen_loops_normal(
         // execution setup
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
         statenum_t* const patterns_d,
-        const statenum_t* const graphmatrix_d, ThreadStorageUsed* const used_d,
+        const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
         bool report, unsigned n_min, unsigned n_max) {
@@ -59,8 +59,6 @@ __global__ void cuda_gen_loops_normal(
   if (wi_d[id].status & 1) {
     return;
   }
-
-  const auto end_clock = clock64() + cycles;
 
   // set up register variables
   auto st_state = wi_d[id].start_state;
@@ -82,10 +80,9 @@ __global__ void cuda_gen_loops_normal(
   // if used[] is in device memory, set up base address for this thread
   ThreadStorageUsed* used = nullptr;
   if (used_d != nullptr) {
-    ThreadStorageUsed* const warp_start =
-          &used_d[(id / 32) * (((numstates_d + 1) + 31) / 32)];
-    uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-    used = reinterpret_cast<ThreadStorageUsed*>(&warp_start_u32[id & 31]);
+    used = (ThreadStorageUsed*)&used_d[
+          (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
+          (((numstates_d + 1) + 31) / 32) + (id & 31)];
   }
 
   // set up shared memory
@@ -157,6 +154,7 @@ __global__ void cuda_gen_loops_normal(
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
 
   unsigned from_state = ss->from_state;
+  const auto end_clock = clock64() + cycles;
 
   while (true) {
     statenum_t to_state = 0;
@@ -271,7 +269,7 @@ __global__ void cuda_gen_loops_super(
         // execution setup
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
         statenum_t* const patterns_d,
-        const statenum_t* const graphmatrix_d, ThreadStorageUsed* const used_d,
+        const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
         bool report, unsigned n_min, unsigned n_max, unsigned shiftlimit) {
@@ -279,8 +277,6 @@ __global__ void cuda_gen_loops_super(
   if (wi_d[id].status & 1) {
     return;
   }
-
-  const auto end_clock = clock64() + cycles;
 
   // set up register variables
   auto st_state = wi_d[id].start_state;
@@ -316,30 +312,25 @@ __global__ void cuda_gen_loops_super(
 
     if (shiftlimit != 0) {
       // used[]
-      ThreadStorageUsed* const warp_start = &used_d[
-            (id / 32) * (((numstates_d + 1) + 31) / 32)];
-      uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-      used = reinterpret_cast<ThreadStorageUsed*>(&warp_start_u32[id & 31]);
+      used = (ThreadStorageUsed*)&used_d[
+            (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
+            (((numstates_d + 1) + 31) / 32) + (id & 31)];
       device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
           (sizeof(ThreadStorageUsed) / 4) * (((numstates_d + 1) + 31) / 32);
     }
     {
       // cycleused[]
-      ThreadStorageUsed* const warp_start = &used_d[device_base_u32 +
-            (id / 32) * (((numstates_d + 1) + 31) / 32)];
-      uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-      cycleused = reinterpret_cast<ThreadStorageUsed*>(
-          &warp_start_u32[id & 31]);
+      cycleused = (ThreadStorageUsed*)&used_d[device_base_u32 +
+            (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
+            ((numcycles_d + 31) / 32) + (id & 31)];
       device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
           (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 31) / 32);
     }
     {
       // isexitcycle[]
-      ThreadStorageUsed* const warp_start = &used_d[device_base_u32 +
-            (id / 32) * (((numstates_d + 1) + 31) / 32)];
-      uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-      isexitcycle = reinterpret_cast<ThreadStorageUsed*>(
-          &warp_start_u32[id & 31]);
+      isexitcycle = (ThreadStorageUsed*)&used_d[device_base_u32 +
+            (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
+            ((numcycles_d + 31) / 32) + (id & 31)];
       device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
           (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 31) / 32);
     }
@@ -475,6 +466,7 @@ __global__ void cuda_gen_loops_super(
 
   from_state = ss->from_state;
   from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
+  const auto end_clock = clock64() + cycles;
 
   while (true) {
     statenum_t to_state = 0;
@@ -786,7 +778,6 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
   cudaGetDeviceProperties(&prop, 0);
 
   if (config.verboseflag) {
-    erase_status_output();
     jpout << "Device Number: " << 0
           << "\n  device name: " << prop.name
           << "\n  multiprocessor count: " << prop.multiProcessorCount
@@ -795,7 +786,6 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
           << "\n  shared memory per block (bytes): " << prop.sharedMemPerBlock
           << "\n  shared memory per block, maximum opt-in (bytes): "
           << prop.sharedMemPerBlockOptin << std::endl;
-    print_status_output();
   }
 
   return prop;
@@ -1031,7 +1021,6 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
   config.num_threads = params.num_blocks * params.num_threadsperblock;
 
   if (config.verboseflag) {
-    erase_status_output();
     jpout << "Execution parameters:\n"
           << "  algorithm: " << cuda_algs[static_cast<int>(alg)]
           << "\n  blocks: " << params.num_blocks
@@ -1039,15 +1028,15 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
           << "\n  threads per block: " << params.num_threadsperblock
           << "\n  worker count: " << config.num_threads
           << "\n  pattern buffer size: " << params.pattern_buffer_size
-          << " patterns"
-          << "\n  shared memory size: " << params.shared_memory_size
-          << " bytes"
+          << " patterns ("
+          << (sizeof(statenum_t) * n_max * params.pattern_buffer_size)
+          << " bytes)"
+          << "\n  shared memory size: " << params.shared_memory_size << " bytes"
           << std::format("\n  placing used[] into {} memory",
                 params.used_in_shared ? "shared" : "device")
           << "\n  workcell[] window in shared memory = ["
           << params.window_lower << ',' << params.window_upper << ')'
           << std::endl;
-    print_status_output();
   }
 
   return params;
@@ -1179,6 +1168,10 @@ void CoordinatorCUDA::allocate_memory(CudaAlgorithm alg,
         break;
     }
     if (used_size != 0) {
+      if (config.verboseflag) {
+        jpout << "  allocating used[] in device memory (" << used_size
+              << " bytes)\n";
+      }
       throw_on_cuda_error(
         cudaMalloc(&used_d, used_size), __FILE__, __LINE__);
     }
