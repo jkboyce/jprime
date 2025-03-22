@@ -15,7 +15,7 @@
 #include "Coordinator.h"
 #include "CoordinatorCPU.h"
 #ifdef CUDA_ENABLED
-#include "CoordinatorCUDA.cuh"
+#include "CoordinatorCUDA.h"
 #endif
 #include "Graph.h"
 #include "Pattern.h"
@@ -50,7 +50,7 @@ std::unique_ptr<Coordinator> Coordinator::make_coordinator(
     return make_unique<CoordinatorCPU>(config, context, jpout);
   }
 }
-  
+
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------

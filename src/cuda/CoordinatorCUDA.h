@@ -1,5 +1,5 @@
 //
-// CoordinatorCUDA.cuh
+// CoordinatorCUDA.h
 //
 // Coordinator that executes the search on a CUDA GPU.
 //
@@ -8,8 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
-#ifndef JPRIME_COORDINATORCUDA_CUH_
-#define JPRIME_COORDINATORCUDA_CUH_
+#ifndef JPRIME_COORDINATORCUDA_H_
+#define JPRIME_COORDINATORCUDA_H_
 
 #include "Coordinator.h"
 #include "Graph.h"
@@ -27,13 +27,6 @@ class CoordinatorCUDA : public Coordinator {
     std::ostream& jpout);
 
  protected:
-  // memory blocks in GPU global memory
-  statenum_t* pb_d = nullptr;  // if needed
-  WorkerInfo* wi_d = nullptr;
-  ThreadStorageWorkCell* wc_d = nullptr;
-  statenum_t* graphmatrix_d = nullptr;  // if needed
-  uint32_t* used_d = nullptr;  // if needed
-
   // memory blocks in host memory
   WorkerInfo* wi_h = nullptr;
   ThreadStorageWorkCell* wc_h = nullptr;
@@ -43,7 +36,6 @@ class CoordinatorCUDA : public Coordinator {
   double total_kernel_time = 0;
   double total_host_time = 0;
 
- protected:
   // live status display
   std::vector<unsigned> longest_by_startstate_ever;
   std::vector<unsigned> longest_by_startstate_current;
@@ -61,21 +53,24 @@ class CoordinatorCUDA : public Coordinator {
     CudaAlgorithm alg, const Graph& graph);
   size_t calc_shared_memory_size(CudaAlgorithm alg, const Graph& graph,
     unsigned n_max, const CudaRuntimeParams& p);
-  void configure_cuda_shared_memory(const CudaRuntimeParams& params);
   void allocate_memory(CudaAlgorithm alg, const CudaRuntimeParams& params,
-    const std::vector<statenum_t>& graph_buffer, const Graph& graph);
-  void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer);
+    const std::vector<statenum_t>& graph_buffer, const Graph& graph,
+    CudaMemoryPointers& ptrs);
+  void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer,
+    const CudaMemoryPointers& ptrs);
   void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
-    const Graph& graph);
+    const Graph& graph, const CudaMemoryPointers& ptrs);
 
   // main loop
-  void copy_worker_data_to_gpu(bool startup, unsigned max_idx);
-  void launch_cuda_kernel(const CudaRuntimeParams& params, CudaAlgorithm alg,
-    unsigned cycles);
-  void copy_worker_data_from_gpu(unsigned max_idx);
+  void copy_worker_data_to_gpu(bool startup, unsigned max_idx,
+    const CudaMemoryPointers& ptrs);
+  void launch_cuda_kernel(const CudaRuntimeParams& params,
+    const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned cycles);
+  void copy_worker_data_from_gpu(unsigned max_idx,
+    const CudaMemoryPointers& ptrs);
   void process_worker_counters();
-  uint32_t process_pattern_buffer(statenum_t* const pb_d,
-    const Graph& graph, const uint32_t pattern_buffer_size);
+  uint32_t process_pattern_buffer(const Graph& graph,
+    const uint32_t pattern_buffer_size, const CudaMemoryPointers& ptrs);
   void record_working_time(double host_time, double kernel_time,
     unsigned idle_before, unsigned idle_after);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles, double host_time,
@@ -83,7 +78,7 @@ class CoordinatorCUDA : public Coordinator {
     uint32_t pattern_count, CudaRuntimeParams p);
 
   // cleanup
-  void cleanup_memory();
+  void cleanup_memory(CudaMemoryPointers& ptrs);
   void gather_unfinished_work_assignments(const Graph& graph);
 
   // manage work assignments

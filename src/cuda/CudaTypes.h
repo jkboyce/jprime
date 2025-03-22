@@ -73,8 +73,8 @@ constexpr std::array cuda_algs = {
 };
 
 
-// defines how the algorithms are mapped onto the GPU hardware
 struct CudaRuntimeParams {
+  // defines how the algorithms are mapped onto the GPU hardware
   unsigned num_blocks = 1;
   unsigned num_threadsperblock = 32;
   size_t pattern_buffer_size = 1;
@@ -82,6 +82,30 @@ struct CudaRuntimeParams {
   bool used_in_shared = true;
   unsigned window_lower = 0;
   unsigned window_upper = 0;
+
+  // configures the search algorithm
+  unsigned n_min = 0;
+  unsigned n_max = 0;
+  bool report = false;
+  unsigned shiftlimit = -1u;
+};
+
+
+struct CudaMemoryPointers {
+  // statically allocated items in GPU memory
+  statenum_t* graphmatrix_c = nullptr;
+  uint8_t* maxoutdegree_d = nullptr;
+  uint16_t* numstates_d = nullptr;
+  uint16_t* numcycles_d = nullptr;
+  uint32_t* pattern_buffer_size_d = nullptr;
+  uint32_t* pattern_index_d = nullptr;
+
+  // dynamically allocated memory blocks in GPU global memory
+  statenum_t* pb_d = nullptr;  // if needed
+  WorkerInfo* wi_d = nullptr;
+  ThreadStorageWorkCell* wc_d = nullptr;
+  statenum_t* graphmatrix_d = nullptr;  // if needed
+  uint32_t* used_d = nullptr;  // if needed
 };
 
 
