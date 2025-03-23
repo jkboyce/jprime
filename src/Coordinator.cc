@@ -35,6 +35,8 @@
 Coordinator::Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c) :
     config(a), context(b), jpout(c) {}
 
+Coordinator::~Coordinator() {}
+
 // Factory method to return the correct type of Coordinator for the search
 // requested.
 
@@ -593,8 +595,8 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
 // Return the duration between two time points, in seconds.
 
 double Coordinator::calc_duration_secs(
-    const std::chrono::time_point<std::chrono::system_clock>& before,
-    const std::chrono::time_point<std::chrono::system_clock>& after) {
+    const std::chrono::time_point<std::chrono::high_resolution_clock>& before,
+    const std::chrono::time_point<std::chrono::high_resolution_clock>& after) {
   const std::chrono::duration<double> diff = after - before;
   return diff.count();
 }

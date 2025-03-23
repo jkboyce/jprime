@@ -52,9 +52,9 @@ void CoordinatorCUDA::run_search() {
   load_initial_work_assignments(graph);
 
   // timing setup
-  std::chrono::time_point<std::chrono::system_clock> before_kernel;
-  std::chrono::time_point<std::chrono::system_clock> after_kernel;
-  after_kernel = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::high_resolution_clock> before_kernel;
+  std::chrono::time_point<std::chrono::high_resolution_clock> after_kernel;
+  after_kernel = std::chrono::high_resolution_clock::now();
   uint32_t cycles = 1000000;
 
   // idle workers at kernel start

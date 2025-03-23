@@ -34,7 +34,7 @@ class CoordinatorCPU : public Coordinator {
   // for communicating with workers
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
-    
+
  protected:
   // workers
   std::vector<std::unique_ptr<Worker>> worker;
@@ -60,7 +60,7 @@ class CoordinatorCPU : public Coordinator {
   std::vector<std::vector<unsigned>> worker_options_left_last;
   std::vector<unsigned> worker_longest_start;
   std::vector<unsigned> worker_longest_last;
-  std::chrono::time_point<std::chrono::system_clock> last_status_time;
+  std::chrono::time_point<std::chrono::high_resolution_clock> last_status_time;
   uint64_t last_nnodes = 0;
   uint64_t last_ntotal = 0;
 

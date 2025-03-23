@@ -28,6 +28,7 @@ class Coordinator {
   Coordinator(SearchConfig& config, SearchContext& context,
     std::ostream& jpout);
   Coordinator() = delete;
+  virtual ~Coordinator();
 
   // factory method
   static std::unique_ptr<Coordinator> make_coordinator(
@@ -73,8 +74,8 @@ class Coordinator {
   std::string pattern_output_format(const std::vector<int>& pattern,
     const unsigned start_state);
   static double calc_duration_secs(
-    const std::chrono::time_point<std::chrono::system_clock>& before,
-    const std::chrono::time_point<std::chrono::system_clock>& after);
+    const std::chrono::time_point<std::chrono::high_resolution_clock>& before,
+    const std::chrono::time_point<std::chrono::high_resolution_clock>& after);
 };
 
 #endif
