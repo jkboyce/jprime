@@ -355,8 +355,8 @@ void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
         } else {
           ss->col = 0;
           ss->col_limit = outdegree[to_state];
+          ss->from_state = to_state;
         }
-        ss->from_state = to_state;
         ss->to_state = 0;
         // ss->outmatrix = outmatrix[to_state];
         ss->excludes_throw = nullptr;
@@ -631,7 +631,7 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
 // Explicit template instantiations since template method definition is not in
 // the `.h` file.
 
-// non-replay (regular) versions
+// regular versions
 template void Worker::iterative_gen_loops_normal<true, false>(
     unsigned replay_to_pos);
 template void Worker::iterative_gen_loops_normal<false, false>(
