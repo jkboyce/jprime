@@ -334,8 +334,8 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg) {
   last_ntotal = context.ntotal;
 
   status_lines.push_back(std::format(
-    "idled:{:7}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
-    workers_idle.size(),
+    "jobs:{:8}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
+    config.num_threads - workers_idle.size() + context.assignments.size(),
     format2(nodespersec),
     format2(patspersec),
     context.npatterns
