@@ -18,6 +18,10 @@
 #include <cassert>
 
 
+// used during replay initialization
+static unsigned replay_to_pos = 0;
+
+
 // This is a non-recursive version of gen_loops_normal(), with identical
 // interface and behavior.
 //
@@ -30,15 +34,20 @@
 // particular value of `pos`; this is used for initialization.
 
 template<bool REPORT, bool REPLAY>
-void Worker::iterative_gen_loops_normal(unsigned replay_to_pos) {
+void Worker::iterative_gen_loops_normal() {
   if (!REPLAY) {
+    // initializing the working variables is a two-step process, starting with
+    // setting up the workspace based on our current position in the search
+    // tree, followed by a replay pass through the algorithm to initialize all
+    // other working variables
     iterative_init_workspace();
 
     // replay back through the algorithm up to and including position `pos`.
     // this sets up variables like used[], etc.
     const unsigned pos_orig = pos;
+    replay_to_pos = pos;
     pos = 0;
-    iterative_gen_loops_normal<false, true>(pos_orig);
+    iterative_gen_loops_normal<false, true>();
     assert(pos == pos_orig);
 
     // now we can resume
@@ -175,12 +184,13 @@ void Worker::iterative_gen_loops_normal(unsigned replay_to_pos) {
 // Non-recursive version of gen_loops_normal_marking().
 
 template<bool REPLAY>
-void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
+void Worker::iterative_gen_loops_normal_marking() {
   if (!REPLAY) {
     iterative_init_workspace();
     const unsigned pos_orig = pos;
+    replay_to_pos = pos;
     pos = 0;
-    iterative_gen_loops_normal_marking<true>(pos_orig);
+    iterative_gen_loops_normal_marking<true>();
     assert(pos == pos_orig);
   }
 
@@ -426,12 +436,13 @@ void Worker::iterative_gen_loops_normal_marking(unsigned replay_to_pos) {
 // When `SUPER0` == true then certain optimizations can be applied.
 
 template<bool SUPER0, bool REPLAY>
-void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
+void Worker::iterative_gen_loops_super() {
   if (!REPLAY) {
     iterative_init_workspace();
     const unsigned pos_orig = pos;
+    replay_to_pos = pos;
     pos = 0;
-    iterative_gen_loops_super<SUPER0, true>(pos_orig);
+    iterative_gen_loops_super<SUPER0, true>();
     assert(pos == pos_orig);
   }
 
@@ -628,37 +639,28 @@ void Worker::iterative_gen_loops_super(unsigned replay_to_pos) {
   nnodes = nn;
 }
 
-// Explicit template instantiations since template method definition is not in
+// Explicit template instantiations since template method definitions are not in
 // the `.h` file.
 
 // regular versions
-template void Worker::iterative_gen_loops_normal<true, false>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_normal<false, false>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_normal_marking<false>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_super<true, false>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_super<false, false>(
-    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_normal<true, false>();
+template void Worker::iterative_gen_loops_normal<false, false>();
+template void Worker::iterative_gen_loops_normal_marking<false>();
+template void Worker::iterative_gen_loops_super<true, false>();
+template void Worker::iterative_gen_loops_super<false, false>();
 
 // replay versions
-template void Worker::iterative_gen_loops_normal<false, true>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_normal_marking<true>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_super<true, true>(
-    unsigned replay_to_pos);
-template void Worker::iterative_gen_loops_super<false, true>(
-    unsigned replay_to_pos);
+template void Worker::iterative_gen_loops_normal<false, true>();
+template void Worker::iterative_gen_loops_normal_marking<true>();
+template void Worker::iterative_gen_loops_super<true, true>();
+template void Worker::iterative_gen_loops_super<false, true>();
 
 //------------------------------------------------------------------------------
 // Helper methods
 //------------------------------------------------------------------------------
 
-// Set up the WorkCells with initial values for `wc.col`, `wc.col_limit`, and
-// `wc.from_state` based on the loaded work assignment.
+// Initialize the WorkCells with values for `col`, `col_limit`, and `from_state`
+// based on the loaded work assignment.
 //
 // Leaves `pos` pointing to the last beat with loaded data.
 //
