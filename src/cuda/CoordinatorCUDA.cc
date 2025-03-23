@@ -40,7 +40,6 @@ void CoordinatorCUDA::run_search() {
   const auto graph = build_and_reduce_graph();
   const auto alg = select_cuda_search_algorithm(graph);
   const auto graph_buffer = make_graph_buffer(graph, alg);
-
   const auto params = find_runtime_params(prop, alg, graph);
 
   CudaMemoryPointers ptrs;
@@ -62,43 +61,38 @@ void CoordinatorCUDA::run_search() {
   auto summary = summarize_worker_status(graph);
   unsigned idle_start = summary.workers_idle.size();
   int kernel_runs = 0;
-  bool startup = true;
 
   while (true) {
-    const auto prev_after_kernel = after_kernel;
-    copy_worker_data_to_gpu(startup, max_active_idx, ptrs);
+    copy_worker_data_to_gpu(max_active_idx, ptrs, kernel_runs == 0);
 
+    const auto prev_after_kernel = after_kernel;
     before_kernel = std::chrono::high_resolution_clock::now();
     launch_cuda_kernel(params, ptrs, alg, cycles);
     after_kernel = std::chrono::high_resolution_clock::now();
     ++kernel_runs;
 
-    // process worker results
     copy_worker_data_from_gpu(max_active_idx, ptrs);
     process_worker_counters();
     const auto pattern_count = process_pattern_buffer(graph,
       params.pattern_buffer_size, ptrs);
 
-    // timekeeping
     const auto host_time = calc_duration_secs(prev_after_kernel, before_kernel);
     const auto kernel_time = calc_duration_secs(before_kernel, after_kernel);
     record_working_time(host_time, kernel_time, idle_start,
         summary.workers_idle.size());
 
-    const auto last_summary = std::move(summary);
+    const auto prev_summary = std::move(summary);
     summary = summarize_worker_status(graph);
-    do_status_display(summary, last_summary, host_time, kernel_time);
+    do_status_display(summary, prev_summary, host_time, kernel_time);
 
     if (Coordinator::stopping || (summary.workers_idle.size() ==
         config.num_threads && context.assignments.size() == 0)) {
       break;
     }
 
-    // prepare for next run
     cycles = calc_next_kernel_cycles(cycles, host_time, kernel_time,
         idle_start, summary.workers_idle.size(), pattern_count, params);
     idle_start = assign_new_jobs(summary, graph);
-    startup = false;
   }
 
   gather_unfinished_work_assignments(graph);
@@ -604,8 +598,8 @@ void CoordinatorCUDA::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
 // Copy worker data to the GPU. For the workcells, copy only the worker data for
 // threads [0, max_idx].
 
-void CoordinatorCUDA::copy_worker_data_to_gpu(bool startup, unsigned max_idx,
-    const CudaMemoryPointers& ptrs) {
+void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned max_idx,
+    const CudaMemoryPointers& ptrs, bool startup) {
   throw_on_cuda_error(
       cudaMemcpy(ptrs.wi_d, wi_h, sizeof(WorkerInfo) *
           (startup ? config.num_threads : max_idx + 1),

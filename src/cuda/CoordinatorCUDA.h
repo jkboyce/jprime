@@ -62,8 +62,8 @@ class CoordinatorCUDA : public Coordinator {
     const Graph& graph, const CudaMemoryPointers& ptrs);
 
   // main loop
-  void copy_worker_data_to_gpu(bool startup, unsigned max_idx,
-    const CudaMemoryPointers& ptrs);
+  void copy_worker_data_to_gpu(unsigned max_idx, const CudaMemoryPointers& ptrs,
+    bool startup);
   void launch_cuda_kernel(const CudaRuntimeParams& params,
     const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned cycles);
   void copy_worker_data_from_gpu(unsigned max_idx,
