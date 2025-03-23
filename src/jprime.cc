@@ -37,6 +37,7 @@
 // 2024.04.15  Version 6.7 code refactoring.
 // 2024.06.16  Version 6.8 adds analyzer and efficiency improvements for (b,2b).
 // 2025.02.20  Version 6.9 makes <shifts> optional in -super mode.
+// 2025.03.22  Version 7.0 adds support for running on CUDA GPU.
 //
 
 #include "SearchConfig.h"
@@ -60,7 +61,7 @@ void do_tests();  // defined in jprime_tests.cc
 
 void print_help() {
   const std::string helpString =
-    "jprime version 6.9 (2025.02.20)\n"
+    "jprime version 7.0 (2025.03.22)\n"
     "Copyright (C) 1998-2025 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for prime siteswap juggling patterns. For an explanation\n"
