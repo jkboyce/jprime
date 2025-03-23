@@ -14,7 +14,7 @@
 #include "Messages.h"
 #include "SearchConfig.h"
 #include "Graph.h"
-#include "SearchState.h"
+#include "WorkCell.h"
 
 #include <queue>
 #include <mutex>
@@ -48,7 +48,7 @@ class Worker {
 
   // working variables for search
   Graph graph;
-  std::vector<SearchState> beat;  // workspace for iterative search
+  std::vector<WorkCell> beat;  // workspace for iterative search
   std::vector<int> pattern;  // throw value at each position
   std::vector<int> used;  // whether a state has been visited
   std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode

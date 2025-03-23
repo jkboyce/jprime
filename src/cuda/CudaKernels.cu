@@ -141,18 +141,18 @@ __global__ void cuda_gen_loops_normal(
       &workcell_d[pos_upper_s] : nullptr;
 
   // initialize current workcell pointer
-  ThreadStorageWorkCell* ss =
+  ThreadStorageWorkCell* wc =
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
 
-  unsigned from_state = ss->from_state;
+  unsigned from_state = wc->from_state;
   const auto end_clock = clock64() + cycles;
 
   while (true) {
     statenum_t to_state = 0;
 
-    if (ss->col == ss->col_limit || (to_state =
-          graphmatrix[(from_state - 1) * outdegree + ss->col]) == 0) {
+    if (wc->col == wc->col_limit || (to_state =
+          graphmatrix[(from_state - 1) * outdegree + wc->col]) == 0) {
       // beat is finished, go back to previous one
       used[from_state / 32].data &= ~(1u << (from_state & 31));
       ++nnodes;
@@ -163,22 +163,22 @@ __global__ void cuda_gen_loops_normal(
           break;
         }
         ++st_state;
-        ss->col = 0;
-        ss->col_limit = outdegree;
-        ss->from_state = from_state = st_state;
+        wc->col = 0;
+        wc->col_limit = outdegree;
+        wc->from_state = from_state = st_state;
         continue;
       }
 
       --pos;
-      if (ss == workcell_pos_lower) {
-        ss = workcell_pos_lower_minus1;
-      } else if (ss == workcell_pos_upper_plus1) {
-        ss = workcell_pos_upper;
+      if (wc == workcell_pos_lower) {
+        wc = workcell_pos_lower_minus1;
+      } else if (wc == workcell_pos_upper_plus1) {
+        wc = workcell_pos_upper;
       } else {
-        --ss;
+        --wc;
       }
-      from_state = ss->from_state;
-      ++ss->col;
+      from_state = wc->from_state;
+      ++wc->col;
       continue;
     }
 
@@ -199,23 +199,23 @@ __global__ void cuda_gen_loops_normal(
           }
         }
       }
-      ++ss->count;
-      ++ss->col;
+      ++wc->count;
+      ++wc->col;
       continue;
     }
 
     if (to_state < st_state) {
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
     if (used[to_state / 32].data & (1u << (to_state & 31))) {
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
     if (pos + 1 == n_max) {
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
@@ -228,16 +228,16 @@ __global__ void cuda_gen_loops_normal(
     used[to_state / 32].data |= (1u << (to_state & 31));
 
     ++pos;
-    if (ss == workcell_pos_lower_minus1) {
-      ss = workcell_pos_lower;
-    } else if (ss == workcell_pos_upper) {
-      ss = workcell_pos_upper_plus1;
+    if (wc == workcell_pos_lower_minus1) {
+      wc = workcell_pos_lower;
+    } else if (wc == workcell_pos_upper) {
+      wc = workcell_pos_upper_plus1;
     } else {
-      ++ss;
+      ++wc;
     }
-    ss->col = 0;
-    ss->col_limit = outdegree;
-    ss->from_state = from_state = to_state;
+    wc->col = 0;
+    wc->col_limit = outdegree;
+    wc->from_state = from_state = to_state;
   }
 
   wi_d[id].start_state = st_state;
@@ -454,19 +454,19 @@ __global__ void cuda_gen_loops_super(
       &workcell_d[pos_upper_s] : nullptr;
 
   // initialize current workcell pointer
-  ThreadStorageWorkCell* ss =
+  ThreadStorageWorkCell* wc =
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
 
-  from_state = ss->from_state;
+  from_state = wc->from_state;
   from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
   const auto end_clock = clock64() + cycles;
 
   while (true) {
     statenum_t to_state = 0;
 
-    if (ss->col == ss->col_limit || (to_state =
-          graphmatrix[(from_state - 1) * (outdegree + 1) + ss->col]) == 0) {
+    if (wc->col == wc->col_limit || (to_state =
+          graphmatrix[(from_state - 1) * (outdegree + 1) + wc->col]) == 0) {
       // beat is finished, go back to previous one
       if (shiftlimit != 0) {
         used[from_state / 32].data &= ~(1u << (from_state & 31));
@@ -507,25 +507,25 @@ __global__ void cuda_gen_loops_super(
           }
         }
 
-        ss->col = 0;
-        ss->col_limit = outdegree;
-        ss->from_state = from_state = st_state;
+        wc->col = 0;
+        wc->col_limit = outdegree;
+        wc->from_state = from_state = st_state;
         from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) +
             outdegree];
         continue;
       }
 
       --pos;
-      if (ss == workcell_pos_lower) {
-        ss = workcell_pos_lower_minus1;
-      } else if (ss == workcell_pos_upper_plus1) {
-        ss = workcell_pos_upper;
+      if (wc == workcell_pos_lower) {
+        wc = workcell_pos_lower_minus1;
+      } else if (wc == workcell_pos_upper_plus1) {
+        wc = workcell_pos_upper;
       } else {
-        --ss;
+        --wc;
       }
 
       const unsigned to_cycle = from_cycle;
-      from_state = ss->from_state;
+      from_state = wc->from_state;
       from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
       if (from_cycle == to_cycle) {  // unwinding a shift throw
         --shiftcount;
@@ -535,18 +535,18 @@ __global__ void cuda_gen_loops_super(
           ++exitcycles_left;
         }
       }
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
     if (to_state < st_state) {
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
     if (shiftlimit != 0 &&
           (used[to_state / 32].data & (1u << (to_state & 31)))) {
-      ++ss->col;
+      ++wc->col;
       continue;
     }
 
@@ -571,24 +571,24 @@ __global__ void cuda_gen_loops_super(
             }
           }
         }
-        ++ss->count;
-        ++ss->col;
+        ++wc->count;
+        ++wc->col;
         continue;
       }
 
       if (cycleused[to_cycle / 32].data & (1u << (to_cycle & 31))) {
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
       if ((/* shiftlimit == 0 ||*/ shiftcount == shiftlimit) &&
             exitcycles_left == 0) {
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
       if (pos + 1 == n_max) {
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
@@ -606,7 +606,7 @@ __global__ void cuda_gen_loops_super(
       }
     } else {  // shift throw
       if (shiftcount == shiftlimit) {
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
@@ -628,14 +628,14 @@ __global__ void cuda_gen_loops_super(
               }
             }
           }
-          ++ss->count;
+          ++wc->count;
         }
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
       if (pos + 1 == n_max) {
-        ++ss->col;
+        ++wc->col;
         continue;
       }
 
@@ -645,16 +645,16 @@ __global__ void cuda_gen_loops_super(
     }
 
     ++pos;
-    if (ss == workcell_pos_lower_minus1) {
-      ss = workcell_pos_lower;
-    } else if (ss == workcell_pos_upper) {
-      ss = workcell_pos_upper_plus1;
+    if (wc == workcell_pos_lower_minus1) {
+      wc = workcell_pos_lower;
+    } else if (wc == workcell_pos_upper) {
+      wc = workcell_pos_upper_plus1;
     } else {
-      ++ss;
+      ++wc;
     }
-    ss->col = 0;
-    ss->col_limit = outdegree;
-    ss->from_state = from_state = to_state;
+    wc->col = 0;
+    wc->col_limit = outdegree;
+    wc->from_state = from_state = to_state;
     from_cycle = to_cycle;
   }
 

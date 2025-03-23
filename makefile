@@ -16,10 +16,11 @@ CFLAGS = -Wall -Wextra -std=c++20 -O3 -Isrc
 SDIR = src
 ODIR = build
 OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
-      GenLoopsIterative.o Coordinator.o CoordinatorCPU.o WorkAssignment.o \
-			SearchConfig.o SearchContext.o Pattern.o
-DEP = Graph.h State.h Worker.h Coordinator.h CoordinatorCPU.h WorkAssignment.h \
-      SearchConfig.h SearchContext.h Pattern.h
+	  GenLoopsIterative.o Coordinator.o CoordinatorCPU.o WorkAssignment.o \
+	  SearchConfig.o SearchContext.o Pattern.o
+DEP = Coordinator.h CoordinatorCPU.h Graph.h Messages.h Pattern.h \
+	  SearchConfig.h SearchContext.h State.h WorkAssignment.h WorkCell.h \
+	  Worker.h
 
 _OBJ = $(patsubst %,$(ODIR)/%,$(OBJ))
 _DEP = $(patsubst %,$(SDIR)/%,$(DEP))
@@ -43,19 +44,19 @@ clean:
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from Nvidia.
 
 CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include \
-              -Isrc -Isrc/cuda
+			  -Isrc -Isrc/cuda
 _OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
 NVCCFLAGS = -std=c++20 -O3 -Xcudafe --diag_suppress=68 \
-            -gencode arch=compute_60,code=compute_60 \
-            -gencode arch=compute_89,code=sm_89 \
-            -Wno-deprecated-gpu-targets -Isrc -Isrc/cuda
+			-gencode arch=compute_60,code=compute_60 \
+			-gencode arch=compute_89,code=sm_89 \
+			-Wno-deprecated-gpu-targets -Isrc -Isrc/cuda
 
 cuda: $(SDIR)/cuda/CudaKernels.cu $(_OBJ_CUDA) $(ODIR)/cuda/CoordinatorCUDA.o
 	nvcc $(NVCCFLAGS) -o jprime src/cuda/CudaKernels.cu $(_OBJ_CUDA) \
 	  $(ODIR)/cuda/CoordinatorCUDA.o
 
 $(ODIR)/cuda/CoordinatorCUDA.o: $(SDIR)/cuda/CoordinatorCUDA.cc $(_DEP) \
-    src/cuda/CoordinatorCUDA.h | builddir_cuda
+  src/cuda/CoordinatorCUDA.h | builddir_cuda
 	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS_CUDA)
 
 $(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) src/cuda/CoordinatorCUDA.h \
