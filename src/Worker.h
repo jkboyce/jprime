@@ -66,6 +66,7 @@ class Worker {
   unsigned root_pos = 0;  // lowest `pos` with unexplored tree options
   std::list<unsigned> root_throwval_options;
   bool loading_work = false;
+  unsigned replay_to_pos = 0;  // used for iterative initialization
 
   // status data to report to Coordinator
   std::vector<std::uint64_t> count;  // count of patterns found at each period
@@ -127,6 +128,8 @@ class Worker {
   // iterative search routines; defined in GenLoopsIterative.cc
   template<bool REPORT, bool REPLAY> void iterative_gen_loops_normal();
   template<bool REPLAY> void iterative_gen_loops_normal_marking();
+  bool mark(int* const& u, unsigned*& es, unsigned* const& ds);
+  void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
   bool iterative_init_workspace();
   bool iterative_init_workspace_old(bool marking);

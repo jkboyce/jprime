@@ -18,10 +18,6 @@
 #include <cassert>
 
 
-// used during replay initialization
-static unsigned replay_to_pos = 0;
-
-
 // This is a non-recursive version of gen_loops_normal(), with identical
 // interface and behavior.
 //
@@ -228,19 +224,8 @@ void Worker::iterative_gen_loops_normal_marking() {
 
     if (wc->col == wc->col_limit) {
       // beat is finished, backtrack after cleaning up marking operations
-      if (REPLAY) {
-        assert(false);
-      }
-      unsigned* es = wc->excludes_throw;
-      if (es) {
-        unsigned* const ds = ds_bystate[from_state];
-        for (unsigned statenum; (statenum = *es); ++es) {
-          if (--u[statenum] == 0 && --*ds > 0) {
-            ++max_possible;
-          }
-        }
-        wc->excludes_throw = nullptr;
-      }
+      unsigned* const ds = ds_bystate[from_state];
+      unmark(u, wc->excludes_throw, ds);
       u[from_state] = 0;
       ++nn;
 
@@ -249,18 +234,14 @@ void Worker::iterative_gen_loops_normal_marking() {
       }
       --p;
       --wc;
-      es = wc->excludes_catch;
-      if (es) {
-        unsigned* const ds = ds_bystate[from_state];
-        for (unsigned statenum; (statenum = *es); ++es) {
-          if (--u[statenum] == 0 && --*ds > 0) {
-            ++max_possible;
-          }
-        }
-        wc->excludes_catch = nullptr;
-      }
+      unmark(u, wc->excludes_catch, ds);
       from_state = wc->from_state;
       ++wc->col;
+      if (REPLAY) {
+        std::cerr << "---- worker " << worker_id << " backtracked to pos "
+                  << pos << '\n';
+        assert(wc->col == wc->col_limit);
+      }
       continue;
     }
 
@@ -303,30 +284,13 @@ void Worker::iterative_gen_loops_normal_marking() {
         // link throw; only need to do this once since the link throws all come
         // at the end of each row in `outmatrix` and the excluded states are
         // independent of link throw value
-        bool valid1 = true;
-        unsigned* const ds = ds_bystate[from_state];
         unsigned* es = es_throw[from_state];
+        unsigned* const ds = ds_bystate[from_state];
         wc->excludes_throw = es;  // save for backtracking
 
-        for (unsigned statenum; (statenum = *es); ++es) {
-          if (++u[statenum] == 1 && ++*ds > 1 &&
-              --max_possible < static_cast<int>(n_min)) {
-            valid1 = false;
-          }
-        }
-
-        if (!valid1) {
-          if (REPLAY) {
-            assert(false);
-          }
-          // undo marking operation and bail to previous beat
-          es = wc->excludes_throw;
-          for (unsigned statenum; (statenum = *es); ++es) {
-            if (--u[statenum] == 0 && --*ds > 0) {
-              ++max_possible;
-            }
-          }
-          wc->excludes_throw = nullptr;
+        if (!mark(u, es, ds)) {
+          // not valid, undo marking operation and bail to previous beat
+          unmark(u, wc->excludes_throw, ds);
           u[from_state] = 0;
           ++nn;
 
@@ -335,36 +299,30 @@ void Worker::iterative_gen_loops_normal_marking() {
           }
           --p;
           --wc;
-          es = wc->excludes_catch;
-          if (es) {
-            for (unsigned statenum; (statenum = *es); ++es) {
-              if (--u[statenum] == 0 && --*ds > 0) {
-                ++max_possible;
-              }
-            }
-            wc->excludes_catch = nullptr;
-          }
+          unmark(u, wc->excludes_catch, ds);
           from_state = wc->from_state;
           ++wc->col;
+          if (REPLAY) {
+            // we might get here if we're loading a job that was stolen from
+            // another worker, and the job's prefix throws cause us to
+            // backtrack due to `max_possible`, i.e. we can't replay up to
+            // `root_pos`.
+            std::cerr << "---- worker " << worker_id << ", condition 1 ----\n"
+                      << "---- worker " << worker_id << " backtracked to pos "
+                      << pos << '\n';
+            assert(wc->col == wc->col_limit);
+          }
           continue;
         }
       }
 
-      // account for states excluded by link catch
-      bool valid2 = true;
-      unsigned* const ds = ds_bystate[to_state];
+      // mark states excluded by link catch
       unsigned* es = graph.excludestates_catch[to_state].data();
+      unsigned* const ds = ds_bystate[to_state];
       wc->excludes_catch = es;
 
-      for (unsigned statenum; (statenum = *es); ++es) {
-        if (++u[statenum] == 1 && ++*ds > 1 &&
-            --max_possible < static_cast<int>(n_min)) {
-          valid2 = false;
-        }
-      }
-
-      if (valid2) {
-        // advance to next beat
+      if (mark(u, es, ds)) {
+        // valid, advance to next beat
         u[to_state] = 1;
 
         ++p;
@@ -384,18 +342,12 @@ void Worker::iterative_gen_loops_normal_marking() {
 
       // couldn't advance to next beat, so go to next column in this one after
       // undoing the catch marking operation done above
-
-      if (REPLAY) {
-        assert(false);
-      }
-      es = wc->excludes_catch;
-      for (unsigned statenum; (statenum = *es); ++es) {
-        if (--u[statenum] == 0 && --*ds > 0) {
-          ++max_possible;
-        }
-      }
-      wc->excludes_catch = nullptr;
+      unmark(u, wc->excludes_catch, ds);
       ++wc->col;
+      if (REPLAY) {
+        std::cerr << "---- worker " << worker_id << ", condition 2 ----\n";
+        assert(wc->col == wc->col_limit);
+      }
       continue;
     } else {  // shift throw
       if (!REPLAY && ++steps >= steps_limit) {
@@ -436,6 +388,10 @@ void Worker::iterative_gen_loops_normal_marking() {
   }
 
   if (REPLAY) {
+    if (p != replay_to_pos) {
+      std::cerr << "### worker " << worker_id << " couldn't replay to pos "
+                << replay_to_pos << ", exited at pos " << p << '\n';
+    }
     assert(p == replay_to_pos);
     assert(nn == nnodes);
   } else {
@@ -444,6 +400,30 @@ void Worker::iterative_gen_loops_normal_marking() {
 
   pos = p;
   nnodes = nn;
+}
+
+// Helpers for iterative_gen_loops_marking()
+
+inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds) {
+  bool valid = true;
+  for (unsigned statenum; (statenum = *es); ++es) {
+    if (++u[statenum] == 1 && ++*ds > 1 &&
+        --max_possible < static_cast<int>(n_min)) {
+      valid = false;
+    }
+  }
+  return valid;
+}
+
+inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds) {
+  if (es) {
+    for (unsigned statenum; (statenum = *es); ++es) {
+      if (--u[statenum] == 0 && --*ds > 0) {
+        ++max_possible;
+      }
+    }
+    es = nullptr;
+  }
 }
 
 // Non-recursive version of gen_loops_super() and gen_loops_super0().
