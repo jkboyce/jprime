@@ -20,11 +20,8 @@ struct WorkCell {
   unsigned from_state = 0;
 
   // initialized by replay versions of algorithms
-  unsigned to_state = 0;
   unsigned* excludes_throw = nullptr;
-  unsigned* deadstates_throw = nullptr;
   unsigned* excludes_catch = nullptr;
-  unsigned* deadstates_catch = nullptr;
   unsigned shiftcount = 0;
   unsigned exitcycles_remaining = 0;
 };

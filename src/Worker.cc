@@ -742,7 +742,9 @@ void Worker::gen_loops() {
 
   ////////////////////// RELEASE THE KRAKEN //////////////////////
 
+  const auto max_possible_start = max_possible;
   std::vector<int> used_start(used);
+
   switch (alg) {
     case 0:
       gen_loops_normal();
@@ -776,7 +778,9 @@ void Worker::gen_loops() {
     default:
       assert(false);
   }
-  //assert(used == used_start);
+
+  assert(max_possible == max_possible_start);
+  assert(used == used_start);
 }
 
 // Initialize all working variables prior to gen_loops().
