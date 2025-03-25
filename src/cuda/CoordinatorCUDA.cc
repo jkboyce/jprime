@@ -25,7 +25,6 @@ void get_gpu_static_pointers(CudaMemoryPointers& ptr);
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
   CudaAlgorithm alg, unsigned cycles);
 
-//------------------------------------------------------------------------------
 
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
@@ -65,24 +64,24 @@ void CoordinatorCUDA::run_search() {
   while (true) {
     copy_worker_data_to_gpu(max_active_idx, ptrs, kernel_runs == 0);
 
+    // run the workers
     const auto prev_after_kernel = after_kernel;
     before_kernel = std::chrono::high_resolution_clock::now();
     launch_cuda_kernel(params, ptrs, alg, cycles);
     after_kernel = std::chrono::high_resolution_clock::now();
+    const auto host_time = calc_duration_secs(prev_after_kernel, before_kernel);
+    const auto kernel_time = calc_duration_secs(before_kernel, after_kernel);
     ++kernel_runs;
 
+    // process output
     copy_worker_data_from_gpu(max_active_idx, ptrs);
     process_worker_counters();
     const auto pattern_count = process_pattern_buffer(graph,
       params.pattern_buffer_size, ptrs);
-
-    const auto host_time = calc_duration_secs(prev_after_kernel, before_kernel);
-    const auto kernel_time = calc_duration_secs(before_kernel, after_kernel);
-    record_working_time(host_time, kernel_time, idle_start,
-        summary.workers_idle.size());
-
     const auto prev_summary = std::move(summary);
     summary = summarize_worker_status(graph);
+    record_working_time(host_time, kernel_time, idle_start,
+      summary.workers_idle.size());
     do_status_display(summary, prev_summary, host_time, kernel_time);
 
     if (Coordinator::stopping || (summary.workers_idle.size() ==
@@ -90,6 +89,7 @@ void CoordinatorCUDA::run_search() {
       break;
     }
 
+    // prep for next run
     cycles = calc_next_kernel_cycles(cycles, host_time, kernel_time,
         idle_start, summary.workers_idle.size(), pattern_count, params);
     idle_start = assign_new_jobs(summary, graph);
