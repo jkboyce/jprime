@@ -1,7 +1,7 @@
 //
 // CoordinatorCPU.cc
 //
-// Routines for executing the search on a CPU.
+// Coordinator that executes the search on one or more CPU threads.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //

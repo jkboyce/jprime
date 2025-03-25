@@ -61,8 +61,7 @@ const std::vector<TestCase> tests {
 };
 
 // Run a single test case and compare against known values, outputting results
-// to the console. Each test case is actually executed twice, first with the
-// iterative algorithms and again with the recursive ones.
+// to the console.
 //
 // Return true on test pass, false on failure.
 

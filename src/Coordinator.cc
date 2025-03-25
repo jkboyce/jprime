@@ -189,6 +189,39 @@ bool Coordinator::passes_prechecks() {
   return false;
 }
 
+// Create a model for the fraction of memory accesses that will occur at each
+// position in the pattern during DFS.
+//
+// Returns a normalized std::vector<double> with `n_max` elements.
+
+std::vector<double> Coordinator::build_access_model(unsigned num_states) {
+  const double pos_mean = 0.48 * static_cast<double>(num_states) - 1;
+  const double pos_fwhm = sqrt(pos_mean + 1) * (config.b == 2 ? 3.25 : 2.26);
+  const double pos_sigma = pos_fwhm / (2 * sqrt(2 * log(2)));
+
+  std::vector<double> access_fraction(n_max, 0);
+  double maxval = 0;
+  for (unsigned i = 0; i < n_max; ++i) {
+    const auto x = static_cast<double>(i);
+    // be careful to avoid underflowing exp(-x^2)
+    const double val = -(x - pos_mean) * (x - pos_mean) /
+        (2 * pos_sigma * pos_sigma);
+    access_fraction.at(i) = val;
+    if (i == 0 || val > maxval) {
+      maxval = val;
+    }
+  }
+  double sum = 0;
+  for (unsigned i = 0; i < n_max; ++i) {
+    access_fraction.at(i) = exp(access_fraction.at(i) - maxval);
+    sum += access_fraction.at(i);
+  }
+  for (unsigned i = 0; i < n_max; ++i) {
+    access_fraction.at(i) /= sum;
+  }
+  return access_fraction;
+}
+
 // Use the distribution of patterns found so far to extrapolate the expected
 // number of patterns at period `n_bound`. This may be a useful signal of the
 // degree of search completion.

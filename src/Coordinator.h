@@ -57,6 +57,7 @@ class Coordinator {
   // helper functions
   void calc_graph_size();
   bool passes_prechecks();
+  std::vector<double> build_access_model(unsigned num_states);
   double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
 
