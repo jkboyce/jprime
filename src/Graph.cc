@@ -353,8 +353,8 @@ void Graph::reduce_graph() {
 
   // initialize to empty; call find_exclude_states() to fill in if needed
   for (size_t i = 0; i <= numstates; ++i) {
-    excludestates_throw.at(i).assign(h, 0);
-    excludestates_catch.at(i).assign(h, 0);
+    excludestates_throw.at(i).assign(b + 1, 0);
+    excludestates_catch.at(i).assign(h - b + 1, 0);
   }
 }
 
@@ -406,7 +406,7 @@ void Graph::find_exclude_states() {
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     unsigned j = 0;
-    while (s.slot(s.size() - 1) != 0 && j < h) {
+    while (s.slot(s.size() - 1) != 0) {
       const auto statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;
@@ -419,7 +419,7 @@ void Graph::find_exclude_states() {
     // the states upstream in i's shift cycle that start with '-'.
     s = state.at(i).upstream();
     j = 0;
-    while (s.slot(0) == 0 && j < h) {
+    while (s.slot(0) == 0) {
       const auto statenum = get_statenum(s);
       if (statenum == 0 || !state_active.at(statenum) || statenum == i)
         break;

@@ -48,15 +48,14 @@ void CoordinatorCUDA::run_search() {
   copy_static_vars_to_gpu(params, graph, ptrs);
   configure_cuda_shared_memory(params);
 
-  load_initial_work_assignments(graph);
-
   // timing setup
   std::chrono::time_point<std::chrono::high_resolution_clock> before_kernel;
   std::chrono::time_point<std::chrono::high_resolution_clock> after_kernel;
   after_kernel = std::chrono::high_resolution_clock::now();
   uint32_t cycles = 1000000;
 
-  // idle workers at kernel start
+  // worker setup
+  load_initial_work_assignments(graph);
   auto summary = summarize_worker_status(graph);
   unsigned idle_start = summary.workers_idle.size();
   int kernel_runs = 0;

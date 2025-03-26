@@ -239,7 +239,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       ++wc->col;
       if (REPLAY) {
         std::cerr << "---- worker " << worker_id << " backtracked to pos "
-                  << pos << '\n';
+                  << p << '\n';
         assert(wc->col == wc->col_limit);
       }
       continue;
