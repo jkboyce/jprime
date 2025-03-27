@@ -32,7 +32,8 @@ __device__ uint8_t unused_d;
 __device__ uint16_t numstates_d;
 __device__ uint16_t numcycles_d;
 __device__ uint32_t pattern_buffer_size_d;
-__device__ uint32_t pattern_index_d = 0;
+__device__ uint32_t pattern_index_bank0_d = 0;
+__device__ uint32_t pattern_index_bank1_d = 0;
 
 
 //------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ __device__ uint32_t pattern_index_d = 0;
 __global__ void cuda_gen_loops_normal(
         // execution setup
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
-        statenum_t* const patterns_d,
+        statenum_t* const patterns_d, uint32_t* const pattern_index_d,
         const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
@@ -51,6 +52,7 @@ __global__ void cuda_gen_loops_normal(
   if (wi_d[id].status & 1) {
     return;
   }
+  const auto start_clock = clock64();
 
   // set up register variables
   auto st_state = wi_d[id].start_state;
@@ -146,7 +148,9 @@ __global__ void cuda_gen_loops_normal(
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
 
   unsigned from_state = wc->from_state;
-  const auto end_clock = clock64() + cycles;
+  const auto init_clock = clock64();
+  const auto end_clock = init_clock + cycles;
+  wi_d[id].cycles_startup = init_clock - start_clock;
 
   while (true) {
     statenum_t to_state = 0;
@@ -185,7 +189,7 @@ __global__ void cuda_gen_loops_normal(
     if (to_state == st_state) {
       // found a valid pattern
       if (report && pos + 1 >= n_min) {
-        const uint32_t idx = atomicAdd(&pattern_index_d, 1);
+        const uint32_t idx = atomicAdd(pattern_index_d, 1);
         if (idx < pattern_buffer_size_d) {
           // write to the pattern buffer
           for (unsigned j = 0; j <= pos; ++j) {
@@ -262,7 +266,7 @@ __global__ void cuda_gen_loops_normal(
 __global__ void cuda_gen_loops_super(
         // execution setup
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
-        statenum_t* const patterns_d,
+        statenum_t* const patterns_d, uint32_t* const pattern_index_d,
         const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
@@ -271,6 +275,7 @@ __global__ void cuda_gen_loops_super(
   if (wi_d[id].status & 1) {
     return;
   }
+  const auto start_clock = clock64();
 
   // set up register variables
   auto st_state = wi_d[id].start_state;
@@ -460,7 +465,9 @@ __global__ void cuda_gen_loops_super(
 
   from_state = wc->from_state;
   from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
-  const auto end_clock = clock64() + cycles;
+  const auto init_clock = clock64();
+  const auto end_clock = init_clock + cycles;
+  wi_d[id].cycles_startup = init_clock - start_clock;
 
   while (true) {
     statenum_t to_state = 0;
@@ -557,7 +564,7 @@ __global__ void cuda_gen_loops_super(
       if (to_state == st_state) {
         // found a valid pattern
         if (report && pos + 1 >= n_min) {
-          const uint32_t idx = atomicAdd(&pattern_index_d, 1);
+          const uint32_t idx = atomicAdd(pattern_index_d, 1);
           if (idx < pattern_buffer_size_d) {
             // write to the pattern buffer
             for (unsigned j = 0; j <= pos; ++j) {
@@ -614,7 +621,7 @@ __global__ void cuda_gen_loops_super(
         if (shiftcount < pos) {
           // don't allow all shift throws in superprime pattern
           if (report && pos + 1 >= n_min) {
-            const uint32_t idx = atomicAdd(&pattern_index_d, 1);
+            const uint32_t idx = atomicAdd(pattern_index_d, 1);
             if (idx < pattern_buffer_size_d) {
               // write to the pattern buffer
               for (unsigned j = 0; j <= pos; ++j) {
@@ -696,7 +703,10 @@ void get_gpu_static_pointers(CudaMemoryPointers& ptr) {
   cudaGetSymbolAddress((void **)&(ptr.numcycles_d), numcycles_d);
   cudaGetSymbolAddress((void **)&(ptr.pattern_buffer_size_d),
       pattern_buffer_size_d);
-  cudaGetSymbolAddress((void **)&(ptr.pattern_index_d), pattern_index_d);
+  cudaGetSymbolAddress((void **)&(ptr.pattern_index_d[0]),
+      pattern_index_bank0_d);
+  cudaGetSymbolAddress((void **)&(ptr.pattern_index_d[1]),
+      pattern_index_bank1_d);
 }
 
 // Launch the appropriate CUDA kernel.
@@ -705,12 +715,13 @@ void get_gpu_static_pointers(CudaMemoryPointers& ptr) {
 // appropriate error message.
 
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-    CudaAlgorithm alg, unsigned cycles) {
+    CudaAlgorithm alg, unsigned bank, unsigned cycles) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>(
-          ptrs.wi_d, ptrs.wc_d, ptrs.pb_d, ptrs.graphmatrix_d, ptrs.used_d,
+          ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
+          ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,
           p.report, p.n_min, p.n_max
         );
@@ -719,7 +730,8 @@ void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
     case CudaAlgorithm::SUPER0:
       cuda_gen_loops_super
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>(
-          ptrs.wi_d, ptrs.wc_d, ptrs.pb_d, ptrs.graphmatrix_d, ptrs.used_d,
+          ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
+          ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,
           p.report, p.n_min, p.n_max, p.shiftlimit
         );

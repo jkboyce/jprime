@@ -28,9 +28,9 @@ class CoordinatorCUDA : public Coordinator {
 
  protected:
   // memory blocks in host memory
-  WorkerInfo* wi_h = nullptr;
-  ThreadStorageWorkCell* wc_h = nullptr;
-  unsigned max_active_idx = 0;
+  WorkerInfo* wi_h[2] = { nullptr, nullptr };
+  ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };
+  unsigned max_active_idx[2] = { 0, 0 };
 
   // timing parameters specific to GPU
   double total_kernel_time = 0;
@@ -62,15 +62,16 @@ class CoordinatorCUDA : public Coordinator {
     const Graph& graph, const CudaMemoryPointers& ptrs);
 
   // main loop
-  void copy_worker_data_to_gpu(unsigned max_idx, const CudaMemoryPointers& ptrs,
-    bool startup);
+  void copy_worker_data_to_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
+    unsigned max_idx, bool startup);
   void launch_cuda_kernel(const CudaRuntimeParams& params,
-    const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned cycles);
-  void copy_worker_data_from_gpu(unsigned max_idx,
-    const CudaMemoryPointers& ptrs);
-  void process_worker_counters();
-  uint32_t process_pattern_buffer(const Graph& graph,
-    const uint32_t pattern_buffer_size, const CudaMemoryPointers& ptrs);
+    const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned bank,
+    unsigned cycles);
+  void copy_worker_data_from_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
+    unsigned max_idx);
+  void process_worker_counters(unsigned bank);
+  uint32_t process_pattern_buffer(unsigned bank, const CudaMemoryPointers& ptrs,
+    const Graph& graph,const uint32_t pattern_buffer_size);
   void record_working_time(double host_time, double kernel_time,
     unsigned idle_before, unsigned idle_after);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles, double host_time,
@@ -83,20 +84,21 @@ class CoordinatorCUDA : public Coordinator {
 
   // manage work assignments
   void load_initial_work_assignments(const Graph& graph);
-  void load_work_assignment(const unsigned id, const WorkAssignment& wa,
+  void load_work_assignment(unsigned bank, const unsigned id,
+    const WorkAssignment& wa, const Graph& graph);
+  WorkAssignment read_work_assignment(unsigned bank, unsigned id,
     const Graph& graph);
-  WorkAssignment read_work_assignment(unsigned id, const Graph& graph);
-  unsigned assign_new_jobs(const CudaWorkerSummary& summary,
+  unsigned assign_new_jobs(unsigned bank, const CudaWorkerSummary& summary,
     const Graph& graph);
 
   // summarization and status display
-  CudaWorkerSummary summarize_worker_status(const Graph& graph);
+  CudaWorkerSummary summarize_worker_status(unsigned bank, const Graph& graph);
   void do_status_display(const CudaWorkerSummary& summary,
     const CudaWorkerSummary& last_summary, double host_time,
     double kernel_time);
 
   // helper
-  ThreadStorageWorkCell& workcell(unsigned id, unsigned pos);
+  ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 };
 
