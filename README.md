@@ -7,9 +7,9 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 ## Description and results
 
-I have written these notes to discuss the theory of prime patterns, how `jprime` works, and search results to date.
+These notes discuss the theory of prime juggling patterns, some details about algorithms used by `jprime`, and search results to date.
 
-- [Notes on Prime Juggling Patterns](papers/prime juggling_2025.pdf)
+- [Notes on Prime Juggling Patterns](https://github.com/jkboyce/jprime/blob/main/papers/prime%20juggling_2025.pdf)
 
 ## Running jprime
 
