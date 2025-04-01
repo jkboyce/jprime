@@ -56,22 +56,19 @@ void CoordinatorCUDA::run_search() {
 
   // worker setup
   load_initial_work_assignments(graph);
-  auto summary = summarize_worker_status(0, graph);
-  unsigned idle_start = summary.workers_idle.size();
+  CudaWorkerSummary summary[2];
+  unsigned idle_start[2];
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    summary[bank] = summarize_worker_status(bank, graph);
+    idle_start[bank] = summary[bank].workers_idle.size();
+    copy_worker_data_to_gpu(bank, ptrs, 1, true);
+  }
   unsigned run = 0;
 
-  copy_worker_data_to_gpu(0, ptrs, 1, true);
-  // copy_worker_data_to_gpu(1, ptrs, 1, true);
   // create streams
   // switch to stream 0
 
   while (true) {
-    // run the workers
-    const auto prev_after_kernel = after_kernel;
-    before_kernel = std::chrono::high_resolution_clock::now();
-    launch_cuda_kernel(params, ptrs, alg, 0, cycles);
-
-    // loop {
     // wait for stream[(run+1)%2] to complete (kernel run)
     // record timestamp A[run%2]
     // launch kernel on stream[run%2]
@@ -82,36 +79,45 @@ void CoordinatorCUDA::run_search() {
     // copy to gpu on stream[(run+1)%2], wait to finish
     // record timestamp C[(run+1)%2]
     // ++run
-    // }
 
+    const unsigned bank = run % 2;
+
+    // run the workers
+    const auto prev_after_kernel = after_kernel;
+    before_kernel = std::chrono::high_resolution_clock::now();
+    launch_cuda_kernel(params, ptrs, alg, bank, cycles);
     after_kernel = std::chrono::high_resolution_clock::now();
     const auto host_time = calc_duration_secs(prev_after_kernel, before_kernel);
     const auto kernel_time = calc_duration_secs(before_kernel, after_kernel);
 
     // process output
-    copy_worker_data_from_gpu(0, ptrs, max_active_idx[0]);
-    process_worker_counters(0);
-    const auto pattern_count = process_pattern_buffer(0, ptrs, graph,
+    copy_worker_data_from_gpu(bank, ptrs, max_active_idx[bank]);
+    process_worker_counters(bank);
+    const auto pattern_count = process_pattern_buffer(bank, ptrs, graph,
         params.pattern_buffer_size);
-    const auto prev_summary = std::move(summary);
-    summary = summarize_worker_status(0, graph);
-    record_working_time(host_time, kernel_time, idle_start,
-        summary.workers_idle.size());
-    do_status_display(summary, prev_summary, host_time, kernel_time);
+    const auto prev_summary = std::move(summary[bank]);
+    summary[bank] = summarize_worker_status(bank, graph);
+    record_working_time(host_time, kernel_time, idle_start[bank],
+        summary[bank].workers_idle.size());
+    do_status_display(summary[bank], prev_summary, host_time, kernel_time);
 
-    if (Coordinator::stopping || (summary.workers_idle.size() ==
-        config.num_threads && context.assignments.size() == 0)) {
+    if (Coordinator::stopping || (summary[bank].workers_idle.size() ==
+        config.num_threads && idle_start[1 - bank] == config.num_threads &&
+        context.assignments.size() == 0)) {
       break;
     }
 
     // prep for next run
     cycles = calc_next_kernel_cycles(cycles, host_time, kernel_time,
-        idle_start, summary.workers_idle.size(), pattern_count, params);
-    idle_start = assign_new_jobs(0, summary, graph);
-    copy_worker_data_to_gpu(0, ptrs, max_active_idx[0], false);
+        idle_start[bank], summary[bank].workers_idle.size(), pattern_count, params);
+    idle_start[bank] = assign_new_jobs(bank, summary[bank], graph);
+    copy_worker_data_to_gpu(bank, ptrs, max_active_idx[bank], false);
 
-    // wait for stream to finish
-    // switch to other stream
+    /*
+    std::cout << std::format("ran bank {}, number idle = {}, {}", bank,
+                  idle_start[0], idle_start[1])
+              << std::endl;*/
+
 
     ++run;
   }
@@ -1032,78 +1038,80 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
 
 unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank,
     const CudaWorkerSummary& summary, const Graph& graph) {
-  if (summary.workers_idle.size() == 0)
+  const unsigned num_idle = summary.workers_idle.size();
+  if (num_idle == 0)
     return 0;
 
-  unsigned idle_remaining = summary.workers_idle.size();
+  // split working jobs and add them to the pool, until all workers are
+  // processed or pool.size >= 2 * num_idle
+
   std::vector<int> has_split(config.num_threads, 0);
   auto it = summary.workers_multiple_start_states.begin();
+
+  while (context.assignments.size() < 2 * num_idle) {
+    if (it == summary.workers_multiple_start_states.end()) {
+      it = summary.workers_rpm_plus0.begin();
+    }
+    if (it == summary.workers_rpm_plus0.end()) {
+      it = summary.workers_rpm_plus1.begin();
+    }
+    if (it == summary.workers_rpm_plus1.end()) {
+      it = summary.workers_rpm_plus2.begin();
+    }
+    if (it == summary.workers_rpm_plus2.end()) {
+      it = summary.workers_rpm_plus3.begin();
+    }
+    if (it == summary.workers_rpm_plus3.end()) {
+      it = summary.workers_rpm_plus4p.begin();
+    }
+    if (it == summary.workers_rpm_plus4p.end()) {
+      break;
+    }
+
+    if (has_split.at(*it)) {
+      ++it;
+      continue;
+    }
+    has_split.at(*it) = 1;
+
+    WorkAssignment wa = read_work_assignment(bank, *it, graph);
+
+    try {
+      // split() throws an exception if the WorkAssignment isn't splittable
+      WorkAssignment wa2 = wa.split(graph, config.split_alg);
+      load_work_assignment(bank, *it, wa, graph);
+      context.assignments.push_back(wa2);
+
+      // Avoid double counting nodes: Each of the "prefix" nodes up to and
+      // including `wa2.root_pos` will be reported twice: by the worker that
+      // was running, and by the worker that will get job `wa2`.
+      if (wa.start_state == wa2.start_state) {
+        wi_h[bank][*it].nnodes -= (wa2.root_pos + 1);
+      }
+
+      ++context.splits_total;
+    } catch (const std::invalid_argument& ia) {
+    }
+    ++it;
+  }
+
+  // assign to idle workers from the pool
+
+  unsigned idle_remaining = num_idle;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if ((wi_h[bank][id].status & 1) == 0)
       continue;
+    if (context.assignments.size() == 0)
+      break;
 
-    // first try assigning from our list of unassigned jobs
-    if (context.assignments.size() > 0) {
-      WorkAssignment wa = context.assignments.front();
-      context.assignments.pop_front();
-      load_work_assignment(bank, id, wa, graph);
-      --idle_remaining;
-      continue;
-    }
-
-    // otherwise, split one of the running jobs
-    bool success = false;
-    while (!success) {
-      if (it == summary.workers_multiple_start_states.end()) {
-        it = summary.workers_rpm_plus0.begin();
-      }
-      if (it == summary.workers_rpm_plus0.end()) {
-        it = summary.workers_rpm_plus1.begin();
-      }
-      if (it == summary.workers_rpm_plus1.end()) {
-        it = summary.workers_rpm_plus2.begin();
-      }
-      if (it == summary.workers_rpm_plus2.end()) {
-        it = summary.workers_rpm_plus3.begin();
-      }
-      if (it == summary.workers_rpm_plus3.end()) {
-        it = summary.workers_rpm_plus4p.begin();
-      }
-      if (it == summary.workers_rpm_plus4p.end()) {
-        return idle_remaining;
-      }
-
-      if (has_split.at(*it)) {
-        ++it;
-        continue;
-      }
-      has_split.at(*it) = 1;
-
-      WorkAssignment wa = read_work_assignment(bank, *it, graph);
-
-      try {
-        // split() throws an exception if the WorkAssignment isn't splittable
-        WorkAssignment wa2 = wa.split(graph, config.split_alg);
-        load_work_assignment(bank, *it, wa, graph);
-        load_work_assignment(bank, id, wa2, graph);
-
-        // Avoid double counting nodes: Each of the "prefix" nodes up to and
-        // including `wa2.root_pos` will be reported twice: by the worker that
-        // was running, and by the worker `id` that just got job `wa2`.
-        if (wa.start_state == wa2.start_state) {
-          wi_h[bank][id].nnodes -= (wa2.root_pos + 1);
-        }
-
-        ++context.splits_total;
-        --idle_remaining;
-        max_active_idx[bank] = std::max(max_active_idx[bank], id);
-        success = true;
-      } catch (const std::invalid_argument& ia) {
-      }
-      ++it;
-    }
+    WorkAssignment wa = context.assignments.front();
+    context.assignments.pop_front();
+    load_work_assignment(bank, id, wa, graph);
+    max_active_idx[bank] = std::max(max_active_idx[bank], id);
+    --idle_remaining;
   }
+
   return idle_remaining;
 }
 
