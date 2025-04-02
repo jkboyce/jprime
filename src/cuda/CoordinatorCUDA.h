@@ -40,6 +40,14 @@ class CoordinatorCUDA : public Coordinator {
   std::vector<unsigned> longest_by_startstate_ever;
   std::vector<unsigned> longest_by_startstate_current;
 
+  // CUDA streams
+  cudaStream_t stream[2];
+
+  // timing
+  jptimer_t before_kernel[2];
+  jptimer_t after_kernel[2];
+  jptimer_t after_host[2];
+
  protected:
   virtual void run_search() override;
 
@@ -66,21 +74,23 @@ class CoordinatorCUDA : public Coordinator {
     unsigned max_idx, bool startup);
   void launch_cuda_kernel(const CudaRuntimeParams& params,
     const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned bank,
-    unsigned cycles);
+    uint64_t cycles);
   void copy_worker_data_from_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
     unsigned max_idx);
   void process_worker_counters(unsigned bank);
   uint32_t process_pattern_buffer(unsigned bank, const CudaMemoryPointers& ptrs,
     const Graph& graph,const uint32_t pattern_buffer_size);
-  void record_working_time(double host_time, double kernel_time,
-    unsigned idle_before, unsigned idle_after);
-  uint64_t calc_next_kernel_cycles(uint64_t last_cycles, double host_time,
-    double kernel_time, unsigned idle_start, unsigned idle_end,
+  void record_working_time(double kernel_time, double host_time,
+    unsigned idle_before, unsigned idle_after, uint64_t cycles_startup,
+    uint64_t cycles_run);
+  uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
+    uint64_t last_cycles_startup, double kernel_time, double host_time,
+    unsigned idle_start, unsigned idle_after, unsigned next_idle_start,
     uint32_t pattern_count, CudaRuntimeParams p);
 
   // cleanup
-  void cleanup_memory(CudaMemoryPointers& ptrs);
   void gather_unfinished_work_assignments(const Graph& graph);
+  void cleanup(CudaMemoryPointers& ptrs);
 
   // manage work assignments
   void load_initial_work_assignments(const Graph& graph);
@@ -101,5 +111,7 @@ class CoordinatorCUDA : public Coordinator {
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 };
+
+void CUDART_CB record_kernel_completion(void* data);
 
 #endif

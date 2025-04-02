@@ -23,6 +23,9 @@
 #include <csignal>
 
 
+using jptimer_t = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+
 class Coordinator {
  public:
   Coordinator(SearchConfig& config, SearchContext& context,
@@ -74,9 +77,8 @@ class Coordinator {
   void customize_graph(Graph& graph);
   std::string pattern_output_format(const std::vector<int>& pattern,
     const unsigned start_state);
-  static double calc_duration_secs(
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& before,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& after);
+  static double calc_duration_secs(const jptimer_t& before,
+    const jptimer_t& after);
 };
 
 #endif

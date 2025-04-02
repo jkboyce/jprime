@@ -715,11 +715,11 @@ void get_gpu_static_pointers(CudaMemoryPointers& ptr) {
 // appropriate error message.
 
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-    CudaAlgorithm alg, unsigned bank, unsigned cycles) {
+    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t stream) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal
-        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>(
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
           ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,
@@ -729,7 +729,7 @@ void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
     case CudaAlgorithm::SUPER:
     case CudaAlgorithm::SUPER0:
       cuda_gen_loops_super
-        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size>>>(
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
           ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,

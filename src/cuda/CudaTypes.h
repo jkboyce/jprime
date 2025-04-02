@@ -113,7 +113,7 @@ struct CudaMemoryPointers {
 struct CudaWorkerSummary {
   unsigned root_pos_min;  // minimum `root_pos` across all active workers
   statenum_t max_start_state;  // maximum `start_state` across all workers
-  uint64_t cycles_startup = 0;  // average GPU clock cycles to initialize
+  uint32_t cycles_startup = 0;  // average GPU clock cycles to initialize
 
   // vectors containing ids of workers in various states; note that all ids in
   // multiple_start_states are in other vectors as well!
