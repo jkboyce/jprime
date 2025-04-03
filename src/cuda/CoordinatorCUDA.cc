@@ -57,16 +57,19 @@ void CoordinatorCUDA::run_search() {
     after_host[bank] = now;
     cycles[bank] = 1000000;
   }
+  last_display_time = now;
 
   // worker setup
   load_initial_work_assignments(graph);
-  CudaWorkerSummary summary[2];
-  unsigned idle_start[2];
+  CudaWorkerSummary summary_before[2];
+  CudaWorkerSummary summary_after[2];
+  unsigned idle_before[2];
   for (unsigned bank = 0; bank < 2; ++bank) {
-    summary[bank] = summarize_worker_status(bank, graph);
-    idle_start[bank] = summary[bank].workers_idle.size();
+    summary_before[bank] = summarize_worker_status(bank, graph);
+    idle_before[bank] = summary_before[bank].workers_idle.size();
     copy_worker_data_to_gpu(bank, ptrs, 1, true);
   }
+  cudaDeviceSynchronize();
 
   for (unsigned run = 0; ; ++run) {
     const unsigned bankA = run % 2;
@@ -74,7 +77,7 @@ void CoordinatorCUDA::run_search() {
 
     // start the workers for this bank (bankA)
     before_kernel[bankA] = std::chrono::high_resolution_clock::now();
-    if (idle_start[bankA] < config.num_threads) {
+    if (idle_before[bankA] < config.num_threads) {
       launch_cuda_kernel(params, ptrs, alg, bankA, cycles[bankA]);
     }
     cudaLaunchHostFunc(stream[bankA], record_kernel_completion,
@@ -86,36 +89,35 @@ void CoordinatorCUDA::run_search() {
     process_worker_counters(bankB);
     const auto pattern_count = process_pattern_buffer(bankB, ptrs, graph,
         params.pattern_buffer_size);
-    const auto prev_summary = std::move(summary[bankB]);
-    summary[bankB] = summarize_worker_status(bankB, graph);
+    summary_after[bankB] = summarize_worker_status(bankB, graph);
 
     const auto kernel_time = calc_duration_secs(before_kernel[bankB],
         after_kernel[bankB]);
     const auto host_time = calc_duration_secs(after_kernel[bankB],
         after_host[bankA]);
-    record_working_time(kernel_time, host_time, idle_start[bankB],
-        summary[bankB].workers_idle.size(), summary[bankB].cycles_startup,
-        cycles[bankB]);
+    record_working_time(kernel_time, host_time, idle_before[bankB],
+        summary_after[bankB].workers_idle.size(),
+        summary_after[bankB].cycles_startup, cycles[bankB]);
+    do_status_display(summary_after[bankB], summary_before[bankA], kernel_time,
+        host_time);
 
-    // TODO fix this
-    do_status_display(summary[bankB], summary[bankA], host_time, kernel_time);
-
-    if (Coordinator::stopping || (summary[bankB].workers_idle.size() ==
-        config.num_threads && idle_start[bankA] == config.num_threads &&
+    if (Coordinator::stopping || (summary_after[bankB].workers_idle.size() ==
+        config.num_threads && idle_before[bankA] == config.num_threads &&
         context.assignments.size() == 0)) {
       break;
     }
 
     // prepare bankB for its next run
-    const auto prev_idle_start = idle_start[bankB];
-    idle_start[bankB] = assign_new_jobs(bankB, summary[bankB], graph);
+    const auto prev_idle_before = idle_before[bankB];
+    idle_before[bankB] = assign_new_jobs(bankB, summary_after[bankB], graph);
     copy_worker_data_to_gpu(bankB, ptrs, max_active_idx[bankB], false);
-    if (prev_idle_start < config.num_threads) {
+    if (prev_idle_before < config.num_threads) {
       cycles[bankB] = calc_next_kernel_cycles(cycles[bankB],
-          summary[bankB].cycles_startup, kernel_time, host_time,
-          prev_idle_start, summary[bankB].workers_idle.size(),
-          idle_start[bankB], pattern_count, params);
+          summary_after[bankB].cycles_startup, kernel_time, host_time,
+          prev_idle_before, summary_after[bankB].workers_idle.size(),
+          idle_before[bankB], pattern_count, params);
     }
+    summary_before[bankB] = summarize_worker_status(bankB, graph);
     cudaStreamSynchronize(stream[bankB]);
     after_host[bankB] = std::chrono::high_resolution_clock::now();
 
@@ -1241,33 +1243,128 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank,
   return summary;
 }
 
+// Summarize all active jobs in the worker banks and the assignments queue.
+
+CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
+    const CudaWorkerSummary& last, const CudaWorkerSummary& prev) {
+  CudaWorkerSummary summary;
+
+  summary.root_pos_min = std::min(last.root_pos_min, prev.root_pos_min);
+  summary.max_start_state = std::max(last.max_start_state,
+      prev.max_start_state);
+  for (const WorkAssignment& wa : context.assignments) {
+    summary.root_pos_min = std::min(summary.root_pos_min, wa.root_pos);
+    summary.max_start_state = std::max(summary.max_start_state,
+        static_cast<statenum_t>(wa.start_state));
+  }
+
+  std::vector<std::vector<unsigned>> counts(summary.root_pos_min + 5);
+  for (unsigned i = 0; i < summary.root_pos_min + 5; ++i) {
+    counts.at(i).assign(summary.max_start_state + 1, 0);
+  }
+
+  auto trunc = [&](unsigned a) {
+    return std::min(a, summary.root_pos_min + 4);
+  };
+  for (const WorkAssignment& wa : context.assignments) {
+    counts.at(trunc(wa.root_pos)).at(wa.start_state) += 1;
+  }
+
+  for (statenum_t j = 1; j < summary.max_start_state + 1; ++j) {
+    if (j <= last.max_start_state) {
+      counts.at(trunc(last.root_pos_min)).at(j) += last.count_rpm_plus0.at(j);
+      counts.at(trunc(last.root_pos_min + 1)).at(j) +=
+          last.count_rpm_plus1.at(j);
+      counts.at(trunc(last.root_pos_min + 2)).at(j) +=
+          last.count_rpm_plus2.at(j);
+      counts.at(trunc(last.root_pos_min + 3)).at(j) +=
+          last.count_rpm_plus3.at(j);
+      counts.at(trunc(last.root_pos_min + 4)).at(j) +=
+          last.count_rpm_plus4p.at(j);
+    }
+    if (j <= prev.max_start_state) {
+      counts.at(trunc(prev.root_pos_min)).at(j) += prev.count_rpm_plus0.at(j);
+      counts.at(trunc(prev.root_pos_min + 1)).at(j) +=
+          prev.count_rpm_plus1.at(j);
+      counts.at(trunc(prev.root_pos_min + 2)).at(j) +=
+          prev.count_rpm_plus2.at(j);
+      counts.at(trunc(prev.root_pos_min + 3)).at(j) +=
+          prev.count_rpm_plus3.at(j);
+      counts.at(trunc(prev.root_pos_min + 4)).at(j) +=
+          prev.count_rpm_plus4p.at(j);
+    }
+  }
+
+  summary.count_rpm_plus0.assign(summary.max_start_state + 1, 0);
+  summary.count_rpm_plus1.assign(summary.max_start_state + 1, 0);
+  summary.count_rpm_plus2.assign(summary.max_start_state + 1, 0);
+  summary.count_rpm_plus3.assign(summary.max_start_state + 1, 0);
+  summary.count_rpm_plus4p.assign(summary.max_start_state + 1, 0);
+  summary.count_total = 0;
+
+  for (unsigned i = 0; i < summary.root_pos_min + 5; ++i) {
+    for (statenum_t j = 1; j < summary.max_start_state + 1; ++j) {
+      if (i < summary.root_pos_min) {
+        assert(counts.at(i).at(j) == 0);
+      } else if (i == summary.root_pos_min) {
+        summary.count_rpm_plus0.at(j) += counts.at(i).at(j);
+      } else if (i == summary.root_pos_min + 1) {
+        summary.count_rpm_plus1.at(j) += counts.at(i).at(j);
+      } else if (i == summary.root_pos_min + 2) {
+        summary.count_rpm_plus2.at(j) += counts.at(i).at(j);
+      } else if (i == summary.root_pos_min + 3) {
+        summary.count_rpm_plus3.at(j) += counts.at(i).at(j);
+      } else {
+        summary.count_rpm_plus4p.at(j) += counts.at(i).at(j);
+      }
+      summary.count_total += counts.at(i).at(j);
+    }
+  }
+
+  summary.npatterns = last.npatterns;
+  summary.nnodes = last.nnodes;
+  return summary;
+}
+
 // Create and display the live status indicator, if needed.
 
-void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary,
-      const CudaWorkerSummary& last_summary, double host_time,
-      double kernel_time) {
-  erase_status_output();
+void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
+      const CudaWorkerSummary& summary_beforeA, double kernel_time,
+      double host_time) {
   if (config.verboseflag) {
+    erase_status_output();
     jpout << std::format(
-        "kernel = {:.5}, host = {:.5}, startup = {}, busy = {}\n",
-        kernel_time, host_time, summary.cycles_startup,
-        config.num_threads - summary.workers_idle.size());
+        "kernel = {:.3}, host = {:.3}, startup = {}, busy = {}\n",
+        kernel_time, host_time, summary_afterB.cycles_startup,
+        config.num_threads - summary_afterB.workers_idle.size());
+    print_status_output();
   }
+
   if (!config.statusflag)
     return;
+  auto now = std::chrono::system_clock::now();
+  if (calc_duration_secs(last_display_time, now) < 1.0) {
+    return;
+  }
+  last_display_time = now;
 
   status_lines.clear();
   status_lines.push_back("Status on: " + current_time_string());
 
+  auto summary = summarize_all_jobs(summary_afterB, summary_beforeA);
+  longest_by_startstate_current.resize(summary.max_start_state + 1, 0);
+  longest_by_startstate_ever.resize(summary.max_start_state + 1, 0);
+
   if (summary.root_pos_min != -1u) {
-    std::string total_str = std::to_string(config.num_threads);
-    std::string period_str = "                       period";
-    if (total_str.length() < 7) {
-      period_str.insert(0, 7 - total_str.length(), ' ');
+    std::string workers_str = std::to_string(config.num_threads);
+    std::string jobs_str = std::to_string(summary.count_total);
+    std::string period_str = "          period";
+    if (workers_str.length() + jobs_str.length() < 14) {
+      period_str.insert(0, 14 - workers_str.length() - jobs_str.length(), ' ');
     }
     status_lines.push_back(std::format(
-      " state  root_pos and worker count ({} total) {}", total_str,
-      period_str));
+      " state  root_pos and job count ({} workers, {} jobs) {}", workers_str,
+      jobs_str, period_str));
 
     auto format1 = [](unsigned a, unsigned b, bool plus) {
       if (b == 0) {
@@ -1341,20 +1438,21 @@ void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary,
   };
 
   const double nodespersec =
-      static_cast<double>(summary.nnodes - last_summary.nnodes) /
+      static_cast<double>(summary_afterB.nnodes - summary_beforeA.nnodes) /
           (host_time + kernel_time);
   const double patspersec =
-      static_cast<double>(summary.ntotal - last_summary.ntotal) /
+      static_cast<double>(summary_afterB.ntotal - summary_beforeA.ntotal) /
           (host_time + kernel_time);
 
   status_lines.push_back(std::format(
     "idled:{:7}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
-    summary.workers_idle.size(),
+    summary_afterB.workers_idle.size(),
     format2(nodespersec),
     format2(patspersec),
     context.npatterns
   ));
 
+  erase_status_output();
   print_status_output();
 }
 

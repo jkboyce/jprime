@@ -39,6 +39,7 @@ class CoordinatorCUDA : public Coordinator {
   // live status display
   std::vector<unsigned> longest_by_startstate_ever;
   std::vector<unsigned> longest_by_startstate_current;
+  jptimer_t last_display_time;
 
   // CUDA streams
   cudaStream_t stream[2];
@@ -103,9 +104,11 @@ class CoordinatorCUDA : public Coordinator {
 
   // summarization and status display
   CudaWorkerSummary summarize_worker_status(unsigned bank, const Graph& graph);
+  CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
+    const CudaWorkerSummary& b);
   void do_status_display(const CudaWorkerSummary& summary,
-    const CudaWorkerSummary& last_summary, double host_time,
-    double kernel_time);
+    const CudaWorkerSummary& last_summary, double kernel_time,
+    double host_time);
 
   // helper
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
