@@ -109,7 +109,8 @@ void CoordinatorCUDA::run_search() {
 
     // prepare bankB for its next run
     const auto prev_idle_before = idle_before[bankB];
-    idle_before[bankB] = assign_new_jobs(bankB, summary_after[bankB], graph);
+    idle_before[bankB] = assign_new_jobs(bankB, graph, idle_before[bankB],
+        summary_after[bankB], idle_before[bankA]);
     copy_worker_data_to_gpu(bankB, ptrs, max_active_idx[bankB], false);
     if (prev_idle_before < config.num_threads) {
       cycles[bankB] = calc_next_kernel_cycles(cycles[bankB],
@@ -520,6 +521,17 @@ void CoordinatorCUDA::allocate_memory(CudaAlgorithm alg,
           ((config.num_threads + 31) / 32), cudaHostAllocDefault),
       __FILE__, __LINE__);
   }
+  if (!config.countflag) {
+    // pattern buffer
+    throw_on_cuda_error(
+      cudaHostAlloc(&pattern_count_h, sizeof(uint32_t), cudaHostAllocDefault),
+      __FILE__, __LINE__);
+    // pattern buffer
+    throw_on_cuda_error(
+      cudaHostAlloc(&pb_h, sizeof(statenum_t) * n_max *
+          params.pattern_buffer_size, cudaHostAllocDefault),
+      __FILE__, __LINE__);
+  }
 }
 
 // Copy graph data to GPU.
@@ -664,6 +676,8 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank) {
       if (i + 1 > longest_by_startstate_current.at(st_state)) {
         longest_by_startstate_current.at(st_state) = i + 1;
         if (i + 1 > longest_by_startstate_ever.at(st_state)) {
+          /*std::cerr << std::format("new longest for state {} = {}\n",
+                st_state, i + 1);*/
           longest_by_startstate_ever.at(st_state) = i + 1;
         }
       }
@@ -688,36 +702,38 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
   }
 
   // get the number of patterns in the buffer
-  uint32_t pattern_count;
   throw_on_cuda_error(
-    cudaMemcpy(&pattern_count, ptrs.pattern_index_d[bank],
-      sizeof(uint32_t), cudaMemcpyDeviceToHost), __FILE__, __LINE__
+    cudaMemcpyAsync(pattern_count_h, ptrs.pattern_index_d[bank],
+        sizeof(uint32_t), cudaMemcpyDeviceToHost, stream[bank]),
+    __FILE__, __LINE__
   );
-  if (pattern_count == 0) {
+  cudaStreamSynchronize(stream[bank]);
+
+  if (*pattern_count_h == 0) {
     return 0;
-  } else if (pattern_count > pattern_buffer_size) {
+  } else if (*pattern_count_h > pattern_buffer_size) {
     throw std::runtime_error("CUDA error: pattern buffer overflow");
   }
 
   // copy pattern data to host
-  std::vector<statenum_t> patterns_h(n_max * pattern_count);
   throw_on_cuda_error(
-    cudaMemcpy(patterns_h.data(), ptrs.pb_d[bank],
-        sizeof(statenum_t) * n_max * pattern_count, cudaMemcpyDeviceToHost),
+    cudaMemcpyAsync(pb_h, ptrs.pb_d[bank], sizeof(statenum_t) * n_max *
+        (*pattern_count_h), cudaMemcpyDeviceToHost, stream[bank]),
     __FILE__, __LINE__
   );
+  cudaStreamSynchronize(stream[bank]);
 
   // work out each pattern's throw values from the list of state numbers
   // traversed, and process them
   std::vector<int> pattern_throws(n_max + 1);
 
-  for (unsigned i = 0; i < pattern_count; ++i) {
-    const statenum_t start_state = patterns_h.at(i * n_max);
+  for (unsigned i = 0; i < *pattern_count_h; ++i) {
+    const statenum_t start_state = pb_h[i * n_max];
     statenum_t from_state = start_state;
 
     for (unsigned j = 0; j < n_max; ++j) {
       statenum_t to_state = (j == n_max - 1) ? start_state :
-                              patterns_h.at(i * n_max + j + 1);
+                              pb_h[i * n_max + j + 1];
       if (to_state == 0) {
         to_state = start_state;
       }
@@ -731,11 +747,11 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
       }
       if (throwval == -1) {
         // diagnostic information in case of a problem
-        std::cerr << "pattern count = " << pattern_count << '\n';
+        std::cerr << "pattern count = " << *pattern_count_h << '\n';
         std::cerr << "i = " << i << '\n';
         std::cerr << "j = " << j << '\n';
         for (unsigned k = 0; k < n_max; ++k) {
-          statenum_t st = patterns_h.at(i * n_max + k);
+          statenum_t st = pb_h[i * n_max + k];
           if (st == 0)
             break;
           std::cerr << "state(" << k << ") = " << graph.state.at(st) << '\n';
@@ -769,10 +785,12 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
   }
 
   // reset the pattern buffer index
-  uint32_t pattern_index_h = 0;
+  const uint32_t pattern_count = *pattern_count_h;
+  *pattern_count_h = 0;
   throw_on_cuda_error(
-    cudaMemcpy(ptrs.pattern_index_d[bank], &pattern_index_h, sizeof(uint32_t),
-        cudaMemcpyHostToDevice), __FILE__, __LINE__
+    cudaMemcpyAsync(ptrs.pattern_index_d[bank], pattern_count_h,
+        sizeof(uint32_t), cudaMemcpyHostToDevice, stream[bank]),
+    __FILE__, __LINE__
   );
 
   return pattern_count;
@@ -832,7 +850,7 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   target_cycles = std::max(target_cycles, static_cast<double>(min_cycles));
   double target_time =
       (static_cast<double>(last_cycles_startup) + target_cycles) / cps;
-  target_time = std::max(target_time, 1.00 * (kernel_time + host_time));
+  target_time = std::max(target_time, 1.0 * (kernel_time + host_time));
   target_time = std::min(target_time, 2.0);
   target_cycles = target_time * cps - static_cast<double>(last_cycles_startup);
 
@@ -864,7 +882,7 @@ void CoordinatorCUDA::gather_unfinished_work_assignments(const Graph& graph) {
   }
 }
 
-// Destroy CUDA streams and free allocated host and GPU memory.
+// Destroy CUDA streams and free allocated GPU and host memory.
 
 void CoordinatorCUDA::cleanup(CudaMemoryPointers& ptrs) {
   for (int i = 0; i < 2; ++i) {
@@ -872,15 +890,8 @@ void CoordinatorCUDA::cleanup(CudaMemoryPointers& ptrs) {
     stream[i] = nullptr;
   }
 
+  // GPU
   for (unsigned bank = 0; bank < 2; ++bank) {
-    if (wi_h[bank] != nullptr) {
-      cudaFreeHost(wi_h[bank]);
-      wi_h[bank] = nullptr;
-    }
-    if (wc_h[bank] != nullptr) {
-      cudaFreeHost(wc_h[bank]);
-      wc_h[bank] = nullptr;
-    }
     if (ptrs.wi_d[bank] != nullptr) {
       cudaFree(ptrs.wi_d[bank]);
       ptrs.wi_d[bank] = nullptr;
@@ -901,6 +912,26 @@ void CoordinatorCUDA::cleanup(CudaMemoryPointers& ptrs) {
   if (ptrs.used_d != nullptr) {
     cudaFree(ptrs.used_d);
     ptrs.used_d = nullptr;
+  }
+
+  // Host
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    if (wi_h[bank] != nullptr) {
+      cudaFreeHost(wi_h[bank]);
+      wi_h[bank] = nullptr;
+    }
+    if (wc_h[bank] != nullptr) {
+      cudaFreeHost(wc_h[bank]);
+      wc_h[bank] = nullptr;
+    }
+  }
+  if (pattern_count_h != nullptr) {
+    cudaFreeHost(pattern_count_h);
+    pattern_count_h = nullptr;
+  }
+  if (pb_h != nullptr) {
+    cudaFreeHost(pb_h);
+    pb_h = nullptr;
   }
 }
 
@@ -1057,19 +1088,30 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
 //
 // Returns the number of idle workers with no jobs assigned.
 
-unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank,
-    const CudaWorkerSummary& summary, const Graph& graph) {
-  const unsigned num_idle = summary.workers_idle.size();
-  if (num_idle == 0)
+unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank, const Graph& graph,
+    unsigned idle_before_b, const CudaWorkerSummary& summary,
+    unsigned idle_before_a) {
+  const unsigned idle_after_b = summary.workers_idle.size();
+  if (idle_after_b == 0)
     return 0;
 
   // split working jobs and add them to the pool, until all workers are
-  // processed or pool.size >= 2 * num_idle
+  // processed or pool size >= target_job_count
+  //
+  // jobs needed:
+  //   this bank (bankB):  `idle_after_b`
+  //   other bank (bankA): `idle_before_a` + `idle_after_b - idle_before_b`
+  //
+  // where the last term is an estimate of how many jobs will complete during
+  // bankA's kernel execution (happening when this code runs)
+
+  const unsigned target_job_count = idle_after_b + idle_before_a +
+      idle_after_b - idle_before_b;
 
   std::vector<int> has_split(config.num_threads, 0);
   auto it = summary.workers_multiple_start_states.begin();
 
-  while (context.assignments.size() < 2 * num_idle) {
+  while (context.assignments.size() < target_job_count) {
     if (it == summary.workers_multiple_start_states.end()) {
       it = summary.workers_rpm_plus0.begin();
     }
@@ -1118,7 +1160,7 @@ unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank,
 
   // assign to idle workers from the pool
 
-  unsigned idle_remaining = num_idle;
+  unsigned idle_remaining = idle_after_b;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if ((wi_h[bank][id].status & 1) == 0)
@@ -1350,10 +1392,7 @@ void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
 
   status_lines.clear();
   status_lines.push_back("Status on: " + current_time_string());
-
   auto summary = summarize_all_jobs(summary_afterB, summary_beforeA);
-  longest_by_startstate_current.resize(summary.max_start_state + 1, 0);
-  longest_by_startstate_ever.resize(summary.max_start_state + 1, 0);
 
   if (summary.root_pos_min != -1u) {
     std::string workers_str = std::to_string(config.num_threads);
@@ -1388,14 +1427,21 @@ void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
       unsigned num_rpm_plus2 = summary.count_rpm_plus2.at(start_state);
       unsigned num_rpm_plus3 = summary.count_rpm_plus3.at(start_state);
       unsigned num_rpm_plus4p = summary.count_rpm_plus4p.at(start_state);
-
       unsigned longest_now = longest_by_startstate_current.at(start_state);
       unsigned longest_ever = longest_by_startstate_ever.at(start_state);
 
       char ch = ' ';
       if (start_state == MAX_START && summary.max_start_state > MAX_START) {
         ch = '+';
-        for (int st = start_state + 1; st <= summary.max_start_state; ++st) {
+        for (unsigned st = start_state + 1;
+              st < longest_by_startstate_ever.size(); ++st) {
+          if (st <= summary.max_start_state) {
+            num_rpm_plus0 += summary.count_rpm_plus0.at(st);
+            num_rpm_plus1 += summary.count_rpm_plus1.at(st);
+            num_rpm_plus2 += summary.count_rpm_plus2.at(st);
+            num_rpm_plus3 += summary.count_rpm_plus3.at(st);
+            num_rpm_plus4p += summary.count_rpm_plus4p.at(st);
+          }
           longest_now = std::max(longest_now,
               longest_by_startstate_current.at(st));
           longest_ever = std::max(longest_ever,

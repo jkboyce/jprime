@@ -27,9 +27,13 @@ class CoordinatorCUDA : public Coordinator {
     std::ostream& jpout);
 
  protected:
-  // memory blocks in host memory
+  // pinned memory blocks in host
   WorkerInfo* wi_h[2] = { nullptr, nullptr };
   ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };
+  uint32_t* pattern_count_h = nullptr;  // if needed
+  statenum_t* pb_h = nullptr;  // if needed
+
+  // optimizing memory copies during startup
   unsigned max_active_idx[2] = { 0, 0 };
 
   // timing parameters specific to GPU
@@ -99,8 +103,9 @@ class CoordinatorCUDA : public Coordinator {
     const WorkAssignment& wa, const Graph& graph);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id,
     const Graph& graph);
-  unsigned assign_new_jobs(unsigned bank, const CudaWorkerSummary& summary,
-    const Graph& graph);
+  unsigned assign_new_jobs(unsigned bank, const Graph& graph,
+    unsigned idle_before_b, const CudaWorkerSummary& summary,
+    unsigned idle_before_a);
 
   // summarization and status display
   CudaWorkerSummary summarize_worker_status(unsigned bank, const Graph& graph);
