@@ -99,8 +99,8 @@ std::string WorkAssignment::to_string() const {
 // Return a work assignment that corresponds to a portion of the current work
 // assignment, for handing off to another worker.
 //
-// If a work assignment cannot be split, throw a std::invalid_argument
-// exception with a relevant error message.
+// If a work assignment cannot be split, leave the WorkAssignment unchanged and
+// throw a std::invalid_argument exception with a relevant error message.
 
 WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg) {
   if (end_state > start_state) {
@@ -149,8 +149,8 @@ WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
 // Return a work assignment that gives away approximately the target fraction of
 // the unexplored throw options at root_pos.
 //
-// If a work assignment cannot be split, throw a std::invalid_argument
-// exception with a relevant error message.
+// If a work assignment cannot be split, leave the WorkAssignment unchanged and
+// throw a std::invalid_argument exception with a relevant error message.
 
 WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       bool take_front) {
