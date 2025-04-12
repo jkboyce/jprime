@@ -715,7 +715,7 @@ bool Worker::iterative_init_workspace() {
 
   if (pattern.at(0) == -1 || pos < root_pos) {
     // we're loading a work assignment that is either:
-    // (a) brand new (no pattern prefix), or
+    // (a) just initialized (no pattern prefix), or
     // (b) split from another worker (pos = root_pos - 1)
     //
     // in either case we didn't initialize the workcell at `root_pos` in the
@@ -755,7 +755,6 @@ bool Worker::iterative_init_workspace() {
   }
   assert(rwc.col < rwc.col_limit);
   assert(rwc.col < graph.outdegree.at(rwc.from_state));
-
   return true;
 }
 
