@@ -67,7 +67,7 @@ void CoordinatorCUDA::run_search() {
   for (unsigned bank = 0; bank < 2; ++bank) {
     summary_before[bank] = summarize_worker_status(bank, graph);
     idle_before[bank] = summary_before[bank].workers_idle.size();
-    copy_worker_data_to_gpu(bank, ptrs, 1, true);
+    copy_worker_data_to_gpu(bank, ptrs, max_active_idx[bank], true);
   }
   cudaDeviceSynchronize();
 
@@ -629,8 +629,8 @@ void CoordinatorCUDA::launch_cuda_kernel(const CudaRuntimeParams& params,
   }
 }
 
-// Copy worker data from the GPU. For the workcells, copy only the worker data
-// for threads [0, max_idx].
+// Copy worker data from the GPU. Copy only the worker data for threads
+// [0, max_idx].
 
 void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank,
     const CudaMemoryPointers& ptrs, unsigned max_idx) {
@@ -676,8 +676,6 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank) {
       if (i + 1 > longest_by_startstate_current.at(st_state)) {
         longest_by_startstate_current.at(st_state) = i + 1;
         if (i + 1 > longest_by_startstate_ever.at(st_state)) {
-          /*std::cerr << std::format("new longest for state {} = {}\n",
-                st_state, i + 1);*/
           longest_by_startstate_ever.at(st_state) = i + 1;
         }
       }
@@ -801,6 +799,8 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
 void CoordinatorCUDA::record_working_time(double kernel_time, double host_time,
     unsigned idle_before, unsigned idle_after, uint64_t cycles_startup,
     uint64_t cycles_run) {
+  // negative host_time means that host processing finished before other bank's
+  // kernel run; only count host_time > 0 when GPU was idle
   total_kernel_time += kernel_time;
   total_host_time += std::max(0.0, host_time);
 
@@ -830,8 +830,9 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   last_cycles = std::max(last_cycles, min_cycles);
 
   // cycles per second
-  const double cps = static_cast<double>(last_cycles + last_cycles_startup) /
-      kernel_time;
+  const double cps = (kernel_time > 0 ?
+      static_cast<double>(last_cycles + last_cycles_startup) / kernel_time :
+      1.0e9);
   // jobs completed per cycle
   const double beta = static_cast<double>(idle_after - idle_start) /
       static_cast<double>(last_cycles);
@@ -861,7 +862,8 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
     const auto max_cycles = static_cast<double>(last_cycles) * frac;
     target_cycles = std::min(target_cycles, max_cycles);
   }
-
+  /*std::cerr << "cps = " << cps << ", last_cycles = " << last_cycles
+            << ", target_cycles = " << target_cycles << '\n';*/
   return static_cast<uint64_t>(target_cycles);
 }
 
@@ -948,9 +950,10 @@ void CoordinatorCUDA::load_initial_work_assignments(const Graph& graph) {
         WorkAssignment wa = context.assignments.front();
         context.assignments.pop_front();
         load_work_assignment(bank, id, wa, graph);
+        wi_h[bank][id].status = 0;
         max_active_idx[bank] = id;
       } else {
-        wi_h[bank][id].status |= 1;
+        wi_h[bank][id].status = 1;
       }
     }
   }
@@ -960,92 +963,155 @@ void CoordinatorCUDA::load_initial_work_assignments(const Graph& graph) {
 // `ThreadStorageWorkCell` arrays.
 
 void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
-    const WorkAssignment& wa, const Graph& graph) {
+    WorkAssignment& wa, const Graph& graph) {
+  // if it's the very first work assignment, fill in key details
+  bool start = false;
+  if (wa.start_state == 0) {
+    wa.start_state = (config.groundmode ==
+        SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+    start = true;
+  }
+  if (wa.end_state == 0) {
+    wa.end_state = (config.groundmode ==
+        SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
+    start = true;
+  }
+
+  // initialize the work assignment if necessary
+  if (start || wa.root_throwval_options.size() == 0) {
+    assert(wa.root_pos == 0);
+    wa.build_rootpos_throw_options(graph, wa.start_state, 0);
+  }
+
+  // We have a case to consider here that we don't in the CPU one: The case
+  // where `start_state` is an inactive state in the graph. In that case
+  // `root_throwval_options` will still be empty since its outdegree == 0. The
+  // easiest way to handle this case is to pass it through to the GPU worker,
+  // which will see col == col_limit and immediately go to the next value of
+  // `start_state`.
+  if (graph.state_active.at(wa.start_state)) {
+    assert(wa.root_throwval_options.size() > 0);
+  } else {
+    assert(wa.root_throwval_options.size() == 0);
+  }
+
   unsigned start_state = wa.start_state;
   unsigned end_state = wa.end_state;
-  if (start_state == 0) {
-    start_state = (config.groundmode ==
-        SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
-  }
-  if (end_state == 0) {
-    end_state = (config.groundmode ==
-        SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
-  }
 
   wi_h[bank][id].start_state = start_state;
   wi_h[bank][id].end_state = end_state;
-  wi_h[bank][id].pos = wa.partial_pattern.size();
+  wi_h[bank][id].pos = 0;
   wi_h[bank][id].nnodes = 0;
-  wi_h[bank][id].status &= ~1u;
+  wi_h[bank][id].status = 0;
 
-  // set up workcells
+  // set up the workcells
   for (unsigned i = 0; i < n_max; ++i) {
     workcell(bank, id, i).count = 0;
   }
 
-  // default if `wa.partial_pattern` is empty
-  workcell(bank, id, 0).col = 0;
-  workcell(bank, id, 0).col_limit = static_cast<uint8_t>(graph.maxoutdegree);
-  workcell(bank, id, 0).from_state = start_state;
-
   unsigned from_state = start_state;
 
   for (unsigned i = 0; i < wa.partial_pattern.size(); ++i) {
+    wi_h[bank][id].pos = i;
+    ThreadStorageWorkCell& wc = workcell(bank, id, i);
+    assert(from_state != 0);
+    wc.from_state = from_state;
+    wc.col_limit = graph.outdegree.at(wc.from_state);
+
     const unsigned tv = wa.partial_pattern.at(i);
-    unsigned to_state = 0;
 
-    for (unsigned j = 0; j < graph.outdegree.at(from_state); ++j) {
-      if (graph.outthrowval.at(from_state).at(j) != tv)
-        continue;
-
-      to_state = graph.outmatrix.at(from_state).at(j);
-
-      workcell(bank, id, i).col = static_cast<uint8_t>(j);
-      workcell(bank, id, i).col_limit = (i < wa.root_pos ?
-          static_cast<uint8_t>(j + 1) :
-          static_cast<uint8_t>(graph.maxoutdegree));
-
-      workcell(bank, id, i + 1).col = 0;
-      workcell(bank, id, i + 1).col_limit =
-          static_cast<uint8_t>(graph.maxoutdegree);
-      workcell(bank, id, i + 1).from_state = to_state;
-      break;
-    }
-    if (to_state == 0) {
-      std::cerr << "problem loading work assignment:\n   "
-                << wa
-                << "\nat position " << i
-                << std::endl;
-
-      throw std::runtime_error("CUDA error: problem loading work assignment");
+    for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
+      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv)
+        break;
     }
 
-    from_state = to_state;
+    if (wc.col == wc.col_limit) {
+      std::cerr << "error loading work assignment:\n"
+                << "start_state: " << start_state
+                << " (" << graph.state.at(start_state) << ")\n"
+                << "pos: " << i << '\n'
+                << "pattern: ";
+      for (size_t j = 0; j < wa.partial_pattern.size(); ++j) {
+        if (j != 0) {
+          std::cerr << ',';
+        }
+        std::cerr << wa.partial_pattern.at(j);
+      }
+      std::cerr << '\n';
+    }
+    assert(wc.col < wc.col_limit);
+
+    if (i < wa.root_pos) {
+      wc.col_limit = wc.col + 1;
+    }
+
+    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
 
-  // fix `col` and `col_limit` at position `root_pos`
-  if (wa.root_throwval_options.size() > 0) {
-    statenum_t from_state = workcell(bank, id, wa.root_pos).from_state;
-    unsigned col = graph.maxoutdegree;
-    unsigned col_limit = 0;
+  if (wa.partial_pattern.size() == 0 || wi_h[bank][id].pos < wa.root_pos) {
+    // we're loading a work assignment that either:
+    // (a) was just initialized above (no pattern prefix), or
+    // (b) was split from another worker (pos = root_pos - 1)
+    //
+    // in either case we didn't initialize the workcell at `root_pos` in the
+    // loop above, so do it here
 
-    for (unsigned i = 0; i < graph.outdegree.at(from_state); ++i) {
-      const unsigned tv = graph.outthrowval.at(from_state).at(i);
-      auto it = std::find(wa.root_throwval_options.begin(),
-          wa.root_throwval_options.end(), tv);
-      if (it != wa.root_throwval_options.end()) {
-        col = std::min(i, col);
-        col_limit = i + 1;
-      }
-      if (wa.root_pos < wa.partial_pattern.size() &&
-          tv == wa.partial_pattern.at(wa.root_pos)) {
-        col = std::min(i, col);
-        col_limit = i + 1;
+    assert(wa.partial_pattern.size() == 0 ||
+        wi_h[bank][id].pos + 1u == wa.root_pos);
+
+    ThreadStorageWorkCell& rwc = workcell(bank, id, wa.root_pos);
+    assert(from_state != 0);
+    rwc.from_state = from_state;
+
+    // Set `col` at `root_pos`. It's equal to the lowest index of the throws
+    // in `root_throwval_options`. This works because the way we steal work
+    // ensures that the unexplored throw options in `root_throwval_options`
+    // have contiguous indices up to and including `col_limit` - 1.
+    const uint8_t unset = -1;
+    rwc.col = unset;
+    for (size_t i = 0; i < graph.outdegree.at(rwc.from_state); ++i) {
+      const unsigned throwval = graph.outthrowval.at(rwc.from_state).at(i);
+      if (std::find(wa.root_throwval_options.cbegin(),
+          wa.root_throwval_options.cend(), throwval)
+          != wa.root_throwval_options.cend()) {
+        rwc.col = std::min(rwc.col, static_cast<uint8_t>(i));
       }
     }
 
-    workcell(bank, id, wa.root_pos).col = col;
-    workcell(bank, id, wa.root_pos).col_limit = col_limit;
+    if (rwc.col == unset) {
+      rwc.col = 0;
+      assert(wa.root_throwval_options.size() == 0);
+    }
+
+    wi_h[bank][id].pos = wa.root_pos;
+  }
+
+  // set `col_limit` at `root_pos`
+  ThreadStorageWorkCell& rwc = workcell(bank, id, wa.root_pos);
+  rwc.col_limit = 0;
+  for (size_t i = 0; i < graph.outdegree.at(rwc.from_state); ++i) {
+    const unsigned throwval = graph.outthrowval.at(rwc.from_state).at(i);
+    if (std::find(wa.root_throwval_options.cbegin(),
+        wa.root_throwval_options.cend(), throwval) !=
+        wa.root_throwval_options.cend()) {
+      rwc.col_limit = std::max(rwc.col_limit, static_cast<uint8_t>(i + 1));
+    }
+  }
+
+  // consistency checking
+  if (!(rwc.col < rwc.col_limit) && graph.state_active.at(start_state)) {
+    std::cerr << "problem loading work assignment:\n   " << wa
+              << "\nstart_state = " << start_state << '\n';
+  }
+  if (graph.state_active.at(start_state)) {
+    assert(rwc.col < rwc.col_limit);
+    assert(rwc.col < graph.outdegree.at(rwc.from_state));
+  } else {
+    assert(rwc.col == rwc.col_limit);
+    assert(rwc.col == graph.outdegree.at(rwc.from_state));
+  }
+  for (size_t i = 0; i <= wi_h[bank][id].pos; ++i) {
+    assert(workcell(bank, id, i).from_state != 0);
   }
 }
 
@@ -1053,34 +1119,54 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
 
 WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
     const Graph& graph) {
-  WorkAssignment wa;
+  assert((wi_h[bank][id].status & 1) == 0);
 
+  WorkAssignment wa;
   wa.start_state = wi_h[bank][id].start_state;
   wa.end_state = wi_h[bank][id].end_state;
 
   bool root_pos_found = false;
 
   for (unsigned i = 0; i <= wi_h[bank][id].pos; ++i) {
-    const unsigned from_state = workcell(bank, id, i).from_state;
-    unsigned col = workcell(bank, id, i).col;
-    const unsigned col_limit = std::min(graph.outdegree.at(from_state),
-        static_cast<unsigned>(workcell(bank, id, i).col_limit));
+    const auto& wc = workcell(bank, id, i);
+    const unsigned col_limit = std::min(graph.outdegree.at(wc.from_state),
+        static_cast<unsigned>(wc.col_limit));
 
-    wa.partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
+    if (wc.from_state == 0) {
+      std::cerr << "error in read_work_assignment():\n"
+                << "  bank=" << bank << ", id=" << id << ", i=" << i
+                << "  col=" << static_cast<unsigned>(wc.col) << std::endl;
+    }
+    assert(wc.from_state != 0);
+    assert(wc.col < col_limit);
 
-    if (col < col_limit - 1 && !root_pos_found) {
-      wa.root_pos = i;
-      root_pos_found = true;
+    wa.partial_pattern.push_back(
+        graph.outthrowval.at(wc.from_state).at(wc.col));
 
-      ++col;
+    if (wc.col < col_limit - 1 && !root_pos_found) {
+      unsigned col = wc.col + 1u;
       while (col < col_limit) {
         wa.root_throwval_options.push_back(
-            graph.outthrowval.at(from_state).at(col));
+            graph.outthrowval.at(wc.from_state).at(col));
+        root_pos_found = true;
         ++col;
+      }
+      if (root_pos_found) {
+        wa.root_pos = i;
       }
     }
   }
 
+  if (!root_pos_found) {
+    // root_pos is at position pos + 1
+    const auto& wc = workcell(bank, id, wi_h[bank][id].pos);
+    const unsigned to_state = graph.outmatrix.at(wc.from_state).at(wc.col);
+    assert(to_state != 0);
+    wa.root_pos = wi_h[bank][id].pos + 1;
+    wa.build_rootpos_throw_options(graph, to_state, 0);
+  }
+
+  assert(wa.root_throwval_options.size() > 0);
   return wa;
 }
 
@@ -1143,6 +1229,7 @@ unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank, const Graph& graph,
       // split() throws an exception if the WorkAssignment isn't splittable
       WorkAssignment wa2 = wa.split(graph, config.split_alg);
       load_work_assignment(bank, *it, wa, graph);
+      assert(wa.root_throwval_options.size() > 0);
       context.assignments.push_back(wa2);
 
       // Avoid double counting nodes: Each of the "prefix" nodes up to and
@@ -1191,7 +1278,7 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank,
   max_active_idx[bank] = 0;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (wi_h[bank][id].status & 1) {
+    if ((wi_h[bank][id].status & 1) != 0) {
       continue;
     }
 
@@ -1229,7 +1316,7 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank,
   summary.ntotal = context.ntotal;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (wi_h[bank][id].status & 1) {
+    if ((wi_h[bank][id].status & 1) != 0) {
       summary.workers_idle.push_back(id);
       continue;
     }

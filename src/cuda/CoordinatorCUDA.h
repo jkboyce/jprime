@@ -100,7 +100,7 @@ class CoordinatorCUDA : public Coordinator {
   // manage work assignments
   void load_initial_work_assignments(const Graph& graph);
   void load_work_assignment(unsigned bank, const unsigned id,
-    const WorkAssignment& wa, const Graph& graph);
+    WorkAssignment& wa, const Graph& graph);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id,
     const Graph& graph);
   unsigned assign_new_jobs(unsigned bank, const Graph& graph,
