@@ -152,6 +152,8 @@ __global__ void cuda_gen_loops_normal(
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
 
+  // main loop -----------------------------------------------------------------
+
   while (true) {
     statenum_t to_state = 0;
 
@@ -468,6 +470,8 @@ __global__ void cuda_gen_loops_super(
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
+
+  // main loop -----------------------------------------------------------------
 
   while (true) {
     statenum_t to_state = 0;
