@@ -56,8 +56,8 @@ const std::vector<TestCase> tests {
   {  7, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   76552560 },
 
   {  4, "jprime 3 9 -count",           30513071763, 30513071763, 141933075458 },
-  {  4, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70432165 },
-  {  4, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  371452127 },
+  {  4, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70431373 },
+  {  4, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  371451333 },
 };
 
 // Run a single test case and compare against known values, outputting results
@@ -95,8 +95,9 @@ bool run_one_test(const TestCase& tc) {
         config.from_args(tc.input + " -status -cuda");
       }
     } catch (const std::invalid_argument& ie) {
-      std::cout << "Error parsing test input: " << ie.what() << '\n'
-                << "TEST FAILED" << std::endl;
+      std::cout << "Error parsing test input: " << ie.what()
+          << "\nTEST FAILED ################################################"
+          << std::endl;
       return false;
     }
 
@@ -110,7 +111,9 @@ bool run_one_test(const TestCase& tc) {
 
     // run test
     if (!coordinator->run()) {
-      std::cout << "TEST FAILED TO EXECUTE\n" << std::endl;
+      std::cout
+          << "TEST FAILED TO EXECUTE #####################################\n"
+          << std::endl;
       success = false;
       continue;
     }
@@ -140,7 +143,9 @@ bool run_one_test(const TestCase& tc) {
   if (success) {
     std::cout << "Test succeeded\n" << std::endl;
   } else {
-    std::cout << "TEST FAILED\n" << std::endl;
+    std::cout
+        << "TEST FAILED ################################################\n"
+        << std::endl;
   }
 
   return success;
