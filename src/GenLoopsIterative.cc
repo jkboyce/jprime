@@ -663,19 +663,9 @@ template void Worker::iterative_gen_loops_super<false, true>();
 // Returns true on success, false on failure.
 
 bool Worker::iterative_init_workspace() {
-  if (!loading_work) {
-    pos = 0;
-    WorkCell& wc = beat.at(0);
-    wc.col = 0;
-    wc.col_limit = graph.outdegree.at(start_state);
-    wc.from_state = start_state;
-    return true;
-  }
-
   // When loading from a work assignment, load_work_assignment() will have
   // set up `pattern`, `root_pos`, and `root_throwval_options`
 
-  loading_work = false;
   unsigned from_state = start_state;
 
   for (size_t i = 0; pattern.at(i) != -1; ++i) {
@@ -695,6 +685,8 @@ bool Worker::iterative_init_workspace() {
       std::cerr << "error loading work assignment:\n"
                 << "start_state: " << start_state
                 << " (" << graph.state.at(start_state) << ")\n"
+                << "from_state: " << wc.from_state
+                << " (" << graph.state.at(wc.from_state) << ")\n"
                 << "pos: " << pos << '\n'
                 << "pattern: ";
       for (size_t j = 0; pattern.at(j) != -1; ++j) {
@@ -704,6 +696,13 @@ bool Worker::iterative_init_workspace() {
         std::cerr << pattern.at(j);
       }
       std::cerr << '\n';
+      std::cerr << "links from state " << wc.from_state << ":\n";
+      for (size_t j = 0; j < graph.outdegree.at(wc.from_state); ++j) {
+        std::cerr << "col=" << j << ", throwval="
+                  << graph.outthrowval.at(wc.from_state).at(j)
+                  << ", to_state=" << graph.outmatrix.at(wc.from_state).at(j)
+                  << '\n';
+      }
     }
     assert(wc.col < wc.col_limit);
 
@@ -717,7 +716,7 @@ bool Worker::iterative_init_workspace() {
   if (pattern.at(0) == -1 || pos < root_pos) {
     // we're loading a work assignment that is either:
     // (a) brand new (no pattern prefix), or
-    // (b) stolen from another worker (pos = root_pos - 1)
+    // (b) split from another worker (pos = root_pos - 1)
     //
     // in either case we didn't initialize the workcell at `root_pos` in the
     // loop above, so do it here
