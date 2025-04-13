@@ -710,7 +710,7 @@ bool Worker::iterative_init_workspace() {
       wc.col_limit = wc.col + 1;
     }
 
-    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);;
+    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
 
   if (pattern.at(0) == -1 || pos < root_pos) {
