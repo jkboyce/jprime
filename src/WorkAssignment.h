@@ -90,6 +90,8 @@ class WorkAssignment {
  public:
   // methods to convert to/from string representation
   bool from_string(const std::string& str);
+  bool operator==(const WorkAssignment& wa2) const;
+  bool operator!=(const WorkAssignment& wa2) const;
   std::string to_string() const;
 
   // methods for work splitting

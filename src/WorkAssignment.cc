@@ -66,6 +66,31 @@ bool WorkAssignment::from_string(const std::string& str) {
   return true;
 }
 
+// Perform comparisons on WorkAssignments.
+
+bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
+  if (start_state != wa2.start_state) {
+    return false;
+  }
+  if (end_state != wa2.end_state) {
+    return false;
+  }
+  if (root_pos != wa2.root_pos) {
+    return false;
+  }
+  if (root_throwval_options != wa2.root_throwval_options) {
+    return false;
+  }
+  if (partial_pattern != wa2.partial_pattern) {
+    return false;
+  }
+  return true;
+}
+
+bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
+  return !(*this == wa2);
+}
+
 // Return a text representation.
 
 std::string WorkAssignment::to_string() const {
@@ -221,10 +246,9 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
     for (unsigned i = 0; i < updated.partial_pattern.size(); ++i) {
-      const auto throwval =
-          static_cast<unsigned>(updated.partial_pattern.at(i));
+      const auto tv = static_cast<unsigned>(updated.partial_pattern.at(i));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
-        if (throwval == graph.outthrowval.at(from_state).at(col)) {
+        if (graph.outthrowval.at(from_state).at(col) == tv) {
           break;
         }
       }
@@ -235,10 +259,10 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
                   << ", start_state = " << updated.start_state
                   << ", root_pos = " << updated.root_pos
                   << ", col = " << col
-                  << ", throwval = " << throwval
+                  << ", throwval = " << tv
                   << '\n';
       }
-      assert(col != graph.outdegree.at(from_state));
+      assert(col < graph.outdegree.at(from_state));
 
       if (i > updated.root_pos && col < graph.outdegree.at(from_state) - 1) {
         new_root_pos = i;
