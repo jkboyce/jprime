@@ -1141,7 +1141,10 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
   }
 }
 
-// Read out the work assignment for worker `id` from bank `bank`.
+// Read out the work assignment for worker `id` from the workcells in bank
+// `bank`.
+//
+// This is a non-destructive read, i.e., the workcells are unchanged.
 
 WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
     const Graph& graph) {
@@ -1296,6 +1299,14 @@ unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank, const Graph& graph,
     WorkAssignment wa = context.assignments.front();
     context.assignments.pop_front();
     load_work_assignment(bank, id, wa, graph);
+    /*
+    WorkAssignment wa2 = read_work_assignment(bank, id, graph);
+    if (wa != wa2) {
+      std::cerr << "Failed round trip! Loaded WorkAssignment:\n"
+                << "  " << wa << '\n'
+                << "Read out:\n"
+                << "  " << wa2 << '\n';
+    }*/
     max_active_idx[bank] = std::max(max_active_idx[bank], id);
     --idle_remaining;
   }
