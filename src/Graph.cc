@@ -304,8 +304,10 @@ void Graph::reduce_graph() {
 
     // Remove links into inactive states
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i))
+      if (!state_active.at(i)) {
+        outdegree.at(i) = 0;
         continue;
+      }
       unsigned outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
         if (state_active.at(outmatrix.at(i).at(j))) {

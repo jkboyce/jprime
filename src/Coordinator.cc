@@ -627,9 +627,8 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
 
 // Return the duration between two time points, in seconds.
 
-double Coordinator::calc_duration_secs(
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& before,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& after) {
+double Coordinator::calc_duration_secs(const jptimer_t& before,
+    const jptimer_t& after) {
   const std::chrono::duration<double> diff = after - before;
   return diff.count();
 }

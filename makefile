@@ -46,7 +46,7 @@ clean:
 CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include \
 			  -Isrc -Isrc/cuda
 _OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
-NVCCFLAGS = -std=c++20 -O3 -Xcudafe --diag_suppress=68 \
+NVCCFLAGS = -std=c++20 -O3 -lineinfo -Xcudafe --diag_suppress=68 \
 			-gencode arch=compute_60,code=compute_60 \
 			-gencode arch=compute_89,code=sm_89 \
 			-Wno-deprecated-gpu-targets -Isrc -Isrc/cuda

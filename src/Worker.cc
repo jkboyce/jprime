@@ -208,19 +208,25 @@ void Worker::process_split_work_request() {
         std::format("worker {} splitting work...", worker_id));
   }
 
-  WorkAssignment wa = split_work_assignment(config.split_alg);
-  send_work_to_coordinator(wa);
+  WorkAssignment wa = get_work_assignment();
+  WorkAssignment wa2 = wa.split(graph, config.split_alg);
+  start_state = wa.start_state;
+  end_state = wa.end_state;
+  root_pos = wa.root_pos;
+  root_throwval_options = wa.root_throwval_options;
+  notify_coordinator_update();
+  send_work_to_coordinator(wa2);
 
   // Avoid double counting nodes: Each of the "prefix" nodes up to and
   // including `root_pos` will be reported twice to the coordinator: by this
   // worker, and the worker that does the job we just split off and returned.
-  if (wa.start_state == start_state) {
-    nnodes -= (wa.root_pos + 1);
+  if (wa2.start_state == wa.start_state) {
+    nnodes -= (wa2.root_pos + 1);
   }
 
   if (config.verboseflag) {
     auto text = std::format("worker {} remaining work after split:\n  {}",
-                worker_id, get_work_assignment().to_string());
+                worker_id, wa.to_string());
     message_coordinator_text(text);
   }
 }
@@ -361,7 +367,6 @@ void Worker::add_data_to_message(MessageW2C& msg) {
 
 void Worker::load_work_assignment(const WorkAssignment& wa) {
   assert(!running);
-  loading_work = true;
 
   start_state = wa.start_state;
   end_state = wa.end_state;
@@ -453,160 +458,6 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 }
 
 //------------------------------------------------------------------------------
-// Work-splitting algorithms
-//------------------------------------------------------------------------------
-
-// Return a work assignment that corresponds to a portion of the current work
-// assignment, for handing off to another worker.
-
-WorkAssignment Worker::split_work_assignment(unsigned split_alg) {
-  if (end_state > start_state) {
-    return split_work_assignment_takestartstates();
-  }
-
-  switch (split_alg) {
-    case 1:
-      return split_work_assignment_takeall();
-    default:
-      return split_work_assignment_takehalf();
-  }
-}
-
-// Return a work assignment that corresponds to giving away approximately half
-// of the unexplored `start_state` values in the current assignment.
-
-WorkAssignment Worker::split_work_assignment_takestartstates() {
-  unsigned takenum = (end_state - start_state + 1) / 2;
-  assert(takenum > 0);
-  assert(end_state >= start_state + takenum);
-
-  WorkAssignment wa;
-  wa.start_state = end_state - takenum + 1;
-  wa.end_state = end_state;
-  wa.root_pos = 0;
-
-  end_state -= takenum;
-  notify_coordinator_update();
-  return wa;
-}
-
-// Return a work assignment that gives away all of the unexplored throw options
-// at root_pos.
-
-WorkAssignment Worker::split_work_assignment_takeall() {
-  return split_work_assignment_takefraction(1, false);
-}
-
-// Return a work assignment that gives away approximately half of the unexplored
-// throw options at root_pos.
-
-WorkAssignment Worker::split_work_assignment_takehalf() {
-  return split_work_assignment_takefraction(0.5, false);
-}
-
-// Return a work assignment that gives away approximately the target fraction of
-// the unexplored throw options at root_pos.
-
-WorkAssignment Worker::split_work_assignment_takefraction(double f,
-      bool take_front) {
-  WorkAssignment wa;
-  wa.start_state = start_state;
-  wa.end_state = start_state;
-  wa.root_pos = root_pos;
-  for (size_t i = 0; i < root_pos; ++i) {
-    wa.partial_pattern.push_back(pattern.at(i));
-  }
-
-  // ensure the throw value at `root_pos` isn't on the list of throw options
-  auto iter = root_throwval_options.begin();
-  auto end = root_throwval_options.end();
-  while (iter != end) {
-    if (pattern.at(root_pos) >= 0 &&
-        *iter == static_cast<unsigned>(pattern.at(root_pos))) {
-      iter = root_throwval_options.erase(iter);
-    } else {
-      ++iter;
-    }
-  }
-  assert(root_throwval_options.size() > 0);
-
-  // move `take_count` unexplored root_pos options to the new work assignment
-  auto take_count =
-      static_cast<size_t>(0.51 + f * root_throwval_options.size());
-  take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
-      root_throwval_options.size());
-
-  const auto take_begin_idx = static_cast<size_t>(take_front ?
-        0 : root_throwval_options.size() - take_count);
-  const auto take_end_idx = take_begin_idx + take_count;
-
-  iter = root_throwval_options.begin();
-  end = root_throwval_options.end();
-  for (size_t index = 0; iter != end; ++index) {
-    if (index >= take_begin_idx && index < take_end_idx) {
-      wa.root_throwval_options.push_back(*iter);
-      iter = root_throwval_options.erase(iter);
-    } else {
-      ++iter;
-    }
-  }
-
-  // did we give away all our throw options at `root_pos`?
-  if (root_throwval_options.size() == 0) {
-    // Find the shallowest depth `new_root_pos` where there are unexplored throw
-    // options. We have no more options at the current root_pos, so
-    // new_root_pos > root_pos.
-    //
-    // We're also at a point in the search where we know there are unexplored
-    // options remaining somewhere between `root_pos` and `pos`; see e.g.
-    // Worker::iterative_can_split().
-    //
-    // So we know there must be a value of `new_root_pos` with the properties we
-    // need in the range root_pos < new_root_pos <= pos.
-
-    unsigned from_state = start_state;
-    unsigned new_root_pos = -1;
-    unsigned col = 0;
-
-    // have to scan from the beginning because we don't record the traversed
-    // states as we build the pattern
-    for (size_t pos2 = 0; pos2 <= pos; ++pos2) {
-      const auto throwval = static_cast<unsigned>(pattern.at(pos2));
-      for (col = 0; col < graph.outdegree.at(from_state); ++col) {
-        if (throwval == graph.outthrowval.at(from_state).at(col)) {
-          break;
-        }
-      }
-      // diagnostics if there's a problem
-      if (col == graph.outdegree.at(from_state)) {
-        std::cerr << "pos2 = " << pos2
-                  << ", from_state = " << from_state
-                  << ", start_state = " << start_state
-                  << ", root_pos = " << root_pos
-                  << ", col = " << col
-                  << ", throwval = " << throwval
-                  << '\n';
-      }
-      assert(col != graph.outdegree.at(from_state));
-
-      if (pos2 > root_pos && col < graph.outdegree.at(from_state) - 1) {
-        new_root_pos = static_cast<unsigned>(pos2);
-        break;
-      }
-
-      from_state = graph.outmatrix.at(from_state).at(col);
-    }
-    assert(new_root_pos != -1u);
-    root_pos = new_root_pos;
-    notify_coordinator_update();
-    build_rootpos_throw_options(from_state, col + 1);
-    assert(root_throwval_options.size() > 0);
-  }
-
-  return wa;
-}
-
-//------------------------------------------------------------------------------
 // Search the juggling graph for patterns
 //------------------------------------------------------------------------------
 
@@ -617,6 +468,7 @@ WorkAssignment Worker::split_work_assignment_takefraction(double f,
 
 void Worker::gen_patterns() {
   running = true;
+  loading_work = true;
 
   // build the initial graph
   graph.state_active.assign(graph.numstates + 1, true);
@@ -626,9 +478,9 @@ void Worker::gen_patterns() {
   graph.build_graph();
   coordinator.customize_graph(graph);
 
-  for (; start_state <= end_state; ++start_state) {
+  for (; start_state <= end_state; ++start_state, root_throwval_options.clear(),
+          loading_work = false, pattern[0] = -1, root_pos = 0) {
     if (!graph.state_active.at(start_state)) {
-      loading_work = false;
       continue;
     }
 
@@ -649,23 +501,6 @@ void Worker::gen_patterns() {
           worker_id, graph.state_string(start_state), start_state,
           worker_id, num_inactive, graph.numstates, max_possible);
       message_coordinator_text(text);
-
-      /*
-      std::ostringstream buffer;
-      buffer << std::format("worker {} active states and outdegrees:\n",
-                  worker_id);
-      bool some_printed = false;
-      for (size_t i = 1; i <= graph.numstates; ++i) {
-        if (graph.state_active.at(i)) {
-          if (some_printed) {
-            buffer << '\n';
-          }
-          buffer << "  " << graph.state.at(i) << "  " << graph.outdegree.at(i);
-          some_printed = true;
-        }
-      }
-      message_coordinator_text(buffer.str());
-      */
     }
 
     if (max_possible < static_cast<int>(n_min)) {
@@ -680,16 +515,16 @@ void Worker::gen_patterns() {
       break;
     }
     if (!graph.state_active.at(start_state)) {
-      loading_work = false;
       continue;
     }
 
     // the search at `start_state` is a go
-    if (!loading_work || root_throwval_options.size() == 0) {
-      // ensure `root_throwval_options` is populated correctly; if loading work
-      // then we only need to do this for a new search - otherwise it's
-      // already been set by the work assignment
-      root_pos = 0;
+
+    if (root_throwval_options.size() == 0) {
+      // initialize the work assignment if necessary; this only occurs when we
+      // are starting a new value of `start_state`
+      assert(pattern[0] == -1);
+      assert(root_pos == 0);
       build_rootpos_throw_options(start_state, 0);
     }
     assert(root_throwval_options.size() > 0);

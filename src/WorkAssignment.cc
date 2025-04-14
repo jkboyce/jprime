@@ -66,6 +66,31 @@ bool WorkAssignment::from_string(const std::string& str) {
   return true;
 }
 
+// Perform comparisons on WorkAssignments.
+
+bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
+  if (start_state != wa2.start_state) {
+    return false;
+  }
+  if (end_state != wa2.end_state) {
+    return false;
+  }
+  if (root_pos != wa2.root_pos) {
+    return false;
+  }
+  if (root_throwval_options != wa2.root_throwval_options) {
+    return false;
+  }
+  if (partial_pattern != wa2.partial_pattern) {
+    return false;
+  }
+  return true;
+}
+
+bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
+  return !(*this == wa2);
+}
+
 // Return a text representation.
 
 std::string WorkAssignment::to_string() const {
@@ -99,8 +124,8 @@ std::string WorkAssignment::to_string() const {
 // Return a work assignment that corresponds to a portion of the current work
 // assignment, for handing off to another worker.
 //
-// If a work assignment cannot be split, throw a std::invalid_argument
-// exception with a relevant error message.
+// If a work assignment cannot be split, leave the WorkAssignment unchanged and
+// throw a std::invalid_argument exception with a relevant error message.
 
 WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg) {
   if (end_state > start_state) {
@@ -148,55 +173,61 @@ WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
 
 // Return a work assignment that gives away approximately the target fraction of
 // the unexplored throw options at root_pos.
+//
+// If a work assignment cannot be split, leave the WorkAssignment unchanged and
+// throw a std::invalid_argument exception with a relevant error message.
 
 WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       bool take_front) {
+  // act on a duplicate in case we can't split
+  WorkAssignment updated(*this);
+
   WorkAssignment wa;
-  wa.start_state = start_state;
-  wa.end_state = start_state;
-  wa.root_pos = root_pos;
-  for (size_t i = 0; i < root_pos; ++i) {
-    wa.partial_pattern.push_back(partial_pattern.at(i));
+  wa.start_state = updated.start_state;
+  wa.end_state = updated.start_state;
+  wa.root_pos = updated.root_pos;
+  for (size_t i = 0; i < updated.root_pos; ++i) {
+    wa.partial_pattern.push_back(updated.partial_pattern.at(i));
   }
 
   // ensure the throw value at `root_pos` isn't on the list of throw options
-  auto iter = root_throwval_options.begin();
-  auto end = root_throwval_options.end();
+  auto iter = updated.root_throwval_options.begin();
+  auto end = updated.root_throwval_options.end();
   while (iter != end) {
-    if (*iter == partial_pattern.at(root_pos)) {
-      iter = root_throwval_options.erase(iter);
+    if (*iter == updated.partial_pattern.at(updated.root_pos)) {
+      iter = updated.root_throwval_options.erase(iter);
     } else {
       ++iter;
     }
   }
-  if (root_throwval_options.size() == 0) {
+  if (updated.root_throwval_options.size() == 0) {
     throw std::invalid_argument(
         "Cannot split work assignment; root_throw_options_1");
   }
 
   // move `take_count` unexplored root_pos options to the new work assignment
   auto take_count =
-      static_cast<size_t>(0.51 + f * root_throwval_options.size());
+      static_cast<size_t>(0.51 + f * updated.root_throwval_options.size());
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
-      root_throwval_options.size());
+      updated.root_throwval_options.size());
 
   const auto take_begin_idx = static_cast<size_t>(take_front ?
-        0 : root_throwval_options.size() - take_count);
+        0 : updated.root_throwval_options.size() - take_count);
   const auto take_end_idx = take_begin_idx + take_count;
 
-  iter = root_throwval_options.begin();
-  end = root_throwval_options.end();
+  iter = updated.root_throwval_options.begin();
+  end = updated.root_throwval_options.end();
   for (size_t index = 0; iter != end; ++index) {
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
-      iter = root_throwval_options.erase(iter);
+      iter = updated.root_throwval_options.erase(iter);
     } else {
       ++iter;
     }
   }
 
   // did we give away all our throw options at `root_pos`?
-  if (root_throwval_options.size() == 0) {
+  if (updated.root_throwval_options.size() == 0) {
     // Find the shallowest depth `new_root_pos` where there are unexplored throw
     // options. We have no more options at the current root_pos, so
     // new_root_pos > root_pos.
@@ -208,16 +239,16 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     // So we know there must be a value of `new_root_pos` with the properties we
     // need in the range root_pos < new_root_pos <= pos.
 
-    unsigned from_state = start_state;
+    unsigned from_state = updated.start_state;
     unsigned new_root_pos = -1;
     unsigned col = 0;
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (unsigned i = 0; i < partial_pattern.size(); ++i) {
-      const auto throwval = static_cast<unsigned>(partial_pattern.at(i));
+    for (unsigned i = 0; i < updated.partial_pattern.size(); ++i) {
+      const auto tv = static_cast<unsigned>(updated.partial_pattern.at(i));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
-        if (throwval == graph.outthrowval.at(from_state).at(col)) {
+        if (graph.outthrowval.at(from_state).at(col) == tv) {
           break;
         }
       }
@@ -225,15 +256,15 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       if (col == graph.outdegree.at(from_state)) {
         std::cerr << "i = " << i
                   << ", from_state = " << from_state
-                  << ", start_state = " << start_state
-                  << ", root_pos = " << root_pos
+                  << ", start_state = " << updated.start_state
+                  << ", root_pos = " << updated.root_pos
                   << ", col = " << col
-                  << ", throwval = " << throwval
+                  << ", throwval = " << tv
                   << '\n';
       }
-      assert(col != graph.outdegree.at(from_state));
+      assert(col < graph.outdegree.at(from_state));
 
-      if (i > root_pos && col < graph.outdegree.at(from_state) - 1) {
+      if (i > updated.root_pos && col < graph.outdegree.at(from_state) - 1) {
         new_root_pos = i;
         break;
       }
@@ -244,20 +275,47 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       throw std::invalid_argument("Cannot split work assignment; root_pos");
     }
 
-    root_pos = new_root_pos;
+    updated.root_pos = new_root_pos;
 
     // rebuild the list of throw options at `root_pos`
-    root_throwval_options.clear();
-    for (unsigned i = col + 1; i < graph.outdegree.at(from_state); ++i) {
-      root_throwval_options.push_back(graph.outthrowval.at(from_state).at(i));
-    }
-    if (root_throwval_options.size() == 0) {
+    updated.build_rootpos_throw_options(graph, from_state, col + 1);
+    if (updated.root_throwval_options.size() == 0) {
       throw std::invalid_argument(
           "Cannot split work assignment; root_throw_options_2");
     }
   }
 
+  if (wa.root_throwval_options.size() == 0) {
+    std::cerr << "error splitting " << *this
+              << "\n  new assignment = " << wa
+              << "\nstart_state = " << wa.start_state
+              << " (" << graph.state.at(wa.start_state) << ")\n";
+    for (unsigned i = 0; i < graph.outdegree.at(wa.start_state); ++i) {
+      std::cerr << "  " << i << ": "
+                << graph.outthrowval.at(wa.start_state).at(i)
+                << " -> " << graph.outmatrix.at(wa.start_state).at(i) << '\n';
+    }
+  }
+
+  assert(updated.root_throwval_options.size() > 0);
+  assert(wa.root_throwval_options.size() > 0);
+
+  // no exceptions; commit the changes
+  *this = updated;
   return wa;
+}
+
+// Enumerate the set of throw options available at position `root_pos` in the
+// pattern. This list of options is maintained in case we get a request to split
+// work.
+
+void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
+    unsigned from_state, unsigned start_column) {
+  root_throwval_options.clear();
+  for (unsigned col = start_column; col < graph.outdegree.at(from_state);
+      ++col) {
+    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
+  }
 }
 
 //------------------------------------------------------------------------------

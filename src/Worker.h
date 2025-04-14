@@ -65,7 +65,7 @@ class Worker {
   unsigned end_state = 0;
   unsigned root_pos = 0;  // lowest `pos` with unexplored tree options
   std::list<unsigned> root_throwval_options;
-  bool loading_work = false;
+  bool loading_work = false;  // used for recursive initialization
   unsigned replay_to_pos = 0;  // used for iterative initialization
 
   // status data to report to Coordinator
@@ -102,11 +102,6 @@ class Worker {
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
   void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
-  WorkAssignment split_work_assignment(unsigned split_alg);
-  WorkAssignment split_work_assignment_takestartstates();
-  WorkAssignment split_work_assignment_takeall();
-  WorkAssignment split_work_assignment_takehalf();
-  WorkAssignment split_work_assignment_takefraction(double f, bool take_front);
   void gen_patterns();
   void gen_loops();
   void initialize_working_variables();
@@ -132,7 +127,6 @@ class Worker {
   void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
   bool iterative_init_workspace();
-  bool iterative_init_workspace_old(bool marking);
   bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();

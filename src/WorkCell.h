@@ -22,8 +22,10 @@ struct WorkCell {
   // initialized by replay versions of algorithms
   unsigned* excludes_throw = nullptr;
   unsigned* excludes_catch = nullptr;
-  unsigned shiftcount = 0;
-  unsigned exitcycles_remaining = 0;
+
+  // padding increases speed on macOS and g++/x86-64
+  unsigned unused1;
+  unsigned unused2;
 };
 
 #endif
