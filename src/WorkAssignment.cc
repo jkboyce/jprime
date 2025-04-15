@@ -19,6 +19,71 @@
 #include <stdexcept>
 
 
+// Return the WorkAssignment type, one of: INVALID, STARTUP, PENDING,
+// SPLITTABLE, UNSPLITTABLE.
+
+WorkAssignment::Type WorkAssignment::get_type() const {
+  if (start_state == 0 && end_state == 0 && partial_pattern.size() == 0 &&
+      root_pos == 0 && root_throwval_options.size() == 0 ) {
+    return Type::STARTUP;
+  }
+  if (start_state == 0 || end_state < start_state) {
+    return Type::INVALID;
+  }
+
+  if (start_state > 0 && end_state >= start_state &&
+      partial_pattern.size() == 0 && root_pos == 0 &&
+      root_throwval_options.size() == 0) {
+    return Type::PENDING;
+  }
+  if (partial_pattern.size() == 0) {
+    return Type::INVALID;
+  }
+
+  if (root_pos < root_throwval_options.size() &&
+      root_throwval_options.size() > 0) {
+    return Type::SPLITTABLE;
+  }
+
+  if (root_pos == root_throwval_options.size() &&
+      root_throwval_options.size() == 0) {
+    return Type::UNSPLITTABLE;
+  }
+
+  return Type::INVALID;
+}
+
+// Determine if a WorkAssignment is valid.
+
+bool WorkAssignment::is_valid() const {
+  return (get_type() != Type::INVALID);
+}
+
+// Perform comparisons on WorkAssignments.
+
+bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
+  if (start_state != wa2.start_state) {
+    return false;
+  }
+  if (end_state != wa2.end_state) {
+    return false;
+  }
+  if (root_pos != wa2.root_pos) {
+    return false;
+  }
+  if (root_throwval_options != wa2.root_throwval_options) {
+    return false;
+  }
+  if (partial_pattern != wa2.partial_pattern) {
+    return false;
+  }
+  return true;
+}
+
+bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
+  return !(*this == wa2);
+}
+
 // Initialize from a string.
 //
 // Return true on success, false otherwise.
@@ -66,31 +131,6 @@ bool WorkAssignment::from_string(const std::string& str) {
   return true;
 }
 
-// Perform comparisons on WorkAssignments.
-
-bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
-  if (start_state != wa2.start_state) {
-    return false;
-  }
-  if (end_state != wa2.end_state) {
-    return false;
-  }
-  if (root_pos != wa2.root_pos) {
-    return false;
-  }
-  if (root_throwval_options != wa2.root_throwval_options) {
-    return false;
-  }
-  if (partial_pattern != wa2.partial_pattern) {
-    return false;
-  }
-  return true;
-}
-
-bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
-  return !(*this == wa2);
-}
-
 // Return a text representation.
 
 std::string WorkAssignment::to_string() const {
@@ -118,8 +158,14 @@ std::string WorkAssignment::to_string() const {
 }
 
 //------------------------------------------------------------------------------
-// Work-splitting algorithms
+// Work-splitting
 //------------------------------------------------------------------------------
+
+// Determine if a work assignment can be split.
+
+bool WorkAssignment::is_splittable() const {
+  return (end_state > start_state || get_type() == Type::SPLITTABLE);
+}
 
 // Return a work assignment that corresponds to a portion of the current work
 // assignment, for handing off to another worker.
@@ -154,6 +200,8 @@ WorkAssignment WorkAssignment::split_takestartstates() {
   wa.root_pos = 0;
 
   end_state -= takenum;
+
+  assert(wa.get_type() == Type::PENDING);
   return wa;
 }
 
