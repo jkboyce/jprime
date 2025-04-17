@@ -392,6 +392,14 @@ unsigned Worker::load_one_throw() {
 bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state) {
   bool found = false;
   unsigned remaining = 0;
+
+  // if there are no options when we get here, then we must be loading an
+  // UNSPLITTABLE work assignment. The empty root_throwval_options signifies
+  // "all possible values" at root_pos.
+  if (root_throwval_options.empty()) {
+    build_rootpos_throw_options(from, 0);
+  }
+
   auto iter = root_throwval_options.begin();
   const auto end = root_throwval_options.end();
 
