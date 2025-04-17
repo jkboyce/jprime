@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <format>
 #include <stdexcept>
+#include <cassert>
 
 
 //------------------------------------------------------------------------------
@@ -187,7 +188,19 @@ void SearchContext::to_file(const std::string& file) {
   if (assignments.size() > 0) {
     myfile << "\nwork assignments remaining\n";
     for (const WorkAssignment& wa : assignments) {
-      myfile << "  " << wa << '\n';
+      const auto wa_str = wa.to_string();
+
+      // verify the WorkAssignment is unchanged by round-tripping to a string
+      WorkAssignment wa_rt;
+      wa_rt.from_string(wa_str);
+      if (wa_rt != wa) {
+        std::cerr << "ERROR: Mismatch round-tripping to a string:\n  "
+                  << wa << '\n'
+                  << wa_rt << '\n';
+      }
+      assert(wa_rt == wa);
+
+      myfile << "  " << wa_str << '\n';
     }
   }
 
