@@ -68,10 +68,10 @@ is considered unsplittable.
 */
 
 class WorkAssignment {
+ public:
   enum class Type {
     INVALID,
     STARTUP,
-    PENDING,
     SPLITTABLE,
     UNSPLITTABLE,
   };

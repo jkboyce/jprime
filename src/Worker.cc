@@ -217,11 +217,11 @@ void Worker::process_split_work_request() {
   notify_coordinator_update();
   send_work_to_coordinator(wa2);
 
-  // Avoid double counting nodes: Each of the "prefix" nodes up to and
-  // including `root_pos` will be reported twice to the coordinator: by this
-  // worker, and the worker that does the job we just split off and returned.
+  // Avoid double counting nodes: Each of the nodes in the partial path for the
+  // new assignment will be reported twice to the coordinator: by this worker,
+  // and by the worker that does the job we just split off and returned.
   if (wa2.start_state == wa.start_state) {
-    nnodes -= (wa2.root_pos + 1);
+    nnodes -= wa2.partial_pattern.size();
   }
 
   if (config.verboseflag) {
@@ -519,15 +519,6 @@ void Worker::gen_patterns() {
     }
 
     // the search at `start_state` is a go
-
-    if (root_throwval_options.size() == 0) {
-      // initialize the work assignment if necessary; this only occurs when we
-      // are starting a new value of `start_state`
-      assert(pattern[0] == -1);
-      assert(root_pos == 0);
-      build_rootpos_throw_options(start_state, 0);
-    }
-    assert(root_throwval_options.size() > 0);
     notify_coordinator_update();
     gen_loops();
     assert(pos == 0);

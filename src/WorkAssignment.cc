@@ -1,8 +1,7 @@
 //
 // WorkAssignment.cc
 //
-// Functions for reading a WorkAssignment from a string representation, and
-// printing to an output stream.
+// Defines a work assignment to hand off between workers.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
@@ -19,38 +18,32 @@
 #include <stdexcept>
 
 
-// Return the WorkAssignment type, one of: INVALID, STARTUP, PENDING,
-// SPLITTABLE, UNSPLITTABLE.
+// Return the WorkAssignment type, one of: INVALID, STARTUP, SPLITTABLE,
+// UNSPLITTABLE.
 
 WorkAssignment::Type WorkAssignment::get_type() const {
   if (start_state == 0 && end_state == 0 && partial_pattern.size() == 0 &&
       root_pos == 0 && root_throwval_options.size() == 0 ) {
     return Type::STARTUP;
   }
-  if (start_state == 0 || end_state < start_state) {
+
+  if (start_state == 0 || end_state < start_state ||
+      root_pos > partial_pattern.size()) {
     return Type::INVALID;
   }
 
-  if (start_state > 0 && end_state >= start_state &&
-      partial_pattern.size() == 0 && root_pos == 0 &&
-      root_throwval_options.size() == 0) {
-    return Type::PENDING;
-  }
-  if (partial_pattern.size() == 0) {
-    return Type::INVALID;
+  if (root_pos == partial_pattern.size()) {
+    return (root_throwval_options.size() == 0) ?
+        Type::UNSPLITTABLE : Type::INVALID;
   }
 
-  if (root_pos < root_throwval_options.size() &&
-      root_throwval_options.size() > 0) {
-    return Type::SPLITTABLE;
+  for (const auto tv : root_throwval_options) {
+    if (tv == partial_pattern.at(root_pos)) {
+      return Type::INVALID;
+    }
   }
 
-  if (root_pos == root_throwval_options.size() &&
-      root_throwval_options.size() == 0) {
-    return Type::UNSPLITTABLE;
-  }
-
-  return Type::INVALID;
+  return (root_throwval_options.size() > 0) ? Type::SPLITTABLE : Type::INVALID;
 }
 
 // Determine if a WorkAssignment is valid.
@@ -128,7 +121,7 @@ bool WorkAssignment::from_string(const std::string& str) {
   }
 
   // std::cout << "result:" << std::endl << *this << std::endl;
-  return true;
+  return is_valid();
 }
 
 // Return a text representation.
@@ -201,7 +194,7 @@ WorkAssignment WorkAssignment::split_takestartstates() {
 
   end_state -= takenum;
 
-  assert(wa.get_type() == Type::PENDING);
+  assert(wa.get_type() == Type::UNSPLITTABLE);
   return wa;
 }
 
@@ -227,6 +220,10 @@ WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
 
 WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       bool take_front) {
+  if (get_type() != Type::SPLITTABLE) {
+    throw std::invalid_argument("Cannot split work assignment");
+  }
+
   // act on a duplicate in case we can't split
   WorkAssignment updated(*this);
 
@@ -236,21 +233,6 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
   wa.root_pos = updated.root_pos;
   for (size_t i = 0; i < updated.root_pos; ++i) {
     wa.partial_pattern.push_back(updated.partial_pattern.at(i));
-  }
-
-  // ensure the throw value at `root_pos` isn't on the list of throw options
-  auto iter = updated.root_throwval_options.begin();
-  auto end = updated.root_throwval_options.end();
-  while (iter != end) {
-    if (*iter == updated.partial_pattern.at(updated.root_pos)) {
-      iter = updated.root_throwval_options.erase(iter);
-    } else {
-      ++iter;
-    }
-  }
-  if (updated.root_throwval_options.size() == 0) {
-    throw std::invalid_argument(
-        "Cannot split work assignment; root_throw_options_1");
   }
 
   // move `take_count` unexplored root_pos options to the new work assignment
@@ -263,8 +245,8 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
         0 : updated.root_throwval_options.size() - take_count);
   const auto take_end_idx = take_begin_idx + take_count;
 
-  iter = updated.root_throwval_options.begin();
-  end = updated.root_throwval_options.end();
+  auto iter = updated.root_throwval_options.begin();
+  auto end = updated.root_throwval_options.end();
   for (size_t index = 0; iter != end; ++index) {
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
@@ -274,18 +256,29 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     }
   }
 
+  if (wa.root_throwval_options.size() == 0) {
+    // diagnostic message if there's a problem
+    std::cerr << "error 1 splitting " << *this
+              << "\n  new assignment = " << wa
+              << "\nstart_state = " << wa.start_state
+              << " (" << graph.state.at(wa.start_state) << ")\n";
+    for (unsigned i = 0; i < graph.outdegree.at(wa.start_state); ++i) {
+      std::cerr << "  " << i << ": "
+                << graph.outthrowval.at(wa.start_state).at(i)
+                << " -> " << graph.outmatrix.at(wa.start_state).at(i) << '\n';
+    }
+  }
+  assert(wa.root_throwval_options.size() > 0);
+
   // did we give away all our throw options at `root_pos`?
   if (updated.root_throwval_options.size() == 0) {
     // Find the shallowest depth `new_root_pos` where there are unexplored throw
     // options. We have no more options at the current root_pos, so
     // new_root_pos > root_pos.
     //
-    // We're also at a point in the search where we know there are unexplored
-    // options remaining somewhere between `root_pos` and `pos`; see e.g.
-    // Worker::iterative_can_split().
-    //
-    // So we know there must be a value of `new_root_pos` with the properties we
-    // need in the range root_pos < new_root_pos <= pos.
+    // If there is no such new_root_pos < partial_pattern.size(), then this
+    // becomes an UNSPLITTABLE assignment and set
+    // new_root_pos = partial_pattern.size().
 
     unsigned from_state = updated.start_state;
     unsigned new_root_pos = -1;
@@ -319,34 +312,31 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
 
       from_state = graph.outmatrix.at(from_state).at(col);
     }
+
     if (new_root_pos == -1u) {
-      throw std::invalid_argument("Cannot split work assignment; root_pos");
+      updated.root_pos = updated.partial_pattern.size();
+      // leave root_throwval_options empty
+      assert(updated.get_type() == Type::UNSPLITTABLE);
+    } else {
+      updated.root_pos = new_root_pos;
+      // rebuild the list of throw options at `root_pos`
+      updated.build_rootpos_throw_options(graph, from_state, col + 1);
+      assert(updated.get_type() == Type::SPLITTABLE);
     }
-
-    updated.root_pos = new_root_pos;
-
-    // rebuild the list of throw options at `root_pos`
-    updated.build_rootpos_throw_options(graph, from_state, col + 1);
-    if (updated.root_throwval_options.size() == 0) {
-      throw std::invalid_argument(
-          "Cannot split work assignment; root_throw_options_2");
-    }
+  } else {
+    assert(updated.get_type() == Type::SPLITTABLE);
   }
 
+  // move the first element in wa.root_throwval_options to the end of
+  // wa.partial_pattern
+  wa.partial_pattern.push_back(wa.root_throwval_options.front());
+  wa.root_throwval_options.pop_front();
   if (wa.root_throwval_options.size() == 0) {
-    std::cerr << "error splitting " << *this
-              << "\n  new assignment = " << wa
-              << "\nstart_state = " << wa.start_state
-              << " (" << graph.state.at(wa.start_state) << ")\n";
-    for (unsigned i = 0; i < graph.outdegree.at(wa.start_state); ++i) {
-      std::cerr << "  " << i << ": "
-                << graph.outthrowval.at(wa.start_state).at(i)
-                << " -> " << graph.outmatrix.at(wa.start_state).at(i) << '\n';
-    }
+    wa.root_pos = wa.partial_pattern.size();
+    assert(wa.get_type() == Type::UNSPLITTABLE);
+  } else {
+    assert(wa.get_type() == Type::SPLITTABLE);
   }
-
-  assert(updated.root_throwval_options.size() > 0);
-  assert(wa.root_throwval_options.size() > 0);
 
   // no exceptions; commit the changes
   *this = updated;

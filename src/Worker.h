@@ -15,6 +15,7 @@
 #include "SearchConfig.h"
 #include "Graph.h"
 #include "WorkCell.h"
+#include "WorkAssignment.h"
 
 #include <queue>
 #include <mutex>
@@ -126,7 +127,8 @@ class Worker {
   bool mark(int* const& u, unsigned*& es, unsigned* const& ds);
   void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
-  bool iterative_init_workspace();
+  void iterative_init_workspace();
+  void to_workspace(const WorkAssignment& wa, unsigned slot);
   bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();

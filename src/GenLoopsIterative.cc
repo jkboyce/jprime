@@ -40,12 +40,16 @@ void Worker::iterative_gen_loops_normal() {
 
     // replay back through the algorithm up to and including position `pos`.
     // this sets up variables like used[], etc.
-    const unsigned pos_orig = pos;
-    replay_to_pos = pos;
-    pos = 0;
-    iterative_gen_loops_normal<false, true>();
-    assert(pos == pos_orig);
-
+    if (pos == -1u) {
+      // search is just beginning; no need to replay
+      pos = 0;
+    } else {
+      const unsigned pos_orig = pos;
+      replay_to_pos = pos;
+      pos = 0;
+      iterative_gen_loops_normal<false, true>();
+      assert(pos == pos_orig);
+    }
     // now we can resume
   }
 
@@ -183,11 +187,15 @@ template<bool REPLAY>
 void Worker::iterative_gen_loops_normal_marking() {
   if (!REPLAY) {
     iterative_init_workspace();
-    const unsigned pos_orig = pos;
-    replay_to_pos = pos;
-    pos = 0;
-    iterative_gen_loops_normal_marking<true>();
-    assert(pos == pos_orig);
+    if (pos == -1u) {
+      pos = 0;
+    } else {
+      const unsigned pos_orig = pos;
+      replay_to_pos = pos;
+      pos = 0;
+      iterative_gen_loops_normal_marking<true>();
+      assert(pos == pos_orig);
+    }
   }
 
   std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
@@ -435,11 +443,15 @@ template<bool SUPER0, bool REPLAY>
 void Worker::iterative_gen_loops_super() {
   if (!REPLAY) {
     iterative_init_workspace();
-    const unsigned pos_orig = pos;
-    replay_to_pos = pos;
-    pos = 0;
-    iterative_gen_loops_super<SUPER0, true>();
-    assert(pos == pos_orig);
+    if (pos == -1u) {
+      pos = 0;
+    } else {
+      const unsigned pos_orig = pos;
+      replay_to_pos = pos;
+      pos = 0;
+      iterative_gen_loops_super<SUPER0, true>();
+      assert(pos == pos_orig);
+    }
   }
 
   std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
@@ -660,21 +672,44 @@ template void Worker::iterative_gen_loops_super<false, true>();
 //
 // Leaves `pos` pointing to the last beat with loaded data.
 //
-// Returns true on success, false on failure.
+// If a work assignment cannot be loaded, throw a std::invalid_argument
+// exception with a relevant error message.
 
-bool Worker::iterative_init_workspace() {
-  // When loading from a work assignment, load_work_assignment() will have
-  // set up `pattern`, `root_pos`, and `root_throwval_options`
+void Worker::iterative_init_workspace() {
+  WorkAssignment wa = get_work_assignment();
 
-  unsigned from_state = start_state;
+  if (wa.get_type() != WorkAssignment::Type::SPLITTABLE &&
+      wa.get_type() != WorkAssignment::Type::UNSPLITTABLE) {
+    std::cerr << "wrong type of WorkAssignment:  \n" << wa << '\n';
+  }
 
-  for (size_t i = 0; pattern.at(i) != -1; ++i) {
+  to_workspace(wa, 0);
+}
+
+// Load a WorkAssignment into the workspace.
+//
+// If a work assignment cannot be loaded, throw a std::invalid_argument
+// exception with a relevant error message.
+
+void Worker::to_workspace(const WorkAssignment& wa, unsigned slot) {
+  (void)slot;
+
+  if (wa.get_type() != WorkAssignment::Type::SPLITTABLE &&
+      wa.get_type() != WorkAssignment::Type::UNSPLITTABLE) {
+    std::ostringstream oss;
+    oss << "Error: tried to load assignment:\n  " << wa;
+    throw std::invalid_argument(oss.str());
+  }
+
+  unsigned from_state = wa.start_state;
+
+  for (size_t i = 0; i < wa.partial_pattern.size(); ++i) {
     pos = static_cast<unsigned>(i);
     WorkCell& wc = beat.at(i);
     wc.from_state = from_state;
     wc.col_limit = graph.outdegree.at(wc.from_state);
 
-    const auto tv = static_cast<unsigned>(pattern.at(i));
+    const auto tv = static_cast<unsigned>(wa.partial_pattern.at(i));
 
     for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
       if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv)
@@ -683,17 +718,17 @@ bool Worker::iterative_init_workspace() {
 
     if (wc.col == wc.col_limit) {
       std::cerr << "error loading work assignment:\n"
-                << "start_state: " << start_state
-                << " (" << graph.state.at(start_state) << ")\n"
+                << "start_state: " << wa.start_state
+                << " (" << graph.state.at(wa.start_state) << ")\n"
                 << "from_state: " << wc.from_state
                 << " (" << graph.state.at(wc.from_state) << ")\n"
                 << "pos: " << pos << '\n'
                 << "pattern: ";
-      for (size_t j = 0; pattern.at(j) != -1; ++j) {
+      for (size_t j = 0; wa.partial_pattern.size(); ++j) {
         if (j != 0) {
           std::cerr << ',';
         }
-        std::cerr << pattern.at(j);
+        std::cerr << wa.partial_pattern.at(j);
       }
       std::cerr << '\n';
       std::cerr << "links from state " << wc.from_state << ":\n";
@@ -706,56 +741,40 @@ bool Worker::iterative_init_workspace() {
     }
     assert(wc.col < wc.col_limit);
 
-    if (pos < root_pos) {
+    if (pos < wa.root_pos) {
       wc.col_limit = wc.col + 1;
     }
 
     from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
 
-  if (pattern.at(0) == -1 || pos < root_pos) {
-    // we're loading a work assignment that is either:
-    // (a) just initialized (no pattern prefix), or
-    // (b) split from another worker (pos = root_pos - 1)
-    //
-    // in either case we didn't initialize the workcell at `root_pos` in the
-    // loop above, so do it here
+  if (wa.partial_pattern.size() == 0 || pos < wa.root_pos) {
+    // loading a work assignment of type UNSPLITTABLE; we didn't initialize the
+    // workcell at `root_pos` in the loop above, so do it here
+    assert(wa.partial_pattern.size() == 0 || pos + 1 == wa.root_pos);
+    assert(wa.get_type() == WorkAssignment::Type::UNSPLITTABLE);
 
-    assert(pattern.at(0) == -1 || pos + 1 == root_pos);
-
-    WorkCell& rwc = beat.at(root_pos);
+    WorkCell& rwc = beat.at(wa.root_pos);
+    rwc.col = 0;
+    rwc.col_limit = graph.outdegree.at(from_state);
     rwc.from_state = from_state;
 
-    // Set `col` at `root_pos`. It's equal to the lowest index of the throws
-    // in `root_throwval_options`. This works because the way we steal work
-    // ensures that the unexplored throw options in `root_throwval_options`
-    // have contiguous indices up to and including `col_limit` - 1.
-    rwc.col = -1;
+    pos = wa.partial_pattern.size() - 1;
+  } else {
+    // loading a work assignment of type SPLITTABLE; initialized `col` at
+    // `root_pos` in loop above, now set `col_limit`
+    WorkCell& rwc = beat.at(wa.root_pos);
+    rwc.col_limit = 0;
     for (size_t i = 0; i < graph.outdegree.at(rwc.from_state); ++i) {
-      const unsigned throwval = graph.outthrowval.at(rwc.from_state).at(i);
-      if (std::find(root_throwval_options.cbegin(),
-          root_throwval_options.cend(), throwval)
-          != root_throwval_options.cend()) {
-        rwc.col = std::min(rwc.col, static_cast<unsigned>(i));
+      const unsigned tv = graph.outthrowval.at(rwc.from_state).at(i);
+      if (std::find(wa.root_throwval_options.cbegin(),
+          wa.root_throwval_options.cend(), tv) != wa.root_throwval_options.cend()) {
+        rwc.col_limit = std::max(rwc.col_limit, static_cast<unsigned>(i + 1));
       }
     }
-
-    pos = root_pos;
+    assert(rwc.col < rwc.col_limit);
+    assert(rwc.col < graph.outdegree.at(rwc.from_state));
   }
-
-  // set `col_limit` at `root_pos`
-  WorkCell& rwc = beat.at(root_pos);
-  rwc.col_limit = 0;
-  for (size_t i = 0; i < graph.outdegree.at(rwc.from_state); ++i) {
-    const unsigned throwval = graph.outthrowval.at(rwc.from_state).at(i);
-    if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
-        throwval) != root_throwval_options.cend()) {
-      rwc.col_limit = std::max(rwc.col_limit, static_cast<unsigned>(i + 1));
-    }
-  }
-  assert(rwc.col < rwc.col_limit);
-  assert(rwc.col < graph.outdegree.at(rwc.from_state));
-  return true;
 }
 
 // Calculate `root_pos` and `root_throwval_options` during the middle of an
@@ -768,14 +787,29 @@ bool Worker::iterative_init_workspace() {
 // no positions < `pos` with unexplored options.
 
 bool Worker::iterative_calc_rootpos_and_options() {
-  unsigned new_root_pos = 0;
-  for (; new_root_pos < pos; ++new_root_pos) {
-    const WorkCell& wc = beat.at(new_root_pos);
-    if (wc.col < wc.col_limit - 1)
+  unsigned new_root_pos = -1;
+  for (unsigned i = 0; i <= pos; ++i) {
+    const WorkCell& wc = beat.at(i);
+    // TODO: compare against outdegree[] below, not col_limit
+    if (wc.col < wc.col_limit - 1) {
+      new_root_pos = i;
       break;
+    }
   }
-  if (new_root_pos == pos) {
-    return false;
+
+  root_throwval_options.clear();
+
+  if (new_root_pos == -1u) {
+    // current WorkAssignment is UNSPLITTABLE
+    new_root_pos = pos + 1;
+  } else {
+    // current WorkAssignment is SPLITTABLE
+    const WorkCell& wc = beat.at(new_root_pos);
+    // TODO: compare against outdegree[] below, not col_limit
+    for (size_t col = wc.col + 1; col < wc.col_limit; ++col) {
+      root_throwval_options.push_back(
+          graph.outthrowval.at(wc.from_state).at(col));
+    }
   }
 
   assert(new_root_pos >= root_pos);
@@ -784,12 +818,6 @@ bool Worker::iterative_calc_rootpos_and_options() {
     notify_coordinator_update();
   }
 
-  root_throwval_options.clear();
-  const WorkCell& wc = beat.at(new_root_pos);
-  for (size_t col = wc.col + 1; col < wc.col_limit; ++col) {
-    root_throwval_options.push_back(
-        graph.outthrowval.at(wc.from_state).at(col));
-  }
   return true;
 }
 
@@ -799,13 +827,7 @@ bool Worker::iterative_calc_rootpos_and_options() {
 // Needs an updated value of `root_pos`.
 
 bool Worker::iterative_can_split() {
-  for (size_t i = root_pos + 1; i <= pos; ++i) {
-    const WorkCell& wc = beat.at(i);
-    if (wc.col < wc.col_limit - 1) {
-      return true;
-    }
-  }
-  return false;
+  return (root_pos <= pos);
 }
 
 // Update the state of the iterative search if a SPLIT_WORK request updated
@@ -813,13 +835,13 @@ bool Worker::iterative_can_split() {
 // split.
 
 void Worker::iterative_update_after_split() {
-  if (root_pos > pos) {
+  if (root_pos > pos + 1) {
     std::cerr << "worker " << worker_id
               << ", root_pos: " << root_pos
               << ", pos: " << pos
               << '\n';
   }
-  assert(root_pos <= pos);
+  assert(root_pos <= pos + 1);
 
   // ensure no further iteration on beats prior to `root_pos`
   for (size_t i = 0; i < root_pos; ++i) {
@@ -827,24 +849,26 @@ void Worker::iterative_update_after_split() {
     wc.col_limit = wc.col + 1;
   }
 
-  // ensure we don't iterate over the throw options at `root_pos` that we just
-  // gave away
-  WorkCell& wc = beat.at(root_pos);
-  unsigned new_col_limit = wc.col + 1;
-  for (size_t i = wc.col + 1; i < graph.outdegree.at(wc.from_state); ++i) {
-    const unsigned throwval = graph.outthrowval.at(wc.from_state).at(i);
-    if (std::find(root_throwval_options.cbegin(), root_throwval_options.cend(),
-        throwval) != root_throwval_options.cend()) {
-      new_col_limit = static_cast<unsigned>(i + 1);
+  if (root_pos <= pos) {
+    // ensure we don't iterate over any throw options at `root_pos` that we may
+    // have given away
+    WorkCell& rwc = beat.at(root_pos);
+    unsigned new_col_limit = rwc.col + 1;
+    for (size_t i = rwc.col + 1; i < graph.outdegree.at(rwc.from_state); ++i) {
+      const unsigned tv = graph.outthrowval.at(rwc.from_state).at(i);
+      if (std::find(root_throwval_options.cbegin(),
+          root_throwval_options.cend(), tv) != root_throwval_options.cend()) {
+        new_col_limit = static_cast<unsigned>(i + 1);
+      }
     }
+    rwc.col_limit = new_col_limit;
   }
-  wc.col_limit = new_col_limit;
 }
 
 inline void Worker::iterative_handle_finished_pattern() {
   for (size_t i = 0; i <= pos; ++i) {
     pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                                      .at(beat.at(i).col);
+                                     .at(beat.at(i).col);
   }
   pattern.at(pos + 1) = -1;
   report_pattern();
