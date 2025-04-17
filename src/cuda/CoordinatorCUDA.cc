@@ -1001,7 +1001,7 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
   }
 
   // initialize the work assignment if necessary
-  if (wa.root_throwval_options.size() == 0) {
+  if (wa.root_throwval_options.empty()) {
     assert(wa.root_pos == 0);
     wa.build_rootpos_throw_options(graph, wa.start_state, 0);
   }
@@ -1013,10 +1013,10 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
   // which will see col == col_limit and immediately go to the next value of
   // `start_state`.
   if (graph.state_active.at(wa.start_state)) {
-    assert(wa.root_throwval_options.size() > 0);
+    assert(!wa.root_throwval_options.empty());
     assert(graph.outdegree.at(wa.start_state) > 0);
   } else {
-    assert(wa.root_throwval_options.size() == 0);
+    assert(wa.root_throwval_options.empty());
     assert(graph.outdegree.at(wa.start_state) == 0);
   }
 
@@ -1102,7 +1102,7 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
     }
     if (rwc.col == unset) {
       rwc.col = 0;
-      assert(wa.root_throwval_options.size() == 0);  // inactive start_state
+      assert(wa.root_throwval_options.empty());  // inactive start_state
     }
 
     wi_h[bank][id].pos = wa.root_pos;
@@ -1161,7 +1161,7 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
     assert(wc.col_limit == 0);
     assert(wc.from_state == wa.start_state);
     assert(wi_h[bank][id].pos == 0);
-    assert(wa.root_throwval_options.size() == 0);
+    assert(wa.root_throwval_options.empty());
     assert(wa.partial_pattern.size() == 0);
     return wa;
   }
@@ -1207,7 +1207,7 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank, unsigned id,
     wa.build_rootpos_throw_options(graph, to_state, 0);
   }
 
-  assert(wa.root_throwval_options.size() > 0);
+  assert(!wa.root_throwval_options.empty());
   return wa;
 }
 
@@ -1270,7 +1270,7 @@ unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank, const Graph& graph,
       // split() throws an exception if the WorkAssignment isn't splittable
       WorkAssignment wa2 = wa.split(graph, config.split_alg);
       load_work_assignment(bank, *it, wa, graph);
-      assert(wa.root_throwval_options.size() > 0);
+      assert(!wa.root_throwval_options.empty());
       context.assignments.push_back(wa2);
 
       // Avoid double counting nodes: Each of the "prefix" nodes up to and

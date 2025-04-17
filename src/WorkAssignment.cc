@@ -23,7 +23,7 @@
 
 WorkAssignment::Type WorkAssignment::get_type() const {
   if (start_state == 0 && end_state == 0 && partial_pattern.size() == 0 &&
-      root_pos == 0 && root_throwval_options.size() == 0 ) {
+      root_pos == 0 && root_throwval_options.empty()) {
     return Type::STARTUP;
   }
 
@@ -33,8 +33,7 @@ WorkAssignment::Type WorkAssignment::get_type() const {
   }
 
   if (root_pos == partial_pattern.size()) {
-    return (root_throwval_options.size() == 0) ?
-        Type::UNSPLITTABLE : Type::INVALID;
+    return root_throwval_options.empty() ? Type::UNSPLITTABLE : Type::INVALID;
   }
 
   for (const auto tv : root_throwval_options) {
@@ -43,7 +42,7 @@ WorkAssignment::Type WorkAssignment::get_type() const {
     }
   }
 
-  return (root_throwval_options.size() > 0) ? Type::SPLITTABLE : Type::INVALID;
+  return root_throwval_options.empty() ? Type::INVALID : Type::SPLITTABLE;
 }
 
 // Determine if a WorkAssignment is valid.
@@ -256,7 +255,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     }
   }
 
-  if (wa.root_throwval_options.size() == 0) {
+  if (wa.root_throwval_options.empty()) {
     // diagnostic message if there's a problem
     std::cerr << "error 1 splitting " << *this
               << "\n  new assignment = " << wa
@@ -268,10 +267,10 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
                 << " -> " << graph.outmatrix.at(wa.start_state).at(i) << '\n';
     }
   }
-  assert(wa.root_throwval_options.size() > 0);
+  assert(!wa.root_throwval_options.empty());
 
   // did we give away all our throw options at `root_pos`?
-  if (updated.root_throwval_options.size() == 0) {
+  if (updated.root_throwval_options.empty()) {
     // Find the shallowest depth `new_root_pos` where there are unexplored throw
     // options. We have no more options at the current root_pos, so
     // new_root_pos > root_pos.
@@ -331,7 +330,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
   // wa.partial_pattern
   wa.partial_pattern.push_back(wa.root_throwval_options.front());
   wa.root_throwval_options.pop_front();
-  if (wa.root_throwval_options.size() == 0) {
+  if (wa.root_throwval_options.empty()) {
     wa.root_pos = wa.partial_pattern.size();
     assert(wa.get_type() == Type::UNSPLITTABLE);
   } else {
