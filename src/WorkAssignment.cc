@@ -398,33 +398,30 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     throw std::invalid_argument("Cannot split work assignment");
   }
 
-  // act on a duplicate in case we can't split
-  WorkAssignment updated(*this);
-
   WorkAssignment wa;
-  wa.start_state = updated.start_state;
-  wa.end_state = updated.start_state;
-  wa.root_pos = updated.root_pos;
-  for (size_t i = 0; i < updated.root_pos; ++i) {
-    wa.partial_pattern.push_back(updated.partial_pattern.at(i));
+  wa.start_state = start_state;
+  wa.end_state = start_state;
+  wa.root_pos = root_pos;
+  for (size_t i = 0; i < root_pos; ++i) {
+    wa.partial_pattern.push_back(partial_pattern.at(i));
   }
 
   // move `take_count` unexplored root_pos options to the new work assignment
   auto take_count =
-      static_cast<size_t>(0.51 + f * updated.root_throwval_options.size());
+      static_cast<size_t>(0.51 + f * root_throwval_options.size());
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
-      updated.root_throwval_options.size());
+      root_throwval_options.size());
 
   const auto take_begin_idx = static_cast<size_t>(take_front ?
-        0 : updated.root_throwval_options.size() - take_count);
+        0 : root_throwval_options.size() - take_count);
   const auto take_end_idx = take_begin_idx + take_count;
 
-  auto iter = updated.root_throwval_options.begin();
-  auto end = updated.root_throwval_options.end();
+  auto iter = root_throwval_options.begin();
+  auto end = root_throwval_options.end();
   for (size_t index = 0; iter != end; ++index) {
     if (index >= take_begin_idx && index < take_end_idx) {
       wa.root_throwval_options.push_back(*iter);
-      iter = updated.root_throwval_options.erase(iter);
+      iter = root_throwval_options.erase(iter);
     } else {
       ++iter;
     }
@@ -445,7 +442,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
   assert(!wa.root_throwval_options.empty());
 
   // did we give away all our throw options at `root_pos`?
-  if (updated.root_throwval_options.empty()) {
+  if (root_throwval_options.empty()) {
     // Find the shallowest depth `new_root_pos` where there are unexplored throw
     // options. We have no more options at the current root_pos, so
     // new_root_pos > root_pos.
@@ -454,14 +451,14 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     // becomes an UNSPLITTABLE assignment and set
     // new_root_pos = partial_pattern.size().
 
-    unsigned from_state = updated.start_state;
+    unsigned from_state = start_state;
     unsigned new_root_pos = -1;
     unsigned col = 0;
 
     // have to scan from the beginning because we don't record the traversed
     // states as we build the pattern
-    for (unsigned i = 0; i < updated.partial_pattern.size(); ++i) {
-      const auto tv = static_cast<unsigned>(updated.partial_pattern.at(i));
+    for (unsigned i = 0; i < partial_pattern.size(); ++i) {
+      const auto tv = static_cast<unsigned>(partial_pattern.at(i));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
         if (graph.outthrowval.at(from_state).at(col) == tv) {
           break;
@@ -471,15 +468,15 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       if (col == graph.outdegree.at(from_state)) {
         std::cerr << "i = " << i
                   << ", from_state = " << from_state
-                  << ", start_state = " << updated.start_state
-                  << ", root_pos = " << updated.root_pos
+                  << ", start_state = " << start_state
+                  << ", root_pos = " << root_pos
                   << ", col = " << col
                   << ", throwval = " << tv
                   << '\n';
       }
       assert(col < graph.outdegree.at(from_state));
 
-      if (i > updated.root_pos && col < graph.outdegree.at(from_state) - 1) {
+      if (i > root_pos && col < graph.outdegree.at(from_state) - 1) {
         new_root_pos = i;
         break;
       }
@@ -488,17 +485,17 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     }
 
     if (new_root_pos == -1u) {
-      updated.root_pos = updated.partial_pattern.size();
+      root_pos = partial_pattern.size();
       // leave root_throwval_options empty
-      assert(updated.get_type() == Type::UNSPLITTABLE);
+      assert(get_type() == Type::UNSPLITTABLE);
     } else {
-      updated.root_pos = new_root_pos;
+      root_pos = new_root_pos;
       // rebuild the list of throw options at `root_pos`
-      updated.build_rootpos_throw_options(graph, from_state, col + 1);
-      assert(updated.get_type() == Type::SPLITTABLE);
+      build_rootpos_throw_options(graph, from_state, col + 1);
+      assert(get_type() == Type::SPLITTABLE);
     }
   } else {
-    assert(updated.get_type() == Type::SPLITTABLE);
+    assert(get_type() == Type::SPLITTABLE);
   }
 
   // move the first element in wa.root_throwval_options to the end of
@@ -512,8 +509,6 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     assert(wa.get_type() == Type::SPLITTABLE);
   }
 
-  // no exceptions; commit the changes
-  *this = updated;
   return wa;
 }
 
