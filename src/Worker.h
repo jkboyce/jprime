@@ -103,7 +103,6 @@ class Worker : public WorkSpace {
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
-  void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
   void gen_patterns();
   void gen_loops();
   void initialize_working_variables();
@@ -116,6 +115,7 @@ class Worker : public WorkSpace {
   void gen_loops_super0();
   unsigned load_one_throw();
   bool mark_off_rootpos_option(unsigned throwval, unsigned to_state);
+  void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
   bool mark_unreachable_states_throw();
   bool mark_unreachable_states_catch(unsigned to_state);
   void unmark_unreachable_states_throw();

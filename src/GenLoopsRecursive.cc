@@ -448,6 +448,33 @@ bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state) {
   return (found || loading_work);
 }
 
+// Enumerate the set of throw options available at position `root_pos` in the
+// pattern. This list of options is maintained in case we get a request to split
+// work.
+
+void Worker::build_rootpos_throw_options(unsigned from_state,
+    unsigned start_column) {
+  root_throwval_options.clear();
+  for (unsigned col = start_column; col < graph.outdegree.at(from_state);
+      ++col) {
+    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
+  }
+
+  if (config.verboseflag) {
+    std::ostringstream buffer;
+    buffer << std::format("worker {} options at root_pos {}: [", worker_id,
+        root_pos);
+    for (const auto v : root_throwval_options) {
+      if (v != root_throwval_options.front()) {
+        buffer << ',';
+      }
+      buffer << v;
+    }
+    buffer << ']';
+    message_coordinator_text(buffer.str());
+  }
+}
+
 // Mark all of the states as used that are excluded by a throw from state `from`
 // to state `to_state`.
 //
