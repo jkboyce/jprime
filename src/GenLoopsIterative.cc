@@ -704,39 +704,21 @@ bool Worker::iterative_can_split() {
   return wa.is_splittable();
 }
 
-// Update the state of the iterative search if a SPLIT_WORK request updated
-// `root_pos` and/or `root_throwval_options`. Do nothing if there was no work
-// split.
+// Update the workspace in case a SPLIT_WORK request changed our work
+// assignment.
 
 void Worker::iterative_update_after_split() {
-  if (root_pos > pos + 1) {
-    std::cerr << "worker " << worker_id
-              << ", root_pos: " << root_pos
-              << ", pos: " << pos
-              << '\n';
-  }
-  assert(root_pos <= pos + 1);
+  const auto pos_orig = pos;
+  WorkAssignment wa = get_work_assignment();
+  wa.to_workspace(this, 0);
 
-  // ensure no further iteration on beats prior to `root_pos`
-  for (size_t i = 0; i < root_pos; ++i) {
-    WorkCell& wc = beat.at(i);
-    wc.col_limit = wc.col + 1;
-  }
+  // splitting shouldn't change our depth in the search tree
+  assert(pos == pos_orig);
 
-  if (root_pos <= pos) {
-    // ensure we don't iterate over any throw options at `root_pos` that we may
-    // have given away
-    WorkCell& rwc = beat.at(root_pos);
-    unsigned new_col_limit = rwc.col + 1;
-    for (size_t i = rwc.col + 1; i < graph.outdegree.at(rwc.from_state); ++i) {
-      const unsigned tv = graph.outthrowval.at(rwc.from_state).at(i);
-      if (std::find(root_throwval_options.cbegin(),
-          root_throwval_options.cend(), tv) != root_throwval_options.cend()) {
-        new_col_limit = static_cast<unsigned>(i + 1);
-      }
-    }
-    rwc.col_limit = new_col_limit;
-  }
+  // verify the assignment is unchanged by round trip through the workspace
+  WorkAssignment wa2;
+  wa2.from_workspace(this, 0);
+  assert(wa == wa2);
 }
 
 inline void Worker::iterative_handle_finished_pattern() {
