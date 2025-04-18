@@ -190,7 +190,7 @@ void SearchContext::to_file(const std::string& file) {
     for (const WorkAssignment& wa : assignments) {
       const auto wa_str = wa.to_string();
 
-      // verify the WorkAssignment is unchanged by round-tripping to a string
+      // verify the WorkAssignment is unchanged by round trip through a string
       WorkAssignment wa_rt;
       wa_rt.from_string(wa_str);
       if (wa_rt != wa) {
