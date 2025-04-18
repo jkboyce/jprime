@@ -20,7 +20,7 @@ OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
 	  SearchConfig.o SearchContext.o Pattern.o
 DEP = Coordinator.h CoordinatorCPU.h Graph.h Messages.h Pattern.h \
 	  SearchConfig.h SearchContext.h State.h WorkAssignment.h WorkCell.h \
-	  Worker.h
+	  Worker.h WorkSpace.h
 
 _OBJ = $(patsubst %,$(ODIR)/%,$(OBJ))
 _DEP = $(patsubst %,$(SDIR)/%,$(DEP))

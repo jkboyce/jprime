@@ -9,6 +9,7 @@
 //
 
 #include "WorkAssignment.h"
+#include "WorkCell.h"
 
 #include <iostream>
 #include <string>
@@ -76,6 +77,49 @@ bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
   return !(*this == wa2);
 }
 
+// Enumerate the set of throw options available at position `root_pos` in the
+// pattern. This list of options is maintained in case we get a request to split
+// work.
+
+void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
+    unsigned from_state, unsigned start_column) {
+  root_throwval_options.clear();
+  for (unsigned col = start_column; col < graph.outdegree.at(from_state);
+      ++col) {
+    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
+  }
+}
+
+//------------------------------------------------------------------------------
+// Converting to/from a string representation
+//------------------------------------------------------------------------------
+
+// Return a string representation.
+
+std::string WorkAssignment::to_string() const {
+  std::ostringstream buffer;
+
+  buffer << "{ start_state:" << start_state
+         << ", end_state:" << end_state
+         << ", root_pos:" << root_pos
+         << ", root_options:[";
+  for (const unsigned v : root_throwval_options) {
+    if (v != root_throwval_options.front()) {
+      buffer << ',';
+    }
+    buffer << v;
+  }
+  buffer << "], current:\"";
+  for (size_t i = 0; i < partial_pattern.size(); ++i) {
+    if (i > 0) {
+      buffer << ',';
+    }
+    buffer << partial_pattern.at(i);
+  }
+  buffer << "\" }";
+  return buffer.str();
+}
+
 // Initialize from a string.
 //
 // Return true on success, false otherwise.
@@ -123,34 +167,163 @@ bool WorkAssignment::from_string(const std::string& str) {
   return is_valid();
 }
 
-// Return a text representation.
+//------------------------------------------------------------------------------
+// Loading into/reading from a WorkSpace
+//------------------------------------------------------------------------------
 
-std::string WorkAssignment::to_string() const {
-  std::ostringstream buffer;
+// Load the work assignment into a workspace.
+//
+// If the work assignment cannot be loaded, throw a std::invalid_argument
+// exception with a relevant error message.
 
-  buffer << "{ start_state:" << start_state
-         << ", end_state:" << end_state
-         << ", root_pos:" << root_pos
-         << ", root_options:[";
-  for (const unsigned v : root_throwval_options) {
-    if (v != root_throwval_options.front()) {
-      buffer << ',';
-    }
-    buffer << v;
+void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const {
+  if (get_type() != Type::SPLITTABLE && get_type() != Type::UNSPLITTABLE) {
+    std::ostringstream oss;
+    oss << "Error: tried to load assignment:\n  " << to_string();
+    throw std::invalid_argument(oss.str());
   }
-  buffer << "], current:\"";
+
+  const Graph& graph = ws->get_graph();
+  unsigned from_state = start_state;
+  int pos = 0;
+
   for (size_t i = 0; i < partial_pattern.size(); ++i) {
-    if (i > 0) {
-      buffer << ',';
+    pos = static_cast<unsigned>(i);
+    WorkCell wc;
+    wc.from_state = from_state;
+    wc.col_limit = graph.outdegree.at(wc.from_state);
+
+    const auto tv = partial_pattern.at(i);
+    for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
+      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv)
+        break;
     }
-    buffer << partial_pattern.at(i);
+
+    if (wc.col == wc.col_limit) {
+      std::cerr << "error loading work assignment:\n"
+                << "start_state: " << start_state
+                << " (" << graph.state.at(start_state) << ")\n"
+                << "from_state: " << wc.from_state
+                << " (" << graph.state.at(wc.from_state) << ")\n"
+                << "pos: " << pos << '\n'
+                << "pattern: ";
+      for (size_t j = 0; partial_pattern.size(); ++j) {
+        if (j != 0) {
+          std::cerr << ',';
+        }
+        std::cerr << partial_pattern.at(j);
+      }
+      std::cerr << '\n';
+      std::cerr << "links from state " << wc.from_state << ":\n";
+      for (size_t j = 0; j < graph.outdegree.at(wc.from_state); ++j) {
+        std::cerr << "col=" << j << ", throwval="
+                  << graph.outthrowval.at(wc.from_state).at(j)
+                  << ", to_state=" << graph.outmatrix.at(wc.from_state).at(j)
+                  << '\n';
+      }
+    }
+    assert(wc.col < wc.col_limit);
+
+    if (pos < static_cast<int>(root_pos)) {
+      wc.col_limit = wc.col + 1;
+    }
+
+    ws->set_cell(slot, i, wc.col, wc.col_limit, wc.from_state);
+    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
-  buffer << "\" }";
-  return buffer.str();
+
+  if (partial_pattern.size() == 0 || pos < static_cast<int>(root_pos)) {
+    // loading a work assignment of type UNSPLITTABLE; we didn't initialize the
+    // workcell at `root_pos` in the loop above, so do it here
+    assert(partial_pattern.size() == 0 ||
+        pos + 1 == static_cast<int>(root_pos));
+    assert(get_type() == WorkAssignment::Type::UNSPLITTABLE);
+
+    WorkCell rwc;
+    rwc.col = 0;
+    rwc.col_limit = graph.outdegree.at(from_state);
+    rwc.from_state = from_state;
+    ws->set_cell(slot, root_pos, rwc.col, rwc.col_limit, rwc.from_state);
+
+    pos = partial_pattern.size() - 1;
+  } else {
+    // loading a work assignment of type SPLITTABLE; initialized `col` at
+    // `root_pos` in loop above, now set `col_limit`
+    auto [col, col_limit, from_state] = ws->get_cell(slot, root_pos);
+    col_limit = 0;
+    for (size_t i = 0; i < graph.outdegree.at(from_state); ++i) {
+      const unsigned tv = graph.outthrowval.at(from_state).at(i);
+      if (std::find(root_throwval_options.cbegin(),
+          root_throwval_options.cend(), tv) != root_throwval_options.cend()) {
+        col_limit = std::max(col_limit, static_cast<unsigned>(i + 1));
+      }
+    }
+    assert(col < col_limit);
+    assert(col < graph.outdegree.at(from_state));
+    ws->set_cell(slot, root_pos, col, col_limit, from_state);
+  }
+
+  ws->set_info(slot, start_state, end_state, pos);
+}
+
+// Read the work assignment from a workspace.
+//
+// If the work assignment cannot be read, throw a std::invalid_argument
+// exception with a relevant error message.
+
+void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot) {
+  const Graph& graph = ws->get_graph();
+
+  // find `start_state` and `end_state`
+  const auto [sstate, estate, pos] = ws->get_info(slot);
+  start_state = sstate;
+  end_state = estate;
+
+  // find `partial_pattern` and `root_pos`
+  unsigned from_state = start_state;
+  root_pos = -1u;
+  partial_pattern.clear();
+
+  for (int i = 0; i <= pos; ++i) {
+    auto [col, col_limit, fr_state] = ws->get_cell(slot, i);
+    assert(fr_state == from_state);
+
+    partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
+
+    if (graph.outdegree.at(from_state) < col_limit) {
+      col_limit = graph.outdegree.at(from_state);
+    }
+    if (root_pos == -1u && col < col_limit - 1) {
+      root_pos = i;
+    }
+    from_state = graph.outmatrix.at(from_state).at(col);
+  }
+
+  // find `root_throwval_options`
+  root_throwval_options.clear();
+
+  if (root_pos == -1u) {
+    // current WorkAssignment is UNSPLITTABLE
+    root_pos = pos + 1;
+    assert(get_type() == Type::UNSPLITTABLE);
+  } else {
+    // current WorkAssignment is SPLITTABLE
+    auto [rwc_col, rwc_col_limit, rwc_fr_state] = ws->get_cell(slot, root_pos);
+
+    if (graph.outdegree.at(rwc_fr_state) < rwc_col_limit) {
+      rwc_col_limit = graph.outdegree.at(rwc_fr_state);
+    }
+
+    for (size_t col = rwc_col + 1; col < rwc_col_limit; ++col) {
+      root_throwval_options.push_back(
+          graph.outthrowval.at(rwc_fr_state).at(col));
+    }
+    assert(get_type() == Type::SPLITTABLE);
+  }
 }
 
 //------------------------------------------------------------------------------
-// Work-splitting
+// Work splitting
 //------------------------------------------------------------------------------
 
 // Determine if a work assignment can be split.
@@ -220,6 +393,8 @@ WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
 WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
       bool take_front) {
   if (get_type() != Type::SPLITTABLE) {
+    std::cerr << "error trying to split assignment:\n  " << to_string()
+              << '\n';
     throw std::invalid_argument("Cannot split work assignment");
   }
 
@@ -340,19 +515,6 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
   // no exceptions; commit the changes
   *this = updated;
   return wa;
-}
-
-// Enumerate the set of throw options available at position `root_pos` in the
-// pattern. This list of options is maintained in case we get a request to split
-// work.
-
-void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
-    unsigned from_state, unsigned start_column) {
-  root_throwval_options.clear();
-  for (unsigned col = start_column; col < graph.outdegree.at(from_state);
-      ++col) {
-    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
-  }
 }
 
 //------------------------------------------------------------------------------

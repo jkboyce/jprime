@@ -140,7 +140,7 @@ void Worker::iterative_gen_loops_normal() {
       steps = 0;
 
       pos = p;
-      if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
+      if (iterative_can_split()) {
         for (size_t i = 0; i <= pos; ++i) {
           pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                            .at(beat.at(i).col);
@@ -362,7 +362,7 @@ void Worker::iterative_gen_loops_normal_marking() {
         steps = 0;
 
         pos = p;
-        if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
+        if (iterative_can_split()) {
           for (size_t i = 0; i <= pos; ++i) {
             pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                              .at(beat.at(i).col);
@@ -565,7 +565,7 @@ void Worker::iterative_gen_loops_super() {
         steps = 0;
 
         pos = p;
-        if (iterative_calc_rootpos_and_options() && iterative_can_split()) {
+        if (iterative_can_split()) {
           for (size_t i = 0; i <= pos; ++i) {
             pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                              .at(beat.at(i).col);
@@ -667,8 +667,7 @@ template void Worker::iterative_gen_loops_super<false, true>();
 // Helper methods
 //------------------------------------------------------------------------------
 
-// Initialize the WorkCells with values for `col`, `col_limit`, and `from_state`
-// based on the loaded work assignment.
+// Initialize the WorkCells in our workspace.
 //
 // Leaves `pos` pointing to the last beat with loaded data.
 //
@@ -677,157 +676,32 @@ template void Worker::iterative_gen_loops_super<false, true>();
 
 void Worker::iterative_init_workspace() {
   WorkAssignment wa = get_work_assignment();
+  wa.to_workspace(this, 0);
 
-  if (wa.get_type() != WorkAssignment::Type::SPLITTABLE &&
-      wa.get_type() != WorkAssignment::Type::UNSPLITTABLE) {
-    std::cerr << "wrong type of WorkAssignment:  \n" << wa << '\n';
-  }
-
-  to_workspace(wa, 0);
-}
-
-// Load a WorkAssignment into the workspace.
-//
-// If a work assignment cannot be loaded, throw a std::invalid_argument
-// exception with a relevant error message.
-
-void Worker::to_workspace(const WorkAssignment& wa, unsigned slot) {
-  (void)slot;
-
-  if (wa.get_type() != WorkAssignment::Type::SPLITTABLE &&
-      wa.get_type() != WorkAssignment::Type::UNSPLITTABLE) {
-    std::ostringstream oss;
-    oss << "Error: tried to load assignment:\n  " << wa;
-    throw std::invalid_argument(oss.str());
-  }
-
-  unsigned from_state = wa.start_state;
-
-  for (size_t i = 0; i < wa.partial_pattern.size(); ++i) {
-    pos = static_cast<unsigned>(i);
-    WorkCell& wc = beat.at(i);
-    wc.from_state = from_state;
-    wc.col_limit = graph.outdegree.at(wc.from_state);
-
-    const auto tv = static_cast<unsigned>(wa.partial_pattern.at(i));
-
-    for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
-      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv)
-        break;
-    }
-
-    if (wc.col == wc.col_limit) {
-      std::cerr << "error loading work assignment:\n"
-                << "start_state: " << wa.start_state
-                << " (" << graph.state.at(wa.start_state) << ")\n"
-                << "from_state: " << wc.from_state
-                << " (" << graph.state.at(wc.from_state) << ")\n"
-                << "pos: " << pos << '\n'
-                << "pattern: ";
-      for (size_t j = 0; wa.partial_pattern.size(); ++j) {
-        if (j != 0) {
-          std::cerr << ',';
-        }
-        std::cerr << wa.partial_pattern.at(j);
-      }
-      std::cerr << '\n';
-      std::cerr << "links from state " << wc.from_state << ":\n";
-      for (size_t j = 0; j < graph.outdegree.at(wc.from_state); ++j) {
-        std::cerr << "col=" << j << ", throwval="
-                  << graph.outthrowval.at(wc.from_state).at(j)
-                  << ", to_state=" << graph.outmatrix.at(wc.from_state).at(j)
-                  << '\n';
-      }
-    }
-    assert(wc.col < wc.col_limit);
-
-    if (pos < wa.root_pos) {
-      wc.col_limit = wc.col + 1;
-    }
-
-    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
-  }
-
-  if (wa.partial_pattern.size() == 0 || pos < wa.root_pos) {
-    // loading a work assignment of type UNSPLITTABLE; we didn't initialize the
-    // workcell at `root_pos` in the loop above, so do it here
-    assert(wa.partial_pattern.size() == 0 || pos + 1 == wa.root_pos);
-    assert(wa.get_type() == WorkAssignment::Type::UNSPLITTABLE);
-
-    WorkCell& rwc = beat.at(wa.root_pos);
-    rwc.col = 0;
-    rwc.col_limit = graph.outdegree.at(from_state);
-    rwc.from_state = from_state;
-
-    pos = wa.partial_pattern.size() - 1;
-  } else {
-    // loading a work assignment of type SPLITTABLE; initialized `col` at
-    // `root_pos` in loop above, now set `col_limit`
-    WorkCell& rwc = beat.at(wa.root_pos);
-    rwc.col_limit = 0;
-    for (size_t i = 0; i < graph.outdegree.at(rwc.from_state); ++i) {
-      const unsigned tv = graph.outthrowval.at(rwc.from_state).at(i);
-      if (std::find(wa.root_throwval_options.cbegin(),
-          wa.root_throwval_options.cend(), tv) != wa.root_throwval_options.cend()) {
-        rwc.col_limit = std::max(rwc.col_limit, static_cast<unsigned>(i + 1));
-      }
-    }
-    assert(rwc.col < rwc.col_limit);
-    assert(rwc.col < graph.outdegree.at(rwc.from_state));
-  }
-}
-
-// Calculate `root_pos` and `root_throwval_options` during the middle of an
-// iterative search.
-//
-// These elements are not updated during the search itself, so they need to be
-// regenerated before we respond to incoming messages.
-//
-// Returns true on success, false on failure. Failure occurs when there are
-// no positions < `pos` with unexplored options.
-
-bool Worker::iterative_calc_rootpos_and_options() {
-  unsigned new_root_pos = -1;
-  for (unsigned i = 0; i <= pos; ++i) {
-    const WorkCell& wc = beat.at(i);
-    // TODO: compare against outdegree[] below, not col_limit
-    if (wc.col < wc.col_limit - 1) {
-      new_root_pos = i;
-      break;
-    }
-  }
-
-  root_throwval_options.clear();
-
-  if (new_root_pos == -1u) {
-    // current WorkAssignment is UNSPLITTABLE
-    new_root_pos = pos + 1;
-  } else {
-    // current WorkAssignment is SPLITTABLE
-    const WorkCell& wc = beat.at(new_root_pos);
-    // TODO: compare against outdegree[] below, not col_limit
-    for (size_t col = wc.col + 1; col < wc.col_limit; ++col) {
-      root_throwval_options.push_back(
-          graph.outthrowval.at(wc.from_state).at(col));
-    }
-  }
-
-  assert(new_root_pos >= root_pos);
-  if (new_root_pos != root_pos) {
-    root_pos = new_root_pos;
-    notify_coordinator_update();
-  }
-
-  return true;
+  // verify the assignment is unchanged by round trip through the workspace
+  WorkAssignment wa2;
+  wa2.from_workspace(this, 0);
+  assert(wa == wa2);
 }
 
 // Determine whether we will be able to respond to a SPLIT_WORK request at our
 // current point in iterative search.
 //
-// Needs an updated value of `root_pos`.
+// Also update the worker's values of `root_pos` and `root_throwval_options`.
 
 bool Worker::iterative_can_split() {
-  return (root_pos <= pos);
+  WorkAssignment wa;
+  wa.from_workspace(this, 0);
+
+  root_throwval_options = wa.root_throwval_options;
+
+  assert(wa.root_pos >= root_pos);
+  if (wa.root_pos != root_pos) {
+    root_pos = wa.root_pos;
+    notify_coordinator_update();
+  }
+
+  return wa.is_splittable();
 }
 
 // Update the state of the iterative search if a SPLIT_WORK request updated
@@ -872,4 +746,43 @@ inline void Worker::iterative_handle_finished_pattern() {
   }
   pattern.at(pos + 1) = -1;
   report_pattern();
+}
+
+//------------------------------------------------------------------------------
+// WorkSpace methods
+//------------------------------------------------------------------------------
+
+const Graph& Worker::get_graph() const {
+  return graph;
+}
+
+void Worker::set_cell(unsigned slot, unsigned index, unsigned col,
+    unsigned col_limit, unsigned from_state) {
+  assert(slot == 0);
+  assert(index < beat.size());
+  WorkCell& wc = beat.at(index);
+  wc.col = col;
+  wc.col_limit = col_limit;
+  wc.from_state = from_state;
+}
+
+std::tuple<unsigned, unsigned, unsigned> Worker::get_cell(unsigned slot,
+    unsigned index) const {
+  assert(slot == 0);
+  assert(index < beat.size());
+  const WorkCell& wc = beat.at(index);
+  return std::make_tuple(wc.col, wc.col_limit, wc.from_state);
+}
+
+void Worker::set_info(unsigned slot, unsigned new_start_state,
+    unsigned new_end_state, int new_pos) {
+  assert(slot == 0);
+  start_state = new_start_state;
+  end_state = new_end_state;
+  pos = new_pos;
+}
+
+std::tuple<unsigned, unsigned, int> Worker::get_info(unsigned slot) const {
+  assert(slot == 0);
+  return std::make_tuple(start_state, end_state, pos);
 }

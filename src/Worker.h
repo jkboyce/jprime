@@ -16,6 +16,7 @@
 #include "Graph.h"
 #include "WorkCell.h"
 #include "WorkAssignment.h"
+#include "WorkSpace.h"
 
 #include <queue>
 #include <mutex>
@@ -27,7 +28,7 @@
 
 class CoordinatorCPU;
 
-class Worker {
+class Worker : public WorkSpace {
  public:
   Worker(const SearchConfig& config, CoordinatorCPU& coord, unsigned id,
       unsigned n_max);
@@ -128,11 +129,20 @@ class Worker {
   void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
   void iterative_init_workspace();
-  void to_workspace(const WorkAssignment& wa, unsigned slot);
-  bool iterative_calc_rootpos_and_options();
   bool iterative_can_split();
   void iterative_update_after_split();
   void iterative_handle_finished_pattern();
+
+  // WorkSpace methods; defined in GenLoopsIterative.cc
+  virtual const Graph& get_graph() const override;
+  virtual void set_cell(unsigned slot, unsigned index, unsigned col,
+    unsigned col_limit, unsigned from_state) override;
+  virtual std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
+    unsigned index) const override;
+  virtual void set_info(unsigned slot, unsigned new_start_state,
+    unsigned new_end_state, int new_pos) override;
+  virtual std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const
+    override;
 };
 
 

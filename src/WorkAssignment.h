@@ -13,6 +13,7 @@
 #define JPRIME_WORKASSIGNMENT_H_
 
 #include "Graph.h"
+#include "WorkSpace.h"
 
 #include <iostream>
 #include <list>
@@ -85,15 +86,15 @@ class WorkAssignment {
   // command-line flags
   unsigned end_state = 0;
 
-  // sequence of throws comprising the current position in the search tree
-  std::vector<unsigned> partial_pattern;
-
   // lowest value of `pos` that still has unexplored throw options in the
   // search tree; used for splitting work
   unsigned root_pos = 0;
 
   // set of unexplored throw options at `pos`==`root_pos`
   std::list<unsigned> root_throwval_options;
+
+  // sequence of throws comprising the current position in the search tree
+  std::vector<unsigned> partial_pattern;
 
  public:
   // utility methods
@@ -104,9 +105,13 @@ class WorkAssignment {
   void build_rootpos_throw_options(const Graph& graph, unsigned from_state,
     unsigned start_column);
 
-  // converting to/from string representation
-  bool from_string(const std::string& str);
+  // converting to/from a string representation
   std::string to_string() const;
+  bool from_string(const std::string& str);
+
+  // loading into/reading from a WorkSpace
+  void to_workspace(WorkSpace* ws, unsigned slot) const;
+  void from_workspace(const WorkSpace* ws, unsigned slot);
 
   // work splitting
   bool is_splittable() const;
