@@ -51,6 +51,7 @@
 #include <string>
 #include <stdexcept>
 #include <format>
+#include <tuple>
 
 
 void do_tests();  // defined in jprime_tests.cc
@@ -138,11 +139,14 @@ void print_analysis(int argc, char** argv) {
 }
 
 //------------------------------------------------------------------------------
-// Search: Prep `config` and `context` data structures
+// Search: Prepare `config` and `context` data structures
 //------------------------------------------------------------------------------
 
-void prepare_calculation(int argc, char** argv, SearchConfig& config,
-      SearchContext& context) {
+std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
+      char** argv) {
+  SearchConfig config;
+  SearchContext context;
+
   // first check if the user wants file output mode
   std::string outfile;
   for (int i = 1; i < argc - 1; ++i) {
@@ -177,7 +181,7 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
                        context.arglist, context.npatterns,
                        context.assignments.size())
                   << std::endl;
-        return;
+        return std::make_tuple(config, context);
       } catch (const std::invalid_argument& ie) {
         std::cerr << ie.what() << '\n';
         std::exit(EXIT_FAILURE);
@@ -200,9 +204,11 @@ void prepare_calculation(int argc, char** argv, SearchConfig& config,
     context.arglist += argv[i];
   }
 
-  // set initial work assignment; default value does entire calculation
+  // default work assignment does entire calculation
   WorkAssignment wa;
   context.assignments.push_back(wa);
+
+  return std::make_tuple(config, context);
 }
 
 //------------------------------------------------------------------------------
@@ -225,9 +231,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  SearchConfig config;
-  SearchContext context;
-  prepare_calculation(argc, argv, config, context);
+  auto [config, context] = prepare_calculation(argc, argv);
   auto coordinator = Coordinator::make_coordinator(config, context, std::cout);
 
   if (!coordinator->run()) {
