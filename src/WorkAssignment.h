@@ -1,8 +1,7 @@
 //
 // WorkAssignment.h
 //
-// Defines a work assignment to hand off between workers. Together with
-// SearchConfig these completely define the computation.
+// Defines a work assignment to hand off between workers.
 //
 // Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
 //
@@ -22,50 +21,64 @@
 
 
 /*
-Rules about WorkAssignments
+About WorkAssignments
+---------------------
 
-A WorkAssignment encapsulates all information needed to define a portion of the
-overall search tree. It is the unit of work that is handed off between workers,
-and split as needed.
+A WorkAssignment specifies both (a) a subset of the overall search tree, and
+(b) the current state of the search over that tree. It is the unit of work that
+is handed off between workers, and split as needed.
+
+Invariants to maintain:
+- All WorkAssignments should be unchanged by the following round trips:
+  (a) saving and loading from a file, and (b) saving and loading from a
+  WorkSpace (the latter excluding STARTUP assignments).
+- We can determine the splittability of a WorkAssignment, and split a
+  WorkAssignment, offline using only the Graph object.
+- The results of a search (patterns, pattern counts, node counts) should be
+  invariant with respect to how WorkAssignments are split, how many workers
+  execute them, and the order in which the WorkAssignments are executed. The
+  *order* in which patterns are found is not an invariant.
+- Search workers only interrupt the search process when the following conditions
+  hold: (a) the sequence of throws in pp is a valid partial path, (b) the
+  sequence is not a complete pattern, and (c) we are cleared to advance one
+  level deeper in the search tree into an unconstrained set of options.
 
 We start DFS from a particular state in the graph, `start_state`. At any given
 point in the search:
-- `partial_pattern` represents the sequence of throws from `start_state` to the
-  current node.
-- `root_pos` represents the lowest tree depth with unexplored options; it always
-  has a value in the range [0, partial_pattern.size()].
-- `root_throwval_options` represents the set of unexplored throw values at depth
-  `root_pos`.
-- `end_state` represents the largest value of `start_state` to search over.
+- `end_state` represents the largest value of start_state to search over. We do
+  independent full-tree searches for each subsequent value of start_state, up to
+  and including end_state.
+- `partial_pattern` (pp) specifies the current location in the search tree, as
+  reached from start_state via the sequence of throws in pp. pp.size() is the
+  current search depth.
+- `root_pos` (rp) is the shallowest tree depth with unexplored options; it
+  always has a value in the range [0, pp.size()]. The search concludes when we
+  backtrack to a depth < rp.
+- `root_throwval_options` (rto) is the set of unexplored throw values for
+  advancing the search deeper from rp (except when rto is empty; see below).
 
-A WorkAssignment is in one of two states: Uninitialized or initialized.
-- An uninitialized assignment has empty `root_throwval_options`, empty
-  `partial_pattern`, and `root_pos` == 0. It represents an entire search tree
-  from `start_state`, where the search has not yet begun.
-- An initialized assignment has nonempty `root_throwval_options`. To begin the
-  search from `start_state`, the assignment is first initialized. From that
-  point onward all assignments with that value of `start_state`, including
-  splits, will be created in an initialized condition.
+There are three kinds of WorkAssignments:
+- STARTUP assignment, signified by start_state == end_state == 0. This
+  represents an entire search that has not yet begun; values of start_state and
+  end_state need to be initialized based on the search config. In this case we
+  must have pp.size() == rp == rto.size() == 0.
+- SPLITTABLE assignment, signified by rp < pp.size(). This represents a search
+  that is in progress, in particular the state of the search after advancing to
+  depth pp.size() via the sequence of throws in pp, immediately before advancing
+  to the next depth. In this case we must have rto.size() > 0.
+- UNSPLITTABLE assignment, signified by rp == pp.size(). In this case we must
+  have rto.size() == 0, which signifies "all possible values" at depth rp. In
+  this case the only unexplored options are the ones we are about to advance
+  into; hence the assignment is unsplittable.
 
-It is possible that an assignment cannot be initialized, when `start_state` has
-no outgoing links. This only occurs when `start_state` is an inactive state in
-the graph.
+Splitting WorkAssignments. A WorkAssignment W can be split in two ways:
+- By stealing unexplored values of start_state. If W has
+  end_state > start_state, the unexplored start_states can be split off into a
+  new WorkAssignment.
+- By stealing unexplored throw values in rto (SPLITTABLE type only). In this
+  case one or more of the unexplored throw values is transferred to a new
+  WorkAssignment, which has the same pp as W, up to and including depth rp.
 
-Splitting a WorkAssignment consists of taking either:
-(a) values of `start_state` where the search has not started, or
-(b) some or all of the `root_throwval_options` values at depth `root_pos`.
-
-In case (a) the new assignment is uninitialized. In case (b) it is initialized,
-with the same value of `root_pos` as the original assignment, and the same
-`partial_pattern` up to index (root_pos - 1). In case (b) the original
-assignment has its `root_throwval_options` updated, and potentially `root_pos`
-as well (always at least as large as the prior value).
-
-If splitting is done via method (b) above, not all WorkAssignments can be split!
-In particular, if the operation would leave the original assignment with no
-remaining options at `root_pos`, and no depth `d` with unexplored options
-between root_pos and the current search depth (root_pos < d <= pos), then it
-is considered unsplittable.
 */
 
 class WorkAssignment {
