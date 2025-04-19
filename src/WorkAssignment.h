@@ -24,20 +24,24 @@
 About WorkAssignments
 ---------------------
 
-A WorkAssignment specifies both (a) a subset of the overall search tree, and
-(b) the current state of the search over that tree. It is the unit of work that
-is handed off between workers, and split as needed.
+A WorkAssignment is the unit of work that is given to an individual worker
+thread to complete. WorkAssignments can be split at needed to distribute the
+search over an arbitrary number of workers. A WorkAssignment specifies both
+(a) a subset of the overall search tree, and (b) the current state of the search
+over that subtree. When the user interrupts a search, the current
+WorkAssignments for all workers are collected and saved to a checkpoint file,
+which may be resumed later.
 
 Invariants to maintain:
 - All WorkAssignments should be unchanged by the following round trips:
   (a) saving and loading from a file, and (b) saving and loading from a
-  WorkSpace (the latter excluding STARTUP assignments).
+  WorkSpace (the latter excluding assignments of type STARTUP).
 - We can determine the splittability of a WorkAssignment, and split a
   WorkAssignment, offline using only the Graph object.
 - The results of a search (patterns, pattern counts, node counts) should be
   invariant with respect to how WorkAssignments are split, how many workers
   execute them, and the order in which the WorkAssignments are executed. The
-  *order* in which patterns are found is not an invariant.
+  order in which patterns are found is not an invariant, however.
 - Search workers only interrupt the search process when the following conditions
   hold: (a) the sequence of throws in pp is a valid partial path, (b) the
   sequence is not a complete pattern, and (c) we are cleared to advance one
@@ -52,8 +56,8 @@ point in the search:
   reached from start_state via the sequence of throws in pp. pp.size() is the
   current search depth.
 - `root_pos` (rp) is the shallowest tree depth with unexplored options; it
-  always has a value in the range [0, pp.size()]. The search concludes when we
-  backtrack to a depth < rp.
+  always has a value in the range [0, pp.size()]. The worker's search from
+  start_state concludes as soon as it backtracks to a depth < rp.
 - `root_throwval_options` (rto) is the set of unexplored throw values for
   advancing the search deeper from rp (except when rto is empty; see below).
 
@@ -68,13 +72,13 @@ There are three kinds of WorkAssignments:
   to the next depth. In this case we must have rto.size() > 0.
 - UNSPLITTABLE assignment, signified by rp == pp.size(). In this case we must
   have rto.size() == 0, which signifies "all possible values" at depth rp. In
-  this case the only unexplored options are the ones we are about to advance
-  into; hence the assignment is unsplittable.
+  this case the only unexplored options in our subtree are the ones we are about
+  to advance into; hence the assignment is unsplittable.
 
 Splitting WorkAssignments. A WorkAssignment W can be split in two ways:
 - By stealing unexplored values of start_state. If W has
-  end_state > start_state, the unexplored start_states can be split off into a
-  new WorkAssignment.
+  end_state > start_state, some the unexplored values of start_state can be
+  split off into a new WorkAssignment.
 - By stealing unexplored throw values in rto (SPLITTABLE type only). In this
   case one or more of the unexplored throw values is transferred to a new
   WorkAssignment, which has the same pp as W, up to and including depth rp.
