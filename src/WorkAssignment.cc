@@ -127,7 +127,7 @@ std::string WorkAssignment::to_string() const {
 bool WorkAssignment::from_string(const std::string& str) {
   std::regex rgx(
       "\\{ start_state:([0-9]+), end_state:([0-9]+), root_pos:([0-9]+), "
-      "root_options:\\[([0-9,]+)\\], current:\\\"([0-9,]*)\\\" \\}"
+      "root_options:\\[([0-9,]*)\\], current:\\\"([0-9,]*)\\\" \\}"
   );
   std::smatch matches;
 
@@ -140,13 +140,13 @@ bool WorkAssignment::from_string(const std::string& str) {
   root_pos = std::stoi(matches[3].str());
 
   root_throwval_options.clear();
-  const std::string tvo{matches[4].str()};
-  auto x = tvo.cbegin();
-  while (true) {
-    const auto y = std::find(x, tvo.cend(), ',');
+  const std::string rto{matches[4].str()};
+  auto x = rto.cbegin();
+  while (x != rto.cend()) {
+    const auto y = std::find(x, rto.cend(), ',');
     const std::string s{x, y};
     root_throwval_options.push_back(std::stoi(s));
-    if (y == tvo.cend())
+    if (y == rto.cend())
       break;
     x = y + 1;
   }
@@ -154,7 +154,7 @@ bool WorkAssignment::from_string(const std::string& str) {
   partial_pattern.clear();
   const std::string pp{matches[5].str()};
   x = pp.cbegin();
-  while (true) {
+  while (x != pp.cend()) {
     const auto y = std::find(x, pp.cend(), ',');
     const std::string s{x, y};
     partial_pattern.push_back(std::stoi(s));

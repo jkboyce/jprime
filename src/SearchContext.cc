@@ -194,9 +194,10 @@ void SearchContext::to_file(const std::string& file) {
       WorkAssignment wa_rt;
       wa_rt.from_string(wa_str);
       if (wa_rt != wa) {
-        std::cerr << "ERROR: Mismatch round-tripping to a string:\n  "
-                  << wa << '\n'
-                  << wa_rt << '\n';
+        std::cerr << "ERROR: Mismatch round-tripping to a string:\n"
+                  << "original: " << wa << '\n'
+                  << "string form: '" << wa_str << "'\n"
+                  << "round-trip: " << wa_rt << '\n';
       }
       assert(wa_rt == wa);
 
