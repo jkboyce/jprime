@@ -25,7 +25,7 @@ About WorkAssignments
 ---------------------
 
 A WorkAssignment is the unit of work that is given to an individual worker
-thread to complete. WorkAssignments can be split at needed to distribute the
+thread to complete. WorkAssignments can be split as needed to distribute the
 search over an arbitrary number of workers. A WorkAssignment specifies both
 (a) a subset of the overall search tree, and (b) the current state of the search
 over that subtree. When the user interrupts a search, the current
@@ -34,14 +34,17 @@ which may be resumed later.
 
 Invariants to maintain:
 - All WorkAssignments should be unchanged by the following round trips:
-  (a) saving and loading from a file, and (b) saving and loading from a
-  WorkSpace (the latter excluding assignments of type STARTUP).
+  (a) saving and loading from a file, (b) saving and loading from a string, and
+  (c) saving and loading from a WorkSpace (the latter excluding assignments of
+  type STARTUP which cannot be written to a WorkSpace).
 - We can determine the splittability of a WorkAssignment, and split a
   WorkAssignment, offline using only the Graph object.
 - The results of a search (patterns, pattern counts, node counts) should be
-  invariant with respect to how WorkAssignments are split, how many workers
-  execute them, and the order in which the WorkAssignments are executed. The
-  order in which patterns are found is not an invariant, however.
+  invariant with respect to: (a) how WorkAssignments are split, (b) how many
+  workers execute them, (c) the timing and number of times the search is
+  interrupted, saved to a checkpoint file, and resumed, and (d) the order in
+  which WorkAssignments are executed. The order in which patterns are found
+  during the search is not an invariant, however.
 - Search workers only interrupt the search process when the following conditions
   hold: (a) the sequence of throws in pp is a valid partial path, (b) the
   sequence is not a complete pattern, and (c) we are cleared to advance one
@@ -95,7 +98,7 @@ class WorkAssignment {
   };
 
  public:
-  // lowest value of `start_state` for search; 0 auto-calculates based on
+  // current value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
   unsigned start_state = 0;
 
@@ -110,7 +113,8 @@ class WorkAssignment {
   // set of unexplored throw options at `pos`==`root_pos`
   std::list<unsigned> root_throwval_options;
 
-  // sequence of throws comprising the current position in the search tree
+  // sequence of throws from `start_state` comprising the current position in
+  // the search tree
   std::vector<unsigned> partial_pattern;
 
  public:
