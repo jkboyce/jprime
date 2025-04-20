@@ -85,7 +85,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
     unsigned max_idx);
   void process_worker_counters(unsigned bank);
   uint32_t process_pattern_buffer(unsigned bank, const CudaMemoryPointers& ptrs,
-    const Graph& graph,const uint32_t pattern_buffer_size);
+    const uint32_t pattern_buffer_size);
   void record_working_time(double kernel_time, double host_time,
     unsigned idle_before, unsigned idle_after, uint64_t cycles_startup,
     uint64_t cycles_run);

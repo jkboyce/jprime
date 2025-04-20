@@ -87,7 +87,7 @@ void CoordinatorCUDA::run_search() {
     copy_worker_data_from_gpu(bankB, ptrs, max_active_idx[bankB]);
     cudaStreamSynchronize(stream[bankB]);
     process_worker_counters(bankB);
-    const auto pattern_count = process_pattern_buffer(bankB, ptrs, graph,
+    const auto pattern_count = process_pattern_buffer(bankB, ptrs,
         params.pattern_buffer_size);
     summary_after[bankB] = summarize_worker_status(bankB);
 
@@ -102,11 +102,7 @@ void CoordinatorCUDA::run_search() {
         host_time);
 
     if (Coordinator::stopping) {
-      copy_worker_data_from_gpu(bankA, ptrs, max_active_idx[bankA]);
-      cudaStreamSynchronize(stream[bankA]);
-      process_worker_counters(bankA);
-      (void)process_pattern_buffer(bankA, ptrs, graph,
-          params.pattern_buffer_size);
+      process_worker_counters(bankA);  // node counts from splitting
       break;
     }
     if (summary_after[bankB].workers_idle.size() == config.num_threads &&
@@ -713,8 +709,7 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank) {
 // exception with a relevant error message.
 
 uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
-    const CudaMemoryPointers& ptrs, const Graph& graph,
-    const uint32_t pattern_buffer_size) {
+    const CudaMemoryPointers& ptrs, const uint32_t pattern_buffer_size) {
   if (ptrs.pb_d[bank] == nullptr) {
     return 0;
   }
