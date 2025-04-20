@@ -16,17 +16,20 @@
 #include "SearchConfig.h"
 #include "SearchContext.h"
 #include "WorkAssignment.h"
+#include "WorkSpace.h"
 #include "CudaTypes.h"
 
 #include <cuda_runtime.h>
 
 
-class CoordinatorCUDA : public Coordinator {
+class CoordinatorCUDA : public Coordinator, public WorkSpace {
  public:
   CoordinatorCUDA(SearchConfig& config, SearchContext& context,
     std::ostream& jpout);
 
  protected:
+  Graph graph;
+
   // pinned memory blocks in host
   WorkerInfo* wi_h[2] = { nullptr, nullptr };
   ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };
@@ -58,21 +61,19 @@ class CoordinatorCUDA : public Coordinator {
 
   // setup
   cudaDeviceProp initialize_cuda_device();
-  Graph build_and_reduce_graph();
-  CudaAlgorithm select_cuda_search_algorithm(const Graph& graph);
-  std::vector<statenum_t> make_graph_buffer(const Graph& graph,
-    CudaAlgorithm alg);
+  void build_and_reduce_graph();
+  CudaAlgorithm select_cuda_search_algorithm();
+  std::vector<statenum_t> make_graph_buffer(CudaAlgorithm alg);
   CudaRuntimeParams find_runtime_params(const cudaDeviceProp& prop,
-    CudaAlgorithm alg, const Graph& graph);
-  size_t calc_shared_memory_size(CudaAlgorithm alg, const Graph& graph,
-    unsigned n_max, const CudaRuntimeParams& p);
+    CudaAlgorithm alg);
+  size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned n_max,
+    const CudaRuntimeParams& p);
   void allocate_memory(CudaAlgorithm alg, const CudaRuntimeParams& params,
-    const std::vector<statenum_t>& graph_buffer, const Graph& graph,
-    CudaMemoryPointers& ptrs);
+    const std::vector<statenum_t>& graph_buffer, CudaMemoryPointers& ptrs);
   void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer,
     const CudaMemoryPointers& ptrs);
   void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
-    const Graph& graph, const CudaMemoryPointers& ptrs);
+    const CudaMemoryPointers& ptrs);
 
   // main loop
   void copy_worker_data_to_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
@@ -94,21 +95,19 @@ class CoordinatorCUDA : public Coordinator {
     uint32_t pattern_count, CudaRuntimeParams p);
 
   // cleanup
-  void gather_unfinished_work_assignments(const Graph& graph);
+  void gather_unfinished_work_assignments();
   void cleanup(CudaMemoryPointers& ptrs);
 
   // manage work assignments
-  void load_initial_work_assignments(const Graph& graph);
+  void load_initial_work_assignments();
   void load_work_assignment(unsigned bank, const unsigned id,
-    WorkAssignment& wa, const Graph& graph);
-  WorkAssignment read_work_assignment(unsigned bank, unsigned id,
-    const Graph& graph);
-  unsigned assign_new_jobs(unsigned bank, const Graph& graph,
-    unsigned idle_before_b, const CudaWorkerSummary& summary,
-    unsigned idle_before_a);
+    WorkAssignment& wa);
+  WorkAssignment read_work_assignment(unsigned bank, unsigned id);
+  unsigned assign_new_jobs(unsigned bank, unsigned idle_before_b,
+    const CudaWorkerSummary& summary, unsigned idle_before_a);
 
   // summarization and status display
-  CudaWorkerSummary summarize_worker_status(unsigned bank, const Graph& graph);
+  CudaWorkerSummary summarize_worker_status(unsigned bank);
   CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
     const CudaWorkerSummary& b);
   void do_status_display(const CudaWorkerSummary& summary,
@@ -117,7 +116,21 @@ class CoordinatorCUDA : public Coordinator {
 
   // helper
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
+  const ThreadStorageWorkCell& workcell(unsigned bank, unsigned id,
+    unsigned pos) const;
+
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
+
+  // WorkSpace methods
+  virtual const Graph& get_graph() const override;
+  virtual void set_cell(unsigned slot, unsigned index, unsigned col,
+    unsigned col_limit, unsigned from_state) override;
+  virtual std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
+    unsigned index) const override;
+  virtual void set_info(unsigned slot, unsigned new_start_state,
+    unsigned new_end_state, int new_pos) override;
+  virtual std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const
+    override;
 };
 
 void CUDART_CB record_kernel_completion(void* data);

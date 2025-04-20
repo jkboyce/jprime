@@ -106,15 +106,6 @@ __global__ void cuda_gen_loops_normal(
                 (upper - pos_lower_s) + (threadIdx.x & 31)
       ] : nullptr;
 
-  // initialize used[]
-  for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
-    used[i].data = 0;
-  }
-  for (unsigned i = 1; i <= pos; ++i) {
-    const statenum_t from_state = workcell_d[i].from_state;
-    used[from_state / 32].data |= (1u << (from_state & 31));
-  }
-
   // initialize workcell_s[]
   for (unsigned i = pos_lower_s; i < pos_upper_s; ++i) {
     if (workcell_s != nullptr && i < n_max) {
@@ -141,6 +132,20 @@ __global__ void cuda_gen_loops_normal(
   ThreadStorageWorkCell* const workcell_pos_upper_plus1 =
       (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
       &workcell_d[pos_upper_s] : nullptr;
+
+  // starting a new value of `start_state`
+  if (pos == -1) {
+    pos = 0;
+  }
+
+  // initialize used[]
+  for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
+    used[i].data = 0;
+  }
+  for (int i = 1; i <= pos; ++i) {
+    const statenum_t from_state = workcell_d[i].from_state;
+    used[from_state / 32].data |= (1u << (from_state & 31));
+  }
 
   // initialize current workcell pointer
   ThreadStorageWorkCell* wc =
@@ -380,12 +385,44 @@ __global__ void cuda_gen_loops_super(
         ] : nullptr;
   }
 
+  // initialize workcell_s[]
+  for (unsigned i = pos_lower_s; i < pos_upper_s; ++i) {
+    if (workcell_s != nullptr && i < n_max) {
+      workcell_s[i - pos_lower_s].col = workcell_d[i].col;
+      workcell_s[i - pos_lower_s].col_limit = workcell_d[i].col_limit;
+      workcell_s[i - pos_lower_s].from_state = workcell_d[i].from_state;
+      workcell_s[i - pos_lower_s].count = workcell_d[i].count;
+    }
+  }
+
+  // set up four pointers to indicate when we're moving between the portions of
+  // workcell[] in device memory and shared memory
+  ThreadStorageWorkCell* const workcell_pos_lower_minus1 =
+      (pos_lower_s > 0 && pos_lower_s <= n_max &&
+            pos_lower_s < pos_upper_s) ?
+      &workcell_d[pos_lower_s - 1] : nullptr;
+  ThreadStorageWorkCell* const workcell_pos_lower =
+      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
+      &workcell_s[0] : nullptr;
+  ThreadStorageWorkCell* const workcell_pos_upper =
+      (pos_lower_s < pos_upper_s && pos_upper_s < n_max &&
+          pos_lower_s < pos_upper_s) ?
+      &workcell_s[pos_upper_s - pos_lower_s - 1] : nullptr;
+  ThreadStorageWorkCell* const workcell_pos_upper_plus1 =
+      (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
+      &workcell_d[pos_upper_s] : nullptr;
+
+  // starting a new value of `start_state`
+  if (pos == -1) {
+    pos = 0;
+  }
+
   // initialize used[]
   if (used != nullptr) {
     for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
       used[i].data = 0;
     }
-    for (unsigned i = 1; i <= pos; ++i) {
+    for (int i = 1; i <= pos; ++i) {
       const statenum_t from_state = workcell_d[i].from_state;
       used[from_state / 32].data |= (1u << (from_state & 31));
     }
@@ -415,7 +452,7 @@ __global__ void cuda_gen_loops_super(
       }
     }
 
-    for (unsigned i = 0; i < pos; ++i) {
+    for (int i = 0; i < pos; ++i) {
       const statenum_t from_state = workcell_d[i].from_state;
       const statenum_t from_cycle =
           graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
@@ -432,33 +469,6 @@ __global__ void cuda_gen_loops_super(
       }
     }
   }
-
-  // initialize workcell_s[]
-  for (unsigned i = pos_lower_s; i < pos_upper_s; ++i) {
-    if (workcell_s != nullptr && i < n_max) {
-      workcell_s[i - pos_lower_s].col = workcell_d[i].col;
-      workcell_s[i - pos_lower_s].col_limit = workcell_d[i].col_limit;
-      workcell_s[i - pos_lower_s].from_state = workcell_d[i].from_state;
-      workcell_s[i - pos_lower_s].count = workcell_d[i].count;
-    }
-  }
-
-  // set up four pointers to indicate when we're moving between the portions of
-  // workcell[] in device memory and shared memory
-  ThreadStorageWorkCell* const workcell_pos_lower_minus1 =
-      (pos_lower_s > 0 && pos_lower_s <= n_max &&
-            pos_lower_s < pos_upper_s) ?
-      &workcell_d[pos_lower_s - 1] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_lower =
-      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
-      &workcell_s[0] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_upper =
-      (pos_lower_s < pos_upper_s && pos_upper_s < n_max &&
-          pos_lower_s < pos_upper_s) ?
-      &workcell_s[pos_upper_s - pos_lower_s - 1] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_upper_plus1 =
-      (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
-      &workcell_d[pos_upper_s] : nullptr;
 
   // initialize current workcell pointer
   ThreadStorageWorkCell* wc =
