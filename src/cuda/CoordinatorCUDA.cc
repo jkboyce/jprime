@@ -817,7 +817,7 @@ void CoordinatorCUDA::record_working_time(double kernel_time, double host_time,
   // negative host_time means that host processing finished before other bank's
   // kernel run; only count host_time > 0 when GPU was idle
   total_kernel_time += kernel_time;
-  total_host_time += std::max(0.0, host_time);
+  total_host_time += std::max(host_time, 0.0);
 
   // deduct kernel time spent doing initialization
   const double working_time = (cycles_startup + cycles_run == 0 ?
@@ -866,8 +866,9 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   target_cycles = std::max(target_cycles, static_cast<double>(min_cycles));
   double target_time =
       (static_cast<double>(last_cycles_startup) + target_cycles) / cps;
+  // note that `kernel_time + host_time` is the real host processing time
   target_time = std::max(target_time, 1.0 * (kernel_time + host_time));
-  target_time = std::min(target_time, 2.0);
+  target_time = std::min(target_time, 2.0);  // max of 2 seconds
   target_cycles = target_time * cps - static_cast<double>(last_cycles_startup);
 
   // try to keep the pattern buffer from overflowing
@@ -1408,10 +1409,10 @@ void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
 
   const double nodespersec =
       static_cast<double>(summary_afterB.nnodes - summary_beforeA.nnodes) /
-          (host_time + kernel_time);
+          (std::max(host_time, 0.0) + kernel_time);
   const double patspersec =
       static_cast<double>(summary_afterB.ntotal - summary_beforeA.ntotal) /
-          (host_time + kernel_time);
+          (std::max(host_time, 0.0) + kernel_time);
 
   status_lines.push_back(std::format(
     "idled:{:7}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
