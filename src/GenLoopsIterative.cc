@@ -40,11 +40,11 @@ void Worker::iterative_gen_loops_normal() {
 
     // replay back through the algorithm up to and including position `pos`.
     // this sets up variables like used[], etc.
-    if (pos == -1u) {
+    if (pos == -1) {
       // search is just beginning; no need to replay
       pos = 0;
     } else {
-      const unsigned pos_orig = pos;
+      const auto pos_orig = pos;
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_normal<false, true>();
@@ -141,7 +141,7 @@ void Worker::iterative_gen_loops_normal() {
 
       pos = p;
       if (iterative_can_split()) {
-        for (size_t i = 0; i <= pos; ++i) {
+        for (int i = 0; i <= pos; ++i) {
           pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                            .at(beat.at(i).col);
         }
@@ -187,10 +187,10 @@ template<bool REPLAY>
 void Worker::iterative_gen_loops_normal_marking() {
   if (!REPLAY) {
     iterative_init_workspace();
-    if (pos == -1u) {
+    if (pos == -1) {
       pos = 0;
     } else {
-      const unsigned pos_orig = pos;
+      const auto pos_orig = pos;
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_normal_marking<true>();
@@ -363,7 +363,7 @@ void Worker::iterative_gen_loops_normal_marking() {
 
         pos = p;
         if (iterative_can_split()) {
-          for (size_t i = 0; i <= pos; ++i) {
+          for (int i = 0; i <= pos; ++i) {
             pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                              .at(beat.at(i).col);
           }
@@ -443,10 +443,10 @@ template<bool SUPER0, bool REPLAY>
 void Worker::iterative_gen_loops_super() {
   if (!REPLAY) {
     iterative_init_workspace();
-    if (pos == -1u) {
+    if (pos == -1) {
       pos = 0;
     } else {
-      const unsigned pos_orig = pos;
+      const auto pos_orig = pos;
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_super<SUPER0, true>();
@@ -566,7 +566,7 @@ void Worker::iterative_gen_loops_super() {
 
         pos = p;
         if (iterative_can_split()) {
-          for (size_t i = 0; i <= pos; ++i) {
+          for (int i = 0; i <= pos; ++i) {
             pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                              .at(beat.at(i).col);
           }
@@ -722,7 +722,7 @@ void Worker::iterative_update_after_split() {
 }
 
 inline void Worker::iterative_handle_finished_pattern() {
-  for (size_t i = 0; i <= pos; ++i) {
+  for (int i = 0; i <= pos; ++i) {
     pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                      .at(beat.at(i).col);
   }

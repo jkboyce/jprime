@@ -264,7 +264,7 @@ void Worker::send_stats_to_coordinator() {
   std::vector<int> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
-  for (size_t i = 0; i <= pos; ++i) {
+  for (int i = 0; i <= pos; ++i) {
     assert(pattern.at(i) >= 0);
     msg.worker_throw.at(i) = pattern.at(i);
 
@@ -279,9 +279,9 @@ void Worker::send_stats_to_coordinator() {
       assert(!u.at(to_state));
 
       // unexplored options remaining at position `i`
-      if (i < root_pos) {
+      if (i < static_cast<int>(root_pos)) {
         msg.worker_options_left.at(i) = 0;
-      } else if (i == root_pos) {
+      } else if (i == static_cast<int>(root_pos)) {
         msg.worker_options_left.at(i) =
             static_cast<unsigned>(root_throwval_options.size());
       } else {

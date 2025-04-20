@@ -31,7 +31,7 @@ void Worker::gen_loops_normal() {
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
-    if (pos == root_pos &&
+    if (pos == static_cast<int>(root_pos) &&
         !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
     if (used[to] != 0)
@@ -43,12 +43,12 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
-    if (pos + 1 == n_max)
+    if (pos + 1 == static_cast<int>(n_max))
       continue;
 
     // see if it's time to check the inbox
-    if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-          && col < limit - 1) {
+    if (++steps_taken >= steps_per_inbox_check &&
+          pos > static_cast<int>(root_pos) && col < limit - 1) {
       // the restrictions on when we enter here are in case we get a message
       // to hand off work to another worker; see split_work_assignment()
 
@@ -69,7 +69,7 @@ void Worker::gen_loops_normal() {
     --used[to];
 
     // only a single allowed throw value for `pos` < `root_pos`
-    if (pos < root_pos)
+    if (pos < static_cast<int>(root_pos))
       break;
   }
 
@@ -93,7 +93,7 @@ void Worker::gen_loops_normal_marking() {
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
-    if (pos == root_pos &&
+    if (pos == static_cast<int>(root_pos) &&
         !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
     if (used[to] != 0)
@@ -106,7 +106,7 @@ void Worker::gen_loops_normal_marking() {
       continue;
     }
 
-    if (pos + 1 == n_max)
+    if (pos + 1 == static_cast<int>(n_max))
       continue;
 
     if (throwval != 0 && throwval != graph.h) {
@@ -137,8 +137,8 @@ void Worker::gen_loops_normal_marking() {
     } else {
       pattern[pos] = throwval;
 
-      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-            && col < limit - 1) {
+      if (++steps_taken >= steps_per_inbox_check &&
+            pos > static_cast<int>(root_pos) && col < limit - 1) {
         pattern.at(pos + 1) = -1;
         process_inbox_running();
         steps_taken = 0;
@@ -155,7 +155,7 @@ void Worker::gen_loops_normal_marking() {
     }
 
     // only a single allowed throw value for `pos` < `root_pos`
-    if (pos < root_pos)
+    if (pos < static_cast<int>(root_pos))
       break;
   }
 
@@ -186,7 +186,8 @@ void Worker::gen_loops_super() {
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
-    if (pos == root_pos && !mark_off_rootpos_option(ov[col], to))
+    if (pos == static_cast<int>(root_pos) &&
+        !mark_off_rootpos_option(ov[col], to))
       continue;
     if (used[to] != 0)
       continue;
@@ -207,11 +208,11 @@ void Worker::gen_loops_super() {
         continue;
       } else if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
         continue;
-      } else if (pos + 1 == n_max) {
+      } else if (pos + 1 == static_cast<int>(n_max)) {
         continue;
       } else {
-        if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-              && col < limit - 1) {
+        if (++steps_taken >= steps_per_inbox_check &&
+              pos > static_cast<int>(root_pos) && col < limit - 1) {
           pattern.at(pos + 1) = -1;
           process_inbox_running();
           steps_taken = 0;
@@ -239,11 +240,11 @@ void Worker::gen_loops_super() {
 
       pattern[pos] = throwval;
       if (to == start_state) {
-        if (shiftcount < pos) {
+        if (static_cast<int>(shiftcount) < pos) {
           // don't allow all shift throws
           handle_finished_pattern();
         }
-      } else if (pos + 1 == n_max) {
+      } else if (pos + 1 == static_cast<int>(n_max)) {
         continue;
       } else {
         ++shiftcount;
@@ -258,7 +259,7 @@ void Worker::gen_loops_super() {
       }
     }
 
-    if (pos < root_pos)
+    if (pos < static_cast<int>(root_pos))
       break;
   }
 
@@ -277,7 +278,7 @@ void Worker::gen_loops_super0() {
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
-    if (pos == root_pos &&
+    if (pos == static_cast<int>(root_pos) &&
         !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
       continue;
 
@@ -292,11 +293,11 @@ void Worker::gen_loops_super0() {
       continue;
     } else if (exitcyclesleft == 0) {
       continue;
-    } else if (pos + 1 == n_max) {
+    } else if (pos + 1 == static_cast<int>(n_max)) {
       continue;
     } else {
-      if (++steps_taken >= steps_per_inbox_check && pos > root_pos
-            && col < limit - 1) {
+      if (++steps_taken >= steps_per_inbox_check &&
+            pos > static_cast<int>(root_pos) && col < limit - 1) {
         pattern.at(pos + 1) = -1;
         process_inbox_running();
         steps_taken = 0;
@@ -316,7 +317,7 @@ void Worker::gen_loops_super0() {
       exitcyclesleft = old_exitcyclesleft;
     }
 
-    if (pos < root_pos)
+    if (pos < static_cast<int>(root_pos))
       break;
   }
 
@@ -336,7 +337,7 @@ unsigned Worker::load_one_throw() {
     loading_work = false;
     return 0;
   }
-  if (pos + 1 == n_max) {
+  if (pos + 1 == static_cast<int>(n_max)) {
     loading_work = false;
   }
 
@@ -349,7 +350,7 @@ unsigned Worker::load_one_throw() {
 
   // diagnostic information if there's a problem
   std::ostringstream buffer;
-  for (size_t i = 0; i <= pos; ++i) {
+  for (int i = 0; i <= pos; ++i) {
     if (i != 0) {
       buffer << ',';
     }
@@ -542,7 +543,7 @@ inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
 inline void Worker::handle_finished_pattern() {
   ++count[pos + 1];
 
-  if ((pos + 1) >= n_min && !config.countflag) {
+  if ((pos + 1) >= static_cast<int>(n_min) && !config.countflag) {
     pattern.at(pos + 1) = -1;
     report_pattern();
   }

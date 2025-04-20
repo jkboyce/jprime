@@ -56,7 +56,7 @@ class Worker : public WorkSpace {
   std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
-  unsigned pos = 0;  // current index in the pattern
+  int pos = 0;  // current index in the pattern
   unsigned from = 1;  // current state number
   unsigned shiftcount = 0;
   unsigned exitcyclesleft = 0;
