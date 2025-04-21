@@ -158,7 +158,7 @@ void SearchContext::to_file(const std::string& file) {
   if (!myfile || !myfile.is_open())
     return;
 
-  myfile << "version           6.9\n"
+  myfile << "version           7.0\n"
          << "command line      " << arglist << '\n'
          << "states            " << full_numstates << '\n'
          << "shift cycles      " << full_numcycles << '\n'
@@ -257,8 +257,8 @@ void SearchContext::from_file(const std::string& file) {
         }
         val = s.substr(column_start, s.size());
         trim(val);
-        if (val != "6.8" && val != "6.9") {
-          error = "file version below 6.8 not supported";
+        if (val != "7.0") {
+          error = "file version below 7.0 not supported";
         }
         version = val;
         break;
@@ -305,19 +305,14 @@ void SearchContext::from_file(const std::string& file) {
         nnodes = std::stoull(val);
         break;
       case 10:
-        if (version == "6.8") {
-          ++linenum;  // skip and read line as "seconds elapsed" instead
-          [[fallthrough]];
-        } else {
-          if (s.rfind("work splits", 0) != 0) {
-            error = "syntax in line 11";
-            break;
-          }
-          val = s.substr(column_start, s.size());
-          trim(val);
-          splits_total = static_cast<unsigned>(std::stoi(val));
+        if (s.rfind("work splits", 0) != 0) {
+          error = "syntax in line 11";
           break;
         }
+        val = s.substr(column_start, s.size());
+        trim(val);
+        splits_total = static_cast<unsigned>(std::stoi(val));
+        break;
       case 11:
         if (s.rfind("seconds elapsed", 0) != 0) {
           error = "syntax in line 12";
