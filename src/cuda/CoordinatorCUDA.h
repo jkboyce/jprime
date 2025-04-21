@@ -118,7 +118,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   // manage work assignments
   void load_initial_work_assignments();
   void load_work_assignment(unsigned bank, const unsigned id,
-    WorkAssignment& wa);
+    const WorkAssignment& wa);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id);
   void assign_new_jobs(unsigned bankB);
 

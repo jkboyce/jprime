@@ -1309,7 +1309,7 @@ void CoordinatorCUDA::load_initial_work_assignments() {
 // `ThreadStorageWorkCell` arrays.
 
 void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
-    WorkAssignment& wa) {
+    const WorkAssignment& wa) {
   wa.to_workspace(this, bank * config.num_threads + id);
   wi_h[bank][id].nnodes = 0;
   wi_h[bank][id].status = 0;
