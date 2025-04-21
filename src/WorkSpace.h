@@ -19,6 +19,9 @@
 
 class WorkSpace {
  public:
+  virtual ~WorkSpace() {};
+
+ public:
   virtual const Graph& get_graph() const = 0;
   virtual void set_cell(unsigned slot, unsigned index, unsigned col,
     unsigned col_limit, unsigned from_state) = 0;
