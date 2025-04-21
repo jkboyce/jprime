@@ -21,10 +21,9 @@
 
 // defined in CudaKernels.cu
 void configure_cuda_shared_memory(const CudaRuntimeParams& p);
-void get_gpu_static_pointers(CudaMemoryPointers& ptr);
+CudaMemoryPointers get_gpu_static_pointers();
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-  CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t stream);
-
+  CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream);
 
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
@@ -35,40 +34,11 @@ CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
 //------------------------------------------------------------------------------
 
 void CoordinatorCUDA::run_search() {
-  const auto prop = initialize_cuda_device();
-  build_and_reduce_graph();
-  const auto alg = select_cuda_search_algorithm();
-  const auto graph_buffer = make_graph_buffer(alg);
-  const auto params = find_runtime_params(prop, alg);
+  initialize();
 
-  CudaMemoryPointers ptrs;
-  get_gpu_static_pointers(ptrs);
-  allocate_memory(alg, params, graph_buffer, ptrs);
-  copy_graph_to_gpu(graph_buffer, ptrs);
-  copy_static_vars_to_gpu(params, ptrs);
-  configure_cuda_shared_memory(params);
-
-  // timing setup
-  const auto now = std::chrono::high_resolution_clock::now();
-  uint64_t cycles[2];
-  for (unsigned bank = 0; bank < 2; ++bank) {
-    before_kernel[bank] = now;
-    after_kernel[bank] = now;
-    after_host[bank] = now;
-    cycles[bank] = 1000000;
-  }
-  last_display_time = now;
-
-  // worker setup
+  // set up workers
   load_initial_work_assignments();
-  CudaWorkerSummary summary_before[2];
-  CudaWorkerSummary summary_after[2];
-  unsigned idle_before[2];
-  for (unsigned bank = 0; bank < 2; ++bank) {
-    summary_before[bank] = summarize_worker_status(bank);
-    idle_before[bank] = summary_before[bank].workers_idle.size();
-    copy_worker_data_to_gpu(bank, ptrs, max_active_idx[bank], true);
-  }
+  uint64_t cycles[2] = { 1000000, 1000000 };
   cudaDeviceSynchronize();
 
   for (unsigned run = 0; ; ++run) {
@@ -77,32 +47,26 @@ void CoordinatorCUDA::run_search() {
 
     // start the workers for bankA
     before_kernel[bankA] = std::chrono::high_resolution_clock::now();
-    if (idle_before[bankA] < config.num_threads) {
-      launch_cuda_kernel(params, ptrs, alg, bankA, cycles[bankA]);
-    }
-    cudaLaunchHostFunc(stream[bankA], record_kernel_completion,
+    launch_cuda_kernel(bankA, cycles[bankA]);
+    cudaLaunchHostFunc(stream[bankA], record_kernel_completion_time,
         &after_kernel[bankA]);
 
     // process results from the other bank (bankB)
-    copy_worker_data_from_gpu(bankB, ptrs, max_active_idx[bankB]);
+    copy_worker_data_from_gpu(bankB);
     cudaStreamSynchronize(stream[bankB]);
     process_worker_counters(bankB);
-    const auto pattern_count = process_pattern_buffer(bankB, ptrs,
-        params.pattern_buffer_size);
+    const auto pattern_count = process_pattern_buffer(bankB);
     summary_after[bankB] = summarize_worker_status(bankB);
 
     const auto kernel_time = calc_duration_secs(before_kernel[bankB],
         after_kernel[bankB]);
     const auto host_time = calc_duration_secs(after_kernel[bankB],
         after_host[bankA]);
-    record_working_time(kernel_time, host_time, idle_before[bankB],
-        summary_after[bankB].workers_idle.size(),
-        summary_after[bankB].cycles_startup, cycles[bankB]);
-    do_status_display(summary_after[bankB], summary_before[bankA], kernel_time,
-        host_time);
+    record_working_time(bankB, kernel_time, host_time, cycles[bankB]);
+    do_status_display(bankB, kernel_time, host_time);
 
     if (Coordinator::stopping) {
-      process_worker_counters(bankA);  // node counts from splitting
+      process_worker_counters(bankA);  // node count changes from splitting
       break;
     }
     if (summary_after[bankB].workers_idle.size() == config.num_threads &&
@@ -113,15 +77,10 @@ void CoordinatorCUDA::run_search() {
 
     // prepare bankB for its next run
     const auto prev_idle_before = idle_before[bankB];
-    idle_before[bankB] = assign_new_jobs(bankB, idle_before[bankB],
-        summary_after[bankB], idle_before[bankA]);
-    copy_worker_data_to_gpu(bankB, ptrs, max_active_idx[bankB], false);
-    if (prev_idle_before < config.num_threads) {
-      cycles[bankB] = calc_next_kernel_cycles(cycles[bankB],
-          summary_after[bankB].cycles_startup, kernel_time, host_time,
-          prev_idle_before, summary_after[bankB].workers_idle.size(),
-          idle_before[bankB], pattern_count, params);
-    }
+    assign_new_jobs(bankB);
+    copy_worker_data_to_gpu(bankB);
+    cycles[bankB] = calc_next_kernel_cycles(cycles[bankB], bankB, kernel_time,
+        host_time, prev_idle_before, pattern_count);
     summary_before[bankB] = summarize_worker_status(bankB);
     cudaStreamSynchronize(stream[bankB]);
     after_host[bankB] = std::chrono::high_resolution_clock::now();
@@ -131,7 +90,7 @@ void CoordinatorCUDA::run_search() {
   }
 
   gather_unfinished_work_assignments();
-  cleanup(ptrs);
+  cleanup();
 
   if (config.verboseflag) {
     erase_status_output();
@@ -144,6 +103,31 @@ void CoordinatorCUDA::run_search() {
 //------------------------------------------------------------------------------
 // Initialization
 //------------------------------------------------------------------------------
+
+// Initialize data structures and copy non-worker data to the GPU.
+
+void CoordinatorCUDA::initialize() {
+  prop = initialize_cuda_device();
+  graph = build_and_reduce_graph();
+  alg = select_cuda_search_algorithm();
+  graph_buffer = make_graph_buffer();
+  params = find_runtime_params();
+  ptrs = get_gpu_static_pointers();
+
+  allocate_memory();
+  copy_graph_to_gpu();
+  copy_static_vars_to_gpu();
+  configure_cuda_shared_memory(params);
+
+  // timing setup
+  const auto now = std::chrono::high_resolution_clock::now();
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    before_kernel[bank] = now;
+    after_kernel[bank] = now;
+    after_host[bank] = now;
+  }
+  last_display_time = now;
+}
 
 // Initialize CUDA device and check properties.
 
@@ -174,8 +158,8 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
 
 // Build and reduce the juggling graph.
 
-void CoordinatorCUDA::build_and_reduce_graph() {
-  graph = {
+ Graph CoordinatorCUDA::build_and_reduce_graph() {
+  Graph graph = {
     config.b,
     config.h,
     config.xarray,
@@ -185,6 +169,7 @@ void CoordinatorCUDA::build_and_reduce_graph() {
   graph.build_graph();
   customize_graph(graph);
   graph.reduce_graph();
+  return graph;
 }
 
 // Choose a search algorithm to use.
@@ -220,7 +205,7 @@ CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm() {
 
 // Return a version of the graph for the GPU.
 
-std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer(CudaAlgorithm alg) {
+std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer() {
   std::vector<statenum_t> graph_buffer;
 
   for (unsigned i = 1; i <= graph.numstates; ++i) {
@@ -288,8 +273,7 @@ const double throughput[33][3] = {
 
 // Determine an optimal runtime configuration for the GPU hardware available.
 
-CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
-      const cudaDeviceProp& prop, CudaAlgorithm alg) {
+CudaRuntimeParams CoordinatorCUDA::find_runtime_params() {
   CudaRuntimeParams params;
   params.num_blocks = prop.multiProcessorCount;
   params.pattern_buffer_size = (config.countflag ? 0 :
@@ -300,7 +284,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
   params.num_threadsperblock = 32 * 10;
   params.used_in_shared = true;
   params.window_lower = params.window_upper = 0;
-  size_t shared_mem = calc_shared_memory_size(alg, n_max, params);
+  size_t shared_mem = calc_shared_memory_size(n_max, params);
   if (shared_mem > prop.sharedMemPerBlockOptin) {
     params.used_in_shared = false;
   }
@@ -324,7 +308,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
       params.num_threadsperblock = 32 * warps;
       params.window_lower = lower;
       params.window_upper = upper;
-      shared_mem = calc_shared_memory_size(alg, n_max, params);
+      shared_mem = calc_shared_memory_size(n_max, params);
       // jpout << "  upper = " << upper << ", mem = " << shared_mem << '\n';
 
       if (shared_mem <= prop.sharedMemPerBlockOptin)
@@ -369,7 +353,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
   params.num_threadsperblock = 32 * best_warps;
   params.window_lower = best_lower;
   params.window_upper = best_upper;
-  params.shared_memory_size = calc_shared_memory_size(alg, n_max, params);
+  params.shared_memory_used = calc_shared_memory_size(n_max, params);
   config.num_threads = params.num_blocks * params.num_threadsperblock;
 
   params.n_min = config.n_min;
@@ -388,7 +372,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
           << " patterns ("
           << (sizeof(statenum_t) * n_max * params.pattern_buffer_size)
           << " bytes)"
-          << "\n  shared memory used: " << params.shared_memory_size << " bytes"
+          << "\n  shared memory used: " << params.shared_memory_used << " bytes"
           << std::format("\n  placing used[] into {} memory",
                 params.used_in_shared ? "shared" : "device")
           << "\n  workcell[] window in shared memory = ["
@@ -402,8 +386,8 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params(
 // Return the amount of shared memory needed per block, in bytes, to support a
 // set of runtime parameters.
 
-size_t CoordinatorCUDA::calc_shared_memory_size(CudaAlgorithm alg,
-        unsigned n_max, const CudaRuntimeParams& p) {
+size_t CoordinatorCUDA::calc_shared_memory_size(unsigned n_max,
+    const CudaRuntimeParams& p) {
   size_t shared_bytes = 0;
 
   switch (alg) {
@@ -447,9 +431,7 @@ size_t CoordinatorCUDA::calc_shared_memory_size(CudaAlgorithm alg,
 
 // Allocate memory in the GPU and the host, and initialize host memory.
 
-void CoordinatorCUDA::allocate_memory(CudaAlgorithm alg,
-      const CudaRuntimeParams& params,
-      const std::vector<statenum_t>& graph_buffer, CudaMemoryPointers& ptrs) {
+void CoordinatorCUDA::allocate_memory() {
   // GPU memory
   for (unsigned bank = 0; bank < 2; ++bank) {
     throw_on_cuda_error(
@@ -553,9 +535,7 @@ void CoordinatorCUDA::allocate_memory(CudaAlgorithm alg,
 
 // Copy graph data to GPU.
 
-void CoordinatorCUDA::copy_graph_to_gpu(
-      const std::vector<statenum_t>& graph_buffer,
-      const CudaMemoryPointers& ptrs) {
+void CoordinatorCUDA::copy_graph_to_gpu() {
   if (config.verboseflag) {
     erase_status_output();
     jpout << std::format("  placing graph into {} memory ({} bytes)\n",
@@ -572,8 +552,7 @@ void CoordinatorCUDA::copy_graph_to_gpu(
 
 // Copy static global variables to GPU global memory.
 
-void CoordinatorCUDA::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
-      const CudaMemoryPointers& ptrs) {
+void CoordinatorCUDA::copy_static_vars_to_gpu() {
   uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
   uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
   uint16_t numcycles_h = static_cast<uint16_t>(graph.numcycles);
@@ -611,20 +590,20 @@ void CoordinatorCUDA::copy_static_vars_to_gpu(const CudaRuntimeParams& params,
 
 // Copy worker data to the GPU.
 //
-// This copies WorkerInfo and WorkCells for threads [0, max_idx]. If `startup`
-// is true then all WorkerInfo data is copied.
+// This copies WorkerInfo and WorkCells for threads [0, max_active_idx[bank]].
+// If optional `startup` is true then all WorkerInfo data is copied.
 
-void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank,
-    const CudaMemoryPointers& ptrs, unsigned max_idx, bool startup) {
+void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup) {
+  auto idx_count = startup ? config.num_threads : (max_active_idx[bank] + 1);
+
   throw_on_cuda_error(
       cudaMemcpyAsync(ptrs.wi_d[bank], wi_h[bank], sizeof(WorkerInfo) *
-          (startup ? config.num_threads : max_idx + 1),
-          cudaMemcpyHostToDevice, stream[bank]),
+          idx_count, cudaMemcpyHostToDevice, stream[bank]),
       __FILE__, __LINE__);
   throw_on_cuda_error(
       cudaMemcpyAsync(ptrs.wc_d[bank], wc_h[bank],
-          sizeof(ThreadStorageWorkCell) * (max_idx / 32 + 1) * n_max,
-          cudaMemcpyHostToDevice, stream[bank]),
+          sizeof(ThreadStorageWorkCell) * (max_active_idx[bank] / 32 + 1) *
+          n_max, cudaMemcpyHostToDevice, stream[bank]),
       __FILE__, __LINE__);
 }
 
@@ -633,9 +612,10 @@ void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank,
 // In the event of an error, throw a `std::runtime_error` exception with an
 // appropriate error message.
 
-void CoordinatorCUDA::launch_cuda_kernel(const CudaRuntimeParams& params,
-    const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned bank,
-    uint64_t cycles) {
+void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles) {
+  if (idle_before[bank] == config.num_threads)
+    return;
+
   launch_kernel(params, ptrs, alg, bank, cycles, stream[bank]);
 
   cudaError_t err = cudaGetLastError();
@@ -646,19 +626,18 @@ void CoordinatorCUDA::launch_cuda_kernel(const CudaRuntimeParams& params,
 }
 
 // Copy worker data from the GPU. Copy only the worker data for threads
-// [0, max_idx].
+// [0, max_active_idx[bank]].
 
-void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank,
-    const CudaMemoryPointers& ptrs, unsigned max_idx) {
+void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank) {
   throw_on_cuda_error(
       cudaMemcpyAsync(wi_h[bank], ptrs.wi_d[bank],
-          sizeof(WorkerInfo) * (max_idx + 1), cudaMemcpyDeviceToHost,
-          stream[bank]),
+          sizeof(WorkerInfo) * (max_active_idx[bank] + 1),
+          cudaMemcpyDeviceToHost, stream[bank]),
       __FILE__, __LINE__);
   throw_on_cuda_error(
       cudaMemcpyAsync(wc_h[bank], ptrs.wc_d[bank],
-          sizeof(ThreadStorageWorkCell) * (max_idx / 32 + 1) * n_max,
-          cudaMemcpyDeviceToHost, stream[bank]),
+          sizeof(ThreadStorageWorkCell) * (max_active_idx[bank] / 32 + 1) *
+          n_max, cudaMemcpyDeviceToHost, stream[bank]),
       __FILE__, __LINE__);
 }
 
@@ -700,16 +679,15 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank) {
   }
 }
 
-// Process the pattern buffer. Copy any patterns in the buffer to `context`, and
-// print them to the console if needed. Then clear the buffer.
+// Process the pattern buffer. Copy any patterns in the buffer to `context`,
+// print them to the console if needed, then clear the buffer.
 //
 // Returns the count of patterns retrieved from the buffer.
 //
 // In the event of a pattern buffer overflow, throw a `std::runtime_error`
 // exception with a relevant error message.
 
-uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
-    const CudaMemoryPointers& ptrs, const uint32_t pattern_buffer_size) {
+uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank) {
   if (ptrs.pb_d[bank] == nullptr) {
     return 0;
   }
@@ -724,7 +702,7 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
 
   if (*pattern_count_h == 0) {
     return 0;
-  } else if (*pattern_count_h > pattern_buffer_size) {
+  } else if (*pattern_count_h > params.pattern_buffer_size) {
     throw std::runtime_error("CUDA error: pattern buffer overflow");
   }
 
@@ -811,9 +789,12 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank,
 
 // Update the global time counters.
 
-void CoordinatorCUDA::record_working_time(double kernel_time, double host_time,
-    unsigned idle_before, unsigned idle_after, uint64_t cycles_startup,
-    uint64_t cycles_run) {
+void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
+    double host_time, uint64_t cycles_run) {
+  unsigned idle_bef = idle_before[bank];
+  unsigned idle_after = summary_after[bank].workers_idle.size();
+  uint64_t cycles_startup = summary_after[bank].cycles_startup;
+
   // negative host_time means that host processing finished before other bank's
   // kernel run; only count host_time > 0 when GPU was idle
   total_kernel_time += kernel_time;
@@ -827,20 +808,25 @@ void CoordinatorCUDA::record_working_time(double kernel_time, double host_time,
 
   // assume that the workers that went idle during the kernel run did so
   // at a uniform rate
-  assert(idle_after >= idle_before);
+  assert(idle_after >= idle_bef);
   context.secs_working += working_time *
-      (config.num_threads - idle_before / 2 - idle_after / 2);
+      (config.num_threads - idle_bef / 2 - idle_after / 2);
 }
 
 // Calculate the next number of kernel cycles to run, based on timing and
 // progress.
 
 uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
-      uint64_t last_cycles_startup, double kernel_time, double host_time,
-      unsigned idle_start, unsigned idle_after, unsigned next_idle_start,
-      uint32_t pattern_count, CudaRuntimeParams p) {
-  const uint64_t min_cycles = 100000ul;
+      unsigned bank, double kernel_time, double host_time, unsigned idle_start,
+      uint32_t pattern_count) {
+  if (idle_start == config.num_threads) {
+    return last_cycles;  // no workers ran last time
+  }
 
+  const uint64_t last_cycles_startup = summary_after[bank].cycles_startup;
+  const unsigned idle_after = summary_after[bank].workers_idle.size();
+  const unsigned next_idle_start = idle_before[bank];
+  const uint64_t min_cycles = 100000ul;
   assert(idle_after >= idle_start);
   last_cycles = std::max(last_cycles, min_cycles);
 
@@ -872,8 +858,8 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   target_cycles = target_time * cps - static_cast<double>(last_cycles_startup);
 
   // try to keep the pattern buffer from overflowing
-  if (pattern_count > p.pattern_buffer_size / 3) {
-    const auto frac = static_cast<double>(p.pattern_buffer_size / 3) /
+  if (pattern_count > params.pattern_buffer_size / 3) {
+    const auto frac = static_cast<double>(params.pattern_buffer_size / 3) /
         static_cast<double>(pattern_count);
     const auto max_cycles = static_cast<double>(last_cycles) * frac;
     target_cycles = std::min(target_cycles, max_cycles);
@@ -903,7 +889,7 @@ void CoordinatorCUDA::gather_unfinished_work_assignments() {
 
 // Destroy CUDA streams and free allocated GPU and host memory.
 
-void CoordinatorCUDA::cleanup(CudaMemoryPointers& ptrs) {
+void CoordinatorCUDA::cleanup() {
   for (int i = 0; i < 2; ++i) {
     cudaStreamDestroy(stream[i]);
     stream[i] = nullptr;
@@ -952,155 +938,6 @@ void CoordinatorCUDA::cleanup(CudaMemoryPointers& ptrs) {
     cudaFreeHost(pb_h);
     pb_h = nullptr;
   }
-}
-
-//------------------------------------------------------------------------------
-// Manage work assignments
-//------------------------------------------------------------------------------
-
-// Load initial work assignments into bank 0, which will execute first.
-
-void CoordinatorCUDA::load_initial_work_assignments() {
-  for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (context.assignments.size() > 0) {
-      WorkAssignment wa = context.assignments.front();
-      context.assignments.pop_front();
-
-      // if it's a STARTUP assignment then initialize
-      if (wa.start_state == 0) {
-        wa.start_state = (config.groundmode ==
-            SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
-      }
-      if (wa.end_state == 0) {
-        wa.end_state = (config.groundmode ==
-            SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
-      }
-
-      load_work_assignment(0, id, wa);
-      wi_h[0][id].status = 0;
-      max_active_idx[0] = id;
-    } else {
-      wi_h[0][id].status = 1;
-    }
-    wi_h[1][id].status = 1;
-  }
-  max_active_idx[1] = 0;
-}
-
-// Load a work assignment into a worker's slot in the `WorkerInfo` and
-// `ThreadStorageWorkCell` arrays.
-
-void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
-    WorkAssignment& wa) {
-  wa.to_workspace(this, bank * config.num_threads + id);
-  wi_h[bank][id].nnodes = 0;
-  wi_h[bank][id].status = 0;
-
-  // verify the assignment is unchanged by round trip through the workspace
-  WorkAssignment wa2;
-  wa2.from_workspace(this, bank * config.num_threads + id);
-  assert(wa == wa2);
-}
-
-// Read out the work assignment for worker `id` from the workcells in bank
-// `bank`.
-//
-// This is a non-destructive read, i.e., the workcells are unchanged.
-
-WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
-    unsigned id) {
-  WorkAssignment wa;
-  wa.from_workspace(this, bank * config.num_threads + id);
-  return wa;
-}
-
-// Assign new jobs to idle workers.
-//
-// Returns the number of idle workers with no jobs assigned.
-
-unsigned CoordinatorCUDA::assign_new_jobs(unsigned bank, unsigned idle_before_b,
-    const CudaWorkerSummary& summary, unsigned idle_before_a) {
-  const unsigned idle_after_b = summary.workers_idle.size();
-  if (idle_after_b == 0)
-    return 0;
-
-  // split working jobs and add them to the pool, until all workers are
-  // processed or pool size >= target_job_count
-  //
-  // jobs needed:
-  //   this bank (bankB):  `idle_after_b`
-  //   other bank (bankA): `idle_before_a` + `idle_after_b - idle_before_b`
-  //
-  // where the last term is an estimate of how many jobs will complete during
-  // bankA's kernel execution (happening when this code runs)
-
-  const unsigned target_job_count = idle_after_b + idle_before_a +
-      idle_after_b - idle_before_b;
-
-  std::vector<int> has_split(config.num_threads, 0);
-  auto it = summary.workers_multiple_start_states.begin();
-
-  while (context.assignments.size() < target_job_count) {
-    if (it == summary.workers_multiple_start_states.end()) {
-      it = summary.workers_rpm_plus0.begin();
-    }
-    if (it == summary.workers_rpm_plus0.end()) {
-      it = summary.workers_rpm_plus1.begin();
-    }
-    if (it == summary.workers_rpm_plus1.end()) {
-      it = summary.workers_rpm_plus2.begin();
-    }
-    if (it == summary.workers_rpm_plus2.end()) {
-      it = summary.workers_rpm_plus3.begin();
-    }
-    if (it == summary.workers_rpm_plus3.end()) {
-      it = summary.workers_rpm_plus4p.begin();
-    }
-    if (it == summary.workers_rpm_plus4p.end()) {
-      break;
-    }
-
-    if (has_split.at(*it)) {
-      ++it;
-      continue;
-    }
-    has_split.at(*it) = 1;
-
-    WorkAssignment wa = read_work_assignment(bank, *it);
-    if (wa.is_splittable()) {
-      WorkAssignment wa2 = wa.split(graph, config.split_alg);
-      load_work_assignment(bank, *it, wa);
-      context.assignments.push_back(wa2);
-      ++context.splits_total;
-
-      // Avoid double counting nodes: Each of the nodes in the partial path for
-      // the new assignment will be reported twice to the coordinator: by the
-      // worker doing the original job `wa`, and by the worker that does `wa2`.
-      if (wa.start_state == wa2.start_state) {
-        wi_h[bank][*it].nnodes -= wa2.partial_pattern.size();
-      }
-    }
-    ++it;
-  }
-
-  // assign to idle workers from the pool
-
-  unsigned idle_remaining = idle_after_b;
-
-  for (unsigned id = 0; id < config.num_threads; ++id) {
-    if ((wi_h[bank][id].status & 1) == 0)
-      continue;
-    if (context.assignments.size() == 0)
-      break;
-
-    WorkAssignment wa = context.assignments.front();
-    context.assignments.pop_front();
-    load_work_assignment(bank, id, wa);
-    max_active_idx[bank] = std::max(max_active_idx[bank], id);
-    --idle_remaining;
-  }
-
-  return idle_remaining;
 }
 
 //------------------------------------------------------------------------------
@@ -1294,9 +1131,11 @@ CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
 
 // Create and display the live status indicator, if needed.
 
-void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
-      const CudaWorkerSummary& summary_beforeA, double kernel_time,
+void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
       double host_time) {
+  const auto& summary_afterB = summary_after[bankB];
+  const auto& summary_beforeA = summary_before[1 - bankB];
+
   if (config.verboseflag) {
     erase_status_output();
     jpout << std::format(
@@ -1427,6 +1266,167 @@ void CoordinatorCUDA::do_status_display(const CudaWorkerSummary& summary_afterB,
 }
 
 //------------------------------------------------------------------------------
+// Manage work assignments
+//------------------------------------------------------------------------------
+
+// Load initial work assignments and copy worker data to the GPU.
+
+void CoordinatorCUDA::load_initial_work_assignments() {
+  max_active_idx[0] = 0;
+  max_active_idx[1] = 0;
+
+  for (unsigned id = 0; id < config.num_threads; ++id) {
+    wi_h[0][id].status = 1;
+    wi_h[1][id].status = 1;
+
+    if (context.assignments.size() > 0) {
+      WorkAssignment wa = context.assignments.front();
+      context.assignments.pop_front();
+
+      // if STARTUP assignment then initialize
+      if (wa.start_state == 0) {
+        wa.start_state = (config.groundmode ==
+            SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+      }
+      if (wa.end_state == 0) {
+        wa.end_state = (config.groundmode ==
+            SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
+      }
+
+      load_work_assignment(0, id, wa);
+      max_active_idx[0] = id;
+    }
+  }
+
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    summary_before[bank] = summarize_worker_status(bank);
+    idle_before[bank] = summary_before[bank].workers_idle.size();
+    copy_worker_data_to_gpu(bank, true);
+  }
+}
+
+// Load a work assignment into a worker's slot in the `WorkerInfo` and
+// `ThreadStorageWorkCell` arrays.
+
+void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
+    WorkAssignment& wa) {
+  wa.to_workspace(this, bank * config.num_threads + id);
+  wi_h[bank][id].nnodes = 0;
+  wi_h[bank][id].status = 0;
+
+  // verify the assignment is unchanged by round trip through the workspace
+  WorkAssignment wa2;
+  wa2.from_workspace(this, bank * config.num_threads + id);
+  assert(wa == wa2);
+}
+
+// Read out the work assignment for worker `id` from the workcells in bank
+// `bank`.
+//
+// This is a non-destructive read, i.e., the workcells are unchanged.
+
+WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
+    unsigned id) {
+  WorkAssignment wa;
+  wa.from_workspace(this, bank * config.num_threads + id);
+  return wa;
+}
+
+// Assign new jobs to idle workers in bankB.
+//
+// Updates idle_before[bankB] to reflect updated job assignments.
+
+void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
+  const CudaWorkerSummary& summary = summary_after[bankB];
+  const unsigned idle_before_b = idle_before[bankB];
+  const unsigned idle_before_a = idle_before[1 - bankB];
+  const unsigned idle_after_b = summary.workers_idle.size();
+
+  if (idle_after_b == 0) {
+    idle_before[bankB] = 0;
+    return;
+  }
+
+  // split working jobs and add them to the pool, until all workers are
+  // processed or pool size >= target_job_count
+  //
+  // jobs needed:
+  //   this bank (bankB):  `idle_after_b`
+  //   other bank (bankA): `idle_before_a` + `idle_after_b - idle_before_b`
+  //
+  // where the last term is an estimate of how many jobs will complete during
+  // bankA's kernel execution (happening when this code runs)
+
+  const unsigned target_job_count = idle_after_b + idle_before_a +
+      idle_after_b - idle_before_b;
+
+  std::vector<int> has_split(config.num_threads, 0);
+  auto it = summary.workers_multiple_start_states.begin();
+
+  while (context.assignments.size() < target_job_count) {
+    if (it == summary.workers_multiple_start_states.end()) {
+      it = summary.workers_rpm_plus0.begin();
+    }
+    if (it == summary.workers_rpm_plus0.end()) {
+      it = summary.workers_rpm_plus1.begin();
+    }
+    if (it == summary.workers_rpm_plus1.end()) {
+      it = summary.workers_rpm_plus2.begin();
+    }
+    if (it == summary.workers_rpm_plus2.end()) {
+      it = summary.workers_rpm_plus3.begin();
+    }
+    if (it == summary.workers_rpm_plus3.end()) {
+      it = summary.workers_rpm_plus4p.begin();
+    }
+    if (it == summary.workers_rpm_plus4p.end()) {
+      break;
+    }
+
+    if (has_split.at(*it)) {
+      ++it;
+      continue;
+    }
+    has_split.at(*it) = 1;
+
+    WorkAssignment wa = read_work_assignment(bankB, *it);
+    if (wa.is_splittable()) {
+      WorkAssignment wa2 = wa.split(graph, config.split_alg);
+      load_work_assignment(bankB, *it, wa);
+      context.assignments.push_back(wa2);
+      ++context.splits_total;
+
+      // Avoid double counting nodes: Each of the nodes in the partial path for
+      // the new assignment will be reported twice to the coordinator: by the
+      // worker doing the original job `wa`, and by the worker that does `wa2`.
+      if (wa.start_state == wa2.start_state) {
+        wi_h[bankB][*it].nnodes -= wa2.partial_pattern.size();
+      }
+    }
+    ++it;
+  }
+
+  // assign to idle workers from the pool
+
+  unsigned idle_remaining = idle_after_b;
+
+  for (unsigned id = 0; id < config.num_threads; ++id) {
+    if ((wi_h[bankB][id].status & 1) == 0)
+      continue;
+    if (context.assignments.size() == 0)
+      break;
+
+    WorkAssignment wa = context.assignments.front();
+    context.assignments.pop_front();
+    load_work_assignment(bankB, id, wa);
+    max_active_idx[bankB] = std::max(max_active_idx[bankB], id);
+    --idle_remaining;
+  }
+
+  idle_before[bankB] = idle_remaining;
+}
+
+//------------------------------------------------------------------------------
 // Helper methods
 //------------------------------------------------------------------------------
 
@@ -1523,7 +1523,7 @@ std::tuple<unsigned, unsigned, int> CoordinatorCUDA::get_info(unsigned slot)
 
 // Record kernel completion time (CUDA callback function)
 
-void CUDART_CB record_kernel_completion(void* data) {
+void CUDART_CB record_kernel_completion_time(void* data) {
   jptimer_t* ptr = (jptimer_t*)data;
   *ptr = std::chrono::high_resolution_clock::now();
 }

@@ -22,13 +22,37 @@
 #include <cuda_runtime.h>
 
 
+/*
+Job splitting must be done by the host, so we execute for a defined period of
+time in the GPU and then pause to give new jobs to idle workers.
+
+The basic loop is:
+- run the GPU kernel
+- download the data from the GPU
+- process the data (patterns found, pattern counts, etc.)
+- split jobs and give jobs to idle workers
+- copy the data back to the GPU
+
+To increase efficiency, we use two separate banks of worker jobs and alternate
+between them, so that while bankA is executing we do host processing of bankB
+concurrently. Most newer GPUs support asynchronous copying of data between
+device and host while kernels are executing.
+*/
+
 class CoordinatorCUDA : public Coordinator, public WorkSpace {
  public:
   CoordinatorCUDA(SearchConfig& config, SearchContext& context,
     std::ostream& jpout);
 
  protected:
+  // set up during initialization
+  cudaDeviceProp prop;
+  cudaStream_t stream[2];  // distinct CUDA stream for each job bank
   Graph graph;
+  CudaAlgorithm alg;
+  std::vector<statenum_t> graph_buffer;
+  CudaRuntimeParams params;
+  CudaMemoryPointers ptrs;
 
   // pinned memory blocks in host
   WorkerInfo* wi_h[2] = { nullptr, nullptr };
@@ -36,10 +60,16 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   uint32_t* pattern_count_h = nullptr;  // if needed
   statenum_t* pb_h = nullptr;  // if needed
 
-  // optimizing memory copies during startup
+  // worker summaries for two banks of jobs
+  CudaWorkerSummary summary_before[2];
+  CudaWorkerSummary summary_after[2];
+  unsigned idle_before[2];
   unsigned max_active_idx[2] = { 0, 0 };
 
-  // timing parameters specific to GPU
+  // timing
+  jptimer_t before_kernel[2];
+  jptimer_t after_kernel[2];
+  jptimer_t after_host[2];
   double total_kernel_time = 0;
   double total_host_time = 0;
 
@@ -48,77 +78,54 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   std::vector<unsigned> longest_by_startstate_current;
   jptimer_t last_display_time;
 
-  // CUDA streams
-  cudaStream_t stream[2];
-
-  // timing
-  jptimer_t before_kernel[2];
-  jptimer_t after_kernel[2];
-  jptimer_t after_host[2];
-
  protected:
   virtual void run_search() override;
 
   // setup
+  void initialize();
   cudaDeviceProp initialize_cuda_device();
-  void build_and_reduce_graph();
+  Graph build_and_reduce_graph();
   CudaAlgorithm select_cuda_search_algorithm();
-  std::vector<statenum_t> make_graph_buffer(CudaAlgorithm alg);
-  CudaRuntimeParams find_runtime_params(const cudaDeviceProp& prop,
-    CudaAlgorithm alg);
-  size_t calc_shared_memory_size(CudaAlgorithm alg, unsigned n_max,
-    const CudaRuntimeParams& p);
-  void allocate_memory(CudaAlgorithm alg, const CudaRuntimeParams& params,
-    const std::vector<statenum_t>& graph_buffer, CudaMemoryPointers& ptrs);
-  void copy_graph_to_gpu(const std::vector<statenum_t>& graph_buffer,
-    const CudaMemoryPointers& ptrs);
-  void copy_static_vars_to_gpu(const CudaRuntimeParams& params,
-    const CudaMemoryPointers& ptrs);
+  std::vector<statenum_t> make_graph_buffer();
+  CudaRuntimeParams find_runtime_params();
+  size_t calc_shared_memory_size(unsigned n_max, const CudaRuntimeParams& p);
+  void allocate_memory();
+  void copy_graph_to_gpu();
+  void copy_static_vars_to_gpu();
 
   // main loop
-  void copy_worker_data_to_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
-    unsigned max_idx, bool startup);
-  void launch_cuda_kernel(const CudaRuntimeParams& params,
-    const CudaMemoryPointers& ptrs, CudaAlgorithm alg, unsigned bank,
-    uint64_t cycles);
-  void copy_worker_data_from_gpu(unsigned bank, const CudaMemoryPointers& ptrs,
-    unsigned max_idx);
+  void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
+  void launch_cuda_kernel(unsigned bank, uint64_t cycles);
+  void copy_worker_data_from_gpu(unsigned bank);
   void process_worker_counters(unsigned bank);
-  uint32_t process_pattern_buffer(unsigned bank, const CudaMemoryPointers& ptrs,
-    const uint32_t pattern_buffer_size);
-  void record_working_time(double kernel_time, double host_time,
-    unsigned idle_before, unsigned idle_after, uint64_t cycles_startup,
+  uint32_t process_pattern_buffer(unsigned bank);
+  void record_working_time(unsigned bank, double kernel_time, double host_time,
     uint64_t cycles_run);
-  uint64_t calc_next_kernel_cycles(uint64_t last_cycles,
-    uint64_t last_cycles_startup, double kernel_time, double host_time,
-    unsigned idle_start, unsigned idle_after, unsigned next_idle_start,
-    uint32_t pattern_count, CudaRuntimeParams p);
+  uint64_t calc_next_kernel_cycles(uint64_t last_cycles, unsigned bank,
+    double kernel_time, double host_time, unsigned idle_start,
+    uint32_t pattern_count);
 
   // cleanup
   void gather_unfinished_work_assignments();
-  void cleanup(CudaMemoryPointers& ptrs);
+  void cleanup();
+
+  // summarization and status display
+  CudaWorkerSummary summarize_worker_status(unsigned bank);
+  CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
+    const CudaWorkerSummary& b);
+  void do_status_display(unsigned bankB, double kernel_time, double host_time);
 
   // manage work assignments
   void load_initial_work_assignments();
   void load_work_assignment(unsigned bank, const unsigned id,
     WorkAssignment& wa);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id);
-  unsigned assign_new_jobs(unsigned bank, unsigned idle_before_b,
-    const CudaWorkerSummary& summary, unsigned idle_before_a);
-
-  // summarization and status display
-  CudaWorkerSummary summarize_worker_status(unsigned bank);
-  CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
-    const CudaWorkerSummary& b);
-  void do_status_display(const CudaWorkerSummary& summary,
-    const CudaWorkerSummary& last_summary, double kernel_time,
-    double host_time);
+  void assign_new_jobs(unsigned bankB);
 
   // helper
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
   const ThreadStorageWorkCell& workcell(unsigned bank, unsigned id,
     unsigned pos) const;
-
   void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 
   // WorkSpace methods
@@ -133,6 +140,6 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
     override;
 };
 
-void CUDART_CB record_kernel_completion(void* data);
+void CUDART_CB record_kernel_completion_time(void* data);
 
 #endif

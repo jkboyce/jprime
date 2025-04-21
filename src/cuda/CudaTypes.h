@@ -11,8 +11,6 @@
 #ifndef JPRIME_CUDATYPES_H_
 #define JPRIME_CUDATYPES_H_
 
-#include "WorkAssignment.h"
-
 #include <array>
 #include <vector>
 #include <cstdint>
@@ -74,12 +72,12 @@ constexpr std::array cuda_algs = {
 };
 
 
+// defines how the algorithms map onto the GPU hardware
 struct CudaRuntimeParams {
-  // defines how the algorithms are mapped onto the GPU hardware
   unsigned num_blocks = 1;
   unsigned num_threadsperblock = 32;
   size_t pattern_buffer_size = 1;
-  size_t shared_memory_size = 0;
+  size_t shared_memory_used = 0;
   bool used_in_shared = true;
   unsigned window_lower = 0;
   unsigned window_upper = 0;
@@ -110,6 +108,7 @@ struct CudaMemoryPointers {
 };
 
 
+// summarizes the status of an entire bank of workers
 struct CudaWorkerSummary {
   unsigned root_pos_min;  // minimum `root_pos` across all active workers
   statenum_t max_start_state;  // maximum `start_state` across all workers

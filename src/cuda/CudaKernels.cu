@@ -11,6 +11,8 @@
 
 #include "CudaTypes.h"
 
+#include <stdexcept>
+
 #include <cuda_runtime.h>
 
 
@@ -702,25 +704,27 @@ __global__ void cuda_gen_loops_super(
 
 void configure_cuda_shared_memory(const CudaRuntimeParams& p) {
   cudaFuncSetAttribute(cuda_gen_loops_normal,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
+    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_used);
   cudaFuncSetAttribute(cuda_gen_loops_super,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_size);
+    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_used);
 }
 
-// Fill in pointers to statically allocated items in GPU memory that are
+// Return pointers to statically allocated items in GPU memory that are
 // declared in this file.
 
-void get_gpu_static_pointers(CudaMemoryPointers& ptr) {
-  cudaGetSymbolAddress((void **)&(ptr.graphmatrix_c), graphmatrix_c);
-  cudaGetSymbolAddress((void **)&(ptr.maxoutdegree_d), maxoutdegree_d);
-  cudaGetSymbolAddress((void **)&(ptr.numstates_d), numstates_d);
-  cudaGetSymbolAddress((void **)&(ptr.numcycles_d), numcycles_d);
-  cudaGetSymbolAddress((void **)&(ptr.pattern_buffer_size_d),
+CudaMemoryPointers get_gpu_static_pointers() {
+  CudaMemoryPointers ptrs;
+  cudaGetSymbolAddress((void **)&(ptrs.graphmatrix_c), graphmatrix_c);
+  cudaGetSymbolAddress((void **)&(ptrs.maxoutdegree_d), maxoutdegree_d);
+  cudaGetSymbolAddress((void **)&(ptrs.numstates_d), numstates_d);
+  cudaGetSymbolAddress((void **)&(ptrs.numcycles_d), numcycles_d);
+  cudaGetSymbolAddress((void **)&(ptrs.pattern_buffer_size_d),
       pattern_buffer_size_d);
-  cudaGetSymbolAddress((void **)&(ptr.pattern_index_d[0]),
+  cudaGetSymbolAddress((void **)&(ptrs.pattern_index_d[0]),
       pattern_index_bank0_d);
-  cudaGetSymbolAddress((void **)&(ptr.pattern_index_d[1]),
+  cudaGetSymbolAddress((void **)&(ptrs.pattern_index_d[1]),
       pattern_index_bank1_d);
+  return ptrs;
 }
 
 // Launch the appropriate CUDA kernel.
@@ -729,11 +733,11 @@ void get_gpu_static_pointers(CudaMemoryPointers& ptr) {
 // appropriate error message.
 
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t stream) {
+    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream) {
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal
-        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size, stream>>>(
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
           ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,
@@ -743,7 +747,7 @@ void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
     case CudaAlgorithm::SUPER:
     case CudaAlgorithm::SUPER0:
       cuda_gen_loops_super
-        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_size, stream>>>(
+        <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
           ptrs.pattern_index_d[bank], ptrs.graphmatrix_d, ptrs.used_d,
           p.window_lower, p.window_upper, cycles,
