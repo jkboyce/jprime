@@ -125,7 +125,7 @@ std::string WorkAssignment::to_string() const {
 // Return true on success, false otherwise.
 
 bool WorkAssignment::from_string(const std::string& str) {
-  std::regex rgx(
+  static const std::regex rgx(
       "\\{ start_state:([0-9]+), end_state:([0-9]+), root_pos:([0-9]+), "
       "root_options:\\[([0-9,]*)\\], current:\\\"([0-9,]*)\\\" \\}"
   );
