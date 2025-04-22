@@ -233,7 +233,6 @@ int main(int argc, char** argv) {
 
   auto [config, context] = prepare_calculation(argc, argv);
   auto coordinator = Coordinator::make_coordinator(config, context, std::cout);
-
   if (!coordinator->run()) {
     return 0;
   }
