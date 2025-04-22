@@ -843,7 +843,21 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   const double workers = static_cast<double>(config.num_threads -
       next_idle_start);
 
-  // optimal value
+  // Solve for x == target_cycles, the number of cycles to run next.
+  //
+  // We approach this as an optimization problem, maximizing the useful work
+  // completed per unit (wall clock) time.
+  //
+  // The average number of running workers will be:
+  //     workers - beta * x / 2
+  // and the workers will be doing useful work for duration `x`. Including the
+  // (non-useful) startup time s == startup, we express the useful work in terms
+  // of worker equivalents averaged over the total time:
+  //     (workers - beta * x / 2) * x / (x + s)
+  //
+  // Optimizing this with respect to x gives:
+  //     x = sqrt(s^2 + 2 * s * workers / beta) - s
+
   double target_cycles = (beta > 0.0 ?
       sqrt(startup * startup + 2 * startup * workers / beta) - startup :
       static_cast<double>(2 * last_cycles));
@@ -852,7 +866,8 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   target_cycles = std::max(target_cycles, static_cast<double>(min_cycles));
   double target_time =
       (static_cast<double>(last_cycles_startup) + target_cycles) / cps;
-  // note that `kernel_time + host_time` is the real host processing time
+  // ensure the kernel won't finish before host processing of the other bank is
+  // done; note that `kernel_time + host_time` is the real host processing time
   target_time = std::max(target_time, 1.0 * (kernel_time + host_time));
   target_time = std::min(target_time, 2.0);  // max of 2 seconds
   target_cycles = target_time * cps - static_cast<double>(last_cycles_startup);
@@ -864,8 +879,7 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
     const auto max_cycles = static_cast<double>(last_cycles) * frac;
     target_cycles = std::min(target_cycles, max_cycles);
   }
-  /*std::cerr << "cps = " << cps << ", last_cycles = " << last_cycles
-            << ", target_cycles = " << target_cycles << '\n';*/
+
   return static_cast<uint64_t>(target_cycles);
 }
 
@@ -1404,8 +1418,6 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
 
   // assign to idle workers from the pool
 
-  unsigned idle_remaining = idle_after_b;
-
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if ((wi_h[bankB][id].status & 1) == 0)
       continue;
@@ -1416,7 +1428,6 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
     context.assignments.pop_front();
     load_work_assignment(bankB, id, wa);
     max_active_idx[bankB] = std::max(max_active_idx[bankB], id);
-    --idle_remaining;
   }
 }
 
