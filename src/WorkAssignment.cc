@@ -329,7 +329,8 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot) {
 // Determine if a work assignment can be split.
 
 bool WorkAssignment::is_splittable() const {
-  return (end_state > start_state || get_type() == Type::SPLITTABLE);
+  return is_valid() &&
+      (end_state > start_state || get_type() == Type::SPLITTABLE);
 }
 
 // Return a work assignment that corresponds to a portion of the current work
