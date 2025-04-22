@@ -70,18 +70,18 @@ void CoordinatorCUDA::run_search() {
       break;
     }
     if (summary_after[bankB].workers_idle.size() == config.num_threads &&
-        idle_before[bankA] == config.num_threads &&
+        summary_before[bankA].workers_idle.size() == config.num_threads &&
         context.assignments.size() == 0) {
       break;
     }
 
     // prepare bankB for its next run
-    const auto prev_idle_before = idle_before[bankB];
     assign_new_jobs(bankB);
     copy_worker_data_to_gpu(bankB);
+    const auto prev_idle_before = summary_before[bankB].workers_idle.size();
+    summary_before[bankB] = summarize_worker_status(bankB);
     cycles[bankB] = calc_next_kernel_cycles(cycles[bankB], bankB, kernel_time,
         host_time, prev_idle_before, pattern_count);
-    summary_before[bankB] = summarize_worker_status(bankB);
     cudaStreamSynchronize(stream[bankB]);
     after_host[bankB] = std::chrono::high_resolution_clock::now();
 
@@ -613,7 +613,7 @@ void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup) {
 // appropriate error message.
 
 void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles) {
-  if (idle_before[bank] == config.num_threads)
+  if (summary_before[bank].workers_idle.size() == config.num_threads)
     return;
 
   launch_kernel(params, ptrs, alg, bank, cycles, stream[bank]);
@@ -791,12 +791,12 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank) {
 
 void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
     double host_time, uint64_t cycles_run) {
-  unsigned idle_bef = idle_before[bank];
-  unsigned idle_after = summary_after[bank].workers_idle.size();
-  uint64_t cycles_startup = summary_after[bank].cycles_startup;
+  const unsigned idle_before = summary_before[bank].workers_idle.size();
+  const unsigned idle_after = summary_after[bank].workers_idle.size();
+  const uint64_t cycles_startup = summary_after[bank].cycles_startup;
 
   // negative host_time means that host processing finished before other bank's
-  // kernel run; only count host_time > 0 when GPU was idle
+  // kernel run completed; only count host_time > 0, when GPU was idle
   total_kernel_time += kernel_time;
   total_host_time += std::max(host_time, 0.0);
 
@@ -808,9 +808,9 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
 
   // assume that the workers that went idle during the kernel run did so
   // at a uniform rate
-  assert(idle_after >= idle_bef);
+  assert(idle_after >= idle_before);
   context.secs_working += working_time *
-      (config.num_threads - idle_bef / 2 - idle_after / 2);
+      (config.num_threads - idle_before / 2 - idle_after / 2);
 }
 
 // Calculate the next number of kernel cycles to run, based on timing and
@@ -825,7 +825,7 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
 
   const uint64_t last_cycles_startup = summary_after[bank].cycles_startup;
   const unsigned idle_after = summary_after[bank].workers_idle.size();
-  const unsigned next_idle_start = idle_before[bank];
+  const unsigned next_idle_start = summary_before[bank].workers_idle.size();
   const uint64_t min_cycles = 100000ul;
   assert(idle_after >= idle_start);
   last_cycles = std::max(last_cycles, min_cycles);
@@ -1299,9 +1299,8 @@ void CoordinatorCUDA::load_initial_work_assignments() {
   }
 
   for (unsigned bank = 0; bank < 2; ++bank) {
-    summary_before[bank] = summarize_worker_status(bank);
-    idle_before[bank] = summary_before[bank].workers_idle.size();
     copy_worker_data_to_gpu(bank, true);
+    summary_before[bank] = summarize_worker_status(bank);
   }
 }
 
@@ -1333,17 +1332,14 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
 }
 
 // Assign new jobs to idle workers in bankB.
-//
-// Updates idle_before[bankB] to reflect updated job assignments.
 
 void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
   const CudaWorkerSummary& summary = summary_after[bankB];
-  const unsigned idle_before_b = idle_before[bankB];
-  const unsigned idle_before_a = idle_before[1 - bankB];
+  const unsigned idle_before_b = summary_before[bankB].workers_idle.size();
+  const unsigned idle_before_a = summary_before[1 - bankB].workers_idle.size();
   const unsigned idle_after_b = summary.workers_idle.size();
 
   if (idle_after_b == 0) {
-    idle_before[bankB] = 0;
     return;
   }
 
@@ -1422,8 +1418,6 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
     max_active_idx[bankB] = std::max(max_active_idx[bankB], id);
     --idle_remaining;
   }
-
-  idle_before[bankB] = idle_remaining;
 }
 
 //------------------------------------------------------------------------------

@@ -55,15 +55,14 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   CudaMemoryPointers ptrs;
 
   // pinned memory blocks in host
-  WorkerInfo* wi_h[2] = { nullptr, nullptr };
-  ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };
-  uint32_t* pattern_count_h = nullptr;  // if needed
-  statenum_t* pb_h = nullptr;  // if needed
+  WorkerInfo* wi_h[2] = { nullptr, nullptr };  // workerinfo arrays
+  ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };  // workcell arrays
+  uint32_t* pattern_count_h = nullptr;  // pattern count, if needed
+  statenum_t* pb_h = nullptr;  // pattern buffer, if needed
 
   // worker summaries for two banks of jobs
   CudaWorkerSummary summary_before[2];
   CudaWorkerSummary summary_after[2];
-  unsigned idle_before[2];
   unsigned max_active_idx[2] = { 0, 0 };
 
   // timing
