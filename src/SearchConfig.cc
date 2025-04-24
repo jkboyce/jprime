@@ -176,6 +176,7 @@ void SearchConfig::from_args(size_t argc, char** argv) {
           throw std::invalid_argument("Must have at least one worker thread");
         }
         num_threads = static_cast<unsigned>(val);
+        cudaflag = false;
       } else {
         throw std::invalid_argument("No number provided after -threads");
       }
@@ -306,4 +307,46 @@ void SearchConfig::from_args(const std::string& str) {
   }
 
   from_args(argc, argv.data());
+}
+
+// Return a string containing the allowed "override" parameters present in the
+// input, concatenated. When loading from a checkpoint file this allows us to
+// override selected items in the original invocation string.
+
+std::string SearchConfig::get_overrides(size_t argc, char** argv) {
+  std::string overrides;
+
+  for (size_t i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "-noprint")) {
+      overrides += " -noprint";
+    } else if (!strcmp(argv[i], "-file")) {
+      if (i + 1 < argc) {
+        ++i;
+        overrides += " -file " + std::string(argv[i]);
+      }
+    } else if (!strcmp(argv[i], "-steal_alg")) {
+      if (i + 1 < argc) {
+        ++i;
+        overrides += " -steal_alg " + std::string(argv[i]);
+      }
+    } else if (!strcmp(argv[i], "-split_alg")) {
+      if (i + 1 < argc) {
+        ++i;
+        overrides += " -split_alg " + std::string(argv[i]);
+      }
+    } else if (!strcmp(argv[i], "-verbose")) {
+      overrides += " -verbose";
+    } else if (!strcmp(argv[i], "-status")) {
+      overrides += " -status";
+    } else if (!strcmp(argv[i], "-cuda")) {
+      overrides += " -cuda";
+    } else if (!strcmp(argv[i], "-threads")) {
+      if (i + 1 < argc) {
+        ++i;
+        overrides += " -threads " + std::string(argv[i]);
+      }
+    }
+  }
+
+  return overrides;
 }

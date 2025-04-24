@@ -109,10 +109,13 @@ struct SearchConfig {
 
   // use CUDA to run on GPU?
   bool cudaflag = false;
-  
+
   // methods to initialize from command line arguments
   void from_args(size_t argc, char** argv);
   void from_args(const std::string& str);
+
+  // extract override arguments
+  static std::string get_overrides(size_t argc, char** argv);
 };
 
 #endif

@@ -169,16 +169,16 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
           std::exit(0);
         }
 
-        // get config from the original arguments
-        config.from_args(context.arglist);
+        // get any potential overrides in current arguments
+        const auto overrides = SearchConfig::get_overrides(argc, argv);
 
-        // in case the user renamed the checkpoint file since the original
-        // invocation, use the current filename
-        config.outfile = outfile;
+        // initialize from the original arguments, plus overrides
+        config.from_args(context.arglist + overrides);
 
         std::cout << std::format("Resuming calculation: {}\n"
-                       "Loaded {} patterns and {} work assignments",
-                       context.arglist, context.npatterns,
+                       "      with overrides:{}\n"
+                       "Loaded {} patterns and {} work assignments\n",
+                       context.arglist, overrides, context.npatterns,
                        context.assignments.size())
                   << std::endl;
         return std::make_tuple(config, context);
