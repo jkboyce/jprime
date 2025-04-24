@@ -855,7 +855,7 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   // of worker equivalents averaged over the total time:
   //     (workers - beta * x / 2) * x / (x + s)
   //
-  // Optimizing this with respect to x gives:
+  // Maximizing this with respect to x gives:
   //     x = sqrt(s^2 + 2 * s * workers / beta) - s
 
   double target_cycles = (beta > 0.0 ?

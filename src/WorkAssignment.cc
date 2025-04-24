@@ -200,21 +200,24 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const {
     }
 
     if (wc.col == wc.col_limit) {
-      std::cerr << "error loading work assignment:\n"
+      std::cerr << "ERROR in WorkAssignment::to_workspace():\n"
+                << "work assignment: " << *this << '\n'
                 << "start_state: " << start_state
                 << " (" << graph.state.at(start_state) << ")\n"
                 << "from_state: " << wc.from_state
                 << " (" << graph.state.at(wc.from_state) << ")\n"
-                << "pos: " << pos << '\n'
-                << "pattern: ";
-      for (size_t j = 0; partial_pattern.size(); ++j) {
+                << "partial_pattern: ";
+      for (size_t j = 0; j < partial_pattern.size(); ++j) {
         if (j != 0) {
           std::cerr << ',';
         }
         std::cerr << partial_pattern.at(j);
       }
-      std::cerr << '\n';
-      std::cerr << "links from state " << wc.from_state << ":\n";
+      std::cerr << '\n'
+                << "couldn't make throw of value " << tv
+                << " at pos " << pos << '\n'
+                << "-------------------------\n"
+                << "links from state " << wc.from_state << ":\n";
       for (size_t j = 0; j < graph.outdegree.at(wc.from_state); ++j) {
         std::cerr << "col=" << j << ", throwval="
                   << graph.outthrowval.at(wc.from_state).at(j)
