@@ -93,7 +93,7 @@ bool Coordinator::run() {
   if (config.verboseflag) {
     jpout << "Finished on: " << current_time_string() << '\n';
   }
-  if (context.assignments.size() > 0) {
+  if (!context.assignments.empty()) {
     jpout << "\nPARTIAL RESULTS:\n";
   }
   print_search_description();

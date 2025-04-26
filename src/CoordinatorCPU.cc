@@ -42,7 +42,7 @@ void CoordinatorCPU::run_search() {
     process_inbox();
 
     if (Coordinator::stopping || (workers_idle.size() == config.num_threads
-          && context.assignments.size() == 0)) {
+          && context.assignments.empty())) {
       break;
     }
 
@@ -70,7 +70,7 @@ void CoordinatorCPU::message_worker(const MessageC2W& msg,
 // workers to take them.
 
 void CoordinatorCPU::give_assignments() {
-  while (workers_idle.size() > 0 && context.assignments.size() > 0) {
+  while (!workers_idle.empty() && !context.assignments.empty()) {
     auto iter = workers_idle.begin();
     auto id = *iter;
     workers_idle.erase(iter);

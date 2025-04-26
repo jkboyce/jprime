@@ -378,11 +378,9 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
       (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i) : -1);
   }
 
-  if (start_state == 0) {
-    start_state =
-      (config.groundmode == SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
-  }
-  if (end_state == 0) {
+  if (wa.get_type() == WorkAssignment::Type::STARTUP) {
+    start_state = (config.groundmode ==
+      SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
     end_state = (config.groundmode ==
       SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
   }

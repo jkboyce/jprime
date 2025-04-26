@@ -33,18 +33,20 @@ WorkAssignments for all workers are collected and saved to a checkpoint file,
 which may be resumed later.
 
 Invariants to maintain:
+- The results of a search (patterns, pattern counts, node counts) are invariant
+  with respect to: (a) how WorkAssignments are split, (b) how many workers
+  execute them, (c) the timing and number of times the search is interrupted,
+  saved to a checkpoint file, and resumed, and (d) the order in which
+  WorkAssignments are executed. The order in which patterns are found during the
+  search is not an invariant, however.
 - All WorkAssignments should be unchanged by the following round trips:
   (a) saving and loading from a file, (b) saving and loading from a string, and
   (c) saving and loading from a WorkSpace (the latter excluding assignments of
   type STARTUP which cannot be written to a WorkSpace).
 - We can determine the splittability of a WorkAssignment, and split a
   WorkAssignment, offline using only the Graph object.
-- The results of a search (patterns, pattern counts, node counts) should be
-  invariant with respect to: (a) how WorkAssignments are split, (b) how many
-  workers execute them, (c) the timing and number of times the search is
-  interrupted, saved to a checkpoint file, and resumed, and (d) the order in
-  which WorkAssignments are executed. The order in which patterns are found
-  during the search is not an invariant, however.
+- When multiple throws emanate from a node in the search tree, DFS evaluates
+  them in descending order of their associated throw values.
 - Search workers only interrupt the search process when the following conditions
   hold: (a) the sequence of throws in pp is a valid partial path, (b) the
   sequence is not a complete pattern, and (c) we are cleared to advance one

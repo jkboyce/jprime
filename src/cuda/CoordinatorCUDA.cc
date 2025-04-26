@@ -71,7 +71,7 @@ void CoordinatorCUDA::run_search() {
     }
     if (summary_after[bankB].workers_idle.size() == config.num_threads &&
         summary_before[bankA].workers_idle.size() == config.num_threads &&
-        context.assignments.size() == 0) {
+        context.assignments.empty()) {
       break;
     }
 
@@ -793,6 +793,7 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
     double host_time, uint64_t cycles_run) {
   const unsigned idle_before = summary_before[bank].workers_idle.size();
   const unsigned idle_after = summary_after[bank].workers_idle.size();
+  assert(idle_after >= idle_before);
   const uint64_t cycles_startup = summary_after[bank].cycles_startup;
 
   // negative host_time means that host processing finished before other bank's
@@ -806,9 +807,7 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
       kernel_time * static_cast<double>(cycles_run) /
       static_cast<double>(cycles_startup + cycles_run));
 
-  // assume that the workers that went idle during the kernel run did so
-  // at a uniform rate
-  assert(idle_after >= idle_before);
+  // assume the workers that went idle did so at a uniform rate
   context.secs_working += working_time *
       (config.num_threads - idle_before / 2 - idle_after / 2);
 }
@@ -1286,30 +1285,22 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
 // Load initial work assignments and copy worker data to the GPU.
 
 void CoordinatorCUDA::load_initial_work_assignments() {
-  max_active_idx[0] = 0;
-  max_active_idx[1] = 0;
-
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    wi_h[0][id].status = 1;
-    wi_h[1][id].status = 1;
+    if (context.assignments.empty())
+      break;
 
-    if (context.assignments.size() > 0) {
-      WorkAssignment wa = context.assignments.front();
-      context.assignments.pop_front();
+    WorkAssignment wa = context.assignments.front();
+    context.assignments.pop_front();
 
-      // if STARTUP assignment then initialize
-      if (wa.start_state == 0) {
-        wa.start_state = (config.groundmode ==
-            SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
-      }
-      if (wa.end_state == 0) {
-        wa.end_state = (config.groundmode ==
-            SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
-      }
-
-      load_work_assignment(0, id, wa);
-      max_active_idx[0] = id;
+    if (wa.get_type() == WorkAssignment::Type::STARTUP) {
+      wa.start_state = (config.groundmode ==
+          SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+      wa.end_state = (config.groundmode ==
+          SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
     }
+
+    load_work_assignment(0, id, wa);
+    max_active_idx[0] = id;
   }
 
   for (unsigned bank = 0; bank < 2; ++bank) {
@@ -1352,10 +1343,6 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
   const unsigned idle_before_b = summary_before[bankB].workers_idle.size();
   const unsigned idle_before_a = summary_before[1 - bankB].workers_idle.size();
   const unsigned idle_after_b = summary.workers_idle.size();
-
-  if (idle_after_b == 0) {
-    return;
-  }
 
   // split working jobs and add them to the pool, until all workers are
   // processed or pool size >= target_job_count
@@ -1421,7 +1408,7 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if ((wi_h[bankB][id].status & 1) == 0)
       continue;
-    if (context.assignments.size() == 0)
+    if (context.assignments.empty())
       break;
 
     WorkAssignment wa = context.assignments.front();
