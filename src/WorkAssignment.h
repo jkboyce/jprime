@@ -39,7 +39,7 @@ Invariants to maintain:
   saved to a checkpoint file, and resumed, and (d) the order in which
   WorkAssignments are executed. The order in which patterns are found during the
   search is not an invariant, however.
-- All WorkAssignments should be unchanged by the following round trips:
+- All valid WorkAssignments should be unchanged by the following round trips:
   (a) saving and loading from a file, (b) saving and loading from a string, and
   (c) saving and loading from a WorkSpace (the latter excluding assignments of
   type STARTUP which cannot be written to a WorkSpace).
@@ -66,7 +66,7 @@ point in the search:
 - `root_throwval_options` (rto) is the set of unexplored throw values for
   advancing the search deeper from rp (except when rto is empty; see below).
 
-There are three kinds of WorkAssignments:
+There are three kinds of valid WorkAssignments:
 - STARTUP assignment, signified by start_state == end_state == 0. This
   represents an entire search that has not yet begun; values of start_state and
   end_state need to be initialized based on the search config. In this case we
@@ -144,8 +144,7 @@ class WorkAssignment {
   WorkAssignment split_takestartstates();
   WorkAssignment split_takeall(const Graph& graph);
   WorkAssignment split_takehalf(const Graph& graph);
-  WorkAssignment split_takefraction(const Graph& graph, double f,
-    bool take_front);
+  WorkAssignment split_takefraction(const Graph& graph, double f);
 };
 
 bool work_assignment_compare(const WorkAssignment& wa1,

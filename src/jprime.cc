@@ -164,7 +164,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
         std::cout << std::format("Reading checkpoint file '{}'\n", outfile);
         context.from_file(outfile);
 
-        if (context.assignments.size() == 0) {
+        if (context.assignments.empty()) {
           std::cout << "Calculation is finished\n";
           std::exit(0);
         }

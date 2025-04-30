@@ -76,7 +76,7 @@ void Worker::run() {
 
     // complete the new work assignment
     try {
-      gen_patterns();
+      do_work_assignment();
       record_elapsed_time_from(start);
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
@@ -437,7 +437,7 @@ void Worker::notify_coordinator_update() const {
 // We enforce that a prime pattern has no state numbers smaller than the state
 // it starts with, which ensures each pattern is generated exactly once.
 
-void Worker::gen_patterns() {
+void Worker::do_work_assignment() {
   running = true;
   loading_work = true;
 

@@ -103,7 +103,7 @@ class Worker : public WorkSpace {
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
-  void gen_patterns();
+  void do_work_assignment();
   void gen_loops();
   void initialize_working_variables();
   void report_pattern() const;

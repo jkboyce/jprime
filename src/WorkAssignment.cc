@@ -37,10 +37,13 @@ WorkAssignment::Type WorkAssignment::get_type() const {
     return root_throwval_options.empty() ? Type::UNSPLITTABLE : Type::INVALID;
   }
 
+  // throws in `rto` must form a decreasing sequence
+  unsigned last_tv = partial_pattern.at(root_pos);
   for (const auto tv : root_throwval_options) {
-    if (tv == partial_pattern.at(root_pos)) {
+    if (tv >= last_tv) {
       return Type::INVALID;
     }
+    last_tv = tv;
   }
 
   return root_throwval_options.empty() ? Type::INVALID : Type::SPLITTABLE;
@@ -378,14 +381,14 @@ WorkAssignment WorkAssignment::split_takestartstates() {
 // at root_pos.
 
 WorkAssignment WorkAssignment::split_takeall(const Graph& graph) {
-  return split_takefraction(graph, 1, false);
+  return split_takefraction(graph, 1);
 }
 
 // Return a work assignment that gives away approximately half of the unexplored
 // throw options at root_pos.
 
 WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
-  return split_takefraction(graph, 0.5, false);
+  return split_takefraction(graph, 0.5);
 }
 
 // Return a work assignment that gives away approximately the target fraction of
@@ -394,8 +397,8 @@ WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
 // If a work assignment cannot be split, leave the WorkAssignment unchanged and
 // throw a std::invalid_argument exception with a relevant error message.
 
-WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
-      bool take_front) {
+WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
+{
   if (get_type() != Type::SPLITTABLE) {
     std::cerr << "error trying to split assignment:\n  " << to_string()
               << '\n';
@@ -410,14 +413,16 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f,
     wa.partial_pattern.push_back(partial_pattern.at(i));
   }
 
-  // move `take_count` unexplored root_pos options to the new work assignment
+  // move `take_count` unexplored root_pos options to the new work assignment,
+  // specifically the highest `col` values so that each resulting assignment has
+  // consecutive values of `col` in its root_throwval_options
   auto take_count =
       static_cast<size_t>(0.51 + f * root_throwval_options.size());
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
       root_throwval_options.size());
 
-  const auto take_begin_idx = static_cast<size_t>(take_front ?
-        0 : root_throwval_options.size() - take_count);
+  const auto take_begin_idx = static_cast<size_t>(root_throwval_options.size() -
+      take_count);
   const auto take_end_idx = take_begin_idx + take_count;
 
   auto iter = root_throwval_options.begin();
