@@ -12,27 +12,28 @@
 #
 
 CC = g++
-CFLAGS = -Wall -Wextra -std=c++20 -O3 -Isrc
+CFLAGS = -Wall -Wextra -std=c++20 -O3 -Isrc -Isrc/cpu
 SDIR = src
 ODIR = build
-OBJ = jprime.o jprime_tests.o Graph.o State.o Worker.o GenLoopsRecursive.o \
-	  GenLoopsIterative.o Coordinator.o CoordinatorCPU.o WorkAssignment.o \
-	  SearchConfig.o SearchContext.o Pattern.o
-DEP = Coordinator.h CoordinatorCPU.h Graph.h Messages.h Pattern.h \
-	  SearchConfig.h SearchContext.h State.h WorkAssignment.h WorkCell.h \
-	  Worker.h WorkSpace.h
+OBJ = jprime.o jprime_tests.o Coordinator.o Graph.o Pattern.o SearchConfig.o \
+    SearchContext.o State.o WorkAssignment.o cpu/CoordinatorCPU.o cpu/Worker.o \
+    cpu/GenLoopsRecursive.o cpu/GenLoopsIterative.o
 
-_OBJ = $(patsubst %,$(ODIR)/%,$(OBJ))
+DEP = Coordinator.h Graph.h Pattern.h SearchConfig.h SearchContext.h \
+	  State.h WorkAssignment.h WorkSpace.h \
+	  cpu/CoordinatorCPU.h cpu/Messages.h cpu/WorkCell.h cpu/Worker.h
+
+_OBJ = $(patsubst %,$(ODIR)/build_cpu/%,$(OBJ))
 _DEP = $(patsubst %,$(SDIR)/%,$(DEP))
 
 jprime: $(_OBJ)
 	$(CC) -o jprime $(_OBJ) $(CFLAGS)
 
-$(ODIR)/%.o: $(SDIR)/%.cc $(_DEP) | builddir
+$(ODIR)/build_cpu/%.o: $(SDIR)/%.cc $(_DEP) | builddir
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 builddir:
-	mkdir -p $(ODIR)
+	mkdir -p $(ODIR)/build_cpu/cpu
 
 .PHONY: builddir clean
 
@@ -44,24 +45,22 @@ clean:
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from Nvidia.
 
 CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include \
-			  -Isrc -Isrc/cuda
-_OBJ_CUDA = $(patsubst %,$(ODIR)/cuda/%,$(OBJ))
+    -Isrc -Isrc/cpu -Isrc/cuda
+_OBJ_CUDA = $(patsubst %,$(ODIR)/build_cuda/%,$(OBJ))
 NVCCFLAGS = -std=c++20 -O3 -lineinfo -Xcudafe --diag_suppress=68 \
-			-gencode arch=compute_60,code=compute_60 \
-			-gencode arch=compute_89,code=sm_89 \
-			-Wno-deprecated-gpu-targets -Isrc -Isrc/cuda
+    -gencode arch=compute_60,code=compute_60 \
+    -gencode arch=compute_89,code=sm_89 \
+    -Wno-deprecated-gpu-targets \
+    -I/usr/local/cuda/include -Isrc -Isrc/cpu -Isrc/cuda
 
-cuda: $(SDIR)/cuda/CudaKernels.cu $(_OBJ_CUDA) $(ODIR)/cuda/CoordinatorCUDA.o
+cuda: $(SDIR)/cuda/CudaKernels.cu $(_OBJ_CUDA) \
+    $(ODIR)/build_cuda/cuda/CoordinatorCUDA.o
 	nvcc $(NVCCFLAGS) -o jprime src/cuda/CudaKernels.cu $(_OBJ_CUDA) \
-	  $(ODIR)/cuda/CoordinatorCUDA.o
+	    $(ODIR)/build_cuda/cuda/CoordinatorCUDA.o
 
-$(ODIR)/cuda/CoordinatorCUDA.o: $(SDIR)/cuda/CoordinatorCUDA.cc $(_DEP) \
-  src/cuda/CoordinatorCUDA.h | builddir_cuda
-	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS_CUDA)
-
-$(ODIR)/cuda/%.o: $(SDIR)/%.cc $(_DEP) src/cuda/CoordinatorCUDA.h \
-  | builddir_cuda
+$(ODIR)/build_cuda/%.o: $(SDIR)/%.cc $(_DEP) src/cuda/CoordinatorCUDA.h \
+    | builddir_cuda
 	$(CC) -DCUDA_ENABLED -c -o $@ $< $(CFLAGS_CUDA)
 
 builddir_cuda:
-	mkdir -p $(ODIR)/cuda
+	mkdir -p $(ODIR)/build_cuda/cpu $(ODIR)/build_cuda/cuda

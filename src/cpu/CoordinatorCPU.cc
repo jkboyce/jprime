@@ -26,8 +26,9 @@
 CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
     std::ostream& c) : Coordinator(a, b, c) {}
 
-
-// Run the search on the CPU, using one or more worker threads.
+//------------------------------------------------------------------------------
+// Execution entry point
+//------------------------------------------------------------------------------
 
 void CoordinatorCPU::run_search() {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
