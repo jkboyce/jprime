@@ -43,6 +43,9 @@ void Worker::gen_loops_normal() {
       continue;
     }
 
+    if (to < start_state)
+      continue;
+
     if (pos + 1 == static_cast<int>(n_max))
       continue;
 
@@ -105,6 +108,9 @@ void Worker::gen_loops_normal_marking() {
       handle_finished_pattern();
       continue;
     }
+
+    if (to < start_state)
+      continue;
 
     if (pos + 1 == static_cast<int>(n_max))
       continue;
@@ -188,6 +194,8 @@ void Worker::gen_loops_super() {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
         !mark_off_rootpos_option(ov[col], to))
+      continue;
+    if (to < start_state)
       continue;
     if (used[to] != 0)
       continue;
@@ -280,6 +288,8 @@ void Worker::gen_loops_super0() {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
         !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
+      continue;
+    if (to < start_state)
       continue;
 
     pattern[pos] = graph.outthrowval[from][col];

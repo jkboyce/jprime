@@ -432,34 +432,29 @@ void Worker::notify_coordinator_update() const {
 // Search the juggling graph for patterns
 //------------------------------------------------------------------------------
 
-// Find all patterns within a range of `start_state` values.
-//
-// We enforce that a prime pattern has no state numbers smaller than the state
-// it starts with, which ensures each pattern is generated exactly once.
+// Complete the current work assignment.
 
 void Worker::do_work_assignment() {
   running = true;
   loading_work = true;
 
-  // build the initial graph
+  // build the graph
   graph.state_active.assign(graph.numstates + 1, true);
-  for (size_t i = 0; i < start_state; ++i) {
-    graph.state_active.at(i) = false;
-  }
   graph.build_graph();
   coordinator.customize_graph(graph);
+  graph.reduce_graph(true);
 
-  for (; start_state <= end_state; ++start_state, root_throwval_options.clear(),
-          loading_work = false, pattern[0] = -1, root_pos = 0) {
-    if (!graph.state_active.at(start_state)) {
-      continue;
-    }
-
-    // turn off unneeded states and reduce graph accordingly
+  while (start_state <= end_state) {
     for (size_t i = 0; i < start_state; ++i) {
       graph.state_active.at(i) = false;
     }
+
+    // executing reduce_graph() here reduces node count for NORMAL_MARKING
+    // mode by > 2x
+
     graph.reduce_graph();
+
+    graph.find_exit_cycles();
     initialize_working_variables();
 
     if (config.verboseflag) {
@@ -474,6 +469,15 @@ void Worker::do_work_assignment() {
       message_coordinator_text(text);
     }
 
+    // this next section, in combination with reduce_graph() above, is
+    // necessary to get node count close to ideal for test cases 5 and 7
+    //
+    // this is because this combination allows us to break out of the loop
+    // early and skip some values of start_state
+    //
+    // jprime 3 18 47 -super 1 -verbose -noprint
+    // to isolate what's happening
+
     if (max_possible < static_cast<int>(n_min)) {
       // larger values of `start_state` will have `max_possible` values that are
       // the same or smaller, so we can exit the loop
@@ -485,14 +489,16 @@ void Worker::do_work_assignment() {
       }
       break;
     }
-    if (!graph.state_active.at(start_state)) {
-      continue;
-    }
 
-    // the search at `start_state` is a go
     notify_coordinator_update();
     gen_loops();
-    assert(pos == 0);
+
+    // reset for the next start_state
+    loading_work = false;
+    root_pos = 0;
+    root_throwval_options.clear();
+    pattern[0] = -1;
+    ++start_state;
   }
 }
 
@@ -539,6 +545,7 @@ void Worker::gen_loops() {
 
   ////////////////////// RELEASE THE KRAKEN //////////////////////
 
+  const auto pos_start = pos;
   const auto max_possible_start = max_possible;
   std::vector<int> used_start(used);
 
@@ -576,13 +583,14 @@ void Worker::gen_loops() {
       assert(false);
   }
 
+  assert(pos == pos_start);
   assert(max_possible == max_possible_start);
   assert(used == used_start);
 }
 
 // Initialize all working variables prior to gen_loops().
 //
-// Need to execute Graph::reduce_graph() before calling this method.
+// Need to set graph.state_active() before calling this method.
 
 void Worker::initialize_working_variables() {
   used.assign(graph.numstates + 1, 0);
@@ -591,6 +599,9 @@ void Worker::initialize_working_variables() {
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
+    graph.excludestates_throw.at(i).assign(graph.b + 1, 0);
+    graph.excludestates_catch.at(i).assign(graph.h - graph.b + 1, 0);
+
     deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
     if (!graph.state_active.at(i)) {
       (*deadstates_bystate.at(i)) += 1;

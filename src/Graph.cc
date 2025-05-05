@@ -253,8 +253,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 // Populate graph data structures describing connections between states
 //------------------------------------------------------------------------------
 
-// Construct matrices describing the structure of the juggling graph, for the
-// states that are currently active.
+// Construct matrices describing the structure of the juggling graph.
 //
 // - Outward degree from each state (vertex) in the graph:
 //         outdegree[statenum] --> degree
@@ -267,17 +266,12 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 
 void Graph::build_graph() {
   for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active.at(i)) {
-      outdegree.at(i) = 0;
-      continue;
-    }
-
     unsigned outthrownum = 0;
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
       if (xarray.at(throwval))
         continue;
       const auto k = advance_state(i, throwval);
-      if (k == 0 || !state_active.at(k))
+      if (k == 0)
         continue;
 
       outmatrix.at(i).at(outthrownum) = k;
@@ -286,8 +280,6 @@ void Graph::build_graph() {
     }
     outdegree.at(i) = outthrownum;
   }
-
-  find_exit_cycles();
 }
 
 // Remove unusable links and states from the graph. Apply two transformations
@@ -295,53 +287,62 @@ void Graph::build_graph() {
 // - Remove links into inactive states
 // - Deactivate states with zero outdegree or indegree
 //
-// Finally update these data structures based on the reduced graph:
-// - isexitcycle, excludestates_throw, excludestates_catch
+// If optional parameter `edit_matrix` is true, then prune links in/out of
+// inactive states from the throw matrix.
 
-void Graph::reduce_graph() {
+void Graph::reduce_graph(bool edit_matrix) {
+  std::vector active_outdegree(outdegree);
+
   while (true) {
     bool changed = false;
 
     // Remove links into inactive states
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i)) {
-        outdegree.at(i) = 0;
+        active_outdegree.at(i) = 0;
+        if (edit_matrix) {
+          outdegree.at(i) = 0;
+        }
         continue;
       }
       unsigned outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
         if (state_active.at(outmatrix.at(i).at(j))) {
-          if (outthrownum != j) {
+          if (edit_matrix && outthrownum != j) {
             outmatrix.at(i).at(outthrownum) = outmatrix.at(i).at(j);
             outthrowval.at(i).at(outthrownum) = outthrowval.at(i).at(j);
           }
           ++outthrownum;
         }
       }
-      if (outdegree.at(i) != outthrownum) {
-        outdegree.at(i) = outthrownum;
+      if (active_outdegree.at(i) != outthrownum) {
+        active_outdegree.at(i) = outthrownum;
+        if (edit_matrix) {
+          outdegree.at(i) = outthrownum;
+        }
         changed = true;
       }
     }
 
     // Deactivate states with zero outdegree or indegree
-    std::vector<unsigned> indegree(numstates + 1, 0);
+    std::vector<unsigned> active_indegree(numstates + 1, 0);
+
     for (size_t i = 1; i <= numstates; ++i) {
       if (!state_active.at(i))
         continue;
-      if (outdegree.at(i) == 0) {
+      if (active_outdegree.at(i) == 0) {
         state_active.at(i) = false;
         changed = true;
         continue;
       }
 
       for (size_t j = 0; j < outdegree.at(i); ++j) {
-        ++indegree.at(outmatrix.at(i).at(j));
+        ++active_indegree.at(outmatrix.at(i).at(j));
       }
     }
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (state_active.at(i) && indegree.at(i) == 0) {
+      if (state_active.at(i) && active_indegree.at(i) == 0) {
         state_active.at(i) = false;
         changed = true;
       }
@@ -349,14 +350,6 @@ void Graph::reduce_graph() {
 
     if (!changed)
       break;
-  }
-
-  find_exit_cycles();
-
-  // initialize to empty; call find_exclude_states() to fill in if needed
-  for (size_t i = 0; i <= numstates; ++i) {
-    excludestates_throw.at(i).assign(b + 1, 0);
-    excludestates_catch.at(i).assign(h - b + 1, 0);
   }
 }
 

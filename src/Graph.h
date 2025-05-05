@@ -54,14 +54,14 @@ class Graph {
  private:
   void init();
   unsigned find_shift_cycles();
-  void find_exit_cycles();
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned l);
 
  public:
   void build_graph();
-  void reduce_graph();
+  void reduce_graph(bool edit_matrix = false);
+  void find_exit_cycles();
   void find_exclude_states();
   unsigned prime_period_bound() const;
   unsigned superprime_period_bound(unsigned shifts = -1u) const;

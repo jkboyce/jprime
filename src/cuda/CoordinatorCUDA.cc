@@ -168,7 +168,7 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
   };
   graph.build_graph();
   customize_graph(graph);
-  graph.reduce_graph();
+  graph.reduce_graph(true);
   return graph;
 }
 
