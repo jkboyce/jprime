@@ -432,7 +432,7 @@ void CoordinatorCPU::start_workers() {
       jpout << std::format("worker {} starting...", id) << std::endl;
     }
 
-    worker.push_back(std::make_unique<Worker>(config, *this, id, n_max));
+    worker.push_back(std::make_unique<Worker>(config, *this, graph, id, n_max));
     worker_thread.push_back(
         std::make_unique<std::thread>(&Worker::run, worker.at(id).get()));
     worker_startstate.push_back(0);

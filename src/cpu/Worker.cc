@@ -26,10 +26,10 @@
 #include <format>
 
 
-Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, unsigned id,
-    unsigned n_max)
+Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
+    unsigned id, unsigned n_max)
     : config(config), coordinator(coord), worker_id(id), n_min(config.n_min),
-      n_max(n_max) {}
+      n_max(n_max), graph(g) {}
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -294,7 +294,7 @@ void Worker::send_stats_to_coordinator() {
       if (throwval != 0 && throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
-          auto es = graph.excludestates_throw.at(from_state).at(j);
+          auto es = excludestates_throw.at(from_state).at(j);
           if (es == 0)
             break;
           if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
@@ -304,7 +304,7 @@ void Worker::send_stats_to_coordinator() {
 
         // catch
         for (size_t j = 0; ; ++j) {
-          auto es = graph.excludestates_catch.at(to_state).at(j);
+          auto es = excludestates_catch.at(to_state).at(j);
           if (es == 0)
             break;
           if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
@@ -438,25 +438,14 @@ void Worker::do_work_assignment() {
   running = true;
   loading_work = true;
 
-  // build the graph
-  graph.state_active.assign(graph.numstates + 1, true);
-  graph.build_graph();
-  coordinator.customize_graph(graph);
-  graph.reduce_graph(true);
-
   while (start_state <= end_state) {
-    for (size_t i = 0; i < start_state; ++i) {
-      graph.state_active.at(i) = false;
+    if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+      isexitcycle = graph.get_exit_cycles(start_state);
     }
 
-    // executing reduce_graph() here reduces node count for NORMAL_MARKING
-    // mode by > 2x
-
-    graph.reduce_graph();
-
-    graph.find_exit_cycles();
     initialize_working_variables();
 
+    /*
     if (config.verboseflag) {
       const auto num_inactive = static_cast<int>(
           std::count(graph.state_active.cbegin() + 1,
@@ -467,7 +456,7 @@ void Worker::do_work_assignment() {
           worker_id, graph.state_string(start_state), start_state,
           worker_id, num_inactive, graph.numstates, max_possible);
       message_coordinator_text(text);
-    }
+    }*/
 
     // this next section, in combination with reduce_graph() above, is
     // necessary to get node count close to ideal for test cases 5 and 7
@@ -554,7 +543,8 @@ void Worker::gen_loops() {
       gen_loops_normal();
       break;
     case 1:
-      graph.find_exclude_states();
+      std::tie(excludestates_throw, excludestates_catch) =
+          graph.get_exclude_states(start_state);
       gen_loops_normal_marking();
       break;
     case 2:
@@ -570,7 +560,8 @@ void Worker::gen_loops() {
       iterative_gen_loops_normal<true, false>();
       break;
     case 6:
-      graph.find_exclude_states();
+      std::tie(excludestates_throw, excludestates_catch) =
+          graph.get_exclude_states(start_state);
       iterative_gen_loops_normal_marking<false>();
       break;
     case 7:
@@ -599,11 +590,11 @@ void Worker::initialize_working_variables() {
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
 
   for (size_t i = 1; i <= graph.numstates; ++i) {
-    graph.excludestates_throw.at(i).assign(graph.b + 1, 0);
-    graph.excludestates_catch.at(i).assign(graph.h - graph.b + 1, 0);
+    excludestates_throw.at(i).assign(graph.b + 1, 0);
+    excludestates_catch.at(i).assign(graph.h - graph.b + 1, 0);
 
     deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
-    if (!graph.state_active.at(i)) {
+    if (start_state > graph.max_startstate_usable.at(i)) {
       (*deadstates_bystate.at(i)) += 1;
     }
   }
@@ -611,18 +602,8 @@ void Worker::initialize_working_variables() {
   pos = 0;
   from = start_state;
   shiftcount = 0;
-  exitcyclesleft =
-      std::count(graph.isexitcycle.cbegin(), graph.isexitcycle.cend(), true);
-
-  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    max_possible = graph.prime_period_bound();
-  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    if (config.shiftlimit == -1u) {
-      max_possible = graph.superprime_period_bound();
-    } else {
-      max_possible = graph.superprime_period_bound(config.shiftlimit);
-    }
-  }
+  exitcyclesleft = std::count(isexitcycle.cbegin(), isexitcycle.cend(), true);
+  max_possible = coordinator.get_max_length(start_state);
 }
 
 //------------------------------------------------------------------------------

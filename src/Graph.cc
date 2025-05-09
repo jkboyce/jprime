@@ -20,7 +20,7 @@
 
 Graph::Graph(unsigned b, unsigned h)
     : b(b), h(h), n(0), xarray(h + 1, false) {
-  init();
+  initialize();
 }
 
 // Initialize with two additional options:
@@ -38,7 +38,7 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
     : b(b), h(h), n(n), xarray(xa) {
   assert(xa.size() == h + 1);
   assert(n < h);
-  init();
+  initialize();
 }
 
 //------------------------------------------------------------------------------
@@ -46,11 +46,8 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
 //------------------------------------------------------------------------------
 
 // Initialize the Graph object.
-//
-// NOTE: Call build_graph() after this to fully populate the graph arrays with
-// data.
 
-void Graph::init() {
+void Graph::initialize() {
   // fail if the number of states cannot fit into an unsigned int
   const std::uint64_t num = (n == 0 ? combinations(h, b) :
       ordered_partitions(b, h, n));
@@ -70,32 +67,13 @@ void Graph::init() {
     }
   }
   assert(state.size() == numstates + 1);
-  state_active.assign(numstates + 1, true);
 
   // generate the shift cycles
   numcycles = find_shift_cycles();
 
-  // allocate arrays to be filled in later by build_graph() and
-  // find_exclude_states()
-  maxoutdegree = 0;
-  for (size_t i = 0; i <= h; ++i) {
-    if (!xarray.at(i)) {
-      ++maxoutdegree;
-    }
-  }
-  maxoutdegree = std::min(maxoutdegree, h - b + 1);
-  outdegree.assign(numstates + 1, 0);
-  outmatrix.resize(numstates + 1);
-  outthrowval.resize(numstates + 1);
-  excludestates_throw.resize(numstates + 1);
-  excludestates_catch.resize(numstates + 1);
-  for (size_t i = 0; i <= numstates; ++i) {
-    outmatrix.at(i).assign(maxoutdegree, 0);
-    outthrowval.at(i).assign(maxoutdegree, 0);
-    excludestates_throw.at(i).assign(h, 0);
-    excludestates_catch.at(i).assign(h, 0);
-  }
-  isexitcycle.assign(numcycles, 0);
+  // fill in graph matrices
+  build_graph();
+  find_max_startstate_usable();
 }
 
 // Generate arrays describing the shift cycles of the juggling graph.
@@ -250,7 +228,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 }
 
 //------------------------------------------------------------------------------
-// Populate graph data structures describing connections between states
+// Operations on graph matrices
 //------------------------------------------------------------------------------
 
 // Construct matrices describing the structure of the juggling graph.
@@ -265,6 +243,21 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 // outmatrix[][] == 0 indicates no connection.
 
 void Graph::build_graph() {
+  maxoutdegree = 0;
+  for (size_t i = 0; i <= h; ++i) {
+    if (!xarray.at(i)) {
+      ++maxoutdegree;
+    }
+  }
+  maxoutdegree = std::min(maxoutdegree, h - b + 1);
+  outdegree.assign(numstates + 1, 0);
+  outmatrix.resize(numstates + 1);
+  outthrowval.resize(numstates + 1);
+  for (size_t i = 0; i <= numstates; ++i) {
+    outmatrix.at(i).assign(maxoutdegree, 0);
+    outthrowval.at(i).assign(maxoutdegree, 0);
+  }
+
   for (size_t i = 1; i <= numstates; ++i) {
     unsigned outthrownum = 0;
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
@@ -282,68 +275,85 @@ void Graph::build_graph() {
   }
 }
 
-// Remove unusable links and states from the graph. Apply two transformations
-// until no further reductions are possible:
-// - Remove links into inactive states
-// - Deactivate states with zero outdegree or indegree
+// Fill in the vector `max_startstate_usable`, which indicates when a given
+// state is accessible in the graph.
 //
-// If optional parameter `edit_matrix` is true, then prune links in/out of
-// inactive states from the throw matrix.
+// The state `i` is accessible to a pattern starting from `start_state` if and
+// only if start_state <= max_startstate_usable[i].
 
-void Graph::reduce_graph(bool edit_matrix) {
-  std::vector active_outdegree(outdegree);
+void Graph::find_max_startstate_usable() {
+  max_startstate_usable.resize(numstates + 1);
+  max_startstate_usable.assign(numstates + 1, 0);
+  std::vector<bool> state_usable(numstates + 1, true);
 
+  for (unsigned start_state = 1; start_state <= numstates; ++start_state) {
+    state_usable.at(start_state - 1) = false;
+
+    update_usable_states(state_usable);
+
+    for (size_t i = start_state; i <= numstates; ++i) {
+      if (state_usable.at(i)) {
+        // confirm we never switch from unusable back to usable
+        assert(max_startstate_usable.at(i) + 1 == start_state);
+        max_startstate_usable.at(i) = start_state;
+      }
+    }
+  }
+}
+
+// Find any additional unusable states in the graph.
+//
+// Propagate unusable links and states through the graph, by applying two
+// transformations until no further reductions are possible:
+// - Remove links into states with outdegree zero
+// - For states with indegree zero, set outdegree to zero
+
+void Graph::update_usable_states(std::vector<bool>& state_usable) const {
+  std::vector<unsigned> usable_outdegree(outdegree);
+  std::vector<unsigned> usable_indegree(numstates + 1, 0);
+
+  // Propagate unusable links and states through the graph
   while (true) {
     bool changed = false;
 
-    // Remove links into inactive states
+    // remove links into unusable states
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i)) {
-        active_outdegree.at(i) = 0;
-        if (edit_matrix) {
-          outdegree.at(i) = 0;
-        }
+      if (!state_usable.at(i)) {
+        usable_outdegree.at(i) = 0;
         continue;
       }
       unsigned outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
-        if (state_active.at(outmatrix.at(i).at(j))) {
-          if (edit_matrix && outthrownum != j) {
-            outmatrix.at(i).at(outthrownum) = outmatrix.at(i).at(j);
-            outthrowval.at(i).at(outthrownum) = outthrowval.at(i).at(j);
-          }
+        if (state_usable.at(outmatrix.at(i).at(j))) {
           ++outthrownum;
         }
       }
-      if (active_outdegree.at(i) != outthrownum) {
-        active_outdegree.at(i) = outthrownum;
-        if (edit_matrix) {
-          outdegree.at(i) = outthrownum;
-        }
+      if (usable_outdegree.at(i) != outthrownum) {
+        usable_outdegree.at(i) = outthrownum;
         changed = true;
       }
     }
 
-    // Deactivate states with zero outdegree or indegree
-    std::vector<unsigned> active_indegree(numstates + 1, 0);
+    // mark unusable any states with zero outdegree or indegree
+    usable_indegree.assign(numstates + 1, 0);
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_active.at(i))
+      if (!state_usable.at(i))
         continue;
-      if (active_outdegree.at(i) == 0) {
-        state_active.at(i) = false;
+      if (usable_outdegree.at(i) == 0) {
+        state_usable.at(i) = false;
         changed = true;
         continue;
       }
 
       for (size_t j = 0; j < outdegree.at(i); ++j) {
-        ++active_indegree.at(outmatrix.at(i).at(j));
+        ++usable_indegree.at(outmatrix.at(i).at(j));
       }
     }
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (state_active.at(i) && active_indegree.at(i) == 0) {
-        state_active.at(i) = false;
+      if (state_usable.at(i) && usable_indegree.at(i) == 0) {
+        state_usable.at(i) = false;
         changed = true;
       }
     }
@@ -353,34 +363,43 @@ void Graph::reduce_graph(bool edit_matrix) {
   }
 }
 
-// Fill in array `isexitcycle` that indicates which shift cycles can exit
+// Remove unusable links and states from the graph.
+//
+// NOTE: This function will in general renumber the states! The exception is
+// state number 1, which is reserved for the ground state and is never removed
+// or renumbered.
+
+void Graph::reduce_graph() {
+  std::vector<bool> state_usable(numstates + 1, true);
+  update_usable_states(state_usable);
+
+  // TODO update:
+  //   unsigned numstates = 0;
+  //   std::vector<State> state;
+  //   std::vector<unsigned> cyclenum;
+  //   std::vector<unsigned> max_startstate_usable;
+  //   std::vector<unsigned> outdegree;
+  //   std::vector<std::vector<unsigned>> outmatrix;
+  //   std::vector<std::vector<unsigned>> outthrowval;
+}
+
+// Return vector `isexitcycle` that indicates which shift cycles can exit
 // directly to the start state with a link throw. This is used in SUPER mode to
 // cut off search when all exit cycles have been used.
-//
-// The start state is assumed to be the lowest active state number.
 
-void Graph::find_exit_cycles() {
-  isexitcycle.assign(numcycles, false);
-  unsigned lowest_active_state = 0;
+std::vector<int> Graph::get_exit_cycles(unsigned start_state) const {
+  std::vector<int> isexitcycle(numcycles, 0);
 
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active.at(i))
-      continue;
-    if (lowest_active_state == 0) {
-      lowest_active_state = static_cast<unsigned>(i);
-      continue;
-    }
-
+  for (size_t i = start_state + 1; i <= numstates; ++i) {
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      if (outmatrix.at(i).at(j) == lowest_active_state) {
-        isexitcycle.at(cyclenum.at(i)) = true;
+      if (outmatrix.at(i).at(j) == start_state) {
+        isexitcycle.at(cyclenum.at(i)) = 1;
       }
     }
   }
+  isexitcycle.at(cyclenum.at(start_state)) = 0;
 
-  if (lowest_active_state != 0) {
-    isexitcycle.at(cyclenum.at(lowest_active_state)) = false;
-  }
+  return isexitcycle;
 }
 
 // Generate arrays that are used for marking excluded states during NORMAL
@@ -389,9 +408,21 @@ void Graph::find_exit_cycles() {
 //
 // This should be called after reduce_graph() and before gen_loops().
 
-void Graph::find_exclude_states() {
+std::tuple<std::vector<std::vector<unsigned>>, std::vector<std::vector<unsigned>>>
+    Graph::get_exclude_states(unsigned start_state) const
+{
+  std::vector<std::vector<unsigned>> excludestates_throw;
+  std::vector<std::vector<unsigned>> excludestates_catch;
+
+  excludestates_throw.resize(numstates + 1);
+  excludestates_catch.resize(numstates + 1);
+  for (size_t i = 0; i <= numstates; ++i) {
+    excludestates_throw.at(i).assign(h, 0);
+    excludestates_catch.at(i).assign(h, 0);
+  }
+
   for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_active.at(i)) {
+    if (start_state > max_startstate_usable.at(i)) {
       excludestates_throw.at(i).at(0) = 0;
       excludestates_catch.at(i).at(0) = 0;
       continue;
@@ -403,8 +434,10 @@ void Graph::find_exclude_states() {
     unsigned j = 0;
     while (s.slot(s.size() - 1) != 0) {
       const auto statenum = get_statenum(s);
-      if (statenum == 0 || !state_active.at(statenum) || statenum == i)
+      if (statenum == 0 || start_state > max_startstate_usable.at(statenum) ||
+          statenum == i) {
         break;
+      }
       excludestates_throw.at(i).at(j++) = statenum;
       s = s.downstream();
     }
@@ -416,23 +449,27 @@ void Graph::find_exclude_states() {
     j = 0;
     while (s.slot(0) == 0) {
       const auto statenum = get_statenum(s);
-      if (statenum == 0 || !state_active.at(statenum) || statenum == i)
+      if (statenum == 0 || start_state > max_startstate_usable.at(statenum) ||
+          statenum == i) {
         break;
+      }
       excludestates_catch.at(i).at(j++) = statenum;
       s = s.upstream();
     }
     excludestates_catch.at(i).at(j) = 0;
   }
+
+  return make_tuple(excludestates_throw, excludestates_catch);
 }
 
 //------------------------------------------------------------------------------
 // Utility methods
 //------------------------------------------------------------------------------
 
-// Calculate an upper bound on the period of prime patterns in the graph, using
-// states that are currently active.
+// Calculate an upper bound on the period of prime patterns in the graph,
+// starting from `start_state` as the root node.
 
-unsigned Graph::prime_period_bound() const {
+unsigned Graph::prime_period_bound(unsigned start_state) const {
   // case 1: the pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
   // case 2: the pattern stays on a single shift cycle; find the cycle with the
@@ -441,8 +478,8 @@ unsigned Graph::prime_period_bound() const {
   unsigned result_onecycle = 0;
 
   std::vector<unsigned> num_active(numcycles, 0);
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (state_active.at(i)) {
+  for (size_t i = start_state; i <= numstates; ++i) {
+    if (start_state <= max_startstate_usable.at(i)) {
       ++num_active.at(cyclenum.at(i));
     }
   }
@@ -460,16 +497,17 @@ unsigned Graph::prime_period_bound() const {
   return std::max(result_multicycle, result_onecycle);
 }
 
-// Calculate an upper bound on the period of superprime patterns, using states
-// that are currently active.
+// Calculate an upper bound on the period of superprime patterns, starting from
+// `start_state` as the root node.
 //
 // Optional parameter `shifts` specifies an upper limit on the number of shift
 // throws allowed in the pattern.
 
-unsigned Graph::superprime_period_bound(unsigned shifts) const {
+unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
+    const {
   std::vector<bool> any_active(numcycles, false);
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (state_active.at(i)) {
+  for (size_t i = start_state; i <= numstates; ++i) {
+    if (start_state <= max_startstate_usable.at(i)) {
       any_active.at(cyclenum.at(i)) = true;
     }
   }
@@ -481,9 +519,9 @@ unsigned Graph::superprime_period_bound(unsigned shifts) const {
     return 0;
   }
   if (shifts == -1u) {
-    return prime_period_bound();
+    return prime_period_bound(start_state);
   }
-  return std::min(prime_period_bound(), cycles_active + shifts);
+  return std::min(prime_period_bound(start_state), cycles_active + shifts);
 }
 
 // Return the index in the `state` array that corresponds to a given state.

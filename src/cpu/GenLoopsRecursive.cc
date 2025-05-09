@@ -227,7 +227,7 @@ void Worker::gen_loops_super() {
         }
 
         const int old_exitcyclesleft = exitcyclesleft;
-        if (graph.isexitcycle[to_cycle]) {
+        if (isexitcycle[to_cycle]) {
           --exitcyclesleft;
         }
         cycleused[to_cycle] = true;
@@ -314,7 +314,7 @@ void Worker::gen_loops_super0() {
       }
 
       const int old_exitcyclesleft = exitcyclesleft;
-      if (graph.isexitcycle[to_cycle]) {
+      if (isexitcycle[to_cycle]) {
         --exitcyclesleft;
       }
       cycleused[to_cycle] = true;
@@ -496,7 +496,7 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 inline bool Worker::mark_unreachable_states_throw() {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = graph.excludestates_throw[from].data();
+  unsigned* es = excludestates_throw[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
@@ -511,7 +511,7 @@ inline bool Worker::mark_unreachable_states_throw() {
 inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = graph.excludestates_catch[to_state].data();
+  unsigned* es = excludestates_catch[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
@@ -528,7 +528,7 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
 
 inline void Worker::unmark_unreachable_states_throw() {
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = graph.excludestates_throw[from].data();
+  unsigned* es = excludestates_throw[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
@@ -540,7 +540,7 @@ inline void Worker::unmark_unreachable_states_throw() {
 
 inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = graph.excludestates_catch[to_state].data();
+  unsigned* es = excludestates_catch[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {

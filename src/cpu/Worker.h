@@ -30,8 +30,8 @@ class CoordinatorCPU;
 
 class Worker : public WorkSpace {
  public:
-  Worker(const SearchConfig& config, CoordinatorCPU& coord, unsigned id,
-      unsigned n_max);
+  Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
+      unsigned id, unsigned n_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
 
@@ -49,13 +49,16 @@ class Worker : public WorkSpace {
   const unsigned n_max;  // maximum period
 
   // working variables for search
-  Graph graph;
+  Graph& graph;
   std::vector<WorkCell> beat;  // workspace for iterative search
   std::vector<int> pattern;  // throw value at each position
   std::vector<int> used;  // whether a state has been visited
   std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
+  std::vector<int> isexitcycle;
+  std::vector<std::vector<unsigned>> excludestates_throw;
+  std::vector<std::vector<unsigned>> excludestates_catch;
   int pos = 0;  // current index in the pattern
   unsigned from = 1;  // current state number
   unsigned shiftcount = 0;

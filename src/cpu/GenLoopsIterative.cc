@@ -209,7 +209,7 @@ void Worker::iterative_gen_loops_normal_marking() {
   for (size_t i = 0; i <= graph.numstates; ++i) {
     om_row.at(i) = graph.outmatrix.at(i).data();
     otv_row.at(i) = graph.outthrowval.at(i).data();
-    es_throw_row.at(i) = graph.excludestates_throw.at(i).data();
+    es_throw_row.at(i) = excludestates_throw.at(i).data();
   }
   unsigned** const outmatrix = om_row.data();
   unsigned** const outthrowval = otv_row.data();
@@ -335,7 +335,7 @@ void Worker::iterative_gen_loops_normal_marking() {
       }
 
       // mark states excluded by link catch
-      unsigned* es = graph.excludestates_catch[to_state].data();
+      unsigned* es = excludestates_catch[to_state].data();
       unsigned* const ds = ds_bystate[to_state];
       wc->excludes_catch = es;
 
@@ -478,7 +478,7 @@ void Worker::iterative_gen_loops_super() {
   int* const cu = cycleused.data();
   unsigned* const outdegree = graph.outdegree.data();
   unsigned* const cyclenum = graph.cyclenum.data();
-  int* const isexitcycle = graph.isexitcycle.data();
+  int* const iec = isexitcycle.data();
 
   WorkCell* wc = &beat.at(pos);
 
@@ -513,7 +513,7 @@ void Worker::iterative_gen_loops_super() {
         --shiftcount;
       } else {  // link throw
         cu[to_cycle] = false;
-        if (isexitcycle[to_cycle]) {
+        if (iec[to_cycle]) {
           ++exitcyclesleft;
         }
       }
@@ -597,7 +597,7 @@ void Worker::iterative_gen_loops_super() {
         u[to_state] = 1;
       }
       cu[to_cycle] = true;
-      if (isexitcycle[to_cycle]) {
+      if (iec[to_cycle]) {
         --exitcyclesleft;
       }
     } else {  // shift throw

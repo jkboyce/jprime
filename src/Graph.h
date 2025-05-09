@@ -29,42 +29,46 @@ class Graph {
   Graph() = default;
 
  public:
-  // calculated at construction and do not change
   unsigned b = 0;  // number of objects
   unsigned h = 0;  // maximum throw value
   unsigned n = 0;  // if nonzero then single-period graph
   std::vector<bool> xarray;
+
+  // information about states
   unsigned numstates = 0;
+  std::vector<State> state;
+  std::vector<unsigned> cyclenum;  // indexed by state number
+  std::vector<unsigned> max_startstate_usable;
+
+  // information about shift cycles
   unsigned numcycles = 0;
   unsigned numshortcycles = 0;
-  std::vector<State> state;
-  std::vector<unsigned> cyclenum;
-  std::vector<unsigned> cycleperiod;
-  unsigned maxoutdegree = 0;
+  std::vector<unsigned> cycleperiod;  // indexed by cycle number
 
-  // updated as states are activated/deactivated
-  std::vector<bool> state_active;
+  // graph transition matrices
+  unsigned maxoutdegree = 0;
   std::vector<unsigned> outdegree;
   std::vector<std::vector<unsigned>> outmatrix;
   std::vector<std::vector<unsigned>> outthrowval;
-  std::vector<std::vector<unsigned>> excludestates_throw;
-  std::vector<std::vector<unsigned>> excludestates_catch;
-  std::vector<int> isexitcycle;
 
  private:
-  void init();
+  void initialize();
   unsigned find_shift_cycles();
+  void build_graph();
+  void find_max_startstate_usable();
+  void update_usable_states(std::vector<bool>& state_usable) const;
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned l);
 
  public:
-  void build_graph();
-  void reduce_graph(bool edit_matrix = false);
-  void find_exit_cycles();
-  void find_exclude_states();
-  unsigned prime_period_bound() const;
-  unsigned superprime_period_bound(unsigned shifts = -1u) const;
+  void reduce_graph();
+  std::vector<int> get_exit_cycles(unsigned start_state) const;
+  std::tuple<std::vector<std::vector<unsigned>>, std::vector<std::vector<unsigned>>>
+    get_exclude_states(unsigned start_state) const;
+  unsigned prime_period_bound(unsigned start_state) const;
+  unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1u)
+    const;
   unsigned get_statenum(const State& s) const;
   unsigned advance_state(unsigned statenum, unsigned throwval) const;
   unsigned reverse_state(unsigned statenum) const;

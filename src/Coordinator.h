@@ -41,6 +41,8 @@ class Coordinator {
   SearchConfig& config;
   SearchContext& context;
   std::ostream& jpout;  // all console output goes here except status display
+  Graph graph;
+  std::vector<int> max_length;
   unsigned n_max = 0;  // max pattern period to find
 
   // live status display
@@ -60,6 +62,8 @@ class Coordinator {
   // helper functions
   void calc_graph_size();
   bool passes_prechecks();
+  void initialize_graph();
+  void customize_graph(Graph& graph);
   std::vector<double> build_access_model(unsigned num_states);
   double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
@@ -74,11 +78,11 @@ class Coordinator {
 
  public:
   // utility methods
-  void customize_graph(Graph& graph);
   std::string pattern_output_format(const std::vector<int>& pattern,
     const unsigned start_state);
   static double calc_duration_secs(const jptimer_t& before,
     const jptimer_t& after);
+  int get_max_length(unsigned start_state) const;
 };
 
 #endif
