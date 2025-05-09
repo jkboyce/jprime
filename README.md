@@ -9,7 +9,7 @@ Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those whic
 
 The following notes discuss the theory of prime juggling patterns, some details about algorithms used by `jprime`, and search results to date:
 
-- [Notes on Prime Juggling Patterns (2025.04.14)](papers/prime%20juggling_2025.pdf)
+- [Notes on Prime Juggling Patterns (2025.05.09)](papers/prime%20juggling_2025.pdf)
 
 ## Running jprime
 
