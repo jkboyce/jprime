@@ -373,7 +373,13 @@ void Graph::reduce_graph() {
   std::vector<bool> state_usable(numstates + 1, true);
   update_usable_states(state_usable);
 
-  // TODO update:
+  for (size_t i = 0; i <= numstates; ++i) {
+    if (!state_usable.at(i)) {
+      outdegree.at(i) = 0;
+    }
+  }
+
+  // TODO remove unusable states from:
   //   unsigned numstates = 0;
   //   std::vector<State> state;
   //   std::vector<unsigned> cyclenum;
@@ -381,6 +387,8 @@ void Graph::reduce_graph() {
   //   std::vector<unsigned> outdegree;
   //   std::vector<std::vector<unsigned>> outmatrix;
   //   std::vector<std::vector<unsigned>> outthrowval;
+
+  find_max_startstate_usable();
 }
 
 // Return vector `isexitcycle` that indicates which shift cycles can exit

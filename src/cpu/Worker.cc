@@ -97,13 +97,9 @@ void Worker::run() {
   }
 }
 
-// Initialize the juggling graph and associated arrays used during search.
+// Initialize the arrays used during search.
 
 void Worker::init() {
-  graph = {config.b, config.h, config.xarray,
-    config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH ?
-    config.n_min : 0};
-
   beat.resize(graph.numstates + 1);
   pattern.assign(graph.numstates + 1, -1);
   used.assign(graph.numstates + 1, 0);
@@ -439,48 +435,41 @@ void Worker::do_work_assignment() {
   loading_work = true;
 
   while (start_state <= end_state) {
-    if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-      isexitcycle = graph.get_exit_cycles(start_state);
-    }
+    // check if this value of `start_state` is allowed
+    if (graph.max_startstate_usable.at(start_state) == start_state) {
+      initialize_working_variables();
 
-    initialize_working_variables();
-
-    /*
-    if (config.verboseflag) {
-      const auto num_inactive = static_cast<int>(
-          std::count(graph.state_active.cbegin() + 1,
-          graph.state_active.cend(), false));
-      const auto text = std::format(
-          "worker {} starting at state {} ({})\n"
-          "worker {} deactivated {} of {} states, max_possible = {}",
-          worker_id, graph.state_string(start_state), start_state,
-          worker_id, num_inactive, graph.numstates, max_possible);
-      message_coordinator_text(text);
-    }*/
-
-    // this next section, in combination with reduce_graph() above, is
-    // necessary to get node count close to ideal for test cases 5 and 7
-    //
-    // this is because this combination allows us to break out of the loop
-    // early and skip some values of start_state
-    //
-    // jprime 3 18 47 -super 1 -verbose -noprint
-    // to isolate what's happening
-
-    if (max_possible < static_cast<int>(n_min)) {
-      // larger values of `start_state` will have `max_possible` values that are
-      // the same or smaller, so we can exit the loop
       if (config.verboseflag) {
+        unsigned num_inactive = 0;
+        for (size_t i = 1; i <= graph.numstates; ++i) {
+          if (start_state > graph.max_startstate_usable.at(i)) {
+            ++num_inactive;
+          }
+        }
         const auto text = std::format(
-            "worker {} terminating because max_possible ({}) < n_min ({})",
-            worker_id, max_possible, n_min);
+            "worker {} starting at state {} ({})\n"
+            "worker {} deactivated {} of {} states, max_possible = {}",
+            worker_id, graph.state_string(start_state), start_state,
+            worker_id, num_inactive, graph.numstates, max_possible);
         message_coordinator_text(text);
       }
-      break;
-    }
 
-    notify_coordinator_update();
-    gen_loops();
+      if (max_possible < static_cast<int>(n_min)) {
+        // larger values of `start_state` will have `max_possible` values that are
+        // the same or smaller, so we can exit the loop
+        assert(max_possible >= 0);
+        if (config.verboseflag) {
+          const auto text = std::format(
+              "worker {} terminating because max_possible ({}) < n_min ({})",
+              worker_id, max_possible, n_min);
+          message_coordinator_text(text);
+        }
+        break;
+      }
+
+      notify_coordinator_update();
+      gen_loops();
+    }
 
     // reset for the next start_state
     loading_work = false;
@@ -580,8 +569,6 @@ void Worker::gen_loops() {
 }
 
 // Initialize all working variables prior to gen_loops().
-//
-// Need to set graph.state_active() before calling this method.
 
 void Worker::initialize_working_variables() {
   used.assign(graph.numstates + 1, 0);
@@ -589,6 +576,8 @@ void Worker::initialize_working_variables() {
   deadstates.assign(graph.numcycles, 0);
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
 
+  excludestates_throw.resize(graph.numstates + 1);
+  excludestates_catch.resize(graph.numstates + 1);
   for (size_t i = 1; i <= graph.numstates; ++i) {
     excludestates_throw.at(i).assign(graph.b + 1, 0);
     excludestates_catch.at(i).assign(graph.h - graph.b + 1, 0);
@@ -599,10 +588,19 @@ void Worker::initialize_working_variables() {
     }
   }
 
+  if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    isexitcycle = graph.get_exit_cycles(start_state);
+    exitcyclesleft = std::count(isexitcycle.cbegin(), isexitcycle.cend(), true);
+
+    std::cerr << "exitcyclesleft = " << exitcyclesleft << '\n';
+    for (size_t i = 0; i < graph.numcycles; ++i) {
+      std::cerr << "  " << i << ": " << isexitcycle.at(i) << '\n';
+    }
+  }
+
   pos = 0;
   from = start_state;
   shiftcount = 0;
-  exitcyclesleft = std::count(isexitcycle.cbegin(), isexitcycle.cend(), true);
   max_possible = coordinator.get_max_length(start_state);
 }
 
