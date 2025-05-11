@@ -71,6 +71,7 @@ class Graph {
   unsigned downstream_state(unsigned statenum) const;
   unsigned upstream_state(unsigned statenum) const;
   std::string state_string(unsigned statenum) const;
+  std::string to_string() const;
 
   constexpr static std::uint64_t combinations(unsigned a, unsigned b);
   constexpr static std::uint64_t shift_cycle_count(unsigned b, unsigned h,
@@ -79,6 +80,7 @@ class Graph {
     unsigned n);
 };
 
+std::ostream& operator<<(std::ostream& ost, const Graph& g);
 
 //------------------------------------------------------------------------------
 // Static methods for calculating graph size
