@@ -12,7 +12,7 @@
 #
 
 CC = g++
-CFLAGS = -Wall -Wextra -std=c++20 -O3 -Isrc -Isrc/cpu
+CFLAGS = -Wall -Wextra -Werror -std=c++20 -O3 -Isrc -Isrc/cpu
 SDIR = src
 ODIR = build
 OBJ = jprime.o jprime_tests.o Coordinator.o Graph.o Pattern.o SearchConfig.o \
