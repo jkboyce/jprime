@@ -11,6 +11,7 @@
 #include "Graph.h"
 
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <cassert>
 #include <limits>
@@ -606,4 +607,91 @@ unsigned Graph::upstream_state(unsigned statenum) const {
 
 std::string Graph::state_string(unsigned statenum) const {
   return state.at(statenum).to_string();
+}
+
+// Return a text representation of the graph.
+
+std::string Graph::to_string() const {
+  std::ostringstream buffer;
+
+  buffer << "graph:\n"
+         << "  b = " << b << "\n"
+         << "  h = " << h << "\n"
+         << "  n = " << n << "\n"
+         << "  numstates = " << numstates << "\n"
+         << "  states[] = { unused";
+  for (size_t i = 1; i < numstates; ++i) {
+    buffer << ", " << state_string(i);
+  }
+  buffer << " }\n"
+         << "  numcycles = " << numcycles << "\n"
+         << "  cyclenum[] = { unused, ";
+  for (size_t i = 1; i <= numstates; ++i) {
+    buffer << cyclenum.at(i);
+    if (i < numstates) {
+      buffer << ", ";
+    }
+  }
+  buffer << " }\n"
+         << "  cycleperiod[] = { ";
+  for (size_t i = 0; i < numcycles; ++i) {
+    buffer << cycleperiod.at(i);
+    if (i < numcycles - 1) {
+      buffer << ", ";
+    }
+  }
+  buffer << " }\n"
+         << "  numshortcycles = " << numshortcycles << "\n"
+         << "  maxoutdegree = " << maxoutdegree << "\n"
+         << "  outdegree[] = { unused, ";
+  for (size_t i = 1; i <= numstates; ++i) {
+    buffer << outdegree.at(i);
+    if (i < numstates) {
+      buffer << ", ";
+    }
+  }
+  buffer << " }\n"
+         << "  outmatrix[][] = {\n"
+         << "  0 -> unused,\n";
+  for (size_t i = 1; i <= numstates; ++i) {
+    buffer << "  " << i << " -> { ";
+    for (size_t j = 0; j < outdegree.at(i); ++j) {
+      buffer << outmatrix.at(i).at(j);
+      if (j < outdegree.at(i) - 1) {
+        buffer << ", ";
+      }
+    }
+    buffer << " }";
+    if (i < numstates) {
+      buffer << ", ";
+    }
+    buffer << '\n';
+  }
+  buffer << "}\n";
+  buffer << "  outthrowval[][] = {\n"
+         << "  0 -> unused,\n";
+  for (size_t i = 1; i <= numstates; ++i) {
+    buffer << "  " << i << " -> { ";
+    for (size_t j = 0; j < outdegree.at(i); ++j) {
+      buffer << outthrowval.at(i).at(j);
+      if (j < outdegree.at(i) - 1) {
+        buffer << ", ";
+      }
+    }
+    buffer << " }";
+    if (i < numstates) {
+      buffer << ", ";
+    }
+    buffer << '\n';
+  }
+  buffer << "}\n";
+
+  return buffer.str();
+}
+
+// Print to an output stream using the default text format.
+
+std::ostream& operator<<(std::ostream& ost, const Graph& g) {
+  ost << g.to_string();
+  return ost;
 }
