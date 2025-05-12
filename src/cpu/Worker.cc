@@ -591,11 +591,6 @@ void Worker::initialize_working_variables() {
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     isexitcycle = graph.get_exit_cycles(start_state);
     exitcyclesleft = std::count(isexitcycle.cbegin(), isexitcycle.cend(), true);
-
-    std::cerr << "exitcyclesleft = " << exitcyclesleft << '\n';
-    for (size_t i = 0; i < graph.numcycles; ++i) {
-      std::cerr << "  " << i << ": " << isexitcycle.at(i) << '\n';
-    }
   }
 
   pos = 0;

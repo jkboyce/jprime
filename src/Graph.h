@@ -53,18 +53,19 @@ class Graph {
 
  private:
   void initialize();
-  unsigned find_shift_cycles();
-  void build_graph();
-  void find_max_startstate_usable();
-  void update_usable_states(std::vector<bool>& state_usable) const;
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned l);
+  unsigned find_shift_cycles();
+  void build_graph_matrix();
+  void find_max_startstate_usable();
+  void update_usable_states(std::vector<bool>& state_usable) const;
 
  public:
-  void reduce_graph();
+  void validate_graph();
   std::vector<int> get_exit_cycles(unsigned start_state) const;
-  std::tuple<std::vector<std::vector<unsigned>>, std::vector<std::vector<unsigned>>>
+  std::tuple<std::vector<std::vector<unsigned>>,
+    std::vector<std::vector<unsigned>>>
     get_exclude_states(unsigned start_state) const;
   unsigned prime_period_bound(unsigned start_state) const;
   unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1u)

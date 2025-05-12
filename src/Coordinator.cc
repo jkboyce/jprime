@@ -202,7 +202,7 @@ void Coordinator::initialize_graph() {
                       ? config.n_min : 0
   };
   customize_graph(graph);
-  graph.reduce_graph();
+  graph.validate_graph();
 
   // build table of maximum pattern length by start_state
   max_length.push_back(-1);

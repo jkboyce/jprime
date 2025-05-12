@@ -72,68 +72,8 @@ void Graph::initialize() {
   // generate the shift cycles
   numcycles = find_shift_cycles();
 
-  // fill in graph matrices
-  build_graph();
+  build_graph_matrix();
   find_max_startstate_usable();
-}
-
-// Generate arrays describing the shift cycles of the juggling graph.
-//
-// - Which shift cycle number a given state belongs to:
-//         cyclenum[statenum] --> cyclenum
-// - The period of a given shift cycle number:
-//         cycleperiod[cyclenum] --> period
-//
-// Return the total number of shift cycles found.
-
-unsigned Graph::find_shift_cycles() {
-  const unsigned state_unused = -1;
-  cyclenum.assign(numstates + 1, state_unused);
-  assert(cycleperiod.size() == 0);
-
-  unsigned cycles = 0;
-  std::vector<unsigned> cyclestates(h);
-
-  for (size_t i = 1; i <= numstates; ++i) {
-    if (cyclenum.at(i) != state_unused)
-      continue;
-
-    State s = state.at(i);
-    bool periodfound = false;
-    bool newshiftcycle = true;
-    unsigned cycleper = h;
-
-    for (size_t j = 0; j < h; ++j) {
-      s = s.upstream();
-      const auto k = get_statenum(s);
-      cyclestates.at(j) = k;
-      if (k == 0)
-        continue;
-
-      if (k == i && !periodfound) {
-        cycleper = static_cast<unsigned>(j + 1);
-        periodfound = true;
-      } else if (k < i) {
-        newshiftcycle = false;
-      }
-    }
-    assert(cyclestates.at(h - 1) == i);
-
-    if (newshiftcycle) {
-      for (size_t j = 0; j < h; j++) {
-        if (cyclestates.at(j) > 0) {
-          cyclenum.at(cyclestates.at(j)) = cycles;
-        }
-      }
-      cycleperiod.push_back(cycleper);
-      if (cycleper < h) {
-        ++numshortcycles;
-      }
-      ++cycles;
-    }
-  }
-  assert(cycleperiod.size() == cycles);
-  return cycles;
 }
 
 //------------------------------------------------------------------------------
@@ -229,6 +169,69 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 }
 
 //------------------------------------------------------------------------------
+// Find the shift cycles in the graph
+//------------------------------------------------------------------------------
+
+// Generate arrays describing the shift cycles of the juggling graph.
+//
+// - Which shift cycle number a given state belongs to:
+//         cyclenum[statenum] --> cyclenum
+// - The period of a given shift cycle number:
+//         cycleperiod[cyclenum] --> period
+//
+// Return the total number of shift cycles found.
+
+unsigned Graph::find_shift_cycles() {
+  const unsigned state_unused = -1;
+  cyclenum.assign(numstates + 1, state_unused);
+  assert(cycleperiod.size() == 0);
+
+  unsigned cycles = 0;
+  std::vector<unsigned> cyclestates(h);
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (cyclenum.at(i) != state_unused)
+      continue;
+
+    State s = state.at(i);
+    bool periodfound = false;
+    bool newshiftcycle = true;
+    unsigned cycleper = h;
+
+    for (size_t j = 0; j < h; ++j) {
+      s = s.upstream();
+      const auto k = get_statenum(s);
+      cyclestates.at(j) = k;
+      if (k == 0)
+        continue;
+
+      if (k == i && !periodfound) {
+        cycleper = static_cast<unsigned>(j + 1);
+        periodfound = true;
+      } else if (k < i) {
+        newshiftcycle = false;
+      }
+    }
+    assert(cyclestates.at(h - 1) == i);
+
+    if (newshiftcycle) {
+      for (size_t j = 0; j < h; j++) {
+        if (cyclestates.at(j) > 0) {
+          cyclenum.at(cyclestates.at(j)) = cycles;
+        }
+      }
+      cycleperiod.push_back(cycleper);
+      if (cycleper < h) {
+        ++numshortcycles;
+      }
+      ++cycles;
+    }
+  }
+  assert(cycleperiod.size() == cycles);
+  return cycles;
+}
+
+//------------------------------------------------------------------------------
 // Operations on graph matrices
 //------------------------------------------------------------------------------
 
@@ -243,7 +246,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 //
 // outmatrix[][] == 0 indicates no connection.
 
-void Graph::build_graph() {
+void Graph::build_graph_matrix() {
   maxoutdegree = 0;
   for (size_t i = 0; i <= h; ++i) {
     if (!xarray.at(i)) {
@@ -302,12 +305,15 @@ void Graph::find_max_startstate_usable() {
   }
 }
 
-// Find any additional unusable states in the graph.
+// Identify states in the graph that are unusable.
 //
-// Propagate unusable links and states through the graph, by applying two
-// transformations until no further reductions are possible:
+// Propagate unusable links and states through the graph by applying two
+// transformations, until no further reductions are possible:
 // - Remove links into states with outdegree zero
 // - For states with indegree zero, set outdegree to zero
+//
+// Updates the input vector `state_usable` to false for any state numbers found
+// to be unusable.
 
 void Graph::update_usable_states(std::vector<bool>& state_usable) const {
   std::vector<unsigned> usable_outdegree(outdegree);
@@ -364,23 +370,36 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const {
   }
 }
 
-// Remove unusable links and states from the graph.
+//------------------------------------------------------------------------------
+// Public methods
+//------------------------------------------------------------------------------
+
+// Update graph data structures after an edit operation.
+//
+// NOTE: This function must be called after any kind of edit operation that
+// removes links and/or states, to ensure the internal state of the graph is
+// consistent.
 //
 // NOTE: This function will in general renumber the states! The exception is
 // state number 1, which is reserved for the ground state and is never removed
 // or renumbered.
 
-void Graph::reduce_graph() {
+void Graph::validate_graph() {
   std::vector<bool> state_usable(numstates + 1, true);
   update_usable_states(state_usable);
 
-  for (size_t i = 0; i <= numstates; ++i) {
-    if (!state_usable.at(i)) {
-      outdegree.at(i) = 0;
+  // work out new state numbers after unusable ones are removed
+  std::vector<unsigned> newstatenum(numstates + 1, 0);
+  newstatenum.at(1) = 1;
+  unsigned statenum = 2;
+  for (size_t i = 2; i <= numstates; ++i) {
+    if (state_usable.at(i)) {
+      newstatenum.at(i) = statenum;
+      ++statenum;
     }
   }
 
-  // TODO remove unusable states from:
+  // Update/remove unusable states from:
   //   unsigned numstates = 0;
   //   std::vector<State> state;
   //   std::vector<unsigned> cyclenum;
@@ -388,6 +407,39 @@ void Graph::reduce_graph() {
   //   std::vector<unsigned> outdegree;
   //   std::vector<std::vector<unsigned>> outmatrix;
   //   std::vector<std::vector<unsigned>> outthrowval;
+
+  for (size_t i = 1; i <= numstates; ++i) {
+    if (!state_usable.at(i) && i > 1) {
+      continue;
+    }
+    unsigned newi = newstatenum.at(i);
+    assert(newi != 0 && newi <= i);
+
+    // copy graph data from row `i` to row `newi`
+    state.at(newi) = state.at(i);
+    cyclenum.at(newi) = cyclenum.at(i);
+
+    unsigned outthrownum = 0;
+    for (size_t j = 0; j < outdegree.at(i); ++j) {
+      if (state_usable.at(outmatrix.at(i).at(j))) {
+        unsigned newsn = newstatenum.at(outmatrix.at(i).at(j));
+        assert(newsn != 0);
+        outmatrix.at(newi).at(outthrownum) = newsn;
+        outthrowval.at(newi).at(outthrownum) = outthrowval.at(i).at(j);
+        ++outthrownum;
+      }
+    }
+    outdegree.at(newi) = outthrownum;
+  }
+
+  numstates = statenum - 1;
+  // State is not default constructable
+  state.erase(state.begin() + numstates + 1, state.end());
+  assert(state.size() == numstates + 1);
+  cyclenum.resize(numstates + 1);
+  outdegree.resize(numstates + 1);
+  outmatrix.resize(numstates + 1);
+  outthrowval.resize(numstates + 1);
 
   find_max_startstate_usable();
 }
@@ -417,9 +469,9 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const {
 //
 // This should be called after reduce_graph() and before gen_loops().
 
-std::tuple<std::vector<std::vector<unsigned>>, std::vector<std::vector<unsigned>>>
-    Graph::get_exclude_states(unsigned start_state) const
-{
+std::tuple<std::vector<std::vector<unsigned>>,
+           std::vector<std::vector<unsigned>>>
+    Graph::get_exclude_states(unsigned start_state) const {
   std::vector<std::vector<unsigned>> excludestates_throw;
   std::vector<std::vector<unsigned>> excludestates_catch;
 
