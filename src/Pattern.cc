@@ -435,8 +435,6 @@ Pattern Pattern::inverse() {
   //
   // By convention we start all patterns with their smallest state.
 
-  std::vector<int> inverse_final;
-
   size_t min_index = 0;
   for (size_t i = 1; i < inverse_states.size(); ++i) {
     if (inverse_states.at(i) < inverse_states.at(min_index)) {
@@ -444,12 +442,12 @@ Pattern Pattern::inverse() {
     }
   }
 
+  std::vector<int> inverse_final;
   const auto inverse_per = inverse_throwval.size();
   for (size_t i = 0; i < inverse_per; ++i) {
     const auto j = (i + min_index) % inverse_per;
     inverse_final.push_back(inverse_throwval.at(j));
   }
-
   return {inverse_final, h};
 }
 
