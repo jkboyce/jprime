@@ -176,8 +176,8 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
         config.from_args(context.arglist + overrides);
 
         std::cout << std::format("Resuming calculation: {}\n"
-                       "      with overrides:{}\n"
-                       "Loaded {} patterns and {} work assignments\n",
+                       "with overrides:{}\n"
+                       "Loaded {} patterns and {} work assignments",
                        context.arglist, overrides, context.npatterns,
                        context.assignments.size())
                   << std::endl;
