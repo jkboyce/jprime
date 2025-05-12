@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <string>
+#include <set>
 #include <sstream>
 #include <regex>
 #include <cassert>
@@ -37,13 +38,11 @@ WorkAssignment::Type WorkAssignment::get_type() const {
     return root_throwval_options.empty() ? Type::UNSPLITTABLE : Type::INVALID;
   }
 
-  // throws in `rto` must form a decreasing sequence
-  unsigned last_tv = partial_pattern.at(root_pos);
-  for (const auto tv : root_throwval_options) {
-    if (tv >= last_tv) {
-      return Type::INVALID;
-    }
-    last_tv = tv;
+  // throws in `rto`, and pp.at(root_pos), must all be distinct
+  std::set s(root_throwval_options.begin(), root_throwval_options.end());
+  s.insert(partial_pattern.at(root_pos));
+  if (s.size() != root_throwval_options.size() + 1) {
+    return Type::INVALID;
   }
 
   return root_throwval_options.empty() ? Type::INVALID : Type::SPLITTABLE;

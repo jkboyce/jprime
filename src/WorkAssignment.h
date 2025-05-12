@@ -45,8 +45,6 @@ Invariants to maintain:
   type STARTUP which cannot be written to a WorkSpace).
 - We can determine the splittability of a WorkAssignment, and split a
   WorkAssignment, offline using only the Graph object.
-- When multiple throws emanate from a node in the search tree, DFS evaluates
-  them in descending order of their associated throw values.
 - Search workers only interrupt the search process when the following conditions
   hold: (a) the sequence of throws in pp is a valid partial path, (b) the
   sequence is not a complete pattern, and (c) we are cleared to advance one
