@@ -74,10 +74,10 @@ bool Coordinator::run() {
   }
 
   // the search is a go and `n_bound` fits into an unsigned int
-  initialize_graph();
   n_max = (config.n_max > 0) ? config.n_max
       : static_cast<unsigned>(context.n_bound);
   context.count.resize(n_max + 1, 0);
+  initialize_graph();
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -193,7 +193,6 @@ bool Coordinator::passes_prechecks() {
 // Build the `graph` and `max_length` objects.
 
 void Coordinator::initialize_graph() {
-  // build the graph
   graph = {
     config.b,
     config.h,
