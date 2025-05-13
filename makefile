@@ -44,7 +44,7 @@ clean:
 #
 # This requires the `nvcc` compiler, part of the CUDA Toolkit from Nvidia.
 
-CFLAGS_CUDA = -Wall -Wextra -std=c++20 -O3 -I/usr/local/cuda/include \
+CFLAGS_CUDA = -Wall -Wextra -Werror -std=c++20 -O3 -I/usr/local/cuda/include \
     -Isrc -Isrc/cpu -Isrc/cuda
 _OBJ_CUDA = $(patsubst %,$(ODIR)/build_cuda/%,$(OBJ))
 NVCCFLAGS = -std=c++20 -O3 -lineinfo -Xcudafe --diag_suppress=68 \
