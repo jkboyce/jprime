@@ -841,14 +841,22 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
 uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       unsigned bank, double kernel_time, double host_time, unsigned idle_start,
       uint32_t pattern_count) {
+  const uint64_t min_cycles = 100000ul;
+
   if (idle_start == config.num_threads) {
     return last_cycles;  // no workers ran last time
+  }
+  if (idle_start > config.num_threads / 2) {
+    if (!warmed_up[bank]) {
+      return min_cycles;  // run for a short time so we can split
+    }
+  } else {
+    warmed_up[bank] = true;
   }
 
   const uint64_t last_cycles_startup = summary_after[bank].cycles_startup;
   const unsigned idle_after = summary_after[bank].workers_idle.size();
   const unsigned next_idle_start = summary_before[bank].workers_idle.size();
-  const uint64_t min_cycles = 100000ul;
   assert(idle_after >= idle_start);
   last_cycles = std::max(last_cycles, min_cycles);
 

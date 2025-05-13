@@ -63,6 +63,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   CudaWorkerSummary summary_before[2];
   CudaWorkerSummary summary_after[2];
   unsigned max_active_idx[2] = { 0, 0 };
+  bool warmed_up[2] = { false, false };
 
   // timing
   jptimer_t before_kernel[2];
