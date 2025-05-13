@@ -409,11 +409,11 @@ void Graph::validate_graph() {
   //   std::vector<std::vector<unsigned>> outthrowval;
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (!state_usable.at(i) && i > 1) {
+    const unsigned newi = newstatenum.at(i);
+    if (newi == 0) {
       continue;
     }
-    unsigned newi = newstatenum.at(i);
-    assert(newi != 0 && newi <= i);
+    assert(newi <= i);
 
     // copy graph data from row `i` to row `newi`
     state.at(newi) = state.at(i);
@@ -421,9 +421,8 @@ void Graph::validate_graph() {
 
     unsigned outthrownum = 0;
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      if (state_usable.at(outmatrix.at(i).at(j))) {
-        unsigned newsn = newstatenum.at(outmatrix.at(i).at(j));
-        assert(newsn != 0);
+      const unsigned newsn = newstatenum.at(outmatrix.at(i).at(j));
+      if (newsn != 0) {
         outmatrix.at(newi).at(outthrownum) = newsn;
         outthrowval.at(newi).at(outthrownum) = outthrowval.at(i).at(j);
         ++outthrownum;

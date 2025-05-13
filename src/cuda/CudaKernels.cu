@@ -173,13 +173,11 @@ __global__ void cuda_gen_loops_normal(
       if (pos == 0) {
         if (st_state == wi_d[id].end_state) {
           wi_d[id].status |= 1;
-          break;
+        } else {
+          ++st_state;
         }
-        ++st_state;
-        wc->col = 0;
-        wc->col_limit = outdegree;
-        wc->from_state = from_state = st_state;
-        continue;
+        pos = -1;
+        break;
       }
 
       --pos;
@@ -500,42 +498,11 @@ __global__ void cuda_gen_loops_super(
         // done with search starting at `st_state`
         if (st_state == wi_d[id].end_state) {
           wi_d[id].status |= 1;
-          break;
+        } else {
+          ++st_state;
         }
-        ++st_state;
-
-        // rebuild isexitcycle[] for new start state
-        exitcycles_left = 0;
-        shiftcount = 0;
-        for (unsigned i = 0; i < ((numcycles_d + 31) / 32); ++i) {
-          cycleused[i].data = 0;
-          isexitcycle[i].data = 0;
-        }
-        for (unsigned i = st_state + 1; i <= numstates_d; ++i) {
-          for (unsigned j = 0; j < outdegree; ++j) {
-            if (graphmatrix[(i - 1) * (outdegree + 1) + j] == st_state) {
-              const auto cyc = graphmatrix[(i - 1) * (outdegree + 1) +
-                    outdegree];
-              isexitcycle[cyc / 32].data |= (1u << (cyc & 31));
-              break;
-            }
-          }
-        }
-        const auto st_cyc = graphmatrix[(st_state - 1) * (outdegree + 1) +
-            outdegree];
-        isexitcycle[st_cyc / 32].data &= ~(1u << (st_cyc & 31));
-        for (unsigned i = 0; i < numcycles_d; ++i) {
-          if (isexitcycle[i / 32].data & (1u << (i & 31))) {
-            ++exitcycles_left;
-          }
-        }
-
-        wc->col = 0;
-        wc->col_limit = outdegree;
-        wc->from_state = from_state = st_state;
-        from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) +
-            outdegree];
-        continue;
+        pos = -1;
+        break;
       }
 
       --pos;

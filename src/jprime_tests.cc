@@ -38,14 +38,14 @@ struct TestCase {
 };
 
 const std::vector<TestCase> tests {
-  { 11, "jprime 2 60 30 -count",           1391049900, 2591724915, 6595287598 },
+  {  7, "jprime 2 60 30 -count",           1391049900, 2591724915, 6595287598 },
   {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
-  { 11, "jprime 5 13 10 -super 1 -count",      532478,     685522,    6778559 },
+  {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    6778559 },
   {  3, "jprime 5 10 225",                        838,   29762799, 1458188812 },
-  { 11, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
-  { 11, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1393991506 },
-  { 11, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
-  { 11, "jprime 3 9 -super -count",         133410514,  133410514,  792615946 },
+  {  7, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
+  {  7, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1393991506 },
+  {  7, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
+  {  7, "jprime 3 9 -super -count",         133410514,  133410514,  792615946 },
 
   {  7, "jprime 3 8 -g -count",              11578732,   11578732,   47941320 },
   {  7, "jprime 3 21 -super 0 -g -count",   388339361,  388339361,  876591490 },
@@ -56,8 +56,8 @@ const std::vector<TestCase> tests {
   {  7, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   76552560 },
 
   {  4, "jprime 3 9 -count",           30513071763, 30513071763, 141933075458 },
-  {  4, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70431373 },
-  {  4, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  371451333 },
+  {  7, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70431373 },
+  {  7, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  371451333 },
 };
 
 // Run a single test case and compare against known values, outputting results
@@ -75,7 +75,7 @@ bool run_one_test(const TestCase& tc) {
 
   int run_limit = 2;
   #ifdef CUDA_ENABLED
-  run_limit = 4;
+  run_limit = 3;
   #endif
 
   bool success = true;

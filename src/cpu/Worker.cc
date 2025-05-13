@@ -455,8 +455,8 @@ void Worker::do_work_assignment() {
       }
 
       if (max_possible < static_cast<int>(n_min)) {
-        // larger values of `start_state` will have `max_possible` values that are
-        // the same or smaller, so we can exit the loop
+        // larger values of `start_state` will have `max_possible` values that
+        // are the same or smaller, so we can exit the loop
         assert(max_possible >= 0);
         if (config.verboseflag) {
           const auto text = std::format(
@@ -488,7 +488,7 @@ void Worker::gen_loops() {
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
         static_cast<double>(n_min) >
-        0.66 * static_cast<double>(max_possible)) {
+        0.66 * static_cast<double>(coordinator.get_max_length(1))) {
       // the overhead of marking is only worth it for long-period patterns
       alg = (config.recursiveflag ? 1 : 6);
     } else if (config.countflag) {

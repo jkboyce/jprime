@@ -48,7 +48,6 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   // set up during initialization
   cudaDeviceProp prop;
   cudaStream_t stream[2];  // distinct CUDA stream for each job bank
-  Graph graph;
   CudaAlgorithm alg;
   std::vector<statenum_t> graph_buffer;
   CudaRuntimeParams params;
@@ -83,7 +82,6 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   // setup
   void initialize();
   cudaDeviceProp initialize_cuda_device();
-  Graph build_and_reduce_graph();
   CudaAlgorithm select_cuda_search_algorithm();
   std::vector<statenum_t> make_graph_buffer();
   CudaRuntimeParams find_runtime_params();
@@ -93,6 +91,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   void copy_static_vars_to_gpu();
 
   // main loop
+  void skip_unused_startstates(unsigned bank);
   void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
   void launch_cuda_kernel(unsigned bank, uint64_t cycles);
   void copy_worker_data_from_gpu(unsigned bank);

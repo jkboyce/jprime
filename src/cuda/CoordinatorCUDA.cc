@@ -77,6 +77,7 @@ void CoordinatorCUDA::run_search() {
 
     // prepare bankB for its next run
     assign_new_jobs(bankB);
+    skip_unused_startstates(bankB);
     copy_worker_data_to_gpu(bankB);
     const auto prev_idle_before = summary_before[bankB].workers_idle.size();
     summary_before[bankB] = summarize_worker_status(bankB);
@@ -108,7 +109,6 @@ void CoordinatorCUDA::run_search() {
 
 void CoordinatorCUDA::initialize() {
   prop = initialize_cuda_device();
-  graph = build_and_reduce_graph();
   alg = select_cuda_search_algorithm();
   graph_buffer = make_graph_buffer();
   params = find_runtime_params();
@@ -156,35 +156,15 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
   return prop;
 }
 
-// Build and reduce the juggling graph.
-
- Graph CoordinatorCUDA::build_and_reduce_graph() {
-  Graph graph = {
-    config.b,
-    config.h,
-    config.xarray,
-    config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH
-                     ? config.n_min : 0
-  };
-  graph.build_graph();
-  customize_graph(graph);
-  graph.reduce_graph(true);
-  return graph;
-}
-
 // Choose a search algorithm to use.
 
 CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm() {
-  unsigned max_possible = (config.mode == SearchConfig::RunMode::SUPER_SEARCH)
-      ? graph.superprime_period_bound(config.shiftlimit)
-      : graph.prime_period_bound();
-
   CudaAlgorithm alg = CudaAlgorithm::NONE;
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
         static_cast<double>(config.n_min) >
-        0.66 * static_cast<double>(max_possible)) {
+        0.66 * static_cast<double>(get_max_length(1))) {
       // the overhead of marking is only worth it for long-period patterns
       alg = CudaAlgorithm::NORMAL_MARKING;
     } else if (config.countflag) {
@@ -587,6 +567,49 @@ void CoordinatorCUDA::copy_static_vars_to_gpu() {
 //------------------------------------------------------------------------------
 // Main loop
 //------------------------------------------------------------------------------
+
+// Handle work assignments that can be (partially) skipped, by adjusting and
+// reloading them.
+//
+// This occurs when either `start_state` is unusable, or the maximum pattern
+// length is too short. This should exactly mirror the logic in
+// Worker::do_work_assignment() to keep operation identical between CPU and GPU.
+
+void CoordinatorCUDA::skip_unused_startstates(unsigned bank) {
+  for (size_t id = 0; id < config.num_threads; ++id) {
+    auto& wi = wi_h[bank][id];
+    if ((wi.status & 1) != 0)
+      continue;
+    if (wi.pos != -1)
+      continue;  // not a new search at `start_state`, can skip
+
+    while (true) {
+      if (wi.start_state > wi.end_state) {
+        wi.status |= 1;
+        break;
+      }
+
+      const auto max_len = get_max_length(wi.start_state);
+      if (max_len == -1) {  // current start_state is unusable
+        ++wi.start_state;
+        continue;
+      }
+
+      if (max_len < static_cast<int>(config.n_min)) {
+        wi.status |= 1;
+      }
+      break;
+    }
+
+    if ((wi.status & 1) == 0) {
+      WorkAssignment wa;
+      wa.start_state = wi.start_state;
+      wa.end_state = wi.end_state;
+      wa.root_pos = 0;
+      load_work_assignment(bank, id, wa);
+    }
+  }
+}
 
 // Copy worker data to the GPU.
 //
@@ -1304,6 +1327,7 @@ void CoordinatorCUDA::load_initial_work_assignments() {
   }
 
   for (unsigned bank = 0; bank < 2; ++bank) {
+    skip_unused_startstates(bank);
     copy_worker_data_to_gpu(bank, true);
     summary_before[bank] = summarize_worker_status(bank);
   }
