@@ -78,6 +78,7 @@ void Worker::run() {
     try {
       do_work_assignment();
       record_elapsed_time_from(start);
+      notify_coordinator_idle();
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
       // remaining work back to the coordinator
@@ -86,14 +87,6 @@ void Worker::run() {
       send_work_to_coordinator(get_work_assignment());
       break;
     }
-
-    {
-      // empty the inbox
-      std::unique_lock<std::mutex> lck(inbox_lock);
-      inbox = std::queue<MessageC2W>();
-    }
-
-    notify_coordinator_idle();
   }
 }
 
