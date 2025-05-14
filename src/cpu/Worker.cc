@@ -253,6 +253,10 @@ void Worker::send_stats_to_coordinator() {
   std::vector<int> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
+  for (size_t i = 0; i < start_state; ++i) {
+    u.at(i) = 1;
+  }
+
   for (int i = 0; i <= pos; ++i) {
     assert(pattern.at(i) >= 0);
     msg.worker_throw.at(i) = pattern.at(i);
@@ -568,6 +572,10 @@ void Worker::initialize_working_variables() {
   cycleused.assign(graph.numcycles, 0);
   deadstates.assign(graph.numcycles, 0);
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
+
+  for (size_t i = 0; i < start_state; ++i) {
+    used.at(i) = 1;
+  }
 
   excludestates_throw.resize(graph.numstates + 1);
   excludestates_catch.resize(graph.numstates + 1);

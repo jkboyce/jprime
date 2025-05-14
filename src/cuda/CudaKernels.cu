@@ -144,6 +144,9 @@ __global__ void cuda_gen_loops_normal(
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
   }
+  for (int i = 0; i < st_state; ++i) {
+    used[i / 32].data |= (1u << (i & 31));
+  }
   for (int i = 1; i <= pos; ++i) {
     const statenum_t from_state = workcell_d[i].from_state;
     used[from_state / 32].data |= (1u << (from_state & 31));
@@ -211,11 +214,6 @@ __global__ void cuda_gen_loops_normal(
         }
       }
       ++wc->count;
-      ++wc->col;
-      continue;
-    }
-
-    if (to_state < st_state) {
       ++wc->col;
       continue;
     }
@@ -421,6 +419,9 @@ __global__ void cuda_gen_loops_super(
   if (used != nullptr) {
     for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
       used[i].data = 0;
+    }
+    for (int i = 0; i < st_state; ++i) {
+      used[i / 32].data |= (1u << (i & 31));
     }
     for (int i = 1; i <= pos; ++i) {
       const statenum_t from_state = workcell_d[i].from_state;

@@ -116,11 +116,6 @@ void Worker::iterative_gen_loops_normal() {
       continue;
     }
 
-    if (to_state < st_state) {
-      ++wc->col;
-      continue;
-    }
-
     if (u[to_state]) {
       if (REPLAY) {
         assert(false);
@@ -269,11 +264,6 @@ void Worker::iterative_gen_loops_normal_marking() {
         iterative_handle_finished_pattern();
       }
       ++count[p + 1];
-      ++wc->col;
-      continue;
-    }
-
-    if (to_state < st_state) {
       ++wc->col;
       continue;
     }
@@ -523,7 +513,7 @@ void Worker::iterative_gen_loops_super() {
 
     const unsigned to_state = outmatrix[from_state][wc->col];
 
-    if (to_state < start_state) {
+    if (SUPER0 && to_state < start_state) {
       ++wc->col;
       continue;
     }
