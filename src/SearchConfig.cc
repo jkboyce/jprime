@@ -23,7 +23,8 @@
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-void SearchConfig::from_args(size_t argc, char** argv) {
+void SearchConfig::from_args(size_t argc, char** argv)
+{
   int val;
   try {
     val = std::stoi(argv[1]);
@@ -285,7 +286,8 @@ void SearchConfig::from_args(size_t argc, char** argv) {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-void SearchConfig::from_args(const std::string& str) {
+void SearchConfig::from_args(const std::string& str)
+{
   // tokenize the argslist string
   std::stringstream ss(str);
   std::string s;
@@ -307,7 +309,8 @@ void SearchConfig::from_args(const std::string& str) {
 // input, concatenated. When loading from a checkpoint file this allows us to
 // override selected items in the original invocation string.
 
-std::string SearchConfig::get_overrides(size_t argc, char** argv) {
+std::string SearchConfig::get_overrides(size_t argc, char** argv)
+{
   std::string overrides;
 
   for (size_t i = 1; i < argc; ++i) {

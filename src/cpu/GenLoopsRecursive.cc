@@ -23,7 +23,8 @@
 //
 // Note this has a recursion depth of `n_max`.
 
-void Worker::gen_loops_normal() {
+void Worker::gen_loops_normal()
+{
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
@@ -84,7 +85,8 @@ void Worker::gen_loops_normal() {
 //
 // Note this has a recursion depth of `n_max`.
 
-void Worker::gen_loops_normal_marking() {
+void Worker::gen_loops_normal_marking()
+{
   bool did_mark_for_throw = false;
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
@@ -177,7 +179,8 @@ void Worker::gen_loops_normal_marking() {
 //
 // Note this has a recursion depth of `n_max`.
 
-void Worker::gen_loops_super() {
+void Worker::gen_loops_super()
+{
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* const om = graph.outmatrix[from].data();
@@ -270,7 +273,8 @@ void Worker::gen_loops_super() {
 //
 // Note this has a recursion depth of `n_max`.
 
-void Worker::gen_loops_super0() {
+void Worker::gen_loops_super0()
+{
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* const om = graph.outmatrix[from].data();
@@ -334,7 +338,8 @@ void Worker::gen_loops_super0() {
 // to the throw value at position `pos` in the pattern. This allows us to resume
 // where we left off when loading from a work assignment.
 
-unsigned Worker::load_one_throw() {
+unsigned Worker::load_one_throw()
+{
   if (pattern.at(pos) == -1) {
     loading_work = false;
     return 0;
@@ -392,7 +397,8 @@ unsigned Worker::load_one_throw() {
 // Returns true if `throwval` is an allowed choice at position `root_pos`,
 // false otherwise.
 
-bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state) {
+bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state)
+{
   bool found = false;
   unsigned remaining = 0;
 
@@ -456,7 +462,8 @@ bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state) {
 // work.
 
 void Worker::build_rootpos_throw_options(unsigned from_state,
-    unsigned start_column) {
+    unsigned start_column)
+{
   root_throwval_options.clear();
   for (unsigned col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
@@ -485,7 +492,8 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 // finish a pattern of at least period `n_min` from our current position.
 // Returns true otherwise.
 
-inline bool Worker::mark_unreachable_states_throw() {
+inline bool Worker::mark_unreachable_states_throw()
+{
   bool valid = true;
   unsigned* const ds = deadstates_bystate[from];
   unsigned* es = excludestates_throw[from].data();
@@ -500,7 +508,8 @@ inline bool Worker::mark_unreachable_states_throw() {
   return valid;
 }
 
-inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
+inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
+{
   bool valid = true;
   unsigned* const ds = deadstates_bystate[to_state];
   unsigned* es = excludestates_catch[to_state].data();
@@ -518,7 +527,8 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state) {
 
 // Reverse the marking operations above, so we can backtrack.
 
-inline void Worker::unmark_unreachable_states_throw() {
+inline void Worker::unmark_unreachable_states_throw()
+{
   unsigned* const ds = deadstates_bystate[from];
   unsigned* es = excludestates_throw[from].data();
   unsigned statenum = 0;
@@ -530,7 +540,8 @@ inline void Worker::unmark_unreachable_states_throw() {
   }
 }
 
-inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
+inline void Worker::unmark_unreachable_states_catch(unsigned to_state)
+{
   unsigned* const ds = deadstates_bystate[to_state];
   unsigned* es = excludestates_catch[to_state].data();
   unsigned statenum = 0;
@@ -542,7 +553,8 @@ inline void Worker::unmark_unreachable_states_catch(unsigned to_state) {
   }
 }
 
-inline void Worker::handle_finished_pattern() {
+inline void Worker::handle_finished_pattern()
+{
   ++count[pos + 1];
 
   if ((pos + 1) >= static_cast<int>(n_min) && !config.countflag) {

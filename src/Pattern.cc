@@ -32,7 +32,8 @@
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-Pattern::Pattern(const std::vector<int>& p, int hmax) {
+Pattern::Pattern(const std::vector<int>& p, int hmax)
+{
   int maxval = 0;
   for (const int val : p) {
     if (val < 0)
@@ -64,7 +65,8 @@ Pattern::Pattern(const std::vector<int>& p, int hmax) {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-Pattern::Pattern(const std::string& p) {
+Pattern::Pattern(const std::string& p)
+{
   int maxval = 0;
   int hmax = 0;
   const bool has_slash = (std::find(p.cbegin(), p.cend(), '/') != p.cend());
@@ -228,7 +230,8 @@ Pattern::Pattern(const std::string& p) {
 //
 // If the pattern is not valid, return 0.
 
-int Pattern::objects() const {
+int Pattern::objects() const
+{
   if (!is_valid()) {
     return 0;
   }
@@ -243,20 +246,23 @@ int Pattern::objects() const {
 
 // Return the pattern period (length).
 
-size_t Pattern::period() const {
+size_t Pattern::period() const
+{
   return throwval.size();
 }
 
 // Return the State value immediately before the throw on beat `index`.
 
-State Pattern::state_before_index(size_t index) {
+State Pattern::state_before_index(size_t index)
+{
   check_have_states();
   return states.at(index);
 }
 
 // Return true if the pattern is a valid siteswap, false otherwise.
 
-bool Pattern::is_valid() const {
+bool Pattern::is_valid() const
+{
   const auto per = period();
   if (per == 0) {
     return false;
@@ -277,7 +283,8 @@ bool Pattern::is_valid() const {
 
 // Return true if the pattern is prime, false otherwise.
 
-bool Pattern::is_prime() {
+bool Pattern::is_prime()
+{
   if (!is_valid()) {
     return false;
   }
@@ -289,7 +296,8 @@ bool Pattern::is_prime() {
 
 // Return true if the pattern is composite, false otherwise.
 
-bool Pattern::is_composite() {
+bool Pattern::is_composite()
+{
   if (!is_valid()) {
     return false;
   }
@@ -298,7 +306,8 @@ bool Pattern::is_composite() {
 
 // Return true if the pattern is superprime, false otherwise.
 
-bool Pattern::is_superprime() {
+bool Pattern::is_superprime()
+{
   if (!is_valid()) {
     return false;
   }
@@ -333,7 +342,8 @@ bool Pattern::is_superprime() {
 
 // Return the dual of the pattern.
 
-Pattern Pattern::dual() const {
+Pattern Pattern::dual() const
+{
   const auto per = period();
   if (per == 0) {
     std::vector<int> empty_throwval;
@@ -351,7 +361,8 @@ Pattern Pattern::dual() const {
 //
 // If the inverse does not exist, return an empty pattern.
 
-Pattern Pattern::inverse() {
+Pattern Pattern::inverse()
+{
   check_have_states();
 
   // Step 1. Determine if an inverse exists.
@@ -457,16 +468,19 @@ Pattern Pattern::inverse() {
 
 // Return the throw value on beat `index`.
 
-int Pattern::operator[](size_t index) const {
+int Pattern::operator[](size_t index) const
+{
   assert(index < period());
   return throwval.at(index);
 }
 
-bool Pattern::operator==(const Pattern& p2) const {
+bool Pattern::operator==(const Pattern& p2) const
+{
   return (h == p2.h && throwval == p2.throwval);
 }
 
-bool Pattern::operator!=(const Pattern& p2) const {
+bool Pattern::operator!=(const Pattern& p2) const
+{
   return (h != p2.h || throwval != p2.throwval);
 }
 
@@ -487,7 +501,8 @@ bool Pattern::operator!=(const Pattern& p2) const {
 // be output as `-` and `+` respectively. This is only active when
 // `throwdigits` == 0.
 
-std::string Pattern::to_string(int throwdigits, bool blockform) const {
+std::string Pattern::to_string(int throwdigits, bool blockform) const
+{
   int maxval = 0;
   for (const int val : throwval) {
     maxval = std::max(maxval, val);
@@ -521,7 +536,8 @@ std::string Pattern::to_string(int throwdigits, bool blockform) const {
 // For a parameter description see Pattern::to_string().
 
 void Pattern::print_throw(std::ostringstream& buffer, int val, int throwdigits,
-    int plusval) {
+    int plusval)
+{
   if (throwdigits == 0) {
     if (plusval > 0 && val == 0) {
       buffer << '-';
@@ -538,7 +554,8 @@ void Pattern::print_throw(std::ostringstream& buffer, int val, int throwdigits,
 // Return a character for a given integer throw value (0 = '0', 1 = '1',
 // 10 = 'a', 11 = 'b', ...
 
-char Pattern::throw_char(int val) {
+char Pattern::throw_char(int val)
+{
   if (val < 0 || val > 35) {
     return '?';
   } else if (val < 10) {
@@ -554,7 +571,8 @@ char Pattern::throw_char(int val) {
 
 // Return an analysis of the pattern in string format.
 
-std::string Pattern::make_analysis() {
+std::string Pattern::make_analysis()
+{
   std::ostringstream buffer;
 
   if (!is_valid()) {
@@ -834,7 +852,8 @@ std::string Pattern::make_analysis() {
 //
 // This should only be called for a valid pattern!
 
-void Pattern::check_have_states() {
+void Pattern::check_have_states()
+{
   const auto per = period();
   if (states.size() == per)
     return;
@@ -882,7 +901,8 @@ void Pattern::check_have_states() {
 
 // Print the pattern to an output stream using the default output format.
 
-std::ostream& operator<<(std::ostream& ost, const Pattern& p) {
+std::ostream& operator<<(std::ostream& ost, const Pattern& p)
+{
   ost << p.to_string();
   return ost;
 }

@@ -19,8 +19,8 @@
 
 // Full graph for `b` objects, max throw `h`.
 
-Graph::Graph(unsigned b, unsigned h)
-    : b(b), h(h), n(0), xarray(h + 1, false) {
+Graph::Graph(unsigned b, unsigned h) : b(b), h(h), n(0), xarray(h + 1, false)
+{
   initialize();
 }
 
@@ -36,7 +36,8 @@ Graph::Graph(unsigned b, unsigned h)
 // the full graph.
 
 Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
-    : b(b), h(h), n(n), xarray(xa) {
+    : b(b), h(h), n(n), xarray(xa)
+{
   assert(xa.size() == h + 1);
   assert(n < h);
   initialize();
@@ -48,7 +49,8 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
 
 // Initialize the Graph object.
 
-void Graph::initialize() {
+void Graph::initialize()
+{
   // fail if the number of states cannot fit into an unsigned int
   const std::uint64_t num = (n == 0 ? combinations(h, b) :
       ordered_partitions(b, h, n));
@@ -84,7 +86,8 @@ void Graph::initialize() {
 // 1s into successive slots, and when all 1s are used up append a new state
 // to the list.
 
-void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left) {
+void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left)
+{
   if (left > (pos + 1))
     return;  // no way to succeed
 
@@ -110,7 +113,8 @@ void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left) {
 //
 // Note this has a recursion depth of `h`.
 
-void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
+void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h)
+{
   s.push_back({h});
   gen_states_all_helper(s, h - 1, b);
   s.pop_back();
@@ -120,7 +124,8 @@ void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h) {
 // enumerated by partitioning the `b` objects into `n` different buckets.
 
 void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
-    unsigned left, const unsigned h, const unsigned n) {
+    unsigned left, const unsigned h, const unsigned n)
+{
   if (pos == n) {
     if (left == 0) {
       // success: duplicate state at the end and continue
@@ -162,7 +167,8 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
 // Note this has a recursion depth of `h`.
 
 void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
-    unsigned n) {
+    unsigned n)
+{
   s.push_back({h});
   gen_states_for_period_helper(s, 0, b, h, n);
   s.pop_back();
@@ -181,7 +187,8 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 //
 // Return the total number of shift cycles found.
 
-unsigned Graph::find_shift_cycles() {
+unsigned Graph::find_shift_cycles()
+{
   const unsigned state_unused = -1;
   cyclenum.assign(numstates + 1, state_unused);
   assert(cycleperiod.size() == 0);
@@ -246,7 +253,8 @@ unsigned Graph::find_shift_cycles() {
 //
 // outmatrix[][] == 0 indicates no connection.
 
-void Graph::build_graph_matrix() {
+void Graph::build_graph_matrix()
+{
   maxoutdegree = 0;
   for (size_t i = 0; i <= h; ++i) {
     if (!xarray.at(i)) {
@@ -285,7 +293,8 @@ void Graph::build_graph_matrix() {
 // The state `i` is accessible to a pattern starting from `start_state` if and
 // only if start_state <= max_startstate_usable[i].
 
-void Graph::find_max_startstate_usable() {
+void Graph::find_max_startstate_usable()
+{
   max_startstate_usable.resize(numstates + 1);
   max_startstate_usable.assign(numstates + 1, 0);
   std::vector<bool> state_usable(numstates + 1, true);
@@ -315,7 +324,8 @@ void Graph::find_max_startstate_usable() {
 // Updates the input vector `state_usable` to false for any state numbers found
 // to be unusable.
 
-void Graph::update_usable_states(std::vector<bool>& state_usable) const {
+void Graph::update_usable_states(std::vector<bool>& state_usable) const
+{
   std::vector<unsigned> usable_outdegree(outdegree);
   std::vector<unsigned> usable_indegree(numstates + 1, 0);
 
@@ -384,7 +394,8 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const {
 // state number 1, which is reserved for the ground state and is never removed
 // or renumbered.
 
-void Graph::validate_graph() {
+void Graph::validate_graph()
+{
   std::vector<bool> state_usable(numstates + 1, true);
   update_usable_states(state_usable);
 
@@ -447,7 +458,8 @@ void Graph::validate_graph() {
 // directly to the start state with a link throw. This is used in SUPER mode to
 // cut off search when all exit cycles have been used.
 
-std::vector<int> Graph::get_exit_cycles(unsigned start_state) const {
+std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
+{
   std::vector<int> isexitcycle(numcycles, 0);
 
   for (size_t i = start_state + 1; i <= numstates; ++i) {
@@ -470,7 +482,8 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const {
 
 std::tuple<std::vector<std::vector<unsigned>>,
            std::vector<std::vector<unsigned>>>
-    Graph::get_exclude_states(unsigned start_state) const {
+    Graph::get_exclude_states(unsigned start_state) const
+{
   std::vector<std::vector<unsigned>> excludestates_throw;
   std::vector<std::vector<unsigned>> excludestates_catch;
 
@@ -529,7 +542,8 @@ std::tuple<std::vector<std::vector<unsigned>>,
 // Calculate an upper bound on the period of prime patterns in the graph,
 // starting from `start_state` as the root node.
 
-unsigned Graph::prime_period_bound(unsigned start_state) const {
+unsigned Graph::prime_period_bound(unsigned start_state) const
+{
   // case 1: the pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
   // case 2: the pattern stays on a single shift cycle; find the cycle with the
@@ -564,7 +578,8 @@ unsigned Graph::prime_period_bound(unsigned start_state) const {
 // throws allowed in the pattern.
 
 unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
-    const {
+    const
+{
   std::vector<bool> any_active(numcycles, false);
   for (size_t i = start_state; i <= numstates; ++i) {
     if (start_state <= max_startstate_usable.at(i)) {
@@ -589,7 +604,8 @@ unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
 //
 // Note this assumes the `state` vector is sorted!
 
-unsigned Graph::get_statenum(const State& s) const {
+unsigned Graph::get_statenum(const State& s) const
+{
   if (state_compare(s, state.at(1)))
     return 0;
   if (state_compare(state.at(numstates), s))
@@ -620,7 +636,8 @@ unsigned Graph::get_statenum(const State& s) const {
 // Return the state number that comes from advancing a given state by a single
 // throw. Returns 0 if the throw is not allowed.
 
-unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const {
+unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const
+{
   const State& s = state.at(statenum);
 
   if (throwval > 0 && s.slot(0) == 0)  // no object to throw
@@ -638,31 +655,36 @@ unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const {
 //
 // For example 'xx-xxx---' becomes '---xxx-xx' under reversal.
 
-unsigned Graph::reverse_state(unsigned statenum) const {
+unsigned Graph::reverse_state(unsigned statenum) const
+{
   return get_statenum(state.at(statenum).reverse());
 }
 
 // Return the next state downstream in the given state's shift cycle.
 
-unsigned Graph::downstream_state(unsigned statenum) const {
+unsigned Graph::downstream_state(unsigned statenum) const
+{
   return get_statenum(state.at(statenum).downstream());
 }
 
 // Return the next state upstream in the given state's shift cycle.
 
-unsigned Graph::upstream_state(unsigned statenum) const {
+unsigned Graph::upstream_state(unsigned statenum) const
+{
   return get_statenum(state.at(statenum).upstream());
 }
 
 // Return a text representation of a given state number.
 
-std::string Graph::state_string(unsigned statenum) const {
+std::string Graph::state_string(unsigned statenum) const
+{
   return state.at(statenum).to_string();
 }
 
 // Return a text representation of the graph.
 
-std::string Graph::to_string() const {
+std::string Graph::to_string() const
+{
   std::ostringstream buffer;
 
   buffer << "graph:\n"
@@ -742,7 +764,8 @@ std::string Graph::to_string() const {
 
 // Print to an output stream using the default text format.
 
-std::ostream& operator<<(std::ostream& ost, const Graph& g) {
+std::ostream& operator<<(std::ostream& ost, const Graph& g)
+{
   ost << g.to_string();
   return ost;
 }

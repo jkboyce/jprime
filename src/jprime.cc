@@ -60,7 +60,8 @@ void do_tests();  // defined in jprime_tests.cc
 // Help message
 //------------------------------------------------------------------------------
 
-void print_help() {
+void print_help()
+{
   const std::string helpString =
     "jprime version 7.0 (2025.03.22)\n"
     "Copyright (C) 1998-2025 Jack Boyce <jboyce@gmail.com>\n"
@@ -118,7 +119,8 @@ void print_help() {
 // Pattern analysis
 //------------------------------------------------------------------------------
 
-void print_analysis(int argc, char** argv) {
+void print_analysis(int argc, char** argv)
+{
   if (argc < 3)
     return;
 
@@ -143,7 +145,8 @@ void print_analysis(int argc, char** argv) {
 //------------------------------------------------------------------------------
 
 std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
-      char** argv) {
+      char** argv)
+{
   SearchConfig config;
   SearchContext context;
 
@@ -215,7 +218,8 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 // Execution entry point
 //------------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
   if (argc > 1 && !strcmp(argv[1], "-test")) {
     do_tests();
     return 0;

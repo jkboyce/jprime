@@ -98,7 +98,8 @@ std::ostream& operator<<(std::ostream& ost, const Graph& g);
 // In the event of a math overflow error, throw a `std::overflow_error`
 // exception with a relevant error message.
 
-constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
+constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b)
+{
   if (a < b)
     return 0;
 
@@ -122,7 +123,8 @@ constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b) {
 // exception with a relevant error message.
 
 constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
-    unsigned p) {
+    unsigned p)
+{
   if (h % p != 0)
     return 0;
   if (b % (h / p) != 0)
@@ -153,7 +155,8 @@ constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
 // exception with a relevant error message.
 
 constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
-    unsigned n) {
+    unsigned n)
+{
   if (n == 0)
     return 0;
   std::vector<std::uint64_t> options((b + 1) * n, 0);

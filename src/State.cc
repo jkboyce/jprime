@@ -18,11 +18,13 @@
 // Initialize an empty state with `h` slots.
 
 State::State(unsigned h)
-    : _slot(h, 0) {}
+    : _slot(h, 0)
+{}
 
 // Initialize from a string representation.
 
-State::State(std::string s) {
+State::State(std::string s)
+{
   for (const char ch : s) {
     _slot.push_back((ch == 'x' || ch == '1') ? 1 : 0);
   }
@@ -30,17 +32,20 @@ State::State(std::string s) {
 
 // Return the number of slots in the state.
 
-size_t State::size() const {
+size_t State::size() const
+{
   return _slot.size();
 }
 
 // Return a reference to the i'th slot in the state, indexing from 0.
 
-unsigned& State::slot(size_t i) {
+unsigned& State::slot(size_t i)
+{
   return _slot.at(i);
 }
 
-const unsigned& State::slot(size_t i) const {
+const unsigned& State::slot(size_t i) const
+{
   return _slot.at(i);
 }
 
@@ -50,7 +55,8 @@ const unsigned& State::slot(size_t i) const {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-State State::advance_with_throw(unsigned throwval) const {
+State State::advance_with_throw(unsigned throwval) const
+{
   State s = *this;
   const unsigned head = *s._slot.begin();
 
@@ -78,7 +84,8 @@ State State::advance_with_throw(unsigned throwval) const {
 
 // Return the next state downstream in the state's shift cycle.
 
-State State::downstream() const {
+State State::downstream() const
+{
   State s = *this;
   const unsigned head = *s._slot.begin();
   s._slot.erase(s._slot.begin());
@@ -88,7 +95,8 @@ State State::downstream() const {
 
 // Return the next state upstream in the state's shift cycle.
 
-State State::upstream() const {
+State State::upstream() const
+{
   State s = *this;
   const unsigned tail = s._slot.back();
   s._slot.pop_back();
@@ -98,7 +106,8 @@ State State::upstream() const {
 
 // Return the reverse of this state.
 
-State State::reverse() const {
+State State::reverse() const
+{
   State s = *this;
   std::reverse(s._slot.begin(), s._slot.end());
   return s;
@@ -106,21 +115,25 @@ State State::reverse() const {
 
 // Perform comparisons on States.
 
-bool State::operator==(const State& s2) const {
+bool State::operator==(const State& s2) const
+{
   return (size() == s2.size() && _slot == s2._slot);
 }
 
-bool State::operator!=(const State& s2) const {
+bool State::operator!=(const State& s2) const
+{
   return (size() != s2.size() || _slot != s2._slot);
 }
 
-bool State::operator<(const State& s2) const {
+bool State::operator<(const State& s2) const
+{
   return state_compare(*this, s2);
 }
 
 // Return a string representation.
 
-std::string State::to_string() const {
+std::string State::to_string() const
+{
   std::string result;
   for (size_t i = 0; i < size(); ++i) {
     result += (slot(i) ? 'x' : '-');
@@ -128,7 +141,8 @@ std::string State::to_string() const {
   return result;
 }
 
-std::ostream& operator<<(std::ostream& ost, const State& s) {
+std::ostream& operator<<(std::ostream& ost, const State& s)
+{
   ost << s.to_string();
   return ost;
 }
@@ -138,7 +152,8 @@ std::ostream& operator<<(std::ostream& ost, const State& s) {
 // Returns true if the first argument appears before the second in a strict
 // weak ordering, and false otherwise.
 
-bool state_compare(const State& s1, const State& s2) {
+bool state_compare(const State& s1, const State& s2)
+{
   int b1 = 0;
   for (size_t i = 0; i < s1.size(); ++i) {
     b1 += s1.slot(i);

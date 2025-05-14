@@ -49,7 +49,8 @@ __global__ void cuda_gen_loops_normal(
         const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
-        bool report, unsigned n_min, unsigned n_max) {
+        bool report, unsigned n_min, unsigned n_max)
+{
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].status & 1) {
     return;
@@ -275,7 +276,8 @@ __global__ void cuda_gen_loops_super(
         const statenum_t* const graphmatrix_d, uint32_t* const used_d,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
-        bool report, unsigned n_min, unsigned n_max, unsigned shiftlimit) {
+        bool report, unsigned n_min, unsigned n_max, unsigned shiftlimit)
+{
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   if (wi_d[id].status & 1) {
     return;
@@ -670,7 +672,8 @@ __global__ void cuda_gen_loops_super(
 
 // Set up CUDA shared memory configuration for gpu kernels.
 
-void configure_cuda_shared_memory(const CudaRuntimeParams& p) {
+void configure_cuda_shared_memory(const CudaRuntimeParams& p)
+{
   cudaFuncSetAttribute(cuda_gen_loops_normal,
     cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_used);
   cudaFuncSetAttribute(cuda_gen_loops_super,
@@ -680,7 +683,8 @@ void configure_cuda_shared_memory(const CudaRuntimeParams& p) {
 // Return pointers to statically allocated items in GPU memory that are
 // declared in this file.
 
-CudaMemoryPointers get_gpu_static_pointers() {
+CudaMemoryPointers get_gpu_static_pointers()
+{
   CudaMemoryPointers ptrs;
   cudaGetSymbolAddress((void **)&(ptrs.graphmatrix_c), graphmatrix_c);
   cudaGetSymbolAddress((void **)&(ptrs.maxoutdegree_d), maxoutdegree_d);
@@ -701,7 +705,8 @@ CudaMemoryPointers get_gpu_static_pointers() {
 // appropriate error message.
 
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream) {
+    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream)
+{
   switch (alg) {
     case CudaAlgorithm::NORMAL:
       cuda_gen_loops_normal

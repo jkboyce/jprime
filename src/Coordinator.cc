@@ -33,15 +33,18 @@
 
 
 Coordinator::Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c) :
-    config(a), context(b), jpout(c) {}
+    config(a), context(b), jpout(c)
+{}
 
-Coordinator::~Coordinator() {}
+Coordinator::~Coordinator()
+{}
 
 // Factory method to return the correct type of Coordinator for the search
 // requested.
 
 std::unique_ptr<Coordinator> Coordinator::make_coordinator(
-    SearchConfig& config, SearchContext& context, std::ostream& jpout) {
+    SearchConfig& config, SearchContext& context, std::ostream& jpout)
+{
   if (config.cudaflag) {
 #ifdef CUDA_ENABLED
     return make_unique<CoordinatorCUDA>(config, context, jpout);
@@ -62,7 +65,8 @@ std::unique_ptr<Coordinator> Coordinator::make_coordinator(
 //
 // Returns true on success, false on failure.
 
-bool Coordinator::run() {
+bool Coordinator::run()
+{
   try {
     calc_graph_size();
   } catch (const std::overflow_error& oe) {
@@ -118,7 +122,8 @@ void Coordinator::run_search() {}
 // In the event of a math overflow error, throw a `std::overflow_error`
 // exception with a relevant error message.
 
-void Coordinator::calc_graph_size() {
+void Coordinator::calc_graph_size()
+{
   // size of the full graph
   context.full_numstates = Graph::combinations(config.h, config.b);
   context.full_numcycles = 0;
@@ -167,7 +172,8 @@ void Coordinator::calc_graph_size() {
 //
 // Returns true if the search is cleared to proceed.
 
-bool Coordinator::passes_prechecks() {
+bool Coordinator::passes_prechecks()
+{
   const auto n_requested = std::max(config.n_min, config.n_max);
   const bool period_error = (n_requested > context.n_bound);
   const bool memory_error = (context.memory_numstates > MAX_STATES);
@@ -192,7 +198,8 @@ bool Coordinator::passes_prechecks() {
 
 // Build the `graph` and `max_length` objects.
 
-void Coordinator::initialize_graph() {
+void Coordinator::initialize_graph()
+{
   graph = {
     config.b,
     config.h,
@@ -232,7 +239,8 @@ void Coordinator::initialize_graph() {
 //
 // Note this routine should never set states as active!
 
-void Coordinator::customize_graph(Graph& graph) {
+void Coordinator::customize_graph(Graph& graph)
+{
   std::vector<bool> state_active(graph.numstates + 1, true);
 
   // (1) In SUPER mode we are not allowed to make link throws within a single
@@ -354,7 +362,8 @@ void Coordinator::customize_graph(Graph& graph) {
 //
 // Returns a normalized std::vector<double> with `n_max` elements.
 
-std::vector<double> Coordinator::build_access_model(unsigned num_states) {
+std::vector<double> Coordinator::build_access_model(unsigned num_states)
+{
   const double pos_mean = 0.48 * static_cast<double>(num_states) - 1;
   const double pos_fwhm = sqrt(pos_mean + 1) * (config.b == 2 ? 3.25 : 2.26);
   const double pos_sigma = pos_fwhm / (2 * sqrt(2 * log(2)));
@@ -390,7 +399,8 @@ std::vector<double> Coordinator::build_access_model(unsigned num_states) {
 // Gaussian (normal) shape, so we fit the logarithm to a parabola and use that
 // to extrapolate.
 
-double Coordinator::expected_patterns_at_maxperiod() {
+double Coordinator::expected_patterns_at_maxperiod()
+{
   size_t mode = 0;
   size_t max = 0;
   std::uint64_t modeval = 0;
@@ -476,7 +486,8 @@ volatile sig_atomic_t Coordinator::stopping = 0;
 
 // Respond to a SIGINT (ctrl-c) interrupt during execution.
 
-void Coordinator::signal_handler(int signum) {
+void Coordinator::signal_handler(int signum)
+{
   (void)signum;
   stopping = true;
 }
@@ -485,7 +496,8 @@ void Coordinator::signal_handler(int signum) {
 // Handle terminal output
 //------------------------------------------------------------------------------
 
-void Coordinator::print_search_description() const {
+void Coordinator::print_search_description() const
+{
   jpout << std::format("objects: {}, max throw: {}\n",
       (config.dualflag ? config.h - config.b : config.b), config.h);
 
@@ -529,7 +541,8 @@ void Coordinator::print_search_description() const {
   }
 }
 
-void Coordinator::print_results() const {
+void Coordinator::print_results() const
+{
   jpout << std::format("{} {} in range ({} seen, {} {})\n",
              context.npatterns,
              context.npatterns == 1 ? "pattern" : "patterns",
@@ -556,7 +569,8 @@ void Coordinator::print_results() const {
   }
 }
 
-void Coordinator::erase_status_output() {
+void Coordinator::erase_status_output()
+{
   if (!config.statusflag || !status_printed)
     return;
   for (int i = 0; i < status_line_count_last; ++i) {
@@ -566,7 +580,8 @@ void Coordinator::erase_status_output() {
   status_line_count_last = 0;
 }
 
-void Coordinator::print_status_output() {
+void Coordinator::print_status_output()
+{
   if (!config.statusflag)
     return;
 
@@ -579,7 +594,8 @@ void Coordinator::print_status_output() {
   std::flush(std::cout);
 }
 
-std::string Coordinator::current_time_string() {
+std::string Coordinator::current_time_string()
+{
   const auto now = std::chrono::system_clock::now();
   const auto now_timet = std::chrono::system_clock::to_time_t(now);
   char* now_str = std::ctime(&now_timet);
@@ -590,7 +606,8 @@ std::string Coordinator::current_time_string() {
 // Handle a pattern found during the search. We store it and optionally print
 // to the terminal.
 
-void Coordinator::process_search_result(const std::string& pattern) {
+void Coordinator::process_search_result(const std::string& pattern)
+{
   // workers only send patterns in the target period range
   context.patterns.push_back(pattern);
 
@@ -608,7 +625,8 @@ void Coordinator::process_search_result(const std::string& pattern) {
 // Format a pattern for output.
 
 std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
-    const unsigned start_state) {
+    const unsigned start_state)
+{
   std::ostringstream buffer;
 
   if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH) {
@@ -673,13 +691,15 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
 // Return the duration between two time points, in seconds.
 
 double Coordinator::calc_duration_secs(const jptimer_t& before,
-    const jptimer_t& after) {
+    const jptimer_t& after)
+{
   const std::chrono::duration<double> diff = after - before;
   return diff.count();
 }
 
 // Return the maximum pattern length for a given `start_state`.
 
-int Coordinator::get_max_length(unsigned start_state) const {
+int Coordinator::get_max_length(unsigned start_state) const
+{
   return max_length.at(start_state);
 }

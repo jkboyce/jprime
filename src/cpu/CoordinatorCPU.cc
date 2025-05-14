@@ -24,13 +24,15 @@
 
 
 CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
-    std::ostream& c) : Coordinator(a, b, c) {}
+    std::ostream& c) : Coordinator(a, b, c)
+{}
 
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void CoordinatorCPU::run_search() {
+void CoordinatorCPU::run_search()
+{
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
     static_cast<long>(NANOSECS_PER_INBOX_CHECK));
   last_status_time = std::chrono::high_resolution_clock::now();
@@ -51,7 +53,7 @@ void CoordinatorCPU::run_search() {
   }
 
   stop_workers();
-  workers_splitting.clear();
+  workers_splitting.clear();  // don't count returned work as splits
   process_inbox();  // running worker will have sent back a RETURN_WORK message
 }
 
@@ -62,7 +64,8 @@ void CoordinatorCPU::run_search() {
 // Deliver a message to a given worker's inbox.
 
 void CoordinatorCPU::message_worker(const MessageC2W& msg,
-    unsigned worker_id) const {
+    unsigned worker_id) const
+{
   std::unique_lock<std::mutex> lck(worker.at(worker_id)->inbox_lock);
   worker.at(worker_id)->inbox.push(msg);
 }
@@ -70,7 +73,8 @@ void CoordinatorCPU::message_worker(const MessageC2W& msg,
 // Give assignments to workers, while there are available assignments and idle
 // workers to take them.
 
-void CoordinatorCPU::give_assignments() {
+void CoordinatorCPU::give_assignments()
+{
   while (!workers_idle.empty() && !context.assignments.empty()) {
     auto iter = workers_idle.begin();
     auto id = *iter;
@@ -106,7 +110,8 @@ void CoordinatorCPU::give_assignments() {
 // Identify a (not idle) worker to steal work from, and send it a SPLIT_WORK
 // message.
 
-void CoordinatorCPU::steal_work() {
+void CoordinatorCPU::steal_work()
+{
   bool sent_split_request = false;
 
   while (workers_idle.size() > workers_splitting.size()) {
@@ -153,7 +158,8 @@ void CoordinatorCPU::steal_work() {
 // First look at most remaining `start_state` values, and if no workers have
 // unexplored start states then find the lowest `root_pos` value.
 
-unsigned CoordinatorCPU::find_stealing_target_mostremaining() const {
+unsigned CoordinatorCPU::find_stealing_target_mostremaining() const
+{
   int id_startstates = -1;
   int id_rootpos = -1;
   unsigned max_startstates_remaining = 0;
@@ -182,7 +188,8 @@ unsigned CoordinatorCPU::find_stealing_target_mostremaining() const {
 
 // Send messages to all workers requesting a status update.
 
-void CoordinatorCPU::collect_status() {
+void CoordinatorCPU::collect_status()
+{
   if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
     return;
 
@@ -217,7 +224,8 @@ void CoordinatorCPU::collect_status() {
 
 // Receive and handle messages from the worker threads.
 
-void CoordinatorCPU::process_inbox() {
+void CoordinatorCPU::process_inbox()
+{
   std::unique_lock<std::mutex> lck(inbox_lock);
   while (!inbox.empty()) {
     MessageW2C msg = inbox.front();
@@ -241,7 +249,8 @@ void CoordinatorCPU::process_inbox() {
 
 // Handle a notification that a worker is now idle.
 
-void CoordinatorCPU::process_worker_idle(const MessageW2C& msg) {
+void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
+{
   workers_idle.insert(msg.worker_id);
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
@@ -272,7 +281,8 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg) {
 // This happens in two contexts: (a) when the worker is responding to a
 // SPLIT_WORK request, and (b) when the worker is notified to quit.
 
-void CoordinatorCPU::process_returned_work(const MessageW2C& msg) {
+void CoordinatorCPU::process_returned_work(const MessageW2C& msg)
+{
   if (workers_splitting.count(msg.worker_id) > 0) {
     ++context.splits_total;
     workers_splitting.erase(msg.worker_id);
@@ -294,7 +304,8 @@ void CoordinatorCPU::process_returned_work(const MessageW2C& msg) {
 // We create a status string for each worker as their stats return, and once all
 // workers have responded we print it.
 
-void CoordinatorCPU::process_returned_stats(const MessageW2C& msg) {
+void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
+{
   record_data_from_message(msg);
   if (!config.statusflag)
     return;
@@ -353,7 +364,8 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg) {
 // and `root_pos`, which are used by the coordinator when it needs to select a
 // worker to send a SPLIT_WORK request to.
 
-void CoordinatorCPU::process_worker_update(const MessageW2C& msg) {
+void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
+{
   if (msg.meta.size() > 0) {
     if (config.verboseflag) {
       erase_status_output();
@@ -422,7 +434,8 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg) {
 // Start all of the worker threads into a ready state, and initialize data
 // structures for tracking them.
 
-void CoordinatorCPU::start_workers() {
+void CoordinatorCPU::start_workers()
+{
   if (config.verboseflag) {
     jpout << "Started on: " << current_time_string() << '\n';
   }
@@ -450,7 +463,8 @@ void CoordinatorCPU::start_workers() {
 
 // Stop all workers.
 
-void CoordinatorCPU::stop_workers() {
+void CoordinatorCPU::stop_workers()
+{
   if (config.verboseflag) {
     erase_status_output();
   }
@@ -472,11 +486,13 @@ void CoordinatorCPU::stop_workers() {
   }
 }
 
-bool CoordinatorCPU::is_worker_idle(const unsigned id) const {
+bool CoordinatorCPU::is_worker_idle(const unsigned id) const
+{
   return (workers_idle.count(id) != 0);
 }
 
-bool CoordinatorCPU::is_worker_splitting(const unsigned id) const {
+bool CoordinatorCPU::is_worker_splitting(const unsigned id) const
+{
   return (workers_splitting.count(id) != 0);
 }
 
@@ -487,7 +503,8 @@ bool CoordinatorCPU::is_worker_splitting(const unsigned id) const {
 // Copy status data out of the worker message, into appropriate data structures
 // in the coordinator.
 
-void CoordinatorCPU::record_data_from_message(const MessageW2C& msg) {
+void CoordinatorCPU::record_data_from_message(const MessageW2C& msg)
+{
   context.nnodes += msg.nnodes;
   context.secs_working += msg.secs_working;
 
@@ -513,7 +530,8 @@ void CoordinatorCPU::record_data_from_message(const MessageW2C& msg) {
 // Create a status display for a worker, showing its current state in the
 // search.
 
-std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg) {
+std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
+{
   std::ostringstream buffer;
 
   if (!msg.running) {

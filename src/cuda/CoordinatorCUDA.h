@@ -92,7 +92,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   void copy_static_vars_to_gpu();
 
   // main loop
-  void skip_unused_startstates(unsigned bank);
+  void skip_unusable_startstates(unsigned bank);
   void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
   void launch_cuda_kernel(unsigned bank, uint64_t cycles);
   void copy_worker_data_from_gpu(unsigned bank);

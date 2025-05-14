@@ -29,7 +29,8 @@
 Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
     unsigned id, unsigned n_max)
     : config(config), coordinator(coord), worker_id(id), n_min(config.n_min),
-      n_max(n_max), graph(g) {}
+      n_max(n_max), graph(g)
+{}
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -38,7 +39,8 @@ Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
 // Execute the main run loop for the worker, which waits until it receives an
 // assignment from the coordinator.
 
-void Worker::run() {
+void Worker::run()
+{
   init();
 
   while (true) {
@@ -92,7 +94,8 @@ void Worker::run() {
 
 // Initialize the arrays used during search.
 
-void Worker::init() {
+void Worker::init()
+{
   beat.resize(graph.numstates + 1);
   pattern.assign(graph.numstates + 1, -1);
   used.assign(graph.numstates + 1, 0);
@@ -108,7 +111,8 @@ void Worker::init() {
 
 // Deliver a message to the coordinator's inbox.
 
-void Worker::message_coordinator(MessageW2C& msg) const {
+void Worker::message_coordinator(MessageW2C& msg) const
+{
   msg.worker_id = worker_id;
   std::unique_lock<std::mutex> lck(coordinator.inbox_lock);
   coordinator.inbox.push(msg);
@@ -116,7 +120,8 @@ void Worker::message_coordinator(MessageW2C& msg) const {
 
 // Deliver an informational text message to the coordinator's inbox.
 
-void Worker::message_coordinator_text(const std::string& str) const {
+void Worker::message_coordinator_text(const std::string& str) const
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::WORKER_UPDATE;
   msg.meta = str;
@@ -126,7 +131,8 @@ void Worker::message_coordinator_text(const std::string& str) const {
 // Handle incoming messages from the coordinator that have queued while the
 // worker is running.
 
-void Worker::process_inbox_running() {
+void Worker::process_inbox_running()
+{
   if (calibrations_remaining > 0) {
     calibrate_inbox_check();
   }
@@ -161,7 +167,8 @@ void Worker::process_inbox_running() {
 // coordinator later on.
 
 void Worker::record_elapsed_time_from(const
-    std::chrono::time_point<std::chrono::high_resolution_clock>& start) {
+    std::chrono::time_point<std::chrono::high_resolution_clock>& start)
+{
   const auto end = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double> diff = end - start;
   const double runtime = diff.count();
@@ -171,7 +178,8 @@ void Worker::record_elapsed_time_from(const
 // Calibrate the number of steps to take in the gen_loops() functions to get the
 // desired frequency of inbox checks.
 
-void Worker::calibrate_inbox_check() {
+void Worker::calibrate_inbox_check()
+{
   if (calibrations_remaining == CALIBRATIONS_INITIAL) {
     last_ts = std::chrono::high_resolution_clock::now();
     --calibrations_remaining;
@@ -191,7 +199,8 @@ void Worker::calibrate_inbox_check() {
 
 // Respond to the coordinator's request to split the current work assignment.
 
-void Worker::process_split_work_request() {
+void Worker::process_split_work_request()
+{
   if (config.verboseflag) {
     message_coordinator_text(
         std::format("worker {} splitting work...", worker_id));
@@ -222,7 +231,8 @@ void Worker::process_split_work_request() {
 
 // Send a work assignment to the coordinator.
 
-void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
+void Worker::send_work_to_coordinator(const WorkAssignment& wa)
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::RETURN_WORK;
   msg.assignment = wa;
@@ -233,7 +243,8 @@ void Worker::send_work_to_coordinator(const WorkAssignment& wa) {
 // Respond to the coordinator's request to send back search statistics for the
 // live status display.
 
-void Worker::send_stats_to_coordinator() {
+void Worker::send_stats_to_coordinator()
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::RETURN_STATS;
   msg.running = running;
@@ -346,7 +357,8 @@ void Worker::send_stats_to_coordinator() {
 // Add certain data items to a message for the coordinator. Several message
 // types include these common items.
 
-void Worker::add_data_to_message(MessageW2C& msg) {
+void Worker::add_data_to_message(MessageW2C& msg)
+{
   msg.count = count;
   msg.nnodes = nnodes;
   msg.secs_working = secs_working;
@@ -358,7 +370,8 @@ void Worker::add_data_to_message(MessageW2C& msg) {
 
 // Respond to the coordinator's request to do the given work assignment.
 
-void Worker::load_work_assignment(const WorkAssignment& wa) {
+void Worker::load_work_assignment(const WorkAssignment& wa)
+{
   assert(!running);
 
   start_state = wa.start_state;
@@ -383,7 +396,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa) {
 // Note this is distinct from split_work_assignment(), which splits off a
 // portion of the assignment.
 
-WorkAssignment Worker::get_work_assignment() const {
+WorkAssignment Worker::get_work_assignment() const
+{
   WorkAssignment wa;
   wa.start_state = start_state;
   wa.end_state = end_state;
@@ -400,7 +414,8 @@ WorkAssignment Worker::get_work_assignment() const {
 // Notify the coordinator that the worker is idle and ready for another work
 // assignment.
 
-void Worker::notify_coordinator_idle() {
+void Worker::notify_coordinator_idle()
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::WORKER_IDLE;
   add_data_to_message(msg);
@@ -412,7 +427,8 @@ void Worker::notify_coordinator_idle() {
 // coordinator may use this information to determine which worker to steal work
 // from when another worker goes idle.
 
-void Worker::notify_coordinator_update() const {
+void Worker::notify_coordinator_update() const
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::WORKER_UPDATE;
   msg.start_state = start_state;
@@ -427,15 +443,15 @@ void Worker::notify_coordinator_update() const {
 
 // Complete the current work assignment.
 
-void Worker::do_work_assignment() {
+void Worker::do_work_assignment()
+{
   running = true;
   loading_work = true;
 
   while (start_state <= end_state) {
-    // check if this value of `start_state` is allowed
-    if (graph.max_startstate_usable.at(start_state) == start_state) {
-      initialize_working_variables();
+    max_possible = coordinator.get_max_length(start_state);
 
+    if (max_possible != -1) {
       if (config.verboseflag) {
         unsigned num_inactive = 0;
         for (size_t i = 1; i <= graph.numstates; ++i) {
@@ -454,7 +470,6 @@ void Worker::do_work_assignment() {
       if (max_possible < static_cast<int>(n_min)) {
         // larger values of `start_state` will have `max_possible` values that
         // are the same or smaller, so we can exit the loop
-        assert(max_possible >= 0);
         if (config.verboseflag) {
           const auto text = std::format(
               "worker {} terminating because max_possible ({}) < n_min ({})",
@@ -465,6 +480,7 @@ void Worker::do_work_assignment() {
       }
 
       notify_coordinator_update();
+      initialize_working_variables();
       gen_loops();
     }
 
@@ -479,7 +495,8 @@ void Worker::do_work_assignment() {
 
 // Find all patterns for the current value of `start_state`.
 
-void Worker::gen_loops() {
+void Worker::gen_loops()
+{
   // choose a search algorithm to use
   unsigned alg = -1;
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
@@ -567,7 +584,8 @@ void Worker::gen_loops() {
 
 // Initialize all working variables prior to gen_loops().
 
-void Worker::initialize_working_variables() {
+void Worker::initialize_working_variables()
+{
   used.assign(graph.numstates + 1, 0);
   cycleused.assign(graph.numcycles, 0);
   deadstates.assign(graph.numcycles, 0);
@@ -597,7 +615,6 @@ void Worker::initialize_working_variables() {
   pos = 0;
   from = start_state;
   shiftcount = 0;
-  max_possible = coordinator.get_max_length(start_state);
 }
 
 //------------------------------------------------------------------------------
@@ -607,7 +624,8 @@ void Worker::initialize_working_variables() {
 // Send a message to the coordinator with the completed pattern. Note that all
 // console output is done by the coordinator, not the worker threads.
 
-void Worker::report_pattern() const {
+void Worker::report_pattern() const
+{
   MessageW2C msg;
   msg.type = MessageW2C::Type::SEARCH_RESULT;
   msg.pattern = coordinator.pattern_output_format(pattern, start_state);

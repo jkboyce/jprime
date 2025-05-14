@@ -27,13 +27,16 @@ void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
 
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
-    std::ostream& c) : Coordinator(a, b, c) {}
+    std::ostream& c)
+    : Coordinator(a, b, c)
+{}
 
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
 
-void CoordinatorCUDA::run_search() {
+void CoordinatorCUDA::run_search()
+{
   initialize();
 
   // set up workers
@@ -77,7 +80,7 @@ void CoordinatorCUDA::run_search() {
 
     // prepare bankB for its next run
     assign_new_jobs(bankB);
-    skip_unused_startstates(bankB);
+    skip_unusable_startstates(bankB);
     copy_worker_data_to_gpu(bankB);
     const auto prev_idle_before = summary_before[bankB].workers_idle.size();
     summary_before[bankB] = summarize_worker_status(bankB);
@@ -107,7 +110,8 @@ void CoordinatorCUDA::run_search() {
 
 // Initialize data structures and copy non-worker data to the GPU.
 
-void CoordinatorCUDA::initialize() {
+void CoordinatorCUDA::initialize()
+{
   prop = initialize_cuda_device();
   alg = select_cuda_search_algorithm();
   graph_buffer = make_graph_buffer();
@@ -131,7 +135,8 @@ void CoordinatorCUDA::initialize() {
 
 // Initialize CUDA device and check properties.
 
-cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
+cudaDeviceProp CoordinatorCUDA::initialize_cuda_device()
+{
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
 
@@ -158,7 +163,8 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device() {
 
 // Choose a search algorithm to use.
 
-CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm() {
+CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm()
+{
   CudaAlgorithm alg = CudaAlgorithm::NONE;
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
@@ -185,7 +191,8 @@ CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm() {
 
 // Return a version of the graph for the GPU.
 
-std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer() {
+std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
+{
   std::vector<statenum_t> graph_buffer;
 
   for (unsigned i = 1; i <= graph.numstates; ++i) {
@@ -253,7 +260,8 @@ const double throughput[33][3] = {
 
 // Determine an optimal runtime configuration for the GPU hardware available.
 
-CudaRuntimeParams CoordinatorCUDA::find_runtime_params() {
+CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
+{
   CudaRuntimeParams params;
   params.num_blocks = prop.multiProcessorCount;
   params.pattern_buffer_size = (config.countflag ? 0 :
@@ -367,7 +375,8 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params() {
 // set of runtime parameters.
 
 size_t CoordinatorCUDA::calc_shared_memory_size(unsigned n_max,
-    const CudaRuntimeParams& p) {
+    const CudaRuntimeParams& p)
+{
   size_t shared_bytes = 0;
 
   switch (alg) {
@@ -411,7 +420,8 @@ size_t CoordinatorCUDA::calc_shared_memory_size(unsigned n_max,
 
 // Allocate memory in the GPU and the host, and initialize host memory.
 
-void CoordinatorCUDA::allocate_memory() {
+void CoordinatorCUDA::allocate_memory()
+{
   // GPU memory
   for (unsigned bank = 0; bank < 2; ++bank) {
     throw_on_cuda_error(
@@ -515,7 +525,8 @@ void CoordinatorCUDA::allocate_memory() {
 
 // Copy graph data to GPU.
 
-void CoordinatorCUDA::copy_graph_to_gpu() {
+void CoordinatorCUDA::copy_graph_to_gpu()
+{
   if (config.verboseflag) {
     erase_status_output();
     jpout << std::format("  placing graph into {} memory ({} bytes)\n",
@@ -532,7 +543,8 @@ void CoordinatorCUDA::copy_graph_to_gpu() {
 
 // Copy static global variables to GPU global memory.
 
-void CoordinatorCUDA::copy_static_vars_to_gpu() {
+void CoordinatorCUDA::copy_static_vars_to_gpu()
+{
   uint8_t maxoutdegree_h = static_cast<uint8_t>(graph.maxoutdegree);
   uint16_t numstates_h = static_cast<uint16_t>(graph.numstates);
   uint16_t numcycles_h = static_cast<uint16_t>(graph.numcycles);
@@ -575,7 +587,8 @@ void CoordinatorCUDA::copy_static_vars_to_gpu() {
 // length is too short. This should exactly mirror the logic in
 // Worker::do_work_assignment() to keep operation identical between CPU and GPU.
 
-void CoordinatorCUDA::skip_unused_startstates(unsigned bank) {
+void CoordinatorCUDA::skip_unusable_startstates(unsigned bank)
+{
   for (size_t id = 0; id < config.num_threads; ++id) {
     auto& wi = wi_h[bank][id];
     if ((wi.status & 1) != 0)
@@ -589,13 +602,13 @@ void CoordinatorCUDA::skip_unused_startstates(unsigned bank) {
         break;
       }
 
-      const auto max_len = get_max_length(wi.start_state);
-      if (max_len == -1) {  // current start_state is unusable
+      const auto max_possible = get_max_length(wi.start_state);
+      if (max_possible == -1) {  // current start_state is unusable
         ++wi.start_state;
         continue;
       }
 
-      if (max_len < static_cast<int>(config.n_min)) {
+      if (max_possible < static_cast<int>(config.n_min)) {
         wi.status |= 1;
       }
       break;
@@ -616,7 +629,8 @@ void CoordinatorCUDA::skip_unused_startstates(unsigned bank) {
 // This copies WorkerInfo and WorkCells for threads [0, max_active_idx[bank]].
 // If optional `startup` is true then all WorkerInfo data is copied.
 
-void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup) {
+void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup)
+{
   auto idx_count = startup ? config.num_threads : (max_active_idx[bank] + 1);
 
   throw_on_cuda_error(
@@ -635,7 +649,8 @@ void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup) {
 // In the event of an error, throw a `std::runtime_error` exception with an
 // appropriate error message.
 
-void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles) {
+void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles)
+{
   if (summary_before[bank].workers_idle.size() == config.num_threads)
     return;
 
@@ -651,7 +666,8 @@ void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles) {
 // Copy worker data from the GPU. Copy only the worker data for threads
 // [0, max_active_idx[bank]].
 
-void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank) {
+void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank)
+{
   throw_on_cuda_error(
       cudaMemcpyAsync(wi_h[bank], ptrs.wi_d[bank],
           sizeof(WorkerInfo) * (max_active_idx[bank] + 1),
@@ -666,7 +682,8 @@ void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank) {
 
 // Process the worker counters after a kernel run, and reset to initial values.
 
-void CoordinatorCUDA::process_worker_counters(unsigned bank) {
+void CoordinatorCUDA::process_worker_counters(unsigned bank)
+{
   if (longest_by_startstate_ever.size() > 0) {
     longest_by_startstate_current.assign(longest_by_startstate_ever.size(), 0);
   }
@@ -710,7 +727,8 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank) {
 // In the event of a pattern buffer overflow, throw a `std::runtime_error`
 // exception with a relevant error message.
 
-uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank) {
+uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
+{
   if (ptrs.pb_d[bank] == nullptr) {
     return 0;
   }
@@ -813,7 +831,8 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank) {
 // Update the global time counters.
 
 void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
-    double host_time, uint64_t cycles_run) {
+    double host_time, uint64_t cycles_run)
+{
   const unsigned idle_before = summary_before[bank].workers_idle.size();
   const unsigned idle_after = summary_after[bank].workers_idle.size();
   assert(idle_after >= idle_before);
@@ -840,7 +859,8 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
 
 uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       unsigned bank, double kernel_time, double host_time, unsigned idle_start,
-      uint32_t pattern_count) {
+      uint32_t pattern_count)
+{
   const uint64_t min_cycles = 100000ul;
 
   if (idle_start == config.num_threads) {
@@ -919,7 +939,8 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
 
 // Gather unfinished work assignments.
 
-void CoordinatorCUDA::gather_unfinished_work_assignments() {
+void CoordinatorCUDA::gather_unfinished_work_assignments()
+{
   for (unsigned bank = 0; bank < 2; ++bank) {
     for (unsigned id = 0; id < config.num_threads; ++id) {
       if ((wi_h[bank][id].status & 1) == 0) {
@@ -933,7 +954,8 @@ void CoordinatorCUDA::gather_unfinished_work_assignments() {
 
 // Destroy CUDA streams and free allocated GPU and host memory.
 
-void CoordinatorCUDA::cleanup() {
+void CoordinatorCUDA::cleanup()
+{
   for (int i = 0; i < 2; ++i) {
     cudaStreamDestroy(stream[i]);
     stream[i] = nullptr;
@@ -990,7 +1012,8 @@ void CoordinatorCUDA::cleanup() {
 
 // Produce a summary of the current worker status.
 
-CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank) {
+CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank)
+{
   unsigned root_pos_min = -1u;
   statenum_t max_start_state = 0;
   max_active_idx[bank] = 0;
@@ -1093,7 +1116,8 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank) {
 // Summarize all active jobs in the worker banks and the assignments queue.
 
 CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
-    const CudaWorkerSummary& last, const CudaWorkerSummary& prev) {
+    const CudaWorkerSummary& last, const CudaWorkerSummary& prev)
+{
   CudaWorkerSummary summary;
 
   summary.root_pos_min = std::min(last.root_pos_min, prev.root_pos_min);
@@ -1176,7 +1200,8 @@ CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
 // Create and display the live status indicator, if needed.
 
 void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
-      double host_time) {
+      double host_time)
+{
   const auto& summary_afterB = summary_after[bankB];
   const auto& summary_beforeA = summary_before[1 - bankB];
 
@@ -1315,7 +1340,8 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
 
 // Load initial work assignments and copy worker data to the GPU.
 
-void CoordinatorCUDA::load_initial_work_assignments() {
+void CoordinatorCUDA::load_initial_work_assignments()
+{
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if (context.assignments.empty())
       break;
@@ -1335,7 +1361,7 @@ void CoordinatorCUDA::load_initial_work_assignments() {
   }
 
   for (unsigned bank = 0; bank < 2; ++bank) {
-    skip_unused_startstates(bank);
+    skip_unusable_startstates(bank);
     copy_worker_data_to_gpu(bank, true);
     summary_before[bank] = summarize_worker_status(bank);
   }
@@ -1345,7 +1371,8 @@ void CoordinatorCUDA::load_initial_work_assignments() {
 // `ThreadStorageWorkCell` arrays.
 
 void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
-    const WorkAssignment& wa) {
+    const WorkAssignment& wa)
+{
   wa.to_workspace(this, bank * config.num_threads + id);
   wi_h[bank][id].nnodes = 0;
   wi_h[bank][id].status = 0;
@@ -1362,7 +1389,8 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
 // This is a non-destructive read, i.e., the workcells are unchanged.
 
 WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
-    unsigned id) {
+    unsigned id)
+{
   WorkAssignment wa;
   wa.from_workspace(this, bank * config.num_threads + id);
   return wa;
@@ -1370,7 +1398,8 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
 
 // Assign new jobs to idle workers in bankB.
 
-void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
+void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
+{
   const CudaWorkerSummary& summary = summary_after[bankB];
   const unsigned idle_before_b = summary_before[bankB].workers_idle.size();
   const unsigned idle_before_a = summary_before[1 - bankB].workers_idle.size();
@@ -1457,7 +1486,8 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB) {
 // Return a reference to the workcell for thread `id`, position `pos`.
 
 ThreadStorageWorkCell& CoordinatorCUDA::workcell(unsigned bank, unsigned id,
-    unsigned pos) {
+    unsigned pos)
+{
   ThreadStorageWorkCell* start_warp = &wc_h[bank][(id / 32) * n_max];
   uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
   ThreadStorageWorkCell* start_thread =
@@ -1466,7 +1496,8 @@ ThreadStorageWorkCell& CoordinatorCUDA::workcell(unsigned bank, unsigned id,
 }
 
 const ThreadStorageWorkCell& CoordinatorCUDA::workcell(unsigned bank,
-    unsigned id, unsigned pos) const {
+    unsigned id, unsigned pos) const
+{
   ThreadStorageWorkCell* start_warp = &wc_h[bank][(id / 32) * n_max];
   uint32_t* start_warp_u32 = reinterpret_cast<uint32_t*>(start_warp);
   ThreadStorageWorkCell* start_thread =
@@ -1478,7 +1509,8 @@ const ThreadStorageWorkCell& CoordinatorCUDA::workcell(unsigned bank,
 // relevant error message.
 
 void CoordinatorCUDA::throw_on_cuda_error(cudaError_t code, const char *file,
-      int line) {
+      int line)
+{
   if (code != cudaSuccess) {
     std::ostringstream ss;
     ss << "CUDA error: " << cudaGetErrorString(code) << " in file "
@@ -1491,12 +1523,14 @@ void CoordinatorCUDA::throw_on_cuda_error(cudaError_t code, const char *file,
 // WorkSpace methods
 //------------------------------------------------------------------------------
 
-const Graph& CoordinatorCUDA::get_graph() const {
+const Graph& CoordinatorCUDA::get_graph() const
+{
   return graph;
 }
 
 void CoordinatorCUDA::set_cell(unsigned slot, unsigned index, unsigned col,
-    unsigned col_limit, unsigned from_state) {
+    unsigned col_limit, unsigned from_state)
+{
   assert(slot < 2 * config.num_threads);
   assert(index < n_max);
   unsigned bank = slot < config.num_threads ? 0 : 1;
@@ -1509,7 +1543,8 @@ void CoordinatorCUDA::set_cell(unsigned slot, unsigned index, unsigned col,
 }
 
 std::tuple<unsigned, unsigned, unsigned> CoordinatorCUDA::get_cell(
-    unsigned slot, unsigned index) const {
+    unsigned slot, unsigned index) const
+{
   assert(slot < 2 * config.num_threads);
   assert(index < n_max);
   unsigned bank = slot < config.num_threads ? 0 : 1;
@@ -1520,7 +1555,8 @@ std::tuple<unsigned, unsigned, unsigned> CoordinatorCUDA::get_cell(
 }
 
 void CoordinatorCUDA::set_info(unsigned slot, unsigned new_start_state,
-    unsigned new_end_state, int new_pos) {
+    unsigned new_end_state, int new_pos)
+{
   assert(slot < 2 * config.num_threads);
   unsigned bank = slot < config.num_threads ? 0 : 1;
   unsigned id = bank == 0 ? slot : slot - config.num_threads;
@@ -1532,7 +1568,8 @@ void CoordinatorCUDA::set_info(unsigned slot, unsigned new_start_state,
 }
 
 std::tuple<unsigned, unsigned, int> CoordinatorCUDA::get_info(unsigned slot)
-    const {
+    const
+{
   assert(slot < 2 * config.num_threads);
   unsigned bank = slot < config.num_threads ? 0 : 1;
   unsigned id = bank == 0 ? slot : slot - config.num_threads;
@@ -1547,7 +1584,8 @@ std::tuple<unsigned, unsigned, int> CoordinatorCUDA::get_info(unsigned slot)
 
 // Record kernel completion time (CUDA callback function)
 
-void CUDART_CB record_kernel_completion_time(void* data) {
+void CUDART_CB record_kernel_completion_time(void* data)
+{
   jptimer_t* ptr = (jptimer_t*)data;
   *ptr = std::chrono::high_resolution_clock::now();
 }

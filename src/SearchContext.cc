@@ -26,7 +26,8 @@
 // Convert a pattern line printed as comma-separated integers into a vector of
 // ints.
 
-std::vector<int> parse_pattern_line(const std::string& p) {
+std::vector<int> parse_pattern_line(const std::string& p)
+{
   // remove the first colon and anything beyond
   std::string pat{p.cbegin(), std::find(p.cbegin(), p.cend(), ':')};
 
@@ -54,7 +55,8 @@ std::vector<int> parse_pattern_line(const std::string& p) {
 //
 // Test case: jprime 7 42 6 -file test
 
-bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
+bool pattern_compare_ints(const std::string& pat1, const std::string& pat2)
+{
   const std::vector<int> vec1 = parse_pattern_line(pat1);
   const std::vector<int> vec2 = parse_pattern_line(pat2);
 
@@ -86,7 +88,8 @@ bool pattern_compare_ints(const std::string& pat1, const std::string& pat2) {
 
 // Compare patterns printed with letters (10='a', etc.)
 
-bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
+bool pattern_compare_letters(const std::string& pat1, const std::string& pat2)
+{
   if (pat2.size() == 0)
     return false;
   if (pat1.size() == 0)
@@ -134,7 +137,8 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2) {
 // Returns true if the first argument appears before the second in a strict
 // weak ordering, and false otherwise.
 
-bool pattern_compare(const std::string& pat1, const std::string& pat2) {
+bool pattern_compare(const std::string& pat1, const std::string& pat2)
+{
   const bool has_comma =
       (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
       std::find(pat2.cbegin(), pat2.cend(), ',') != pat2.cend());
@@ -150,7 +154,8 @@ bool pattern_compare(const std::string& pat1, const std::string& pat2) {
 // Saving checkpoint files
 //------------------------------------------------------------------------------
 
-void SearchContext::to_file(const std::string& file) {
+void SearchContext::to_file(const std::string& file)
+{
   std::sort(patterns.begin(), patterns.end(), pattern_compare);
 
   std::ofstream myfile;
@@ -212,7 +217,8 @@ void SearchContext::to_file(const std::string& file) {
 // Loading checkpoint files
 //------------------------------------------------------------------------------
 
-static inline void trim(std::string& s) {
+static inline void trim(std::string& s)
+{
   // trim left, then trim right
   s.erase(
       s.begin(),
@@ -231,7 +237,8 @@ static inline void trim(std::string& s) {
 // In the event of an error, throw a `std::invalid_argument` exception with a
 // relevant error message.
 
-void SearchContext::from_file(const std::string& file) {
+void SearchContext::from_file(const std::string& file)
+{
   std::ifstream myfile;
   myfile.open(file, std::ios::in);
   if (!myfile || !myfile.is_open()) {

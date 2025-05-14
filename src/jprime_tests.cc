@@ -65,7 +65,8 @@ const std::vector<TestCase> tests {
 //
 // Return true on test pass, false on failure.
 
-bool run_one_test(const TestCase& tc) {
+bool run_one_test(const TestCase& tc)
+{
   std::cout << std::format("Executing: {}\n", tc.input)
             << "               patterns,         seen,"
             << "        nodes,  time (sec)\n"
@@ -153,7 +154,8 @@ bool run_one_test(const TestCase& tc) {
 
 // Execute all test cases and report on results.
 
-void do_tests() {
+void do_tests()
+{
   int runs = 0;
   int passes = 0;
 

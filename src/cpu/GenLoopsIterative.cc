@@ -30,7 +30,8 @@
 // particular value of `pos`; this is used for initialization.
 
 template<bool REPORT, bool REPLAY>
-void Worker::iterative_gen_loops_normal() {
+void Worker::iterative_gen_loops_normal()
+{
   if (!REPLAY) {
     // initializing the working variables is a two-step process, starting with
     // setting up the workspace based on our current position in the search
@@ -184,7 +185,8 @@ void Worker::iterative_gen_loops_normal() {
 // Non-recursive version of gen_loops_normal_marking().
 
 template<bool REPLAY>
-void Worker::iterative_gen_loops_normal_marking() {
+void Worker::iterative_gen_loops_normal_marking()
+{
   if (!REPLAY) {
     iterative_init_workspace();
     if (pos == -1) {
@@ -412,7 +414,8 @@ void Worker::iterative_gen_loops_normal_marking() {
 
 // Helpers for iterative_gen_loops_marking()
 
-inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds) {
+inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
+{
   bool valid = true;
   for (unsigned statenum; (statenum = *es); ++es) {
     if (++u[statenum] == 1 && ++*ds > 1 &&
@@ -423,7 +426,8 @@ inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds) {
   return valid;
 }
 
-inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds) {
+inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
+{
   if (es) {
     for (unsigned statenum; (statenum = *es); ++es) {
       if (--u[statenum] == 0 && --*ds > 0) {
@@ -440,7 +444,8 @@ inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds) {
 // When `SUPER0` == true then certain optimizations can be applied.
 
 template<bool SUPER0, bool REPLAY>
-void Worker::iterative_gen_loops_super() {
+void Worker::iterative_gen_loops_super()
+{
   if (!REPLAY) {
     iterative_init_workspace();
     if (pos == -1) {
@@ -679,7 +684,8 @@ template void Worker::iterative_gen_loops_super<false, true>();
 // If a work assignment cannot be loaded, throw a std::invalid_argument
 // exception with a relevant error message.
 
-void Worker::iterative_init_workspace() {
+void Worker::iterative_init_workspace()
+{
   WorkAssignment wa = get_work_assignment();
   wa.to_workspace(this, 0);
 
@@ -694,7 +700,8 @@ void Worker::iterative_init_workspace() {
 //
 // Also update the worker's values of `root_pos` and `root_throwval_options`.
 
-bool Worker::iterative_can_split() {
+bool Worker::iterative_can_split()
+{
   WorkAssignment wa;
   wa.from_workspace(this, 0);
 
@@ -712,7 +719,8 @@ bool Worker::iterative_can_split() {
 // Update the workspace in case a SPLIT_WORK request changed our work
 // assignment.
 
-void Worker::iterative_update_after_split() {
+void Worker::iterative_update_after_split()
+{
   const auto pos_orig = pos;
   WorkAssignment wa = get_work_assignment();
   wa.to_workspace(this, 0);
@@ -726,7 +734,8 @@ void Worker::iterative_update_after_split() {
   assert(wa == wa2);
 }
 
-inline void Worker::iterative_handle_finished_pattern() {
+inline void Worker::iterative_handle_finished_pattern()
+{
   for (int i = 0; i <= pos; ++i) {
     pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
                                      .at(beat.at(i).col);
@@ -739,12 +748,14 @@ inline void Worker::iterative_handle_finished_pattern() {
 // WorkSpace methods
 //------------------------------------------------------------------------------
 
-const Graph& Worker::get_graph() const {
+const Graph& Worker::get_graph() const
+{
   return graph;
 }
 
 void Worker::set_cell(unsigned slot, unsigned index, unsigned col,
-    unsigned col_limit, unsigned from_state) {
+    unsigned col_limit, unsigned from_state)
+{
   assert(slot == 0);
   assert(index < beat.size());
   WorkCell& wc = beat.at(index);
@@ -754,7 +765,8 @@ void Worker::set_cell(unsigned slot, unsigned index, unsigned col,
 }
 
 std::tuple<unsigned, unsigned, unsigned> Worker::get_cell(unsigned slot,
-    unsigned index) const {
+    unsigned index) const
+{
   assert(slot == 0);
   assert(index < beat.size());
   const WorkCell& wc = beat.at(index);
@@ -762,14 +774,16 @@ std::tuple<unsigned, unsigned, unsigned> Worker::get_cell(unsigned slot,
 }
 
 void Worker::set_info(unsigned slot, unsigned new_start_state,
-    unsigned new_end_state, int new_pos) {
+    unsigned new_end_state, int new_pos)
+{
   assert(slot == 0);
   start_state = new_start_state;
   end_state = new_end_state;
   pos = new_pos;
 }
 
-std::tuple<unsigned, unsigned, int> Worker::get_info(unsigned slot) const {
+std::tuple<unsigned, unsigned, int> Worker::get_info(unsigned slot) const
+{
   assert(slot == 0);
   return std::make_tuple(start_state, end_state, pos);
 }

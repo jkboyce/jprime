@@ -23,7 +23,8 @@
 // Return the WorkAssignment type, one of: INVALID, STARTUP, SPLITTABLE,
 // UNSPLITTABLE.
 
-WorkAssignment::Type WorkAssignment::get_type() const {
+WorkAssignment::Type WorkAssignment::get_type() const
+{
   if (start_state == 0 && end_state == 0 && partial_pattern.size() == 0 &&
       root_pos == 0 && root_throwval_options.empty()) {
     return Type::STARTUP;
@@ -50,13 +51,15 @@ WorkAssignment::Type WorkAssignment::get_type() const {
 
 // Determine if a WorkAssignment is valid.
 
-bool WorkAssignment::is_valid() const {
+bool WorkAssignment::is_valid() const
+{
   return (get_type() != Type::INVALID);
 }
 
 // Perform comparisons on WorkAssignments.
 
-bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
+bool WorkAssignment::operator==(const WorkAssignment& wa2) const
+{
   if (start_state != wa2.start_state) {
     return false;
   }
@@ -75,7 +78,8 @@ bool WorkAssignment::operator==(const WorkAssignment& wa2) const {
   return true;
 }
 
-bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
+bool WorkAssignment::operator!=(const WorkAssignment& wa2) const
+{
   return !(*this == wa2);
 }
 
@@ -84,7 +88,8 @@ bool WorkAssignment::operator!=(const WorkAssignment& wa2) const {
 // work.
 
 void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
-    unsigned from_state, unsigned start_column) {
+    unsigned from_state, unsigned start_column)
+{
   root_throwval_options.clear();
   for (unsigned col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
@@ -98,7 +103,8 @@ void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
 
 // Return a string representation.
 
-std::string WorkAssignment::to_string() const {
+std::string WorkAssignment::to_string() const
+{
   std::ostringstream buffer;
 
   buffer << "{ start_state:" << start_state
@@ -126,7 +132,8 @@ std::string WorkAssignment::to_string() const {
 //
 // Return true on success, false otherwise.
 
-bool WorkAssignment::from_string(const std::string& str) {
+bool WorkAssignment::from_string(const std::string& str)
+{
   static const std::regex rgx(
       "\\{ start_state:([0-9]+), end_state:([0-9]+), root_pos:([0-9]+), "
       "root_options:\\[([0-9,]*)\\], current:\\\"([0-9,]*)\\\" \\}"
@@ -178,7 +185,8 @@ bool WorkAssignment::from_string(const std::string& str) {
 // If the work assignment cannot be loaded, throw a std::invalid_argument
 // exception with a relevant error message.
 
-void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const {
+void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
+{
   if (get_type() != Type::SPLITTABLE && get_type() != Type::UNSPLITTABLE) {
     std::ostringstream oss;
     oss << "Error: tried to load assignment:\n  " << to_string();
@@ -276,7 +284,8 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const {
 // If the work assignment cannot be read, throw a std::invalid_argument
 // exception with a relevant error message.
 
-void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot) {
+void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
+{
   const Graph& graph = ws->get_graph();
 
   // find `start_state` and `end_state`
@@ -333,7 +342,8 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot) {
 
 // Determine if a work assignment can be split.
 
-bool WorkAssignment::is_splittable() const {
+bool WorkAssignment::is_splittable() const
+{
   return is_valid() &&
       (end_state > start_state || get_type() == Type::SPLITTABLE);
 }
@@ -344,7 +354,8 @@ bool WorkAssignment::is_splittable() const {
 // If a work assignment cannot be split, leave the WorkAssignment unchanged and
 // throw a std::invalid_argument exception with a relevant error message.
 
-WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg) {
+WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg)
+{
   if (end_state > start_state) {
     return split_takestartstates();
   }
@@ -360,7 +371,8 @@ WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg) {
 // Return a work assignment that corresponds to giving away approximately half
 // of the unexplored `start_state` values in the current assignment.
 
-WorkAssignment WorkAssignment::split_takestartstates() {
+WorkAssignment WorkAssignment::split_takestartstates()
+{
   unsigned takenum = (end_state - start_state + 1) / 2;
   assert(takenum > 0);
   assert(end_state >= start_state + takenum);
@@ -379,14 +391,16 @@ WorkAssignment WorkAssignment::split_takestartstates() {
 // Return a work assignment that gives away all of the unexplored throw options
 // at root_pos.
 
-WorkAssignment WorkAssignment::split_takeall(const Graph& graph) {
+WorkAssignment WorkAssignment::split_takeall(const Graph& graph)
+{
   return split_takefraction(graph, 1);
 }
 
 // Return a work assignment that gives away approximately half of the unexplored
 // throw options at root_pos.
 
-WorkAssignment WorkAssignment::split_takehalf(const Graph& graph) {
+WorkAssignment WorkAssignment::split_takehalf(const Graph& graph)
+{
   return split_takefraction(graph, 0.5);
 }
 
@@ -531,7 +545,8 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
 // targets at the beginning.
 
 bool work_assignment_compare(const WorkAssignment& wa1,
-      const WorkAssignment& wa2) {
+      const WorkAssignment& wa2)
+{
   auto diff = (wa1.end_state - wa1.start_state) <=>
       (wa2.end_state - wa2.start_state);
   if (diff > 0) {
@@ -556,7 +571,8 @@ bool work_assignment_compare(const WorkAssignment& wa1,
 
 // Print to an output stream using the default text format.
 
-std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa) {
+std::ostream& operator<<(std::ostream& ost, const WorkAssignment& wa)
+{
   ost << wa.to_string();
   return ost;
 }
