@@ -1,4 +1,4 @@
-version           7.0
+version           7.1
 command line      jprime 5 13 98- -super 0 -threads 4 -inverse -status -file 5_13_99_s0
 states            1287
 shift cycles      99

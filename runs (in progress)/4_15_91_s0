@@ -1,4 +1,4 @@
-version           7.0
+version           7.1
 command line      jprime 4 15 90- -super 0 -inverse -threads 4 -status -file 4_15_91_s0
 states            1365
 shift cycles      91
