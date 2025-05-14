@@ -246,12 +246,6 @@ void SearchConfig::from_args(size_t argc, char** argv) {
         std::format("Minimum period {} is greater than maximum {}", n_min,
             n_max));
   }
-  if (cudaflag && num_threads > 1) {
-    throw std::invalid_argument("Cannot use -cuda with -threads option");
-  }
-  if (cudaflag && recursiveflag) {
-    throw std::invalid_argument("Cannot use -cuda with -recursive option");
-  }
 
   // graph type
   if (n_min == n_max && n_min < h) {
