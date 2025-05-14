@@ -19,7 +19,8 @@
 
 // Full graph for `b` objects, max throw `h`.
 
-Graph::Graph(unsigned b, unsigned h) : b(b), h(h), n(0), xarray(h + 1, false)
+Graph::Graph(unsigned b, unsigned h)
+    : b(b), h(h), n(0), xarray(h + 1, false)
 {
   initialize();
 }

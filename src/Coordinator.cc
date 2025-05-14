@@ -32,8 +32,8 @@
 #include <stdexcept>
 
 
-Coordinator::Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c) :
-    config(a), context(b), jpout(c)
+Coordinator::Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c)
+    : config(a), context(b), jpout(c)
 {}
 
 Coordinator::~Coordinator()

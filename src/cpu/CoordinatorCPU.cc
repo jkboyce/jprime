@@ -24,7 +24,8 @@
 
 
 CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
-    std::ostream& c) : Coordinator(a, b, c)
+    std::ostream& c)
+    : Coordinator(a, b, c)
 {}
 
 //------------------------------------------------------------------------------
