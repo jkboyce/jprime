@@ -618,7 +618,6 @@ void CoordinatorCUDA::skip_unusable_startstates(unsigned bank)
       WorkAssignment wa;
       wa.start_state = wi.start_state;
       wa.end_state = wi.end_state;
-      wa.root_pos = 0;
       load_work_assignment(bank, id, wa);
     }
   }
