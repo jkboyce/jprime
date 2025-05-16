@@ -136,7 +136,7 @@ class WorkAssignment {
 
   // work splitting
   bool is_splittable() const;
-  WorkAssignment split(const Graph& graph, unsigned split_alg = 0);
+  WorkAssignment split(const Graph& graph, unsigned split_alg = 1);
 
  private:
   WorkAssignment split_takestartstates();

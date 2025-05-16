@@ -108,7 +108,8 @@ bool Coordinator::run()
 
 // Empty method; subclasses override this
 
-void Coordinator::run_search() {}
+void Coordinator::run_search()
+{}
 
 //------------------------------------------------------------------------------
 // Helper functions
@@ -625,7 +626,7 @@ void Coordinator::process_search_result(const std::string& pattern)
 // Format a pattern for output.
 
 std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
-    const unsigned start_state)
+    const unsigned start_state) const
 {
   std::ostringstream buffer;
 

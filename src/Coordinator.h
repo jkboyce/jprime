@@ -79,7 +79,7 @@ class Coordinator {
  public:
   // utility methods
   std::string pattern_output_format(const std::vector<int>& pattern,
-    const unsigned start_state);
+    const unsigned start_state) const;
   static double calc_duration_secs(const jptimer_t& before,
     const jptimer_t& after);
   int get_max_length(unsigned start_state) const;
