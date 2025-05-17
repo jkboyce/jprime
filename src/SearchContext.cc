@@ -192,7 +192,7 @@ void SearchContext::to_file(const std::string& file)
 
   if (assignments.size() > 0) {
     myfile << "\nwork assignments remaining\n";
-    for (const WorkAssignment& wa : assignments) {
+    for (const auto& wa : assignments) {
       const auto wa_str = wa.to_string();
 
       // verify the WorkAssignment is unchanged by round trip through a string

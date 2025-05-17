@@ -421,7 +421,7 @@ void Graph::validate_graph()
   //   std::vector<std::vector<unsigned>> outthrowval;
 
   for (size_t i = 1; i <= numstates; ++i) {
-    const unsigned newi = newstatenum.at(i);
+    const auto newi = newstatenum.at(i);
     if (newi == 0) {
       continue;
     }
@@ -433,13 +433,14 @@ void Graph::validate_graph()
 
     unsigned outthrownum = 0;
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      const unsigned newsn = newstatenum.at(outmatrix.at(i).at(j));
+      const auto newsn = newstatenum.at(outmatrix.at(i).at(j));
       if (newsn != 0) {
         outmatrix.at(newi).at(outthrownum) = newsn;
         outthrowval.at(newi).at(outthrownum) = outthrowval.at(i).at(j);
         ++outthrownum;
       }
     }
+    assert(outthrownum != 0);
     outdegree.at(newi) = outthrownum;
   }
 
@@ -639,7 +640,7 @@ unsigned Graph::get_statenum(const State& s) const
 
 unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const
 {
-  const State& s = state.at(statenum);
+  const auto& s = state.at(statenum);
 
   if (throwval > 0 && s.slot(0) == 0)  // no object to throw
     return 0;

@@ -290,7 +290,7 @@ bool Pattern::is_prime()
   }
   check_have_states();
 
-  const std::set<State> s(states.cbegin(), states.cend());
+  std::set s(states.cbegin(), states.cend());
   return (s.size() == states.size());
 }
 
@@ -332,7 +332,7 @@ bool Pattern::is_superprime()
     deduped.pop_back();
   }
 
-  const std::set<State> s(deduped.cbegin(), deduped.cend());
+  std::set s(deduped.cbegin(), deduped.cend());
   return (deduped.size() > 1 && s.size() == deduped.size());
 }
 

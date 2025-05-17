@@ -600,7 +600,7 @@ std::string Coordinator::current_time_string()
   const auto now = std::chrono::system_clock::now();
   const auto now_timet = std::chrono::system_clock::to_time_t(now);
   char* now_str = std::ctime(&now_timet);
-  now_str[strlen(now_str) - 1] = '\0';  // remove trailing carraige return
+  now_str[strlen(now_str) - 1] = '\0';  // remove trailing carriage return
   return now_str;
 }
 

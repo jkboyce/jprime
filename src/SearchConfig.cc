@@ -160,9 +160,6 @@ void SearchConfig::from_args(size_t argc, char** argv)
     } else if (!strcmp(argv[i], "-recursive")) {
       recursiveflag = true;
     } else if (!strcmp(argv[i], "-cuda")) {
-#ifndef CUDA_ENABLED
-      throw std::invalid_argument("CUDA support not enabled");
-#endif
       cudaflag = true;
     } else if (!strcmp(argv[i], "-threads")) {
       if (i + 1 < argc) {
@@ -247,6 +244,11 @@ void SearchConfig::from_args(size_t argc, char** argv)
         std::format("Minimum period {} is greater than maximum {}", n_min,
             n_max));
   }
+#ifndef CUDA_ENABLED
+  if (cudaflag) {
+    throw std::invalid_argument("CUDA support not enabled");
+  }
+#endif
 
   // graph type
   if (n_min == n_max && n_min < h) {

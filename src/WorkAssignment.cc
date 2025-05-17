@@ -380,11 +380,9 @@ WorkAssignment WorkAssignment::split_takestartstates()
   WorkAssignment wa;
   wa.start_state = end_state - takenum + 1;
   wa.end_state = end_state;
-  wa.root_pos = 0;
+  assert(wa.get_type() == Type::UNSPLITTABLE);
 
   end_state -= takenum;
-
-  assert(wa.get_type() == Type::UNSPLITTABLE);
   return wa;
 }
 
