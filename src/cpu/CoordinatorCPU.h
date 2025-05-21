@@ -45,9 +45,9 @@ class CoordinatorCPU : public Coordinator {
   std::vector<unsigned> worker_endstate;
   std::vector<unsigned> worker_rootpos;
 
-  // check inbox 10x more often than workers do
+  // check inbox 50x more often than workers do
   static constexpr double NANOSECS_PER_INBOX_CHECK =
-      1e8 * Worker::SECS_PER_INBOX_CHECK_TARGET;
+      2e7 * Worker::SECS_PER_INBOX_CHECK_TARGET;
 
   // live status display
   static constexpr double SECS_PER_STATUS = 1;
