@@ -1203,6 +1203,9 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
   const auto& summary_afterB = summary_after[bankB];
   const auto& summary_beforeA = summary_before[1 - bankB];
 
+  njobs += (summary_afterB.workers_idle.size() -
+      summary_before[bankB].workers_idle.size());
+
   if (config.verboseflag) {
     erase_status_output();
     jpout << std::format(
@@ -1214,11 +1217,10 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
 
   if (!config.statusflag)
     return;
-  auto now = std::chrono::system_clock::now();
+  const auto now = std::chrono::high_resolution_clock::now();
   if (calc_duration_secs(last_status_time, now) < 1.0) {
     return;
   }
-  last_status_time = now;
 
   status_lines.clear();
   status_lines.push_back("Status on: " + current_time_string());
@@ -1313,18 +1315,21 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
     }
   };
 
+  const double elapsed = calc_duration_secs(last_status_time, now);
+  const double jobspersec = static_cast<double>(njobs - last_njobs) / elapsed;
   const double nodespersec =
-      static_cast<double>(summary_afterB.nnodes - summary_beforeA.nnodes) /
-          (std::max(host_time, 0.0) + kernel_time);
+      static_cast<double>(summary_afterB.nnodes - last_nnodes) / elapsed;
   const double patspersec =
-      static_cast<double>(summary_afterB.ntotal - summary_beforeA.ntotal) /
-          (std::max(host_time, 0.0) + kernel_time);
+      static_cast<double>(summary_afterB.ntotal - last_ntotal) / elapsed;
+
+  last_status_time = now;
+  last_njobs = njobs;
+  last_nnodes = summary_afterB.nnodes;
+  last_ntotal = summary_afterB.ntotal;
 
   status_lines.push_back(std::format(
-    "idled:{:7}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
-    summary_afterB.workers_idle.size(),
-    format2(nodespersec),
-    format2(patspersec),
+    "jobs/s: {}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
+    format2(jobspersec), format2(nodespersec), format2(patspersec),
     context.npatterns
   ));
 

@@ -75,6 +75,8 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   // live status display
   std::vector<unsigned> longest_by_startstate_ever;
   std::vector<unsigned> longest_by_startstate_current;
+  uint64_t njobs = 0;
+  uint64_t last_njobs = 0;
 
  protected:
   virtual void run_search() override;
