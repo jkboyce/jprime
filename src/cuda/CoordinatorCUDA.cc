@@ -590,10 +590,10 @@ void CoordinatorCUDA::skip_unusable_startstates(unsigned bank)
 {
   for (size_t id = 0; id < config.num_threads; ++id) {
     auto& wi = wi_h[bank][id];
+    if (wi.pos != -1)
+      continue;  // not a new search at `start_state`, skip
     if ((wi.status & 1) != 0)
       continue;
-    if (wi.pos != -1)
-      continue;  // not a new search at `start_state`, can skip
 
     while (true) {
       if (wi.start_state > wi.end_state) {
@@ -1399,7 +1399,6 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
 void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
 {
   const CudaWorkerSummary& summary = summary_after[bankB];
-  const unsigned idle_before_b = summary_before[bankB].workers_idle.size();
   const unsigned idle_before_a = summary_before[1 - bankB].workers_idle.size();
   const unsigned idle_after_b = summary.workers_idle.size();
 
@@ -1408,13 +1407,9 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
   //
   // jobs needed:
   //   this bank (bankB):  `idle_after_b`
-  //   other bank (bankA): `idle_before_a` + `idle_after_b - idle_before_b`
-  //
-  // where the last term is an estimate of how many jobs will complete during
-  // bankA's kernel execution (happening when this code runs)
+  //   other bank (bankA): `idle_before_a`
 
-  const unsigned target_job_count = idle_after_b + idle_before_a +
-      idle_after_b - idle_before_b;
+  const unsigned target_job_count = idle_after_b + idle_before_a;
 
   std::vector<int> has_split(config.num_threads, 0);
   auto it = summary.workers_multiple_start_states.begin();

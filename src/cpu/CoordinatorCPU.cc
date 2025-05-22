@@ -39,10 +39,10 @@ void CoordinatorCPU::run_search()
   start_workers();
 
   while (true) {
+    process_inbox();
     give_assignments();
     steal_work();
     collect_status();
-    process_inbox();
 
     if (Coordinator::stopping || (workers_idle.size() == config.num_threads
           && context.assignments.empty())) {
