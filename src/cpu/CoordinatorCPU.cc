@@ -36,7 +36,6 @@ void CoordinatorCPU::run_search()
 {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
     static_cast<long>(NANOSECS_PER_INBOX_CHECK));
-  last_status_time = std::chrono::high_resolution_clock::now();
   start_workers();
 
   while (true) {
@@ -93,9 +92,9 @@ void CoordinatorCPU::give_assignments()
 
     if (config.statusflag) {
       worker_options_left_start.at(id).resize(0);
-      worker_options_left_last.at(id).resize(0);
-      worker_longest_start.at(id) = 0;
-      worker_longest_last.at(id) = 0;
+      worker_options_left_current.at(id).resize(0);
+      longest_by_worker_ever.at(id) = 0;
+      longest_by_worker_current.at(id) = 0;
     }
 
     if (config.verboseflag) {
@@ -256,8 +255,8 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
   if (config.statusflag) {
-    worker_longest_start.at(msg.worker_id) = 0;
-    worker_longest_last.at(msg.worker_id) = 0;
+    longest_by_worker_ever.at(msg.worker_id) = 0;
+    longest_by_worker_current.at(msg.worker_id) = 0;
   }
 
   if (config.verboseflag) {
@@ -387,9 +386,9 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
     if (config.statusflag) {
       // reset certain elements of the status display
       worker_options_left_start.at(msg.worker_id).resize(0);
-      worker_options_left_last.at(msg.worker_id).resize(0);
-      worker_longest_start.at(msg.worker_id) = 0;
-      worker_longest_last.at(msg.worker_id) = 0;
+      worker_options_left_current.at(msg.worker_id).resize(0);
+      longest_by_worker_ever.at(msg.worker_id) = 0;
+      longest_by_worker_current.at(msg.worker_id) = 0;
     }
   }
   if (msg.end_state != worker_endstate.at(msg.worker_id)) {
@@ -454,9 +453,9 @@ void CoordinatorCPU::start_workers()
     worker_rootpos.push_back(0);
     if (config.statusflag) {
       worker_options_left_start.push_back({});
-      worker_options_left_last.push_back({});
-      worker_longest_start.push_back(0);
-      worker_longest_last.push_back(0);
+      worker_options_left_current.push_back({});
+      longest_by_worker_ever.push_back(0);
+      longest_by_worker_current.push_back(0);
     }
     workers_idle.insert(id);
   }
@@ -520,10 +519,10 @@ void CoordinatorCPU::record_data_from_message(const MessageW2C& msg)
       context.npatterns += msg.count.at(i);
     }
     if (config.statusflag && msg.count.at(i) > 0) {
-      worker_longest_start.at(msg.worker_id) = std::max(
-          worker_longest_start.at(msg.worker_id), static_cast<unsigned>(i));
-      worker_longest_last.at(msg.worker_id) = std::max(
-          worker_longest_last.at(msg.worker_id), static_cast<unsigned>(i));
+      longest_by_worker_ever.at(msg.worker_id) = std::max(
+        longest_by_worker_ever.at(msg.worker_id), static_cast<unsigned>(i));
+      longest_by_worker_current.at(msg.worker_id) = std::max(
+        longest_by_worker_current.at(msg.worker_id), static_cast<unsigned>(i));
     }
   }
 }
@@ -549,7 +548,7 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
   const std::vector<unsigned>& ops = msg.worker_options_left;
   const std::vector<unsigned>& ds_extra = msg.worker_deadstates_extra;
   std::vector<unsigned>& ops_start = worker_options_left_start.at(id);
-  std::vector<unsigned>& ops_last = worker_options_left_last.at(id);
+  std::vector<unsigned>& ops_last = worker_options_left_current.at(id);
 
   buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
   buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
@@ -633,14 +632,14 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
     ++printed;
   }
 
-  buffer << std::setw(5) << worker_longest_last.at(id)
-         << std::setw(5) << worker_longest_start.at(id);
+  buffer << std::setw(5) << longest_by_worker_current.at(id)
+         << std::setw(5) << longest_by_worker_ever.at(id);
 
   ops_last = ops;
   if (ops_start.size() == 0) {
     ops_start = ops;
   }
-  worker_longest_last.at(id) = 0;
+  longest_by_worker_current.at(id) = 0;
 
   return buffer.str();
 }

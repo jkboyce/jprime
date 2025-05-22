@@ -87,6 +87,7 @@ bool Coordinator::run()
   signal(SIGINT, Coordinator::signal_handler);
 
   const auto start = std::chrono::high_resolution_clock::now();
+  last_status_time = start;
   run_search();
   const auto end = std::chrono::high_resolution_clock::now();
 

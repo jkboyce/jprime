@@ -57,12 +57,9 @@ class CoordinatorCPU : public Coordinator {
   unsigned stats_counter = 0;
   unsigned stats_received = 0;
   std::vector<std::vector<unsigned>> worker_options_left_start;
-  std::vector<std::vector<unsigned>> worker_options_left_last;
-  std::vector<unsigned> worker_longest_start;
-  std::vector<unsigned> worker_longest_last;
-  std::chrono::time_point<std::chrono::high_resolution_clock> last_status_time;
-  uint64_t last_nnodes = 0;
-  uint64_t last_ntotal = 0;
+  std::vector<std::vector<unsigned>> worker_options_left_current;
+  std::vector<unsigned> longest_by_worker_ever;
+  std::vector<unsigned> longest_by_worker_current;
 
  protected:
   virtual void run_search() override;

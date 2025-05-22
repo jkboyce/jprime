@@ -47,8 +47,11 @@ class Coordinator {
 
   // live status display
   std::vector<std::string> status_lines;
-  bool status_printed = false;
   int status_line_count_last = 0;
+  bool status_printed = false;
+  jptimer_t last_status_time;
+  uint64_t last_nnodes = 0;
+  uint64_t last_ntotal = 0;
 
   static volatile sig_atomic_t stopping;  // to handle ctrl-c
   static constexpr unsigned MAX_STATES = 1000000u;  // memory limit

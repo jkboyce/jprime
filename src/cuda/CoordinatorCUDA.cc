@@ -130,7 +130,6 @@ void CoordinatorCUDA::initialize()
     after_kernel[bank] = now;
     after_host[bank] = now;
   }
-  last_display_time = now;
 }
 
 // Initialize CUDA device and check properties.
@@ -1216,10 +1215,10 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
   if (!config.statusflag)
     return;
   auto now = std::chrono::system_clock::now();
-  if (calc_duration_secs(last_display_time, now) < 1.0) {
+  if (calc_duration_secs(last_status_time, now) < 1.0) {
     return;
   }
-  last_display_time = now;
+  last_status_time = now;
 
   status_lines.clear();
   status_lines.push_back("Status on: " + current_time_string());
