@@ -36,6 +36,9 @@ void CoordinatorCPU::run_search()
 {
   constexpr auto NANOSECS_WAIT = std::chrono::nanoseconds(
     static_cast<long>(NANOSECS_PER_INBOX_CHECK));
+  last_status_time = std::chrono::high_resolution_clock::now();
+  last_nnodes = context.nnodes;
+  last_ntotal = context.ntotal;
   start_workers();
 
   while (true) {

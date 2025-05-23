@@ -130,6 +130,9 @@ void CoordinatorCUDA::initialize()
     after_kernel[bank] = now;
     after_host[bank] = now;
   }
+  last_status_time = now;
+  last_nnodes = context.nnodes;
+  last_ntotal = context.ntotal;
 }
 
 // Initialize CUDA device and check properties.

@@ -60,6 +60,9 @@ class CoordinatorCPU : public Coordinator {
   std::vector<std::vector<unsigned>> worker_options_left_current;
   std::vector<unsigned> longest_by_worker_ever;
   std::vector<unsigned> longest_by_worker_current;
+  jptimer_t last_status_time;
+  uint64_t last_nnodes = 0;
+  uint64_t last_ntotal = 0;
 
  protected:
   virtual void run_search() override;
