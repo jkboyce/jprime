@@ -71,6 +71,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   jptimer_t after_host[2];
   double total_kernel_time = 0;
   double total_host_time = 0;
+  static const uint64_t MINCYCLES = 100000;  // min GPU cycles to run kernel
 
   // live status display
   std::vector<unsigned> longest_by_startstate_ever;

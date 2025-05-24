@@ -41,7 +41,7 @@ void CoordinatorCUDA::run_search()
 
   // set up workers
   load_initial_work_assignments();
-  uint64_t cycles[2] = { 1000000, 1000000 };
+  uint64_t cycles[2] = { MINCYCLES, MINCYCLES };
   cudaDeviceSynchronize();
 
   for (unsigned run = 0; ; ++run) {
@@ -862,14 +862,12 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       unsigned bank, double kernel_time, double host_time, unsigned idle_start,
       uint32_t pattern_count)
 {
-  const uint64_t min_cycles = 100000ul;
-
   if (idle_start == config.num_threads) {
     return last_cycles;  // no workers ran last time
   }
   if (idle_start > config.num_threads / 2) {
     if (!warmed_up[bank]) {
-      return min_cycles;  // run for a short time so we can split
+      return MINCYCLES;  // run for a short time so we can split
     }
   } else {
     warmed_up[bank] = true;
@@ -879,7 +877,7 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   const unsigned idle_after = summary_after[bank].workers_idle.size();
   const unsigned next_idle_start = summary_before[bank].workers_idle.size();
   assert(idle_after >= idle_start);
-  last_cycles = std::max(last_cycles, min_cycles);
+  last_cycles = std::max(last_cycles, MINCYCLES);
 
   // cycles per second
   const double cps = (kernel_time > 0 ?
@@ -914,14 +912,13 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       static_cast<double>(2 * last_cycles));
 
   // apply constraints
-  target_cycles = std::max(target_cycles, static_cast<double>(min_cycles));
-  double target_time =
-      (static_cast<double>(last_cycles_startup) + target_cycles) / cps;
+  target_cycles = std::max(target_cycles, static_cast<double>(MINCYCLES));
+  double target_time = (startup + target_cycles) / cps;
   // ensure the kernel won't finish before host processing of the other bank is
   // done; note that `kernel_time + host_time` is the real host processing time
   target_time = std::max(target_time, 1.0 * (kernel_time + host_time));
   target_time = std::min(target_time, 2.0);  // max of 2 seconds
-  target_cycles = target_time * cps - static_cast<double>(last_cycles_startup);
+  target_cycles = target_time * cps - startup;
 
   // try to keep the pattern buffer from overflowing
   if (pattern_count > params.pattern_buffer_size / 3) {
