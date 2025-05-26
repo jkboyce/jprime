@@ -413,12 +413,14 @@ void Worker::iterative_gen_loops_normal_marking()
 }
 
 // Helpers for iterative_gen_loops_marking()
+//
+// See comments for the analagous functions in GenLoopsRecursive.cc
 
 inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
 {
   bool valid = true;
   for (unsigned statenum; (statenum = *es); ++es) {
-    if (++u[statenum] == 1 && ++*ds > 1 &&
+    if ((u[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
@@ -430,7 +432,7 @@ inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
 {
   if (es) {
     for (unsigned statenum; (statenum = *es); ++es) {
-      if (--u[statenum] == 0 && --*ds > 0) {
+      if (!(u[statenum] ^= 1) && --*ds > 0) {
         ++max_possible;
       }
     }

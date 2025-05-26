@@ -485,12 +485,25 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
   }
 }
 
-// Mark all of the states as used that are excluded by a throw from state `from`
-// to state `to_state`.
+// Mark states that are excluded by a link throw from state `from`. These
+// consist of the states downstream from `from` in its shift cycle that end in
+// 'x'. In graph (b,h) those states can only be entered with a shift throw `h`.
 //
-// Returns false if the number of newly-excluded states implies that we can't
-// finish a pattern of at least period `n_min` from our current position.
-// Returns true otherwise.
+// Also, update working variable `max_possible` to reflect the longest prime
+// pattern possible from the current position, based on the number of excluded
+// states in each shift cycle.
+//
+// Returns false if `max_possible` falls below `n_min`, indicating we should
+// backtrack from the current position. Returns true otherwise.
+//
+// NOTE: In some cases it is possible for a state to be excluded twice during
+// the construction of a pattern: Once via a catch, and again via a throw.
+// Because of this we exclude states by flipping the used[] variable, rather
+// than by setting used=1. This (a) makes the marking process reversible, and
+// (b) avoids double-counting the reduction in `max_possible`. Any state that
+// gets marked twice, back to used=0, does not affect the search because it
+// cannot be accessed by a future link throw; such states end with 'x' and are
+// only reachable with shift throw `h`.
 
 inline bool Worker::mark_unreachable_states_throw()
 {
@@ -500,13 +513,25 @@ inline bool Worker::mark_unreachable_states_throw()
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 &&
+    if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
   }
   return valid;
 }
+
+// Mark states that are excluded by a link throw onto state `to_state`. These
+// consist of the states upstream from `to_state` in its shift cycle that begin
+// with '-'. In graph (b,h) those states can only be exited with a shift throw
+// 0.
+//
+// This updates working variable `max_possible` to reflect the longest prime
+// pattern possible from the current position, based on the number of excluded
+// states in each shift cycle.
+//
+// Returns false if `max_possible` falls below `n_min`, indicating we should
+// backtrack from the current position. Returns true otherwise.
 
 inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
 {
@@ -516,7 +541,7 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (++used[statenum] == 1 && ++*ds > 1 &&
+    if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
@@ -534,7 +559,7 @@ inline void Worker::unmark_unreachable_states_throw()
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (--used[statenum] == 0 && --*ds > 0) {
+    if (!(used[statenum] ^= 1) && --*ds > 0) {
       ++max_possible;
     }
   }
@@ -547,7 +572,7 @@ inline void Worker::unmark_unreachable_states_catch(unsigned to_state)
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    if (--used[statenum] == 0 && --*ds > 0) {
+    if (!(used[statenum] ^= 1) && --*ds > 0) {
       ++max_possible;
     }
   }

@@ -301,7 +301,7 @@ void Worker::send_stats_to_coordinator()
           auto es = excludestates_throw.at(from_state).at(j);
           if (es == 0)
             break;
-          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
+          if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
@@ -311,7 +311,7 @@ void Worker::send_stats_to_coordinator()
           auto es = excludestates_catch.at(to_state).at(j);
           if (es == 0)
             break;
-          if (++u.at(es) == 1 && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
+          if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
