@@ -37,7 +37,7 @@ struct TestCase {
   std::uint64_t nnodes;
 };
 
-const std::vector<TestCase> tests {
+static const std::vector<TestCase> tests {
   {  7, "jprime 2 60 30 -count",           1391049900, 2591724915, 6595287598 },
   {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
   {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    7032405 },

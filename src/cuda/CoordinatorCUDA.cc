@@ -223,7 +223,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 //
 // columns are {warps, shared memory speedup, global memory speedup}
 
-const double throughput[33][3] = {
+static const double throughput[33][3] = {
   {  0,  0.000, 0.000 },  // unused
   {  1,  1.000, 0.984 },  // measured
   {  2,  1.987, 1.944 },
