@@ -54,7 +54,7 @@
 #include <tuple>
 
 
-void do_tests();  // defined in jprime_tests.cc
+int do_tests(int testnum = -1);  // defined in jprime_tests.cc
 
 //------------------------------------------------------------------------------
 // Help message
@@ -72,7 +72,7 @@ void print_help()
     "Recognized command line formats:\n"
     "   jprime <# objects> <max. throw> [<period(s)>] [options]\n"
     "   jprime -analyze <pattern> [/<h>]\n"
-    "   jprime -test\n"
+    "   jprime -test [<testnum>]\n"
     "\n"
     "where:\n"
     "   <# objects>        = number of objects\n"
@@ -159,7 +159,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
     }
   }
 
-  if (outfile.size() > 0) {
+  if (!outfile.empty()) {
     std::ifstream myfile(outfile);
     if (myfile.good()) {
       try {
@@ -202,8 +202,9 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 
   // save original argument list
   for (int i = 0; i < argc; ++i) {
-    if (i != 0)
+    if (i != 0) {
       context.arglist += " ";
+    }
     context.arglist += argv[i];
   }
 
@@ -221,24 +222,26 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 int main(int argc, char** argv)
 {
   if (argc > 1 && !strcmp(argv[1], "-test")) {
-    do_tests();
-    return 0;
+    if (argc > 2) {
+      return do_tests(std::stoi(argv[2]));
+    }
+    return do_tests();
   }
 
   if (argc < 3) {
     print_help();
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   if (!strcmp(argv[1], "-analyze")) {
     print_analysis(argc, argv);
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   auto [config, context] = prepare_calculation(argc, argv);
   auto coordinator = Coordinator::make_coordinator(config, context, std::cout);
   if (!coordinator->run()) {
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   std::cout << "------------------------------------------------------------\n";
@@ -246,5 +249,5 @@ int main(int argc, char** argv)
     std::cout << std::format("Saving checkpoint file '{}'\n", config.outfile);
     context.to_file(config.outfile);
   }
-  return 0;
+  return EXIT_SUCCESS;
 }

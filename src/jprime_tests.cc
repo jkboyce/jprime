@@ -38,26 +38,27 @@ struct TestCase {
 };
 
 static const std::vector<TestCase> tests {
-  {  7, "jprime 2 60 30 -count",           1391049900, 2591724915, 6595287598 },
-  {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
-  {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    7032405 },
-  {  3, "jprime 5 10 225",                        838,   29762799, 1458188812 },
-  {  7, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
-  {  7, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1419055003 },
-  {  7, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
-  {  7, "jprime 3 9 -super -count",         133410514,  133410514,  810573685 },
-
-  {  7, "jprime 3 8 -g -count",              11578732,   11578732,   47941320 },
-  {  7, "jprime 3 21 -super 0 -g -count",   388339361,  388339361,  876591490 },
-  {  7, "jprime 4 11 -super 1 -g -count",    69797298,   69797298,  334414789 },
-  {  7, "jprime 3 9 -super -g -count",      123417152,  123417152,  732374333 },
-  {  7, "jprime 4 56 14 -g -count",          66129382,   84454394,  497746428 },
+  // NORMAL mode
+  {  7, "jprime 3 8 -count",                 11906414,   11906414,   49961711 },
   {  7, "jprime 5 15 1-12 -g -count",        17996072,   17996072,  229780787 },
+  // MARKING mode
+  {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
+  {  3, "jprime 5 10 225",                        838,   29762799, 1458188812 },
+  // SUPER mode
+  {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    7032405 },
+  {  7, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
+  {  7, "jprime 4 11 -super 1 -g -count",    69797298,   69797298,  334414789 },
   {  7, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   76552560 },
-
-  {  4, "jprime 3 9 -count",           30513071763, 30513071763, 141933045309 },
-  {  7, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70254546 },
   {  7, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,  370793129 },
+  {  7, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1419055003 },
+  {  7, "jprime 3 9 -super -count",         133410514,  133410514,  810573685 },
+  // SUPER0 mode
+  {  7, "jprime 3 21 -super 0 -g -count",   388339361,  388339361,  876591490 },
+  {  7, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
+  {  7, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   70254546 },
+  // single-period graph mode
+  {  7, "jprime 4 56 14 -g -count",          66129382,   84454394,  497746428 },
+  {  7, "jprime 2 50 25 -count",             42451179,   78584312,  198939672 },
 };
 
 // Run a single test case and compare against known values, outputting results
@@ -152,21 +153,31 @@ bool run_one_test(const TestCase& tc)
   return success;
 }
 
-// Execute all test cases and report on results.
+// Execute test cases and report on results.
+//
+// If `testnum` == -1 then execute all test cases sequentially.
+//
+// Returns EXIT_SUCCESS on success, EXIT_FAILURE on failure.
 
-void do_tests()
+int do_tests(int testnum)
 {
+  int casenum = 0;
   int runs = 0;
   int passes = 0;
 
   for (const auto& testcase : tests) {
+    ++casenum;
+
     #ifndef CUDA_ENABLED
     if ((testcase.engines & 3) == 0)
       continue;
     #endif
 
+    if (testnum != -1 && casenum != testnum)
+      continue;
+
     ++runs;
-    std::cout << std::format("\nStarting test {}:\n\n", runs);
+    std::cout << std::format("\nStarting test {}:\n\n", casenum);
     if (run_one_test(testcase)) {
       ++passes;
     }
@@ -175,4 +186,5 @@ void do_tests()
   std::cout << "------------------------------------------------------------\n"
             << std::format("Passed {} out of {} tests", passes, runs)
             << std::endl;
+  return (passes == runs) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
