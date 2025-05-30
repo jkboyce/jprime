@@ -528,6 +528,7 @@ std::tuple<std::vector<std::vector<unsigned>>,
           statenum == i) {
         break;
       }
+      assert(statenum > i);  // see comment on mark_unreachable_states_throw()
       excludestates_catch.at(i).at(j++) = statenum;
       s = s.upstream();
     }

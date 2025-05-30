@@ -487,23 +487,34 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 
 // Mark states that are excluded by a link throw from state `from`. These
 // consist of the states downstream from `from` in its shift cycle that end in
-// 'x'. In graph (b,h) those states can only be entered with a shift throw `h`.
+// 'x'. In graph (b,h) those states can only be entered with shift throw(s) `h`
+// from state `from`.
 //
-// Also, update working variable `max_possible` to reflect the longest prime
-// pattern possible from the current position, based on the number of excluded
-// states in each shift cycle.
+// Also, update working variables `deadstates` and `max_possible` to reflect the
+// number of excluded states on the `from` shift cycle.
 //
 // Returns false if `max_possible` falls below `n_min`, indicating we should
 // backtrack from the current position. Returns true otherwise.
 //
-// NOTE: In some cases it is possible for a state to be excluded twice during
+// NOTE 1: In some cases it is possible for a state to be excluded twice during
 // the construction of a pattern: Once via a catch, and again via a throw.
 // Because of this we exclude states by flipping the used[] variable, rather
 // than by setting used=1. This (a) makes the marking process reversible, and
-// (b) avoids double-counting the reduction in `max_possible`. Any state that
+// (b) avoids double-counting the changes to `max_possible`. Any state that
 // gets marked twice, back to used=0, does not affect the search because it
 // cannot be accessed by a future link throw; such states end with 'x' and are
 // only reachable with shift throw `h`.
+//
+// NOTE 2: States less than `start_state` are marked used=1 before starting
+// gen_loops(). Is is possible we could flip used[] two more times for such a
+// state via the double-exclusion discussed above? This would bring us back to
+// used=1 and erroneously double-count the changes to `deadstates` and
+// `max_possible`. This cannot happen because of how we've ordered the states:
+// The state numbers in `excludestates_catch[s]` are all greater than s, so a
+// catch to any allowed `s` cannot exclude states below `start_state`. Finally,
+// if a state s < `start_state` is flipped back to used=0 via an
+// `excludestates_throw`, then as noted above that state does not affect the
+// search because it ends with 'x' and isn't reachable by a future link throw.
 
 inline bool Worker::mark_unreachable_states_throw()
 {
@@ -523,12 +534,11 @@ inline bool Worker::mark_unreachable_states_throw()
 
 // Mark states that are excluded by a link throw onto state `to_state`. These
 // consist of the states upstream from `to_state` in its shift cycle that begin
-// with '-'. In graph (b,h) those states can only be exited with a shift throw
-// 0.
+// with '-'. In graph (b,h) those states can only be exited with shift throw(s)
+// 0 into state `to_state`.
 //
-// This updates working variable `max_possible` to reflect the longest prime
-// pattern possible from the current position, based on the number of excluded
-// states in each shift cycle.
+// This updates working variables `deadstates` and `max_possible` to reflect the
+// number of excluded states on the `to_state` shift cycle.
 //
 // Returns false if `max_possible` falls below `n_min`, indicating we should
 // backtrack from the current position. Returns true otherwise.
