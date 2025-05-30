@@ -25,6 +25,10 @@ Configure and build (CUDA version):
    --> This will enable CUDA support. CMake will find your CUDA Toolkit. If it's
        not found, CMake will error out.
 
+Clean the build directory:
+   cd build
+   cmake --build . --target clean
+
 Build types:
    * release build (optimized): `cmake .. -DCMAKE_BUILD_TYPE=Release`
    * debug build (with debug symbols): `cmake .. -DCMAKE_BUILD_TYPE=Debug`

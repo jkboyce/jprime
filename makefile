@@ -38,7 +38,8 @@ builddir:
 .PHONY: builddir clean
 
 clean:
-	rm -rf $(ODIR)
+	rm -rf $(ODIR)/build_cpu
+	rm -rf $(ODIR)/build_cuda
 
 # Optional support for CUDA target. Build with `make cuda`.
 #
