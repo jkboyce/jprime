@@ -23,13 +23,19 @@
 void configure_cuda_shared_memory(const CudaRuntimeParams& p);
 CudaMemoryPointers get_gpu_static_pointers();
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-  CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream);
+  Coordinator::SearchAlgorithm alg, unsigned bank, uint64_t cycles,
+  cudaStream_t& stream);
 
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
     std::ostream& c)
     : Coordinator(a, b, c)
 {}
+
+CoordinatorCUDA::~CoordinatorCUDA()
+{
+  cleanup();  // does nothing if search exits cleanly
+}
 
 //------------------------------------------------------------------------------
 // Execution entry point
@@ -70,6 +76,7 @@ void CoordinatorCUDA::run_search()
 
     if (Coordinator::stopping) {
       process_worker_counters(bankA);  // node count changes from splitting
+      gather_unfinished_work_assignments();
       break;
     }
     if (summary_after[bankB].workers_idle.size() == config.num_threads &&
@@ -93,7 +100,6 @@ void CoordinatorCUDA::run_search()
     cudaStreamSynchronize(stream[bankA]);
   }
 
-  gather_unfinished_work_assignments();
   cleanup();
 
   if (config.verboseflag) {
@@ -113,7 +119,6 @@ void CoordinatorCUDA::run_search()
 void CoordinatorCUDA::initialize()
 {
   prop = initialize_cuda_device();
-  alg = select_cuda_search_algorithm();
   graph_buffer = make_graph_buffer();
   params = find_runtime_params();
   ptrs = get_gpu_static_pointers();
@@ -163,39 +168,21 @@ cudaDeviceProp CoordinatorCUDA::initialize_cuda_device()
   return prop;
 }
 
-// Choose a search algorithm to use.
-
-CudaAlgorithm CoordinatorCUDA::select_cuda_search_algorithm()
-{
-  CudaAlgorithm alg = CudaAlgorithm::NONE;
-
-  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
-        static_cast<double>(config.n_min) >
-        0.66 * static_cast<double>(get_max_length(1))) {
-      // the overhead of marking is only worth it for long-period patterns
-      alg = CudaAlgorithm::NORMAL_MARKING;
-    } else if (config.countflag) {
-      alg = CudaAlgorithm::NORMAL;
-    } else {
-      alg = CudaAlgorithm::NORMAL;
-    }
-  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    if (config.shiftlimit == 0) {
-      alg = CudaAlgorithm::SUPER0;
-    } else {
-      alg = CudaAlgorithm::SUPER;
-    }
-  }
-
-  return alg;
-}
-
 // Return a version of the graph for the GPU.
 
 std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 {
   std::vector<statenum_t> graph_buffer;
+
+  // in MARKING mode, append a list of excluded states to the graph
+  std::vector<statenum_t> exclude_buffer;
+  std::vector<std::vector<unsigned>> excludestates_throw;
+  std::vector<std::vector<unsigned>> excludestates_catch;
+  if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    std::tie(excludestates_throw, excludestates_catch) =
+        graph.get_exclude_states();
+  }
+  uint32_t exclude_offset = graph.numstates * (graph.maxoutdegree + 4);
 
   for (unsigned i = 1; i <= graph.numstates; ++i) {
     for (unsigned j = 0; j < graph.maxoutdegree; ++j) {
@@ -206,13 +193,49 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
       }
     }
 
-    // add an extra column with needed information
-    if (alg == CudaAlgorithm::NORMAL_MARKING) {
-      graph_buffer.push_back(graph.upstream_state(i));
+    // add extra column(s) with needed information
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
+      if (excludestates_throw.at(i).at(0) == 0) {
+        graph_buffer.push_back(0);
+        graph_buffer.push_back(0);
+      } else {
+        graph_buffer.push_back(static_cast<statenum_t>
+            (exclude_offset & 0xFFFF));
+        graph_buffer.push_back(static_cast<statenum_t>
+            ((exclude_offset >> 16) & 0xFFFF));
+        for (auto s : excludestates_throw.at(i)) {
+          exclude_buffer.push_back(s);
+          ++exclude_offset;
+          if (s == 0)
+            break;
+        }
+      }
+      if (excludestates_catch.at(i).at(0) == 0) {
+        graph_buffer.push_back(0);
+        graph_buffer.push_back(0);
+      } else {
+        graph_buffer.push_back(static_cast<statenum_t>
+            (exclude_offset & 0xFFFF));
+        graph_buffer.push_back(static_cast<statenum_t>
+            ((exclude_offset >> 16) & 0xFFFF));
+        for (auto s : excludestates_catch.at(i)) {
+          exclude_buffer.push_back(s);
+          ++exclude_offset;
+          if (s == 0)
+            break;
+        }
+      }
     }
-    if (alg == CudaAlgorithm::SUPER || alg == CudaAlgorithm::SUPER0) {
+
+    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
       graph_buffer.push_back(graph.cyclenum.at(i));
     }
+  }
+
+  if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    assert(graph_buffer.size() == graph.numstates * (graph.maxoutdegree + 4));
+    graph_buffer.insert(graph_buffer.end(), exclude_buffer.begin(),
+        exclude_buffer.end());
   }
 
   return graph_buffer;
@@ -352,8 +375,29 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   params.shiftlimit = config.shiftlimit;
 
   if (config.verboseflag) {
+    unsigned algnum = 0;
+    switch (alg) {
+      case Coordinator::SearchAlgorithm::NORMAL:
+        algnum = 1;
+        break;
+      case Coordinator::SearchAlgorithm::NORMAL_MARKING:
+        algnum = 2;
+        break;
+      case Coordinator::SearchAlgorithm::SUPER:
+      case Coordinator::SearchAlgorithm::SUPER0:
+        algnum = 3;
+        break;
+    }
+
+    static constexpr std::array cuda_algs = {
+      "no_algorithm",
+      "cuda_gen_loops_normal()",
+      "cuda_gen_loops_normal_marking()",
+      "cuda_gen_loops_super()",
+    };
+
     jpout << "Execution parameters:\n"
-          << "  algorithm: " << cuda_algs[static_cast<int>(alg)]
+          << "  algorithm: " << cuda_algs.at(algnum)
           << "\n  blocks: " << params.num_blocks
           << "\n  warps per block: " << best_warps
           << "\n  threads per block: " << params.num_threadsperblock
@@ -382,21 +426,21 @@ size_t CoordinatorCUDA::calc_shared_memory_size(unsigned n_max,
   size_t shared_bytes = 0;
 
   switch (alg) {
-    case CudaAlgorithm::NORMAL:
+    case SearchAlgorithm::NORMAL:
       if (p.used_in_shared) {
         // used[] as bitfields in shared memory
         shared_bytes += ((p.num_threadsperblock + 31) / 32) *
             sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
       }
       break;
-    case CudaAlgorithm::SUPER:
+    case SearchAlgorithm::SUPER:
       if (p.used_in_shared) {
         // used[]
         shared_bytes += ((p.num_threadsperblock + 31) / 32) *
             sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
       }
       [[fallthrough]];
-    case CudaAlgorithm::SUPER0:
+    case SearchAlgorithm::SUPER0:
       if (p.used_in_shared) {
         // cycleused[]
         shared_bytes += ((p.num_threadsperblock + 31) / 32) *
@@ -450,19 +494,19 @@ void CoordinatorCUDA::allocate_memory()
     // put used[], cycleused[], and isexitcycle[] arrays in device memory
     size_t used_size = 0;
     switch (alg) {
-      case CudaAlgorithm::NORMAL:
+      case SearchAlgorithm::NORMAL:
         // used[] only
         used_size += params.num_blocks *
             ((params.num_threadsperblock + 31) / 32) *
             (((graph.numstates + 1) + 31) / 32) * sizeof(ThreadStorageUsed);
         break;
-      case CudaAlgorithm::SUPER:
+      case SearchAlgorithm::SUPER:
         // used[] not needed for SUPER0
         used_size += params.num_blocks *
             ((params.num_threadsperblock + 31) / 32) *
             (((graph.numstates + 1) + 31) / 32) * sizeof(ThreadStorageUsed);
         [[fallthrough]];
-      case CudaAlgorithm::SUPER0:
+      case SearchAlgorithm::SUPER0:
         // cycleused[] and isexitcycle[]
         used_size += params.num_blocks *
             ((params.num_threadsperblock + 31) / 32) *
@@ -877,9 +921,8 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   const unsigned idle_after = summary_after[bank].workers_idle.size();
   const unsigned next_idle_start = summary_before[bank].workers_idle.size();
   assert(idle_after >= idle_start);
-  last_cycles = std::max(last_cycles, MINCYCLES);
 
-  // cycles per second
+  // GPU cycles per second
   const double cps = (kernel_time > 0 ?
       static_cast<double>(last_cycles + last_cycles_startup) / kernel_time :
       1.0e9);
@@ -921,10 +964,10 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
   target_cycles = target_time * cps - startup;
 
   // try to keep the pattern buffer from overflowing
-  if (pattern_count > params.pattern_buffer_size / 3) {
-    const auto frac = static_cast<double>(params.pattern_buffer_size / 3) /
+  if (pattern_count > 0) {
+    const auto max_cycles = static_cast<double>(last_cycles) *
+        static_cast<double>(params.pattern_buffer_size / 3) /
         static_cast<double>(pattern_count);
-    const auto max_cycles = static_cast<double>(last_cycles) * frac;
     target_cycles = std::min(target_cycles, max_cycles);
   }
 
@@ -954,12 +997,15 @@ void CoordinatorCUDA::gather_unfinished_work_assignments()
 
 void CoordinatorCUDA::cleanup()
 {
+  // CUDA streams
   for (int i = 0; i < 2; ++i) {
-    cudaStreamDestroy(stream[i]);
-    stream[i] = nullptr;
+    if (stream[i] != nullptr) {
+      cudaStreamDestroy(stream[i]);
+      stream[i] = nullptr;
+    }
   }
 
-  // GPU
+  // GPU memory
   for (unsigned bank = 0; bank < 2; ++bank) {
     if (ptrs.wi_d[bank] != nullptr) {
       cudaFree(ptrs.wi_d[bank]);
@@ -983,7 +1029,7 @@ void CoordinatorCUDA::cleanup()
     ptrs.used_d = nullptr;
   }
 
-  // Host
+  // Host memory
   for (unsigned bank = 0; bank < 2; ++bank) {
     if (wi_h[bank] != nullptr) {
       cudaFreeHost(wi_h[bank]);

@@ -65,8 +65,7 @@ class Graph {
   void validate_graph();
   std::vector<int> get_exit_cycles(unsigned start_state) const;
   std::tuple<std::vector<std::vector<unsigned>>,
-    std::vector<std::vector<unsigned>>>
-    get_exclude_states(unsigned start_state) const;
+    std::vector<std::vector<unsigned>>> get_exclude_states() const;
   unsigned prime_period_bound(unsigned start_state) const;
   unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1u)
     const;

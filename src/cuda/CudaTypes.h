@@ -55,23 +55,6 @@ struct ThreadStorageWorkCell {  // 256 bytes
 };
 
 
-enum class CudaAlgorithm {
-  NONE,
-  NORMAL,
-  NORMAL_MARKING,
-  SUPER,
-  SUPER0,
-};
-
-constexpr std::array cuda_algs = {
-  "no_algorithm",
-  "cuda_gen_loops_normal()",
-  "cuda_gen_loops_normal_marking()",
-  "cuda_gen_loops_super()",
-  "cuda_gen_loops_super0()",
-};
-
-
 // defines how the algorithms map onto the GPU hardware
 struct CudaRuntimeParams {
   unsigned num_blocks = 1;

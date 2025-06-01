@@ -9,6 +9,7 @@
 // This file is distributed under the MIT License.
 //
 
+#include "Coordinator.h"
 #include "CudaTypes.h"
 
 #include <stdexcept>
@@ -705,10 +706,11 @@ CudaMemoryPointers get_gpu_static_pointers()
 // appropriate error message.
 
 void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
-    CudaAlgorithm alg, unsigned bank, uint64_t cycles, cudaStream_t& stream)
+    Coordinator::SearchAlgorithm alg, unsigned bank, uint64_t cycles,
+    cudaStream_t& stream)
 {
   switch (alg) {
-    case CudaAlgorithm::NORMAL:
+    case Coordinator::SearchAlgorithm::NORMAL:
       cuda_gen_loops_normal
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],
@@ -717,8 +719,8 @@ void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
           p.report, p.n_min, p.n_max
         );
       break;
-    case CudaAlgorithm::SUPER:
-    case CudaAlgorithm::SUPER0:
+    case Coordinator::SearchAlgorithm::SUPER:
+    case Coordinator::SearchAlgorithm::SUPER0:
       cuda_gen_loops_super
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
           ptrs.wi_d[bank], ptrs.wc_d[bank], ptrs.pb_d[bank],

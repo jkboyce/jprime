@@ -103,6 +103,12 @@ void Worker::init()
   deadstates.assign(graph.numcycles, 0);
   deadstates_bystate.assign(graph.numstates + 1, nullptr);
   count.assign(n_max + 1, 0);
+
+  if (coordinator.get_search_algorithm() ==
+      Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    std::tie(excludestates_throw, excludestates_catch) =
+        graph.get_exclude_states();
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -295,7 +301,8 @@ void Worker::send_stats_to_coordinator()
 
       // number of deadstates induced by a link throw, above the
       // one-per-shift cycle baseline
-      if (throwval != 0 && throwval != graph.h) {
+      if (excludestates_throw.size() > 0 && throwval != 0 &&
+          throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
           auto es = excludestates_throw.at(from_state).at(j);
@@ -497,29 +504,32 @@ void Worker::do_work_assignment()
 
 void Worker::gen_loops()
 {
-  // choose a search algorithm to use
-  unsigned alg = -1;
-  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
-        static_cast<double>(n_min) >
-        0.66 * static_cast<double>(coordinator.get_max_length(1))) {
-      // the overhead of marking is only worth it for long-period patterns
-      alg = (config.recursiveflag ? 1 : 6);
-    } else if (config.countflag) {
-      alg = (config.recursiveflag ? 0 : 4);
-    } else {
-      alg = (config.recursiveflag ? 0 : 5);
-    }
-  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    if (config.shiftlimit == 0) {
-      alg = (config.recursiveflag ? 3 : 8);
-    } else {
-      alg = (config.recursiveflag ? 2 : 7);
-    }
+  // choose a CPU search algorithm to use
+  unsigned algnum = -1;
+
+  switch (coordinator.get_search_algorithm()) {
+    case Coordinator::SearchAlgorithm::NORMAL:
+      if (config.countflag) {
+        algnum = (config.recursiveflag ? 0 : 4);
+      } else {
+        algnum = (config.recursiveflag ? 0 : 5);
+      }
+      break;
+    case Coordinator::SearchAlgorithm::NORMAL_MARKING:
+      algnum = (config.recursiveflag ? 1 : 6);
+      break;
+    case Coordinator::SearchAlgorithm::SUPER:
+      algnum = (config.recursiveflag ? 2 : 7);
+      break;
+    case Coordinator::SearchAlgorithm::SUPER0:
+      algnum = (config.recursiveflag ? 3 : 8);
+      break;
+    default:
+      assert(false);
   }
 
   if (config.verboseflag) {
-    static const std::vector<std::string> algs = {
+    static constexpr std::array cpu_algs = {
       "gen_loops_normal()",
       "gen_loops_normal_marking()",
       "gen_loops_super()",
@@ -531,7 +541,7 @@ void Worker::gen_loops()
       "iterative_gen_loops_super<SUPER0=true>()",
     };
     const auto text = std::format("worker {} starting algorithm {}", worker_id,
-        algs.at(alg));
+        cpu_algs.at(algnum));
     message_coordinator_text(text);
   }
 
@@ -541,13 +551,11 @@ void Worker::gen_loops()
   const auto max_possible_start = max_possible;
   std::vector<int> used_start(used);
 
-  switch (alg) {
+  switch (algnum) {
     case 0:
       gen_loops_normal();
       break;
     case 1:
-      std::tie(excludestates_throw, excludestates_catch) =
-          graph.get_exclude_states(start_state);
       gen_loops_normal_marking();
       break;
     case 2:
@@ -563,8 +571,6 @@ void Worker::gen_loops()
       iterative_gen_loops_normal<true, false>();
       break;
     case 6:
-      std::tie(excludestates_throw, excludestates_catch) =
-          graph.get_exclude_states(start_state);
       iterative_gen_loops_normal_marking<false>();
       break;
     case 7:
@@ -595,12 +601,7 @@ void Worker::initialize_working_variables()
     used.at(i) = 1;
   }
 
-  excludestates_throw.resize(graph.numstates + 1);
-  excludestates_catch.resize(graph.numstates + 1);
   for (size_t i = 1; i <= graph.numstates; ++i) {
-    excludestates_throw.at(i).assign(graph.b + 1, 0);
-    excludestates_catch.at(i).assign(graph.h - graph.b + 1, 0);
-
     deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
     if (start_state > graph.max_startstate_usable.at(i)) {
       (*deadstates_bystate.at(i)) += 1;

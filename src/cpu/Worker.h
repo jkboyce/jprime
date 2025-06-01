@@ -47,9 +47,11 @@ class Worker : public WorkSpace {
   const unsigned worker_id;
   const unsigned n_min;  // minimum period to find
   const unsigned n_max;  // maximum period
+  Graph& graph;
+  std::vector<std::vector<unsigned>> excludestates_throw;
+  std::vector<std::vector<unsigned>> excludestates_catch;
 
   // working variables for search
-  Graph& graph;
   std::vector<WorkCell> beat;  // workspace for iterative search
   std::vector<int> pattern;  // throw value at each position
   std::vector<int> used;  // whether a state has been visited
@@ -57,8 +59,6 @@ class Worker : public WorkSpace {
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
   std::vector<int> isexitcycle;
-  std::vector<std::vector<unsigned>> excludestates_throw;
-  std::vector<std::vector<unsigned>> excludestates_catch;
   int pos = 0;  // current index in the pattern
   unsigned from = 1;  // current state number
   unsigned shiftcount = 0;

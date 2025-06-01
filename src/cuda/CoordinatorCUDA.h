@@ -43,12 +43,12 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
  public:
   CoordinatorCUDA(SearchConfig& config, SearchContext& context,
     std::ostream& jpout);
+  virtual ~CoordinatorCUDA() override;
 
  protected:
   // set up during initialization
   cudaDeviceProp prop;
-  cudaStream_t stream[2];  // distinct CUDA stream for each job bank
-  CudaAlgorithm alg;
+  cudaStream_t stream[2] = { nullptr, nullptr };  // stream for each job bank
   std::vector<statenum_t> graph_buffer;
   CudaRuntimeParams params;
   CudaMemoryPointers ptrs;

@@ -82,6 +82,7 @@ bool Coordinator::run()
       : static_cast<unsigned>(context.n_bound);
   context.count.resize(n_max + 1, 0);
   initialize_graph();
+  select_search_algorithm();
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -358,6 +359,30 @@ void Coordinator::customize_graph(Graph& graph)
   }
 }
 
+// Choose a search algorithm to use.
+
+void Coordinator::select_search_algorithm()
+{
+  alg = SearchAlgorithm::NONE;
+
+  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+        static_cast<double>(config.n_min) >
+        0.66 * static_cast<double>(get_max_length(1))) {
+      // the overhead of marking is only worth it for long-period patterns
+      alg = SearchAlgorithm::NORMAL_MARKING;
+    } else {
+      alg = SearchAlgorithm::NORMAL;
+    }
+  } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    if (config.shiftlimit == 0) {
+      alg = SearchAlgorithm::SUPER0;
+    } else {
+      alg = SearchAlgorithm::SUPER;
+    }
+  }
+}
+
 // Create a model for the fraction of memory accesses that will occur at each
 // position in the pattern during DFS.
 //
@@ -620,7 +645,7 @@ void Coordinator::process_search_result(const std::string& pattern)
 }
 
 //------------------------------------------------------------------------------
-// Utility methods for subclasses
+// Utility methods
 //------------------------------------------------------------------------------
 
 // Format a pattern for output.
@@ -696,6 +721,13 @@ double Coordinator::calc_duration_secs(const jptimer_t& before,
 {
   const std::chrono::duration<double> diff = after - before;
   return diff.count();
+}
+
+// Return the search algorithm to use.
+
+Coordinator::SearchAlgorithm Coordinator::get_search_algorithm() const
+{
+  return alg;
 }
 
 // Return the maximum pattern length for a given `start_state`.

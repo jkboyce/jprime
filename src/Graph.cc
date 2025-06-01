@@ -476,15 +476,14 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
   return isexitcycle;
 }
 
-// Generate arrays that are used for marking excluded states during NORMAL
-// mode search with marking. If one of the non-marking versions of gen_loops()
-// is used then these arrays are ignored.
+// Generate arrays that are used for marking excluded states during search. If
+// one of the non-marking versions of gen_loops() is used then these arrays are
+// unneeded.
 //
-// This should be called after reduce_graph() and before gen_loops().
+// This should be called after validate_graph() and before gen_loops().
 
 std::tuple<std::vector<std::vector<unsigned>>,
-           std::vector<std::vector<unsigned>>>
-    Graph::get_exclude_states(unsigned start_state) const
+    std::vector<std::vector<unsigned>>> Graph::get_exclude_states() const
 {
   std::vector<std::vector<unsigned>> excludestates_throw;
   std::vector<std::vector<unsigned>> excludestates_catch;
@@ -497,20 +496,13 @@ std::tuple<std::vector<std::vector<unsigned>>,
   }
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (start_state > max_startstate_usable.at(i)) {
-      excludestates_throw.at(i).at(0) = 0;
-      excludestates_catch.at(i).at(0) = 0;
-      continue;
-    }
-
     // Find states that are excluded by a link throw from state `i`. These are
     // the states downstream in i's shift cycle that end in 'x'.
     State s = state.at(i).downstream();
     unsigned j = 0;
     while (s.slot(s.size() - 1) != 0) {
       const auto statenum = get_statenum(s);
-      if (statenum == 0 || start_state > max_startstate_usable.at(statenum) ||
-          statenum == i) {
+      if (statenum == 0 || statenum == i) {
         break;
       }
       excludestates_throw.at(i).at(j++) = statenum;
@@ -524,8 +516,7 @@ std::tuple<std::vector<std::vector<unsigned>>,
     j = 0;
     while (s.slot(0) == 0) {
       const auto statenum = get_statenum(s);
-      if (statenum == 0 || start_state > max_startstate_usable.at(statenum) ||
-          statenum == i) {
+      if (statenum == 0 || statenum == i) {
         break;
       }
       assert(statenum > i);  // see comment on mark_unreachable_states_throw()
