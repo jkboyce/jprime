@@ -301,7 +301,7 @@ void Worker::send_stats_to_coordinator()
 
       // number of deadstates induced by a link throw, above the
       // one-per-shift cycle baseline
-      if (excludestates_throw.size() > 0 && throwval != 0 &&
+      if (!excludestates_throw.empty() && throwval != 0 &&
           throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
@@ -400,8 +400,6 @@ void Worker::load_work_assignment(const WorkAssignment& wa)
 }
 
 // Return the work assignment corresponding to the current state of the worker.
-// Note this is distinct from split_work_assignment(), which splits off a
-// portion of the assignment.
 
 WorkAssignment Worker::get_work_assignment() const
 {
