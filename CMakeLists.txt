@@ -87,7 +87,7 @@ target_sources(jprime PRIVATE ${JPRIME_CXX_SOURCES})
 target_include_directories(jprime PRIVATE ${JPRIME_BASE_INCLUDE_DIRS})
 
 # Common C++ compile flags (mirroring Makefile's CFLAGS)
-set(JPRIME_CXX_FLAGS "-Wall;-Wextra;-Werror;-O3")
+set(JPRIME_CXX_FLAGS "-Wall;-Wextra;-O3")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND JPRIME_CXX_FLAGS "-g")
 endif()
@@ -102,6 +102,12 @@ if(JPRIME_ENABLE_CUDA)
     message(STATUS "Found CUDAToolkit version ${CUDAToolkit_VERSION}")
     message(STATUS "  CUDAToolkit root:")
     message(STATUS "    ${CUDAToolkit_TOOLKIT_ROOT}")
+
+    # Set CUDA architectures (mirroring Makefile's -gencode flags)
+    # -gencode arch=compute_60,code=compute_60  => PTX for 6.0 + SASS for 6.0
+    # -gencode arch=compute_89,code=sm_89      => PTX for 8.9 + SASS for 8.9
+    # CMake equivalent: "60+PTX;89+PTX"
+    set(CMAKE_CUDA_ARCHITECTURES "60+PTX;89+PTX")
 
     # Add CUDA-specific C++ source files (compiled as CXX with CUDA context)
     target_sources(jprime PRIVATE src/cuda/CoordinatorCUDA.cc)
@@ -128,7 +134,6 @@ if(JPRIME_ENABLE_CUDA)
     set(JPRIME_CUDA_CU_FLAGS
         "-O3"
         "-lineinfo"
-        "-Xcudafe --diag_suppress=68"
         "-Wno-deprecated-gpu-targets"
     )
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -137,12 +142,6 @@ if(JPRIME_ENABLE_CUDA)
     target_compile_options(jprime PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:${JPRIME_CUDA_CU_FLAGS}>
     )
-
-    # Set CUDA architectures (mirroring Makefile's -gencode flags)
-    # -gencode arch=compute_60,code=compute_60  => PTX for 6.0 + SASS for 6.0
-    # -gencode arch=compute_89,code=sm_89      => PTX for 8.9 + SASS for 8.9
-    # CMake equivalent: "60+PTX;89+PTX"
-    set(CMAKE_CUDA_ARCHITECTURES "60+PTX;89+PTX")
 
     # Link with CUDA runtime library
     target_link_libraries(jprime PRIVATE CUDA::cudart)

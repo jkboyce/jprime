@@ -88,7 +88,6 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   // setup
   void initialize();
   cudaDeviceProp initialize_cuda_device();
-  CudaAlgorithm select_cuda_search_algorithm();
   std::vector<statenum_t> make_graph_buffer();
   CudaRuntimeParams find_runtime_params();
   size_t calc_shared_memory_size(unsigned n_max, const CudaRuntimeParams& p);

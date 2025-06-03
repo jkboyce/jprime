@@ -377,6 +377,9 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   if (config.verboseflag) {
     unsigned algnum = 0;
     switch (alg) {
+      case Coordinator::SearchAlgorithm::NONE:
+        algnum = 1;
+        break;
       case Coordinator::SearchAlgorithm::NORMAL:
         algnum = 1;
         break;
