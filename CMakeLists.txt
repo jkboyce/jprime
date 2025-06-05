@@ -10,33 +10,19 @@
 
 Explanation and how to use
 --------------------------
-You must have CMake installed on your system, version 3.18 or later.
+You must have CMake installed on your system, version 3.21 or later. From the
+root of the jprime repository you can build by running the following commands:
 
-Configure and build (CPU version):
-   cd build
-   cmake ..
-   cmake --build .
-   --> This will create the `jprime` executable in the `build` directory.
+List available configuration presets:
+   cmake --list-presets
 
-Configure and build (CUDA version):
-   cd build
-   cmake .. -DJPRIME_ENABLE_CUDA=ON
-   cmake --build .
-   --> This will enable CUDA support. CMake will find your CUDA Toolkit. If it's
-       not found, CMake will error out.
+Configure one of the presets (e.g., Windows CPU version):
+   cmake --preset win-cpu-release
 
-Clean the build directory:
-   cd build
-   cmake --build . --target clean
+Build the configured preset:
+   cmake --build --preset win-cpu-release --clean-first
+   --> binary at \build\win-cpu-release\Release\jprime.exe
 
-Build types:
-   * release build (optimized): `cmake .. -DCMAKE_BUILD_TYPE=Release`
-   * debug build (with debug symbols): `cmake .. -DCMAKE_BUILD_TYPE=Debug`
-
-Run tests:
-   cd build
-   ctest
-   --> After building, this runs all the test cases defined below.
 ]]
 
 cmake_minimum_required(VERSION 3.18)
@@ -86,28 +72,43 @@ add_executable(jprime)
 target_sources(jprime PRIVATE ${JPRIME_CXX_SOURCES})
 target_include_directories(jprime PRIVATE ${JPRIME_BASE_INCLUDE_DIRS})
 
-# Common C++ compile flags (mirroring Makefile's CFLAGS)
-set(JPRIME_CXX_FLAGS "-Wall;-Wextra;-O3")
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND JPRIME_CXX_FLAGS "-g")
+# Common C++ compile flags
+if(MSVC)
+    # MSVC-specific C++ compiler flags
+    # /W4 is similar to -Wall, /EHsc is for exception handling
+    target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4 /EHsc>)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # /O2 is the standard optimization for release builds
+        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/O2>)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # /Od disables optimization, /Zi creates debug info
+        target_compile_options(jprime PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:/Od /Zi>)
+    endif()
+else()
+    # GCC/Clang specific C++ compiler flags
+    target_compile_options(jprime PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra>)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O3>)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-g>)
+    endif()
 endif()
-target_compile_options(jprime PRIVATE ${JPRIME_CXX_FLAGS})
 
 # CUDA configuration (if enabled)
 if(JPRIME_ENABLE_CUDA)
     message(STATUS "JPRIME_ENABLE_CUDA is ON. Configuring CUDA support.")
-    enable_language(CUDA) # Enable CUDA language support for the project
 
+    # Set CUDA architectures
+    # -gencode arch=compute_60,code=compute_60  => PTX for 6.0 + SASS for 6.0
+    # -gencode arch=compute_89,code=sm_89       => PTX for 8.9 + SASS for 8.9
+    set(CMAKE_CUDA_ARCHITECTURES "60+PTX;89+PTX")
+    
+    enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
     message(STATUS "Found CUDAToolkit version ${CUDAToolkit_VERSION}")
-    message(STATUS "  CUDAToolkit root:")
-    message(STATUS "    ${CUDAToolkit_TOOLKIT_ROOT}")
-
-    # Set CUDA architectures (mirroring Makefile's -gencode flags)
-    # -gencode arch=compute_60,code=compute_60  => PTX for 6.0 + SASS for 6.0
-    # -gencode arch=compute_89,code=sm_89      => PTX for 8.9 + SASS for 8.9
-    # CMake equivalent: "60+PTX;89+PTX"
-    set(CMAKE_CUDA_ARCHITECTURES "60+PTX;89+PTX")
+    message(STATUS "  CUDAToolkit /bin: ${CUDAToolkit_BIN_DIR}")
 
     # Add CUDA-specific C++ source files (compiled as CXX with CUDA context)
     target_sources(jprime PRIVATE src/cuda/CoordinatorCUDA.cc)
@@ -129,8 +130,7 @@ if(JPRIME_ENABLE_CUDA)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_EXTENSIONS OFF)
 
-    # CUDA-specific compiler flags for .cu files (mirroring makefile's
-    # NVCCFLAGS)
+    # CUDA-specific compiler flags for .cu files
     set(JPRIME_CUDA_CU_FLAGS
         "-O3"
         "-lineinfo"

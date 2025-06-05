@@ -1,0 +1,83 @@
+{
+	"version": 3,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 21,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": "windows-base",
+			"hidden": true,
+			"generator": "Visual Studio 17 2022",
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_CXX_STANDARD": "20",
+				"CMAKE_CXX_STANDARD_REQUIRED": "ON"
+			},
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		},
+		{
+			"name": "win-cpu-release",
+			"displayName": "Windows CPU Release",
+			"inherits": "windows-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
+		},
+		{
+			"name": "win-cpu-debug",
+			"displayName": "Windows CPU Debug",
+			"inherits": "windows-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
+		},
+		{
+			"name": "win-cuda-release",
+			"displayName": "Windows CUDA Release",
+			"inherits": "windows-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"JPRIME_ENABLE_CUDA": "ON"
+			}
+		},
+		{
+			"name": "win-cuda-debug",
+			"displayName": "Windows CUDA Debug",
+			"inherits": "windows-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"JPRIME_ENABLE_CUDA": "ON"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "win-cpu-release",
+			"configurePreset": "win-cpu-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "win-cpu-debug",
+			"configurePreset": "win-cpu-debug",
+			"configuration": "Debug"
+		},
+		{
+			"name": "win-cuda-release",
+			"configurePreset": "win-cuda-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "win-cuda-debug",
+			"configurePreset": "win-cuda-debug",
+			"configuration": "Debug"
+		}
+	]
+}

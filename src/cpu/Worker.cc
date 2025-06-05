@@ -24,6 +24,7 @@
 #include <sstream>
 #include <cassert>
 #include <format>
+#include <array>
 
 
 Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
