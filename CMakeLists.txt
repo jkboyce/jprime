@@ -13,22 +13,27 @@ Explanation and how to use
 You must have CMake installed on your system, version 3.21 or later. From the
 root of the jprime repository you can build by running the following commands:
 
-List available configuration presets:
+1. List the available presets for your platform (defined in CMakePresets.json):
    cmake --list-presets
 
-Configure one of the presets (e.g., Windows CPU version):
+2. Configure one of the presets (in this example the Windows CPU version):
    cmake --preset win-cpu-release
 
-Build the configured preset:
+3. Build an executable for the configured preset (choose one):
+   cmake --build --preset win-cpu-release
    cmake --build --preset win-cpu-release --clean-first
-   --> binary at \build\win-cpu-release\Release\jprime.exe
+
+4. Execute a suite of tests (cd into the correct build folder first):
+   ctest
+
+The executable is built at e.g. \build\win-cpu-release\Release\jprime.exe
+On Unix-based systems (macOS, Linux), after step 2 you can cd to the relevant
+config folder within /build and run `make` there directly, in place of step 3.
 
 ]]
 
-cmake_minimum_required(VERSION 3.18)
-# Version 3.18 for CMAKE_CUDA_ARCHITECTURES and modern CUDA/C++20 support
+cmake_minimum_required(VERSION 3.21)
 project(jprime LANGUAGES CXX)
-# CUDA language enabled conditionally below
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -36,7 +41,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Set output directory for the executable to be in the build root
-# (e.g., build/jprime)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Option to enable CUDA support
@@ -104,7 +108,7 @@ if(JPRIME_ENABLE_CUDA)
     # -gencode arch=compute_60,code=compute_60  => PTX for 6.0 + SASS for 6.0
     # -gencode arch=compute_89,code=sm_89       => PTX for 8.9 + SASS for 8.9
     set(CMAKE_CUDA_ARCHITECTURES "60+PTX;89+PTX")
-    
+
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
     message(STATUS "Found CUDAToolkit version ${CUDAToolkit_VERSION}")

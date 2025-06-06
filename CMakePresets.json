@@ -22,6 +22,21 @@
 			}
 		},
 		{
+			"name": "macos-base",
+			"hidden": true,
+			"generator": "Unix Makefiles",
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_CXX_STANDARD": "20",
+				"CMAKE_CXX_STANDARD_REQUIRED": "ON"
+			},
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Darwin"
+			}
+		},
+		{
 			"name": "win-cpu-release",
 			"displayName": "Windows CPU Release",
 			"inherits": "windows-base",
@@ -56,6 +71,24 @@
 				"CMAKE_BUILD_TYPE": "Debug",
 				"JPRIME_ENABLE_CUDA": "ON"
 			}
+		},
+		{
+			"name": "macos-cpu-release",
+			"displayName": "macOS CPU Release",
+			"inherits": "macos-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
+		},
+		{
+			"name": "macos-cpu-debug",
+			"displayName": "macOS CPU Debug",
+			"inherits": "macos-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
 		}
 	],
 	"buildPresets": [
@@ -77,6 +110,16 @@
 		{
 			"name": "win-cuda-debug",
 			"configurePreset": "win-cuda-debug",
+			"configuration": "Debug"
+		},
+		{
+			"name": "macos-cpu-release",
+			"configurePreset": "macos-cpu-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "macos-cpu-debug",
+			"configurePreset": "macos-cpu-debug",
 			"configuration": "Debug"
 		}
 	]
