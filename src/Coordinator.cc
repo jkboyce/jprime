@@ -486,6 +486,7 @@ double Coordinator::expected_patterns_at_maxperiod()
     double epsilon = 1e-3;
     return (b > a - epsilon && b < a + epsilon);
   };
+  (void)is_close;
   assert(is_close(M11 * sx4 + M12 * sx3 + M13 * sx2, 1));
   assert(is_close(M11 * sx3 + M12 * sx2 + M13 * sx, 0));
   assert(is_close(M11 * sx2 + M12 * sx + M13 * s1, 0));

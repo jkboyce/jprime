@@ -49,6 +49,7 @@ void Worker::iterative_gen_loops_normal()
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_normal<false, true>();
+      (void)pos_orig;
       assert(pos == pos_orig);
     }
     // now we can resume
@@ -196,6 +197,7 @@ void Worker::iterative_gen_loops_normal_marking()
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_normal_marking<true>();
+      (void)pos_orig;
       assert(pos == pos_orig);
     }
   }
@@ -457,6 +459,7 @@ void Worker::iterative_gen_loops_super()
       replay_to_pos = pos;
       pos = 0;
       iterative_gen_loops_super<SUPER0, true>();
+      (void)pos_orig;
       assert(pos == pos_orig);
     }
   }
@@ -728,6 +731,7 @@ void Worker::iterative_update_after_split()
   wa.to_workspace(this, 0);
 
   // splitting shouldn't change our depth in the search tree
+  (void)pos_orig;
   assert(pos == pos_orig);
 
   // verify the assignment is unchanged by round trip through the workspace
@@ -758,6 +762,7 @@ const Graph& Worker::get_graph() const
 void Worker::set_cell(unsigned slot, unsigned index, unsigned col,
     unsigned col_limit, unsigned from_state)
 {
+  (void)slot;
   assert(slot == 0);
   assert(index < beat.size());
   WorkCell& wc = beat.at(index);
@@ -769,6 +774,7 @@ void Worker::set_cell(unsigned slot, unsigned index, unsigned col,
 std::tuple<unsigned, unsigned, unsigned> Worker::get_cell(unsigned slot,
     unsigned index) const
 {
+  (void)slot;
   assert(slot == 0);
   assert(index < beat.size());
   const WorkCell& wc = beat.at(index);
@@ -778,6 +784,7 @@ std::tuple<unsigned, unsigned, unsigned> Worker::get_cell(unsigned slot,
 void Worker::set_info(unsigned slot, unsigned new_start_state,
     unsigned new_end_state, int new_pos)
 {
+  (void)slot;
   assert(slot == 0);
   start_state = new_start_state;
   end_state = new_end_state;
@@ -786,6 +793,7 @@ void Worker::set_info(unsigned slot, unsigned new_start_state,
 
 std::tuple<unsigned, unsigned, int> Worker::get_info(unsigned slot) const
 {
+  (void)slot;
   assert(slot == 0);
   return std::make_tuple(start_state, end_state, pos);
 }

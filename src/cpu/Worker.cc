@@ -333,6 +333,7 @@ void Worker::send_stats_to_coordinator()
       found = true;
       break;
     }
+    (void)found;
     assert(found);
   }
 
@@ -582,6 +583,8 @@ void Worker::gen_loops()
       assert(false);
   }
 
+  (void)pos_start;
+  (void)max_possible_start;
   assert(pos == pos_start);
   assert(max_possible == max_possible_start);
   assert(used == used_start);
