@@ -10,6 +10,8 @@
 // This file is distributed under the MIT License.
 //
 
+#pragma warning(disable:4127)  // MSVC conditional expression is constant
+
 #include "Worker.h"
 
 #include <iostream>
@@ -80,13 +82,15 @@ void Worker::iterative_gen_loops_normal()
 
   // main search loop
   while (true) {
-    if (REPLAY && p == replay_to_pos) {
-      break;
+    if constexpr (REPLAY) {
+      if (p == replay_to_pos) {
+        break;
+      }
     }
 
     if (wc->col == wc->col_limit) {
       // beat is finished, go back to previous one
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       u[from_state] = 0;
@@ -106,12 +110,14 @@ void Worker::iterative_gen_loops_normal()
 
     if (to_state == st_state) {
       // found a pattern
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
-      if (REPORT && p + 1 >= n_min) {
-        pos = p;
-        iterative_handle_finished_pattern();
+      if constexpr (REPORT) {
+        if (p + 1 >= n_min) {
+          pos = p;
+          iterative_handle_finished_pattern();
+        }
       }
       ++c[p + 1];
       ++wc->col;
@@ -119,7 +125,7 @@ void Worker::iterative_gen_loops_normal()
     }
 
     if (u[to_state]) {
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       ++wc->col;
@@ -127,33 +133,35 @@ void Worker::iterative_gen_loops_normal()
     }
 
     if (p + 1 == nmax) {
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       ++wc->col;
       continue;
     }
 
-    if (!REPLAY && ++steps >= steps_limit) {
-      // check the inbox for incoming messages, after doing some prep work
-      // to ensure we can respond to any type of message we might receive
-      //
-      // this code is rarely evaluated so it is not performance-critical
-      steps = 0;
+    if constexpr (!REPLAY) {
+      if (++steps >= steps_limit) {
+        // check the inbox for incoming messages, after doing some prep work
+        // to ensure we can respond to any type of message we might receive
+        //
+        // this code is rarely evaluated so it is not performance-critical
+        steps = 0;
 
-      pos = p;
-      if (iterative_can_split()) {
-        for (int i = 0; i <= pos; ++i) {
-          pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                                           .at(beat.at(i).col);
+        pos = p;
+        if (iterative_can_split()) {
+          for (int i = 0; i <= pos; ++i) {
+            pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
+              .at(beat.at(i).col);
+          }
+          pattern.at(pos + 1) = -1;
+          nnodes = nn;
+          process_inbox_running();
+          iterative_update_after_split();
+          nn = nnodes;
+          steps_limit = steps_per_inbox_check;
+          // the above functions do not change `pos`
         }
-        pattern.at(pos + 1) = -1;
-        nnodes = nn;
-        process_inbox_running();
-        iterative_update_after_split();
-        nn = nnodes;
-        steps_limit = steps_per_inbox_check;
-        // the above functions do not change `pos`
       }
     }
 
@@ -162,7 +170,7 @@ void Worker::iterative_gen_loops_normal()
 
     ++p;
     ++wc;
-    if (REPLAY) {
+    if constexpr (REPLAY) {
       assert(wc->from_state == to_state);
     } else {
       wc->col = 0;
@@ -172,7 +180,7 @@ void Worker::iterative_gen_loops_normal()
     from_state = to_state;
   }
 
-  if (REPLAY) {
+  if constexpr (REPLAY) {
     assert(p == replay_to_pos);
     assert(nn == nnodes);
   } else {
@@ -188,7 +196,7 @@ void Worker::iterative_gen_loops_normal()
 template<bool REPLAY>
 void Worker::iterative_gen_loops_normal_marking()
 {
-  if (!REPLAY) {
+  if constexpr (!REPLAY) {
     iterative_init_workspace();
     if (pos == -1) {
       pos = 0;
@@ -230,8 +238,10 @@ void Worker::iterative_gen_loops_normal_marking()
   unsigned from_state = wc->from_state;
 
   while (true) {
-    if (REPLAY && p == replay_to_pos) {
-      break;
+    if constexpr (REPLAY) {
+      if (p == replay_to_pos) {
+        break;
+      }
     }
 
     if (wc->col == wc->col_limit) {
@@ -249,7 +259,7 @@ void Worker::iterative_gen_loops_normal_marking()
       unmark(u, wc->excludes_catch, ds);
       from_state = wc->from_state;
       ++wc->col;
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         std::cerr << "---- worker " << worker_id << " backtracked to pos "
                   << p << '\n';
         assert(wc->col == wc->col_limit);
@@ -260,7 +270,7 @@ void Worker::iterative_gen_loops_normal_marking()
     const unsigned to_state = outmatrix[from_state][wc->col];
 
     if (to_state == st_state) {
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       if (p + 1 >= n_min && !config.countflag) {
@@ -273,7 +283,7 @@ void Worker::iterative_gen_loops_normal_marking()
     }
 
     if (u[to_state]) {
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       ++wc->col;
@@ -281,7 +291,7 @@ void Worker::iterative_gen_loops_normal_marking()
     }
 
     if (p + 1 == nmax) {
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
       ++wc->col;
@@ -314,7 +324,7 @@ void Worker::iterative_gen_loops_normal_marking()
           unmark(u, wc->excludes_catch, ds);
           from_state = wc->from_state;
           ++wc->col;
-          if (REPLAY) {
+          if constexpr (REPLAY) {
             // we might get here if we're loading a job that was stolen from
             // another worker, and the job's prefix throws cause us to
             // backtrack due to `max_possible`, i.e. we can't replay up to
@@ -339,7 +349,7 @@ void Worker::iterative_gen_loops_normal_marking()
 
         ++p;
         ++wc;
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(wc->from_state == to_state);
         } else {
           wc->col = 0;
@@ -356,27 +366,29 @@ void Worker::iterative_gen_loops_normal_marking()
       // undoing the catch marking operation done above
       unmark(u, wc->excludes_catch, ds);
       ++wc->col;
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         std::cerr << "---- worker " << worker_id << ", condition 2 ----\n";
         assert(wc->col == wc->col_limit);
       }
       continue;
     } else {  // shift throw
-      if (!REPLAY && ++steps >= steps_limit) {
-        steps = 0;
+      if constexpr (!REPLAY) {
+        if (++steps >= steps_limit) {
+          steps = 0;
 
-        pos = p;
-        if (iterative_can_split()) {
-          for (int i = 0; i <= pos; ++i) {
-            pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                                             .at(beat.at(i).col);
+          pos = p;
+          if (iterative_can_split()) {
+            for (int i = 0; i <= pos; ++i) {
+              pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
+                .at(beat.at(i).col);
+            }
+            pattern.at(pos + 1) = -1;
+            nnodes = nn;
+            process_inbox_running();
+            iterative_update_after_split();
+            nn = nnodes;
+            steps_limit = steps_per_inbox_check;
           }
-          pattern.at(pos + 1) = -1;
-          nnodes = nn;
-          process_inbox_running();
-          iterative_update_after_split();
-          nn = nnodes;
-          steps_limit = steps_per_inbox_check;
         }
       }
 
@@ -385,7 +397,7 @@ void Worker::iterative_gen_loops_normal_marking()
 
       ++p;
       ++wc;
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(wc->from_state == to_state);
       } else {
         wc->col = 0;
@@ -399,7 +411,7 @@ void Worker::iterative_gen_loops_normal_marking()
     }
   }
 
-  if (REPLAY) {
+  if constexpr (REPLAY) {
     if (p != replay_to_pos) {
       std::cerr << "### worker " << worker_id << " couldn't replay to pos "
                 << replay_to_pos << ", exited at pos " << p << '\n';
@@ -450,7 +462,7 @@ inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
 template<bool SUPER0, bool REPLAY>
 void Worker::iterative_gen_loops_super()
 {
-  if (!REPLAY) {
+  if constexpr (!REPLAY) {
     iterative_init_workspace();
     if (pos == -1) {
       pos = 0;
@@ -487,16 +499,18 @@ void Worker::iterative_gen_loops_super()
   unsigned from_cycle = cyclenum[from_state];
 
   while (true) {
-    if (REPLAY && p == replay_to_pos) {
-      break;
+    if constexpr (REPLAY) {
+      if (p == replay_to_pos) {
+        break;
+      }
     }
 
     if (wc->col == wc->col_limit) {
       // beat is finished, go back to previous one
-      if (REPLAY) {
+      if constexpr (REPLAY) {
         assert(false);
       }
-      if (!SUPER0) {
+      if constexpr (!SUPER0) {
         u[from_state] = 0;
       }
       ++nn;
@@ -523,24 +537,28 @@ void Worker::iterative_gen_loops_super()
 
     const unsigned to_state = outmatrix[from_state][wc->col];
 
-    if (SUPER0 && to_state < start_state) {
-      ++wc->col;
-      continue;
+    if constexpr (SUPER0) {
+      if (to_state < start_state) {
+        ++wc->col;
+        continue;
+      }
     }
 
-    if (!SUPER0 && u[to_state]) {
-      if (REPLAY) {
-        assert(false);
+    if constexpr (!SUPER0) {
+      if (u[to_state]) {
+        if (REPLAY) {
+          assert(false);
+        }
+        ++wc->col;
+        continue;
       }
-      ++wc->col;
-      continue;
     }
 
     const unsigned to_cycle = cyclenum[to_state];
 
     if (SUPER0 || (to_cycle != from_cycle)) {  // link throw
       if (to_state == start_state) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         if (p + 1 >= n_min && !config.countflag) {
@@ -553,7 +571,7 @@ void Worker::iterative_gen_loops_super()
       }
 
       if (cu[to_cycle]) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         ++wc->col;
@@ -561,7 +579,7 @@ void Worker::iterative_gen_loops_super()
       }
 
       if ((SUPER0 || shiftcount == config.shiftlimit) && exitcyclesleft == 0) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         ++wc->col;
@@ -569,31 +587,33 @@ void Worker::iterative_gen_loops_super()
       }
 
       if (p + 1 == nmax) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         ++wc->col;
         continue;
       }
 
-      if (!REPLAY && ++steps >= steps_per_inbox_check) {
-        steps = 0;
+      if constexpr (!REPLAY) {
+        if (++steps >= steps_per_inbox_check) {
+          steps = 0;
 
-        pos = p;
-        if (iterative_can_split()) {
-          for (int i = 0; i <= pos; ++i) {
-            pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                                             .at(beat.at(i).col);
+          pos = p;
+          if (iterative_can_split()) {
+            for (int i = 0; i <= pos; ++i) {
+              pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
+                .at(beat.at(i).col);
+            }
+            pattern.at(pos + 1) = -1;
+            nnodes = nn;
+            process_inbox_running();
+            iterative_update_after_split();
+            nn = nnodes;
           }
-          pattern.at(pos + 1) = -1;
-          nnodes = nn;
-          process_inbox_running();
-          iterative_update_after_split();
-          nn = nnodes;
         }
       }
 
-      if (!SUPER0) {
+      if constexpr (!SUPER0) {
         u[to_state] = 1;
       }
       cu[to_cycle] = true;
@@ -602,7 +622,7 @@ void Worker::iterative_gen_loops_super()
       }
     } else {  // shift throw
       if (shiftcount == config.shiftlimit) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         ++wc->col;
@@ -610,7 +630,7 @@ void Worker::iterative_gen_loops_super()
       }
 
       if (to_state == start_state) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         if (shiftcount < p) {
@@ -626,7 +646,7 @@ void Worker::iterative_gen_loops_super()
       }
 
       if (p + 1 == nmax) {
-        if (REPLAY) {
+        if constexpr (REPLAY) {
           assert(false);
         }
         ++wc->col;
@@ -640,7 +660,7 @@ void Worker::iterative_gen_loops_super()
     // advance to next beat
     ++p;
     ++wc;
-    if (REPLAY) {
+    if constexpr (REPLAY) {
       assert(wc->from_state == to_state);
     } else {
       wc->col = 0;
@@ -651,7 +671,7 @@ void Worker::iterative_gen_loops_super()
     from_cycle = to_cycle;
   }
 
-  if (REPLAY) {
+  if constexpr (REPLAY) {
     assert(p == replay_to_pos);
     assert(nn == nnodes);
   } else {
