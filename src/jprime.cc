@@ -169,7 +169,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 
         if (context.assignments.empty()) {
           std::cout << "Calculation is finished\n";
-          std::exit(0);
+          std::exit(EXIT_SUCCESS);
         }
 
         // get any potential overrides in current arguments
