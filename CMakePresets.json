@@ -37,6 +37,21 @@
 			}
 		},
 		{
+			"name": "linux-base",
+			"hidden": true,
+			"generator": "Unix Makefiles",
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_CXX_STANDARD": "20",
+				"CMAKE_CXX_STANDARD_REQUIRED": "ON"
+			},
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			}
+		},
+		{
 			"name": "win-cpu-release",
 			"displayName": "Windows CPU Release",
 			"inherits": "windows-base",
@@ -89,6 +104,42 @@
 				"CMAKE_BUILD_TYPE": "Debug",
 				"JPRIME_ENABLE_CUDA": "OFF"
 			}
+		},
+		{
+			"name": "linux-cpu-release",
+			"displayName": "Linux CPU Release",
+			"inherits": "linux-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
+		},
+		{
+			"name": "linux-cpu-debug",
+			"displayName": "Linux CPU Debug",
+			"inherits": "linux-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"JPRIME_ENABLE_CUDA": "OFF"
+			}
+		},
+		{
+			"name": "linux-cuda-release",
+			"displayName": "Linux CUDA Release",
+			"inherits": "linux-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"JPRIME_ENABLE_CUDA": "ON"
+			}
+		},
+		{
+			"name": "linux-cuda-debug",
+			"displayName": "Linux CUDA Debug",
+			"inherits": "linux-base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"JPRIME_ENABLE_CUDA": "ON"
+			}
 		}
 	],
 	"buildPresets": [
@@ -120,6 +171,26 @@
 		{
 			"name": "macos-cpu-debug",
 			"configurePreset": "macos-cpu-debug",
+			"configuration": "Debug"
+		},
+		{
+			"name": "linux-cpu-release",
+			"configurePreset": "linux-cpu-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "linux-cpu-debug",
+			"configurePreset": "linux-cpu-debug",
+			"configuration": "Debug"
+		},
+		{
+			"name": "linux-cuda-release",
+			"configurePreset": "linux-cuda-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "linux-cuda-debug",
+			"configurePreset": "linux-cuda-debug",
 			"configuration": "Debug"
 		}
 	]
