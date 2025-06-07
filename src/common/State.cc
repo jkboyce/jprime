@@ -172,7 +172,7 @@ bool state_compare(const State& s1, const State& s2)
   if (s1.size() > s2.size())
     return false;
 
-  for (int i = s1.size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(s1.size()) - 1; i >= 0; --i) {
     if (s1.slot(i) < s2.slot(i))
       return true;
     if (s1.slot(i) > s2.slot(i))

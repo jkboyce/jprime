@@ -12,6 +12,8 @@
 // This file is distributed under the MIT License.
 //
 
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
+
 #include "Worker.h"
 #include "CoordinatorCPU.h"
 #include "Pattern.h"
@@ -505,7 +507,7 @@ void Worker::do_work_assignment()
 void Worker::gen_loops()
 {
   // choose a CPU search algorithm to use
-  unsigned algnum = -1;
+  unsigned algnum = -1u;
 
   switch (coordinator.get_search_algorithm()) {
     case Coordinator::SearchAlgorithm::NORMAL:
@@ -612,7 +614,8 @@ void Worker::initialize_working_variables()
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     isexitcycle = graph.get_exit_cycles(start_state);
-    exitcyclesleft = std::count(isexitcycle.cbegin(), isexitcycle.cend(), true);
+    exitcyclesleft = static_cast<unsigned>(std::count(isexitcycle.cbegin(),
+        isexitcycle.cend(), 1));
   }
 
   pos = 0;

@@ -11,6 +11,7 @@
 
 #ifndef JPRIME_MESSAGES_H_
 #define JPRIME_MESSAGES_H_
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include "WorkAssignment.h"
 
@@ -52,7 +53,7 @@ struct MessageW2C {
 
   // for all message types
   Type type = Type::NONE;
-  unsigned worker_id = -1;
+  unsigned worker_id = -1u;
 
   // for type SEARCH_RESULT
   std::string pattern;

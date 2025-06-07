@@ -11,6 +11,7 @@
 
 #ifndef JPRIME_SEARCHCONFIG_H_
 #define JPRIME_SEARCHCONFIG_H_
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include <string>
 #include <vector>
@@ -86,7 +87,7 @@ struct SearchConfig {
   std::string outfile;
 
   // number of worker threads to use
-  unsigned num_threads = 1;
+  unsigned num_threads = 1u;
 
   // for super mode, number of shift throws to allow (-1u means no limit)
   unsigned shiftlimit = -1u;

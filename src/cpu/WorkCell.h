@@ -24,8 +24,8 @@ struct WorkCell {
   unsigned* excludes_catch = nullptr;
 
   // padding increases speed on macOS and g++/x86-64
-  unsigned unused1;
-  unsigned unused2;
+  unsigned unused1 = 0;
+  unsigned unused2 = 0;
 };
 
 #endif

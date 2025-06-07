@@ -8,6 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
+
 #include "WorkAssignment.h"
 #include "WorkCell.h"
 
@@ -241,7 +243,8 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
       wc.col_limit = wc.col + 1;
     }
 
-    ws->set_cell(slot, i, wc.col, wc.col_limit, wc.from_state);
+    ws->set_cell(slot, static_cast<unsigned>(i), wc.col, wc.col_limit,
+        wc.from_state);
     from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
 
@@ -258,22 +261,22 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
     rwc.from_state = from_state;
     ws->set_cell(slot, root_pos, rwc.col, rwc.col_limit, rwc.from_state);
 
-    pos = partial_pattern.size() - 1;
+    pos = static_cast<int>(partial_pattern.size()) - 1;
   } else {
     // loading a work assignment of type SPLITTABLE; initialized `col` at
     // `root_pos` in loop above, now set `col_limit`
-    auto [col, col_limit, from_state] = ws->get_cell(slot, root_pos);
+    auto [col, col_limit, fr_state] = ws->get_cell(slot, root_pos);
     col_limit = 0;
-    for (size_t i = 0; i < graph.outdegree.at(from_state); ++i) {
-      const unsigned tv = graph.outthrowval.at(from_state).at(i);
+    for (size_t i = 0; i < graph.outdegree.at(fr_state); ++i) {
+      const unsigned tv = graph.outthrowval.at(fr_state).at(i);
       if (std::find(root_throwval_options.cbegin(),
           root_throwval_options.cend(), tv) != root_throwval_options.cend()) {
         col_limit = std::max(col_limit, static_cast<unsigned>(i + 1));
       }
     }
     assert(col < col_limit);
-    assert(col < graph.outdegree.at(from_state));
-    ws->set_cell(slot, root_pos, col, col_limit, from_state);
+    assert(col < graph.outdegree.at(fr_state));
+    ws->set_cell(slot, root_pos, col, col_limit, fr_state);
   }
 
   ws->set_info(slot, start_state, end_state, pos);
@@ -472,7 +475,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
     // new_root_pos = partial_pattern.size().
 
     unsigned from_state = start_state;
-    unsigned new_root_pos = -1;
+    unsigned new_root_pos = -1u;
     unsigned col = 0;
 
     // have to scan from the beginning because we don't record the traversed
@@ -505,7 +508,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
     }
 
     if (new_root_pos == -1u) {
-      root_pos = partial_pattern.size();
+      root_pos = static_cast<unsigned>(partial_pattern.size());
       // leave root_throwval_options empty
       assert(get_type() == Type::UNSPLITTABLE);
     } else {
@@ -523,7 +526,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
   wa.partial_pattern.push_back(wa.root_throwval_options.front());
   wa.root_throwval_options.pop_front();
   if (wa.root_throwval_options.empty()) {
-    wa.root_pos = wa.partial_pattern.size();
+    wa.root_pos = static_cast<unsigned>(wa.partial_pattern.size());
     assert(wa.get_type() == Type::UNSPLITTABLE);
   } else {
     assert(wa.get_type() == Type::SPLITTABLE);

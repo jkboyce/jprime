@@ -148,7 +148,6 @@ void Worker::gen_loops_normal_marking()
 
       ++used[to];
       ++pos;
-      const int old_from = from;
       from = to;
       gen_loops_normal_marking();
       from = old_from;

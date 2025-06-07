@@ -80,6 +80,7 @@ Pattern::Pattern(const std::string& p)
     try {
       val = std::stoi(hstr);
     } catch (const std::invalid_argument& ie) {
+      (void)ie;
       throw std::invalid_argument("Not a number: " + hstr);
     }
     if (val < 1) {
@@ -101,6 +102,7 @@ Pattern::Pattern(const std::string& p)
       try {
         val = std::stoi(s);
       } catch (const std::invalid_argument& ie) {
+        (void)ie;
         throw std::invalid_argument("Not a number: " + s);
       }
       if (val < 0) {
@@ -241,7 +243,7 @@ int Pattern::objects() const
     sum += val;
   }
   assert(sum % period() == 0);  // always true if no collisions
-  return (sum / period());
+  return static_cast<int>(sum / period());
 }
 
 // Return the pattern period (length).
@@ -585,10 +587,10 @@ std::string Pattern::make_analysis()
       const size_t index = (i + static_cast<size_t>(throwval.at(i))) % period();
       if (landing_index[index] != -1) {
         collision_start = landing_index[index];
-        collision_end = i;
+        collision_end = static_cast<int>(i);
         break;
       }
-      landing_index[index] = i;
+      landing_index[index] = static_cast<int>(i);
     }
     assert(collision_start != -1 && collision_end != -1);
 
@@ -869,7 +871,7 @@ void Pattern::check_have_states()
         assert(start_state.slot(fillslot) == 0);
         start_state.slot(fillslot) = 1;
       }
-      fillslot -= per;
+      fillslot -= static_cast<int>(per);
     }
   }
 

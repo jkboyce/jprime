@@ -12,6 +12,8 @@
 // This file is distributed under the MIT License.
 //
 
+#pragma warning(disable:4996)  // MSVC ctime warning
+
 #include "Coordinator.h"
 #include "CoordinatorCPU.h"
 #ifdef CUDA_ENABLED
@@ -70,6 +72,7 @@ bool Coordinator::run()
   try {
     calc_graph_size();
   } catch (const std::overflow_error& oe) {
+    (void)oe;
     jpout << "Overflow occurred computing graph size\n";
     return false;
   }
@@ -214,7 +217,8 @@ void Coordinator::initialize_graph()
 
   // build table of maximum pattern length by start_state
   max_length.push_back(-1);
-  for (size_t start_state = 1; start_state <= graph.numstates; ++start_state) {
+  for (unsigned start_state = 1; start_state <= graph.numstates;
+      ++start_state) {
     if (start_state > graph.max_startstate_usable.at(start_state)) {
       max_length.push_back(-1);
       continue;
@@ -241,33 +245,33 @@ void Coordinator::initialize_graph()
 //
 // Note this routine should never set states as active!
 
-void Coordinator::customize_graph(Graph& graph)
+void Coordinator::customize_graph(Graph& g)
 {
-  std::vector<bool> state_active(graph.numstates + 1, true);
+  std::vector<bool> state_active(g.numstates + 1, true);
 
   // (1) In SUPER mode we are not allowed to make link throws within a single
   // shift cycle, so remove them.
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    for (size_t i = 1; i <= graph.numstates; ++i) {
+    for (size_t i = 1; i <= g.numstates; ++i) {
       unsigned outthrownum = 0;
 
-      for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
-        const auto tv = graph.outthrowval.at(i).at(j);
-        if (graph.cyclenum.at(graph.outmatrix.at(i).at(j)) ==
-            graph.cyclenum.at(i) && tv != 0 && tv != config.h) {
+      for (size_t j = 0; j < g.outdegree.at(i); ++j) {
+        const auto tv = g.outthrowval.at(i).at(j);
+        if (g.cyclenum.at(g.outmatrix.at(i).at(j)) ==
+            g.cyclenum.at(i) && tv != 0 && tv != config.h) {
           continue;
         }
 
         // throw is allowed
         if (outthrownum != j) {
-          graph.outmatrix.at(i).at(outthrownum) = graph.outmatrix.at(i).at(j);
-          graph.outthrowval.at(i).at(outthrownum) = tv;
+          g.outmatrix.at(i).at(outthrownum) = g.outmatrix.at(i).at(j);
+          g.outthrowval.at(i).at(outthrownum) = tv;
         }
         ++outthrownum;
       }
 
-      graph.outdegree.at(i) = outthrownum;
+      g.outdegree.at(i) = outthrownum;
     }
   }
 
@@ -276,14 +280,14 @@ void Coordinator::customize_graph(Graph& graph)
   // `shiftlimit`.
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-    for (size_t i = 1; i <= graph.numstates; ++i) {
+    for (size_t i = 1; i <= g.numstates; ++i) {
       unsigned start0s = 0;
-      while (start0s < graph.h && graph.state.at(i).slot(start0s) == 0) {
+      while (start0s < g.h && g.state.at(i).slot(start0s) == 0) {
         ++start0s;
       }
       unsigned end1s = 0;
-      while (end1s < graph.h &&
-          graph.state.at(i).slot(graph.h - end1s - 1) != 0) {
+      while (end1s < g.h &&
+          g.state.at(i).slot(g.h - end1s - 1) != 0) {
         ++end1s;
       }
       if (start0s + end1s > config.shiftlimit) {
@@ -301,33 +305,33 @@ void Coordinator::customize_graph(Graph& graph)
     for (size_t i = 0; i < config.h; i += 2) {
       period2_state.slot(i) = 1;
     }
-    const auto k = graph.get_statenum(period2_state);
+    const auto k = g.get_statenum(period2_state);
     assert(k != 0);
 
     if (config.shiftlimit == 0) {
       // in this case state (x-)^b is excluded
       state_active.at(k) = false;
-    } else if (config.shiftlimit == 1 && config.n_min == graph.numcycles + 1) {
+    } else if (config.shiftlimit == 1 && config.n_min == g.numcycles + 1) {
       // in this case state (x-)^b is required to be in the pattern, and the one
       // shift throw can only be in the cycle immediately preceding or following
       // state (x-)^b in the pattern
 
-      for (size_t i = 1; i <= graph.numstates; ++i) {
+      for (unsigned i = 1; i <= g.numstates; ++i) {
         bool allowed_to_shift_throw = false;
 
         // does i's downstream state have a throw to (x-)^b ?
-        auto s = graph.downstream_state(i);
+        auto s = g.downstream_state(i);
         if (s != 0) {
-          for (size_t j = 0; j < graph.outdegree.at(s); ++j) {
-            if (graph.outmatrix.at(s).at(j) == k) {
+          for (size_t j = 0; j < g.outdegree.at(s); ++j) {
+            if (g.outmatrix.at(s).at(j) == k) {
               allowed_to_shift_throw = true;
             }
           }
         }
 
         // does (x-)^b have a throw into i ?
-        for (size_t j = 0; j < graph.outdegree.at(k); ++j) {
-          if (graph.outmatrix.at(k).at(j) == i) {
+        for (size_t j = 0; j < g.outdegree.at(k); ++j) {
+          if (g.outmatrix.at(k).at(j) == i) {
             allowed_to_shift_throw = true;
           }
         }
@@ -338,23 +342,23 @@ void Coordinator::customize_graph(Graph& graph)
 
         // otherwise remove it
         unsigned outthrownum = 0;
-        for (size_t j = 0; j < graph.outdegree.at(i); ++j) {
-          const auto tv = graph.outthrowval.at(i).at(j);
+        for (size_t j = 0; j < g.outdegree.at(i); ++j) {
+          const auto tv = g.outthrowval.at(i).at(j);
           if (tv == 0 || tv == config.h)
             continue;
 
-          graph.outmatrix.at(i).at(outthrownum) = graph.outmatrix.at(i).at(j);
-          graph.outthrowval.at(i).at(outthrownum) = tv;
+          g.outmatrix.at(i).at(outthrownum) = g.outmatrix.at(i).at(j);
+          g.outthrowval.at(i).at(outthrownum) = tv;
           ++outthrownum;
         }
-        graph.outdegree.at(i) = outthrownum;
+        g.outdegree.at(i) = outthrownum;
       }
     }
   }
 
-  for (size_t i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i <= g.numstates; ++i) {
     if (!state_active.at(i)) {
-      graph.outdegree.at(i) = 0;
+      g.outdegree.at(i) = 0;
     }
   }
 }

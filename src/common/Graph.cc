@@ -190,7 +190,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 
 unsigned Graph::find_shift_cycles()
 {
-  const unsigned state_unused = -1;
+  const unsigned state_unused = -1u;
   cyclenum.assign(numstates + 1, state_unused);
   assert(cycleperiod.size() == 0);
 
@@ -276,7 +276,7 @@ void Graph::build_graph_matrix()
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
       if (xarray.at(throwval))
         continue;
-      const auto k = advance_state(i, throwval);
+      const auto k = advance_state(static_cast<unsigned>(i), throwval);
       if (k == 0)
         continue;
 
@@ -688,7 +688,7 @@ std::string Graph::to_string() const
          << "  numstates = " << numstates << "\n"
          << "  states[] = { unused";
   for (size_t i = 1; i < numstates; ++i) {
-    buffer << ", " << state_string(i);
+    buffer << ", " << state_string(static_cast<unsigned>(i));
   }
   buffer << " }\n"
          << "  numcycles = " << numcycles << "\n"

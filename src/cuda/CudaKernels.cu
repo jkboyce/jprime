@@ -676,9 +676,11 @@ __global__ void cuda_gen_loops_super(
 void configure_cuda_shared_memory(const CudaRuntimeParams& p)
 {
   cudaFuncSetAttribute(cuda_gen_loops_normal,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_used);
+    cudaFuncAttributeMaxDynamicSharedMemorySize,
+    static_cast<int>(p.shared_memory_used));
   cudaFuncSetAttribute(cuda_gen_loops_super,
-    cudaFuncAttributeMaxDynamicSharedMemorySize, p.shared_memory_used);
+    cudaFuncAttributeMaxDynamicSharedMemorySize,
+    static_cast<int>(p.shared_memory_used));
 }
 
 // Return pointers to statically allocated items in GPU memory that are

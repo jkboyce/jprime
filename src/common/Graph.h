@@ -10,6 +10,7 @@
 
 #ifndef JPRIME_GRAPH_H_
 #define JPRIME_GRAPH_H_
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include "State.h"
 
@@ -103,7 +104,7 @@ constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b)
     return 0;
 
   std::uint64_t result = 1;
-  const std::uint64_t max_uint64 = std::numeric_limits<std::uint64_t>::max();
+  constexpr auto max_uint64 = std::numeric_limits<std::uint64_t>::max();
 
   for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
     if ((a - denom + 1) > max_uint64 / result) {
@@ -159,7 +160,7 @@ constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
   if (n == 0)
     return 0;
   std::vector<std::uint64_t> options((b + 1) * n, 0);
-  const std::uint64_t max_uint64 = std::numeric_limits<std::uint64_t>::max();
+  constexpr auto max_uint64 = std::numeric_limits<std::uint64_t>::max();
 
   // calculate the number of ways to fill slots `pos` and higher using `left`
   // balls, working backward from the end

@@ -29,6 +29,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
   try {
     val = std::stoi(argv[1]);
   } catch (const std::invalid_argument& ie) {
+    (void)ie;
     throw std::invalid_argument(
         std::format("Error parsing number of objects: {}", argv[1]));
   }
@@ -40,6 +41,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
   try {
     val = std::stoi(argv[2]);
   } catch (const std::invalid_argument& ie) {
+    (void)ie;
     throw std::invalid_argument(
         std::format("Error parsing max. throw value: {}", argv[2]));
   }
@@ -90,6 +92,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
           }
           ++i;
         } catch (const std::invalid_argument& ie) {
+          (void)ie;
           // next arg didn't parse as a number; retain it
         }
         if (error.size() > 0) {
@@ -132,6 +135,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
+          (void)ie;
           throw std::invalid_argument(
               std::format("Error parsing excluded throw value: {}", argv[i]));
         }
@@ -167,6 +171,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
+          (void)ie;
           throw std::invalid_argument(
               std::format("Error parsing number of threads: {}", argv[i]));
         }
@@ -188,6 +193,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
         try {
           val = std::stoi(argv[i]);
         } catch (const std::invalid_argument& ie) {
+          (void)ie;
           throw std::invalid_argument(
               std::format("Error parsing pattern period: {}", argv[i]));
         }
@@ -204,6 +210,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
           try {
             val = std::stoi(s1);
           } catch (const std::invalid_argument& ie) {
+            (void)ie;
             throw std::invalid_argument(
                 std::format("Error parsing pattern period: {}", s1));
           }
@@ -217,6 +224,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
           try {
             val = std::stoi(s2);
           } catch (const std::invalid_argument& ie) {
+            (void)ie;
             throw std::invalid_argument(
                 std::format("Error parsing pattern period: {}", s2));
           }

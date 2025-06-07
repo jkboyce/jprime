@@ -10,6 +10,7 @@
 
 #ifndef JPRIME_CUDATYPES_H_
 #define JPRIME_CUDATYPES_H_
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include <array>
 #include <vector>

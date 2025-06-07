@@ -8,6 +8,8 @@
 // This file is distributed under the MIT License.
 //
 
+#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
+
 #include "CoordinatorCPU.h"
 
 #include <iostream>
@@ -131,7 +133,7 @@ void CoordinatorCPU::steal_work()
       break;
     }
 
-    unsigned id = -1;
+    unsigned id = -1u;
     switch (config.steal_alg) {
       case 1:
         id = find_stealing_target_mostremaining();
@@ -602,14 +604,14 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
 
     if (compressed) {
       if (i == root_pos) {
-        ch = '0' + ops.at(i);
+        ch = '0' + static_cast<char>(ops.at(i));
       } else if (throwval == 0 || throwval == config.h) {
         // skip
       } else {
-        ch = '0' + ops.at(i);
+        ch = '0' + static_cast<char>(ops.at(i));
       }
     } else {
-      ch = '0' + ops.at(i);
+      ch = '0' + static_cast<char>(ops.at(i));
     }
 
     if (ch == '\0')
