@@ -50,13 +50,13 @@ option(JPRIME_ENABLE_CUDA "Enable CUDA support for jprime" OFF)
 set(JPRIME_CXX_SOURCES
     src/jprime.cc
     src/jprime_tests.cc
-    src/Coordinator.cc
-    src/Graph.cc
-    src/Pattern.cc
-    src/SearchConfig.cc
-    src/SearchContext.cc
-    src/State.cc
-    src/WorkAssignment.cc
+    src/common/Coordinator.cc
+    src/common/Graph.cc
+    src/common/Pattern.cc
+    src/common/SearchConfig.cc
+    src/common/SearchContext.cc
+    src/common/State.cc
+    src/common/WorkAssignment.cc
     src/cpu/CoordinatorCPU.cc
     src/cpu/Worker.cc
     src/cpu/GenLoopsRecursive.cc
@@ -65,7 +65,7 @@ set(JPRIME_CXX_SOURCES
 
 # Base include directories for C++
 set(JPRIME_BASE_INCLUDE_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu
 )
 
