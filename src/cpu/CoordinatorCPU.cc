@@ -193,7 +193,10 @@ unsigned CoordinatorCPU::find_stealing_target_mostremaining() const
 
 void CoordinatorCPU::collect_status()
 {
-  if (!config.statusflag || ++stats_counter < WAITS_PER_STATUS)
+  if (!config.statusflag)
+    return;
+  const auto now = std::chrono::high_resolution_clock::now();
+  if (calc_duration_secs(last_status_time, now) < SECS_PER_STATUS)
     return;
 
   status_lines.assign(config.num_threads + 2, "IDLE");
@@ -216,7 +219,6 @@ void CoordinatorCPU::collect_status()
   ss << "    period";
   status_lines.at(1) = ss.str();
 
-  stats_counter = 0;
   stats_received = 0;
   for (unsigned id = 0; id < config.num_threads; ++id) {
     MessageC2W msg;

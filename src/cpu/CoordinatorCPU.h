@@ -51,10 +51,7 @@ class CoordinatorCPU : public Coordinator {
 
   // live status display
   static constexpr double SECS_PER_STATUS = 1;
-  static constexpr int WAITS_PER_STATUS = static_cast<int>(1e9 *
-      SECS_PER_STATUS / NANOSECS_PER_INBOX_CHECK);
   static constexpr int STATUS_WIDTH = 55;
-  unsigned stats_counter = 0;
   unsigned stats_received = 0;
   std::vector<std::vector<unsigned>> worker_options_left_start;
   std::vector<std::vector<unsigned>> worker_options_left_current;
