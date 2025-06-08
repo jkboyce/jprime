@@ -101,11 +101,11 @@ void CoordinatorCPU::give_assignments()
     }
 
     if (config.verboseflag) {
-      erase_status_output();
-      jpout << std::format("worker {} given work ({} idle):\n  ", id,
+      std::ostringstream buffer;
+      buffer << std::format("worker {} given work ({} idle):\n  ", id,
                  workers_idle.size())
-            << msg.assignment << std::endl;
-      print_status_output();
+             << msg.assignment;
+      print_string(buffer.str());
     }
   }
 }
@@ -122,11 +122,8 @@ void CoordinatorCPU::steal_work()
     // are no active workers to take work from
     if (workers_idle.size() + workers_splitting.size() == config.num_threads) {
       if (config.verboseflag && sent_split_request) {
-        erase_status_output();
-        jpout << std::format("could not steal work ({} idle)",
-                   workers_idle.size())
-              << std::endl;
-        print_status_output();
+        print_string(std::format("could not steal work ({} idle)",
+            workers_idle.size()));
       }
       break;
     }
@@ -146,12 +143,9 @@ void CoordinatorCPU::steal_work()
     sent_split_request = true;
 
     if (config.verboseflag) {
-      erase_status_output();
-      jpout << std::format(
-                 "worker {} given work split request ({} splitting)", id,
-                 workers_splitting.size())
-            << std::endl;
-      print_status_output();
+      print_string(std::format(
+        "worker {} given work split request ({} splitting)", id,
+        workers_splitting.size()));
     }
   }
 }
@@ -265,15 +259,15 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
   }
 
   if (config.verboseflag) {
-    erase_status_output();
-    jpout << std::format("worker {} went idle ({} idle)", msg.worker_id,
+    std::ostringstream buffer;
+    buffer << std::format("worker {} went idle ({} idle)", msg.worker_id,
                workers_idle.size());
     if (workers_splitting.count(msg.worker_id) > 0) {
-      jpout << std::format(", removed from splitting queue ({} splitting)",
+      buffer << std::format(", removed from splitting queue ({} splitting)",
                  (workers_splitting.size() - 1));
     }
-    jpout << " on: " << current_time_string() << '\n';
-    print_status_output();
+    buffer << " on: " << current_time_string();
+    print_string(buffer.str());
   }
 
   // If we have a SPLIT_WORK request out for the worker, it will be ignored.
@@ -296,10 +290,10 @@ void CoordinatorCPU::process_returned_work(const MessageW2C& msg)
   record_data_from_message(msg);
 
   if (config.verboseflag) {
-    erase_status_output();
-    jpout << std::format("worker {} returned work:\n  ", msg.worker_id)
-          << msg.assignment << std::endl;
-    print_status_output();
+    std::ostringstream buffer;
+    buffer << std::format("worker {} returned work:\n  ", msg.worker_id)
+           << msg.assignment;
+    print_string(buffer.str());
   }
 }
 
@@ -373,9 +367,7 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
 {
   if (msg.meta.size() > 0) {
     if (config.verboseflag) {
-      erase_status_output();
-      jpout << msg.meta << '\n';
-      print_status_output();
+      print_string(msg.meta);
     }
     return;
   }
@@ -407,28 +399,28 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
 
   if (config.verboseflag &&
       (startstate_changed || endstate_changed || rootpos_changed)) {
-    erase_status_output();
     bool comma = false;
-    jpout << "worker " << msg.worker_id;
+    std::ostringstream buffer;
+    buffer << "worker " << msg.worker_id;
     if (startstate_changed) {
-      jpout << " new start_state " << msg.start_state;
+      buffer << " new start_state " << msg.start_state;
       comma = true;
     }
     if (endstate_changed) {
       if (comma) {
-        jpout << ',';
+        buffer << ',';
       }
-      jpout << " new end_state " << msg.end_state;
+      buffer << " new end_state " << msg.end_state;
       comma = true;
     }
     if (rootpos_changed) {
       if (comma) {
-        jpout << ',';
+        buffer << ',';
       }
-      jpout << " new root_pos " << msg.root_pos;
+      buffer << " new root_pos " << msg.root_pos;
     }
-    jpout << " on: " << current_time_string() << '\n';
-    print_status_output();
+    buffer << " on: " << current_time_string();
+    print_string(buffer.str());
   }
 }
 
@@ -442,12 +434,14 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
 void CoordinatorCPU::start_workers()
 {
   if (config.verboseflag) {
-    jpout << "Started on: " << current_time_string() << '\n';
+    std::ostringstream buffer;
+    buffer << "Started on: " << current_time_string();
+    print_string(buffer.str());
   }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
     if (config.verboseflag) {
-      jpout << std::format("worker {} starting...", id) << std::endl;
+      print_string(std::format("worker {} starting...", id));
     }
 
     worker.push_back(std::make_unique<Worker>(config, *this, graph, id, n_max));
@@ -480,7 +474,7 @@ void CoordinatorCPU::stop_workers()
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      jpout << std::format("worker {} asked to stop", id) << std::endl;
+      print_string(std::format("worker {} asked to stop", id));
     }
 
     worker_thread.at(id)->join();

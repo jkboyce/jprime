@@ -577,11 +577,9 @@ void CoordinatorCUDA::allocate_memory()
 void CoordinatorCUDA::copy_graph_to_gpu()
 {
   if (config.verboseflag) {
-    erase_status_output();
-    jpout << std::format("  placing graph into {} memory ({} bytes)\n",
+    print_string(std::format("  placing graph into {} memory ({} bytes)",
                (ptrs.graphmatrix_d != nullptr ? "device" : "constant"),
-               sizeof(statenum_t) * graph_buffer.size());
-    print_status_output();
+               sizeof(statenum_t) * graph_buffer.size()));
   }
   throw_on_cuda_error(
       cudaMemcpy(ptrs.graphmatrix_d != nullptr ? ptrs.graphmatrix_d :
@@ -1256,19 +1254,17 @@ CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
 void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
       double host_time)
 {
+  // some housekeeping before the status display
   const auto& summary_afterB = summary_after[bankB];
   const auto& summary_beforeA = summary_before[1 - bankB];
-
   njobs += (summary_afterB.workers_idle.size() -
       summary_before[bankB].workers_idle.size());
 
   if (config.verboseflag) {
-    erase_status_output();
-    jpout << std::format(
-        "kernel = {:.3}, host = {:.3}, startup = {}, busy = {}\n",
+    print_string(std::format(
+        "kernel = {:.3}, host = {:.3}, startup = {}, busy = {}",
         kernel_time, host_time, summary_afterB.cycles_startup,
-        config.num_threads - summary_afterB.workers_idle.size());
-    print_status_output();
+        config.num_threads - summary_afterB.workers_idle.size()));
   }
 
   if (!config.statusflag)

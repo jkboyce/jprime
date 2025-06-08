@@ -51,13 +51,13 @@ class Coordinator {
   SearchContext& context;
   std::ostream& jpout;  // all console output goes here except status display
   Graph graph;
-  SearchAlgorithm alg;
+  SearchAlgorithm alg = SearchAlgorithm::NONE;
   std::vector<int> max_length;
   unsigned n_max = 0;  // max pattern period to find
 
   // live status display
   std::vector<std::string> status_lines;
-  int status_line_count_last = 0;
+  int status_lines_displayed = 0;
   bool status_printed = false;
 
   static volatile sig_atomic_t stopping;  // to handle ctrl-c
@@ -82,6 +82,7 @@ class Coordinator {
   // handle terminal output
   void print_search_description() const;
   void print_results() const;
+  void print_string(const std::string& s);
   void erase_status_output();
   void print_status_output();
   static std::string current_time_string();

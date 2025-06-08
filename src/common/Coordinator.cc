@@ -97,6 +97,7 @@ bool Coordinator::run()
   context.secs_available += runtime * config.num_threads;
 
   erase_status_output();
+  std::flush(std::cout);
   if (config.verboseflag) {
     jpout << "Finished on: " << current_time_string() << '\n';
   }
@@ -598,15 +599,29 @@ void Coordinator::print_results() const
   }
 }
 
+// Send a string to the terminal output.
+
+void Coordinator::print_string(const std::string& s)
+{
+  if (config.statusflag && status_printed &&
+      jpout.rdbuf() == std::cout.rdbuf()) {
+    erase_status_output();
+    jpout << s << '\n';
+    print_status_output();
+  } else {
+    jpout << s << std::endl;
+  }
+}
+
 void Coordinator::erase_status_output()
 {
   if (!config.statusflag || !status_printed)
     return;
-  for (int i = 0; i < status_line_count_last; ++i) {
+  for (int i = 0; i < status_lines_displayed; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";
   }
-  status_line_count_last = 0;
+  status_lines_displayed = 0;
 }
 
 void Coordinator::print_status_output()
@@ -614,11 +629,11 @@ void Coordinator::print_status_output()
   if (!config.statusflag)
     return;
 
-  status_line_count_last = 0;
+  assert(status_lines_displayed == 0);
   status_printed = true;
   for (const std::string& line : status_lines) {
     std::cout << line << '\n';
-    ++status_line_count_last;
+    ++status_lines_displayed;
   }
   std::flush(std::cout);
 }
@@ -641,9 +656,7 @@ void Coordinator::process_search_result(const std::string& pattern)
   context.patterns.push_back(pattern);
 
   if (config.printflag) {
-    erase_status_output();
-    jpout << pattern << '\n';
-    print_status_output();
+    print_string(pattern);
   }
 }
 
