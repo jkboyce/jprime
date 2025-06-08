@@ -8,8 +8,6 @@
 // This file is distributed under the MIT License.
 //
 
-#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
-
 #include "CoordinatorCPU.h"
 
 #include <iostream>

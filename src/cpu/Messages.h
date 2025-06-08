@@ -11,7 +11,6 @@
 
 #ifndef JPRIME_MESSAGES_H_
 #define JPRIME_MESSAGES_H_
-#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include "WorkAssignment.h"
 

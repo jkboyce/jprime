@@ -12,8 +12,6 @@
 // This file is distributed under the MIT License.
 //
 
-#pragma warning(disable:4996)  // MSVC ctime warning
-
 #include "Coordinator.h"
 #include "CoordinatorCPU.h"
 #ifdef CUDA_ENABLED

@@ -10,7 +10,6 @@
 
 #ifndef JPRIME_GRAPH_H_
 #define JPRIME_GRAPH_H_
-#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
 
 #include "State.h"
 

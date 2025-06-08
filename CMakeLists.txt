@@ -81,6 +81,12 @@ if(MSVC)
     # MSVC-specific C++ compiler flags
     # /W4 is similar to -Wall, /EHsc is for exception handling
     target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4 /EHsc>)
+    # disable MSVC warnings:
+    #   C4127 -- conditional expression is constant
+    #   C4146 -- unary minus applied to unsigned type
+    #   C4996 -- 'ctime' may be unsafe
+    target_compile_options(jprime PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4127 /wd4146 /wd4996>)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         # /O2 is the standard optimization for release builds
         target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/O2>)
@@ -143,6 +149,12 @@ if(JPRIME_ENABLE_CUDA)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         list(APPEND JPRIME_CUDA_CU_FLAGS "-g")
     endif()
+
+    # Add host-compiler specific flags for nvcc
+    if(MSVC)
+        list(APPEND JPRIME_CUDA_CU_FLAGS -Xcompiler "/wd4146")
+    endif()
+
     target_compile_options(jprime PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:${JPRIME_CUDA_CU_FLAGS}>
     )

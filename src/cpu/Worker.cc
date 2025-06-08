@@ -12,8 +12,6 @@
 // This file is distributed under the MIT License.
 //
 
-#pragma warning(disable:4146)  // MSVC unary minus applied to unsigned type
-
 #include "Worker.h"
 #include "CoordinatorCPU.h"
 #include "Pattern.h"

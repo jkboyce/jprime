@@ -10,8 +10,6 @@
 // This file is distributed under the MIT License.
 //
 
-#pragma warning(disable:4127)  // MSVC conditional expression is constant
-
 #include "Worker.h"
 
 #include <iostream>
