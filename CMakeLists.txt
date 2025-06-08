@@ -110,10 +110,11 @@ endif()
 if(JPRIME_ENABLE_CUDA)
     message(STATUS "JPRIME_ENABLE_CUDA is ON. Configuring CUDA support.")
 
-    # Set CUDA architectures
-    # -gencode arch=compute_60,code=compute_60  => PTX for 6.0
-    # -gencode arch=compute_89,code=sm_89       => PTX for 8.9 + SASS for 8.9
-    set_property(TARGET jprime PROPERTY CUDA_ARCHITECTURES 60-virtual 89)
+    # Set CUDA architectures:
+    # PTX + SASS for 8.9 (RTX 4000 series)
+    # PTX + SASS for 12.0 (RTX 5000 series)
+    # PTX for 6.0 (everything else)
+    set_property(TARGET jprime PROPERTY CUDA_ARCHITECTURES 89 120 60-virtual)
 
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
