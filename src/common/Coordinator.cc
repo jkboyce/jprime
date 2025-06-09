@@ -617,6 +617,7 @@ void Coordinator::erase_status_output()
 {
   if (!config.statusflag || !status_printed)
     return;
+  assert(status_lines_displayed != 0);
   for (int i = 0; i < status_lines_displayed; ++i) {
     std::cout << '\x1B' << "[1A"
               << '\x1B' << "[2K";

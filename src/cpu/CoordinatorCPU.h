@@ -58,6 +58,7 @@ class CoordinatorCPU : public Coordinator {
   std::vector<unsigned> longest_by_worker_ever;
   std::vector<unsigned> longest_by_worker_current;
   jptimer_t last_status_time;
+  double status_interval = 0;
   uint64_t last_nnodes = 0;
   uint64_t last_ntotal = 0;
 

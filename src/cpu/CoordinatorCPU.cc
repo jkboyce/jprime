@@ -193,28 +193,31 @@ void CoordinatorCPU::collect_status()
   if (calc_duration_secs(last_status_time, now) < SECS_PER_STATUS)
     return;
 
-  status_lines.assign(config.num_threads + 2, "IDLE");
-  status_lines.at(0) = "Status on: " + current_time_string();
+  status_interval = calc_duration_secs(last_status_time, now);
+  last_status_time = now;
 
-  std::ostringstream ss;
+  status_lines.resize(config.num_threads + 3);
+  status_lines.at(0) = "Status on: " + current_time_string();
+  std::ostringstream buffer;
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
       && n_max > 3 * STATUS_WIDTH);
-  ss << " cur/ end  rp options remaining at position";
+  buffer << " cur/ end  rp options remaining at position";
   if (compressed) {
-    ss << " (compressed view)";
+    buffer << " (compressed view)";
     for (int i = 47; i < STATUS_WIDTH; ++i) {
-      ss << ' ';
+      buffer << ' ';
     }
   } else {
     for (int i = 29; i < STATUS_WIDTH; ++i) {
-      ss << ' ';
+      buffer << ' ';
     }
   }
-  ss << "    period";
-  status_lines.at(1) = ss.str();
+  buffer << "    period";
+  status_lines.at(1) = buffer.str();
 
   stats_received = 0;
   for (unsigned id = 0; id < config.num_threads; ++id) {
+    status_lines.at(id + 2) = "   ?/   ?   ? ?";  // should never display
     MessageC2W msg;
     msg.type = MessageC2W::Type::SEND_STATS;
     message_worker(msg, id);
@@ -310,6 +313,8 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
     return;
 
   status_lines.at(msg.worker_id + 2) = make_worker_status(msg);
+
+  assert(stats_received < config.num_threads);
   if (++stats_received != config.num_threads)
     return;
 
@@ -333,24 +338,20 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
     }
   };
 
-  const auto status_time = std::chrono::high_resolution_clock::now();
-  const double elapsed = calc_duration_secs(last_status_time, status_time);
   const double nodespersec =
-      static_cast<double>(context.nnodes - last_nnodes) / elapsed;
+      static_cast<double>(context.nnodes - last_nnodes) / status_interval;
   const double patspersec =
-      static_cast<double>(context.ntotal - last_ntotal) / elapsed;
-
-  last_status_time = status_time;
+      static_cast<double>(context.ntotal - last_ntotal) / status_interval;
   last_nnodes = context.nnodes;
   last_ntotal = context.ntotal;
 
-  status_lines.push_back(std::format(
+  status_lines.at(config.num_threads + 2) = std::format(
     "jobs:{:8}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
     config.num_threads - workers_idle.size() + context.assignments.size(),
     format2(nodespersec),
     format2(patspersec),
     context.npatterns
-  ));
+  );
 
   erase_status_output();
   print_status_output();
