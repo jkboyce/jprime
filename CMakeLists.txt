@@ -78,7 +78,7 @@ target_include_directories(jprime PRIVATE ${JPRIME_BASE_INCLUDE_DIRS})
 
 # Common C++ compile flags
 if(MSVC)
-    # MSVC-specific C++ compiler flags
+    # MSVC specific C++ compiler flags
     # /W4 is similar to -Wall, /EHsc is for exception handling
     target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4 /EHsc>)
     # disable MSVC warnings:
@@ -106,11 +106,10 @@ else()
     endif()
 endif()
 
-# CUDA configuration (if enabled)
 if(JPRIME_ENABLE_CUDA)
     message(STATUS "JPRIME_ENABLE_CUDA is ON. Configuring CUDA support.")
 
-    # Set CUDA architectures:
+    # Set target CUDA architectures:
     # PTX + SASS for 8.9 (RTX 4000 series)
     # PTX + SASS for 12.0 (RTX 5000 series)
     # PTX for 6.0 (everything else)
@@ -118,8 +117,8 @@ if(JPRIME_ENABLE_CUDA)
 
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
-    message(STATUS "Found CUDAToolkit version ${CUDAToolkit_VERSION}")
-    message(STATUS "  CUDAToolkit /bin: ${CUDAToolkit_BIN_DIR}")
+    message(STATUS "Found CUDA Toolkit version ${CUDAToolkit_VERSION}")
+    message(STATUS "CUDA Toolkit bin: ${CUDAToolkit_BIN_DIR}")
 
     # Add CUDA-specific C++ source files (compiled as CXX with CUDA context)
     target_sources(jprime PRIVATE src/cuda/CoordinatorCUDA.cc)
@@ -142,16 +141,12 @@ if(JPRIME_ENABLE_CUDA)
     set(CMAKE_CUDA_EXTENSIONS OFF)
 
     # CUDA-specific compiler flags for .cu files
-    set(JPRIME_CUDA_CU_FLAGS
-        "-O3"
-        "-lineinfo"
-        "-Wno-deprecated-gpu-targets"
-    )
+    set(JPRIME_CUDA_CU_FLAGS "-O3" "-lineinfo" "-Wno-deprecated-gpu-targets")
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         list(APPEND JPRIME_CUDA_CU_FLAGS "-g")
     endif()
 
-    # Add host-compiler specific flags for nvcc
+    # Host-compiler specific flags for nvcc
     if(MSVC)
         list(APPEND JPRIME_CUDA_CU_FLAGS -Xcompiler "/wd4146")
     endif()
