@@ -184,9 +184,10 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
     std::tie(excludestates_throw, excludestates_catch) =
         graph.get_exclude_states();
   }
-  uint32_t exclude_offset = graph.numstates * (graph.maxoutdegree + 4);
+  uint32_t exclude_offset = graph.numstates * (graph.maxoutdegree + 5);
 
   for (unsigned i = 1; i <= graph.numstates; ++i) {
+    // state numbers for outgoing links
     for (unsigned j = 0; j < graph.maxoutdegree; ++j) {
       if (j < graph.outdegree.at(i)) {
         buffer.push_back(static_cast<statenum_t>(graph.outmatrix.at(i).at(j)));
@@ -195,7 +196,17 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
       }
     }
 
-    // add extra column(s) with needed information
+    // cycle number, for modes that need it
+    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
+      buffer.push_back(static_cast<statenum_t>(graph.cyclenum.at(i)));
+    }
+
+    // downstream state, to identify link throws in MARKING mode
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
+      buffer.push_back(static_case<statenum_t>(graph.downstream_state(i));
+    }
+
+    // excluded states, in MARKING mode
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
       if (excludestates_throw.at(i).at(0) == 0) {
         buffer.push_back(0);
@@ -226,14 +237,11 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         }
       }
     }
-
-    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
-      buffer.push_back(static_cast<statenum_t>(graph.cyclenum.at(i)));
-    }
   }
 
+  // append the exclude buffer, in MARKING mode
   if (alg == SearchAlgorithm::NORMAL_MARKING) {
-    assert(buffer.size() == graph.numstates * (graph.maxoutdegree + 4));
+    assert(buffer.size() == graph.numstates * (graph.maxoutdegree + 5));
     buffer.insert(buffer.end(), exclude_buffer.begin(),
         exclude_buffer.end());
   }
@@ -426,35 +434,34 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
 size_t CoordinatorCUDA::calc_shared_memory_size(unsigned nmax,
     const CudaRuntimeParams& p)
 {
+  assert(alg != SearchAlgorithm::NONE);
   size_t shared_bytes = 0;
 
-  switch (alg) {
-    case SearchAlgorithm::NORMAL:
-      if (p.used_in_shared) {
-        // used[] as bitfields in shared memory
-        shared_bytes += ((p.num_threadsperblock + 31) / 32) *
-            sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
-      }
-      break;
-    case SearchAlgorithm::SUPER:
-      if (p.used_in_shared) {
-        // used[]
-        shared_bytes += ((p.num_threadsperblock + 31) / 32) *
-            sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
-      }
-      [[fallthrough]];
-    case SearchAlgorithm::SUPER0:
-      if (p.used_in_shared) {
-        // cycleused[]
-        shared_bytes += ((p.num_threadsperblock + 31) / 32) *
-            sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
-        // isexitcycle[]
-        shared_bytes += ((p.num_threadsperblock + 31) / 32) *
-            sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
-      }
-      break;
-    default:
-      break;
+  if (alg != SearchAlgorithm::SUPER0) {
+    if (p.used_in_shared) {
+      // used[] (1 bit/state)
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
+    }
+  }
+
+  if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    if (p.used_in_shared) {
+      // deadstates[] (8 bits/cycle)
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
+    }
+  }
+
+  if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
+    if (p.used_in_shared) {
+      // cycleused[] (1 bit/cycle)
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+      // isexitcycle[] (1 bit/cycle)
+      shared_bytes += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+    }
   }
 
   if (p.window_lower < p.window_upper && p.window_lower < nmax) {
@@ -487,40 +494,38 @@ void CoordinatorCUDA::allocate_memory()
           __FILE__, __LINE__);
     }
   }
+
   if (graph_buffer.size() * sizeof(statenum_t) > 65536) {
     // graph doesn't fit in constant memory
     throw_on_cuda_error(
         cudaMalloc(&(ptrs.graphmatrix_d),
         graph_buffer.size() * sizeof(statenum_t)), __FILE__, __LINE__);
   }
+
   if (!params.used_in_shared) {
-    // put used[], cycleused[], and isexitcycle[] arrays in device memory
+    // used[], deadstates[], cycleused[], and isexitcycle[] in device memory
     size_t used_size = 0;
-    switch (alg) {
-      case SearchAlgorithm::NORMAL:
-        // used[] only
-        used_size += params.num_blocks *
-            ((params.num_threadsperblock + 31) / 32) *
-            (((graph.numstates + 1) + 31) / 32) * sizeof(ThreadStorageUsed);
-        break;
-      case SearchAlgorithm::SUPER:
-        // used[] not needed for SUPER0
-        used_size += params.num_blocks *
-            ((params.num_threadsperblock + 31) / 32) *
-            (((graph.numstates + 1) + 31) / 32) * sizeof(ThreadStorageUsed);
-        [[fallthrough]];
-      case SearchAlgorithm::SUPER0:
-        // cycleused[] and isexitcycle[]
-        used_size += params.num_blocks *
-            ((params.num_threadsperblock + 31) / 32) *
-            ((graph.numcycles + 31) / 32) * sizeof(ThreadStorageUsed);
-        used_size += params.num_blocks *
-            ((params.num_threadsperblock + 31) / 32) *
-            ((graph.numcycles + 31) / 32) * sizeof(ThreadStorageUsed);
-        break;
-      default:
-        break;
+    if (alg != SearchAlgorithm::SUPER0) {
+      // used[] (1 bit/state)
+      used_size += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
     }
+
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
+      // deadstates[] (8 bits/cycle)
+      used_size += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
+    }
+
+    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
+      // cycleused[] (1 bit/cycle)
+      used_size += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+      // isexitcycle[] (1 bit/cycle)
+      used_size += ((p.num_threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+    }
+
     if (used_size != 0) {
       if (config.verboseflag) {
         jpout << "  allocating used[] in device memory (" << used_size
