@@ -426,7 +426,7 @@ __global__ void cuda_gen_loops_normal_marking(
     statenum_t to_state = 0;
 
     if (wc->col == wc->col_limit || (to_state =
-          graphmatrix[(from_state - 1) * (outdegree + 5) + wc->col]) == 0) {
+          graphmatrix[(from_state - 1) * (outdegree + 6) + wc->col]) == 0) {
       // beat is finished, go back to previous one
       used[from_state / 32].data &= ~(1u << (from_state & 31));
       ++nnodes;
