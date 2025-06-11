@@ -203,7 +203,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
     // downstream state, to identify link throws in MARKING mode
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
-      buffer.push_back(static_case<statenum_t>(graph.downstream_state(i));
+      buffer.push_back(static_cast<statenum_t>(graph.downstream_state(i)));
     }
 
     // excluded states, in MARKING mode
@@ -437,24 +437,20 @@ size_t CoordinatorCUDA::calc_shared_memory_size(unsigned nmax,
   assert(alg != SearchAlgorithm::NONE);
   size_t shared_bytes = 0;
 
-  if (alg != SearchAlgorithm::SUPER0) {
-    if (p.used_in_shared) {
+  if (p.used_in_shared) {
+    if (alg != SearchAlgorithm::SUPER0) {
       // used[] (1 bit/state)
       shared_bytes += ((p.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
     }
-  }
 
-  if (alg == SearchAlgorithm::NORMAL_MARKING) {
-    if (p.used_in_shared) {
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
       // deadstates[] (8 bits/cycle)
       shared_bytes += ((p.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
     }
-  }
 
-  if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
-    if (p.used_in_shared) {
+    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
       // cycleused[] (1 bit/cycle)
       shared_bytes += ((p.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
@@ -507,22 +503,26 @@ void CoordinatorCUDA::allocate_memory()
     size_t used_size = 0;
     if (alg != SearchAlgorithm::SUPER0) {
       // used[] (1 bit/state)
-      used_size += ((p.num_threadsperblock + 31) / 32) *
+      used_size += params.num_blocks *
+          ((params.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
     }
 
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
       // deadstates[] (8 bits/cycle)
-      used_size += ((p.num_threadsperblock + 31) / 32) *
+      used_size += params.num_blocks *
+          ((params.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
     }
 
     if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
       // cycleused[] (1 bit/cycle)
-      used_size += ((p.num_threadsperblock + 31) / 32) *
+      used_size += params.num_blocks *
+          ((params.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
       // isexitcycle[] (1 bit/cycle)
-      used_size += ((p.num_threadsperblock + 31) / 32) *
+      used_size += params.num_blocks *
+          ((params.num_threadsperblock + 31) / 32) *
           sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
     }
 
