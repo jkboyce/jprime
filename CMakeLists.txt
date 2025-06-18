@@ -164,10 +164,9 @@ else()
         "JPRIME_ENABLE_CUDA is OFF. Building CPU-only version of jprime.")
 endif()
 
-
 # Testing
 enable_testing()
-foreach(test_num RANGE 1 16)
+foreach(test_num RANGE 1 17)
     add_test(
         NAME JPrimeTest${test_num}
         COMMAND $<TARGET_FILE:jprime> -test ${test_num}
