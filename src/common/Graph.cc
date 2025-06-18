@@ -505,6 +505,12 @@ std::tuple<std::vector<std::vector<unsigned>>,
       if (statenum == 0 || statenum == i) {
         break;
       }
+
+      // assert that state numbers are monotonically increasing; see note
+      // on Worker::mark_unreachable_states_throw()
+      assert((j == 0 && statenum > i) ||
+          (j > 0 && statenum > excludestates_throw.at(i).at(j - 1)));
+
       excludestates_throw.at(i).at(j++) = statenum;
       s = s.downstream();
     }
@@ -519,7 +525,8 @@ std::tuple<std::vector<std::vector<unsigned>>,
       if (statenum == 0 || statenum == i) {
         break;
       }
-      assert(statenum > i);  // see comment on mark_unreachable_states_throw()
+      assert((j == 0 && statenum > i) ||
+          (j > 0 && statenum > excludestates_catch.at(i).at(j - 1)));
       excludestates_catch.at(i).at(j++) = statenum;
       s = s.upstream();
     }

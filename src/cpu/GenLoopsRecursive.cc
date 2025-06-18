@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include <format>
+#include <cassert>
 
 
 // Try all allowed throw values at the current pattern position `pos`,
@@ -502,18 +503,21 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 // (b) avoids double-counting the changes to `max_possible`. Any state that
 // gets marked twice, back to used=0, does not affect the search because it
 // cannot be accessed by a future link throw; such states end with 'x' and are
-// only reachable with shift throw `h`.
+// only reachable with a shift throw `h`.
 //
-// NOTE 2: States less than `start_state` are marked used=1 before starting
-// gen_loops(). Is is possible we could flip used[] two more times for such a
-// state via the double-exclusion discussed above? This would bring us back to
-// used=1 and erroneously double-count the changes to `deadstates` and
-// `max_possible`. This cannot happen because of how we've ordered the states:
-// The state numbers in `excludestates_catch[s]` are all greater than s, so a
-// catch to any allowed `s` cannot exclude states below `start_state`. Finally,
-// if a state s < `start_state` is flipped back to used=0 via an
-// `excludestates_throw`, then as noted above that state does not affect the
-// search because it ends with 'x' and isn't reachable by a future link throw.
+// INITIALIZATION: Prior to the start of gen_loops(), we initialize the
+// algorithm by setting used=1 for any state that is a priori unusable. This
+// consists of states < `start_state`, plus any states in their
+// excludestates_throw[] and excludestates_catch[] arrays. We then set
+// deadstates[] and `max_possible` to be consistent with used[]. See
+// Worker::initialize_working_variables().
+//
+// NOTE 2: For the states that are marked used=1 by this initialization
+// procedure, note that none will ever be flipped back to used=0 during pattern
+// construction because of how we've ordered the states: The excludestates[]
+// arrays are monotonically increasing, so for state S to be flipped it would
+// need to be part of an excludestates[] for some state < S. But any such
+// candidate state has been marked used=1 during initialization as well.
 
 inline bool Worker::mark_unreachable_states_throw()
 {
@@ -523,6 +527,9 @@ inline bool Worker::mark_unreachable_states_throw()
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
+    // assert that we aren't flipping one of the unusable states (see note)
+    assert(start_state <= graph.max_startstate_usable.at(statenum));
+
     if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
@@ -550,6 +557,9 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
+    // assert that we aren't flipping one of the unusable states
+    assert(start_state <= graph.max_startstate_usable.at(statenum));
+
     if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;

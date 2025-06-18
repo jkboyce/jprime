@@ -271,8 +271,17 @@ void Worker::send_stats_to_coordinator()
   std::vector<int> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
-  for (size_t i = 0; i < start_state; ++i) {
-    u.at(i) = 1;
+  if (coordinator.get_search_algorithm() ==
+      Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      if (start_state > graph.max_startstate_usable.at(i)) {
+        u.at(i) = 1;
+      }
+    }
+  } else {
+    for (size_t i = 0; i < start_state; ++i) {
+      u.at(i) = 1;
+    }
   }
 
   for (int i = 0; i <= pos; ++i) {
@@ -595,30 +604,74 @@ void Worker::gen_loops()
 void Worker::initialize_working_variables()
 {
   used.assign(graph.numstates + 1, 0);
-  cycleused.assign(graph.numcycles, 0);
-  deadstates.assign(graph.numcycles, 0);
-  deadstates_bystate.assign(graph.numstates + 1, nullptr);
+  pos = 0;
+  from = start_state;
 
-  for (size_t i = 0; i < start_state; ++i) {
-    used.at(i) = 1;
-  }
-
-  for (size_t i = 1; i <= graph.numstates; ++i) {
-    deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
-    if (start_state > graph.max_startstate_usable.at(i)) {
-      (*deadstates_bystate.at(i)) += 1;
+  // initialize `used` and `deadstates`/'deadstates_bystate` (if needed)
+  if (coordinator.get_search_algorithm() ==
+      Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    for (size_t i = 1; i < start_state; ++i) {
+      used.at(i) = 1;
+      for (auto s : excludestates_throw.at(i)) {
+        if (s != 0) {
+          used.at(s) = 1;
+        }
+      }
+      for (auto s : excludestates_catch.at(i)) {
+        if (s != 0) {
+          used.at(s) = 1;
+        }
+      }
     }
+
+    deadstates.assign(graph.numcycles, 0);
+    deadstates_bystate.assign(graph.numstates + 1, nullptr);
+
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      // assert equivalence of two ways of determining unusable graph states
+      assert ((used.at(i) == 1) ==
+          (start_state > graph.max_startstate_usable.at(i)));
+
+      deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
+      if (used.at(i) == 1) {
+        *deadstates_bystate.at(i) += 1;
+      }
+    }
+
+    // compare the method we use to calculate `max_possible` in the GPU to the
+    // value returned by Coordinator::get_max_length()
+    int max_possible_gpu = graph.numstates - graph.numcycles;
+    for (size_t i = 0; i < graph.numcycles; ++i) {
+      if (deadstates.at(i) > 1) {
+        max_possible_gpu -= (deadstates.at(i) - 1);
+      }
+    }
+    (void)max_possible_gpu;
+    assert(max_possible_gpu == max_possible);
+  } else {
+    for (size_t i = 0; i < start_state; ++i) {
+      used.at(i) = 1;
+    }
+
+    /*
+    NOTE: Instead of the above we could use the initialization below, which
+    decreases node count by ~1%. It adds complexity to the GPU code though.
+
+    for (size_t i = 1; i <= graph.numstates; ++i) {
+      if (start_state > graph.max_startstate_usable.at(i)) {
+        used.at(i) = 1;
+      }
+    }
+    */
   }
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    cycleused.assign(graph.numcycles, 0);
+    shiftcount = 0;
     isexitcycle = graph.get_exit_cycles(start_state);
     exitcyclesleft = static_cast<unsigned>(std::count(isexitcycle.cbegin(),
         isexitcycle.cend(), 1));
   }
-
-  pos = 0;
-  from = start_state;
-  shiftcount = 0;
 }
 
 //------------------------------------------------------------------------------
