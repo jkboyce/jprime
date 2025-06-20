@@ -495,6 +495,9 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 //
 // Returns false if `max_possible` falls below `n_min`, indicating we should
 // backtrack from the current position. Returns true otherwise.
+// -----------------------------------------------------------------------------
+//
+// Implementation notes
 //
 // NOTE 1: In some cases it is possible for a state to be excluded twice during
 // the construction of a pattern: Once via a catch, and again via a throw.
