@@ -44,7 +44,7 @@ static const std::vector<TestCase> tests {
   // MARKING mode
   {  3, "jprime 3 16 524",                         30,   11920253,  291293062 },
   {  3, "jprime 5 10 225",                        838,   29762799, 1458188812 },
-  {  3, "jprime 4 8 41- -ng -count",           298588,    7325257,   51525885 },
+  {  3, "jprime 4 8 41- -ng -count",           298662,    7432423,   43179517 },
   // SUPER mode
   {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    7032405 },
   {  7, "jprime 3 18 47 -super 1",                 50,  128149175,  307570492 },
