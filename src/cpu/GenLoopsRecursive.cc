@@ -513,11 +513,24 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 // Worker::initialize_working_variables().
 //
 // NOTE 2: For the states that are marked used=1 by this initialization
-// procedure, note that none will ever be flipped back to used=0 during pattern
-// construction because of how we've ordered the states: The excludestates[]
-// arrays are monotonically increasing, so for state S to be flipped it would
-// need to be part of an excludestates[] for some state < S. But any such
-// candidate state has been marked used=1 during initialization as well.
+// procedure, some can be flipped back to used=0 during subsequent marking
+// operations. However, a state that was excluded as part of an
+// excludestates_catch list for some state < `start_state` can only be flipped
+// by the excludestates_throw list of a subsequent throw – and vice versa. This
+// is because of how we've ordered the states: The excludestates[] arrays are
+// monotonically increasing, so if state S is excluded by, say, the
+// excludestates_throw[] list for some state < `start_state`, then all
+// intermediate states have been marked used=1 as well, so none of the throws
+// that could flip S via a throw will be encountered during pattern
+// construction. A similar argument applies to states excluded by
+// excludestates_catch[]. An implication of this fact is that no state can be
+// flipped two times, back to used=1.
+//
+// NOTE 3: The unusable states that are flipped back to used=0 (per NOTE 2)
+// have a special form because they are in both an excludestates_catch[] list
+// and an excludestates_throw[] list: They start with `-` and end with `x`.
+// As discussed in NOTE 1, such states ending in `x` do not affect subsequent
+// pattern construction.
 
 inline bool Worker::mark_unreachable_states_throw()
 {
@@ -527,8 +540,20 @@ inline bool Worker::mark_unreachable_states_throw()
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    // assert that we aren't flipping one of the unusable states (see note)
-    assert(start_state <= graph.max_startstate_usable.at(statenum));
+    /*if (start_state > graph.max_startstate_usable.at(statenum)) {
+      std::cerr << "Flipping unusable state " << statenum
+                << " (" << graph.state.at(statenum) << ")"
+                << " due to throw from state " << from
+                << " (" << graph.state.at(from) << ")"
+                << "; start_state = " << start_state
+                << " (" << graph.state.at(start_state) << ")\n";
+    }*/
+
+    // assert that if we're flipping one of the unusable states, that it begins
+    // with `-` and ends with `x`
+    assert(start_state <= graph.max_startstate_usable.at(statenum) ||
+        (graph.state.at(statenum).slot(0) == 0 &&
+        graph.state.at(statenum).slot(graph.h - 1) == 1));
 
     if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
@@ -557,8 +582,9 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    // assert that we aren't flipping one of the unusable states
-    assert(start_state <= graph.max_startstate_usable.at(statenum));
+    assert(start_state <= graph.max_startstate_usable.at(statenum) ||
+        (graph.state.at(statenum).slot(0) == 0 &&
+        graph.state.at(statenum).slot(graph.h - 1) == 1));
 
     if ((used[statenum] ^= 1) && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
