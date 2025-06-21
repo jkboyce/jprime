@@ -607,9 +607,10 @@ void Worker::initialize_working_variables()
   pos = 0;
   from = start_state;
 
-  // initialize `used` and `deadstates`/'deadstates_bystate` (if needed)
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    // for a discussion of the MARKING initialization procedure see
+    // Worker::mark_unreachable_states_throw()
     for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;
       for (auto s : excludestates_throw.at(i)) {
