@@ -369,10 +369,11 @@ void Coordinator::select_search_algorithm()
   alg = SearchAlgorithm::NONE;
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    if (config.graphmode == SearchConfig::GraphMode::FULL_GRAPH &&
+    if (static_cast<uint64_t>(graph.numstates) == context.full_numstates &&
         static_cast<double>(config.n_min) >
         0.66 * static_cast<double>(get_max_length(1))) {
-      // the overhead of marking is only worth it for long-period patterns
+      // the overhead of marking is only worth it for long-period patterns, and
+      // the algorithm requires all states to be present in the graph
       alg = SearchAlgorithm::NORMAL_MARKING;
     } else {
       alg = SearchAlgorithm::NORMAL;
