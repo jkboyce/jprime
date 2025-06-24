@@ -26,7 +26,14 @@ struct WorkerInfo {  // 20 bytes
   statenum_t end_state = 0;  // highest value of `start_state` (input)
   int16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
   uint64_t nnodes = 0;  // number of nodes completed (output)
-  uint16_t status = 1;  // bit 0 = is worker done, other bits unused
+
+  uint16_t status = 1;
+  // bit 0:
+  //   1 if worker done, 0 if not done
+  // bits 1/2:
+  //   00 if no error, 01 if error during initialization, 10 if error during
+  //   runtime
+
   uint32_t cycles_startup = 0;  // measured GPU clock cycles to initialize
 };
 
@@ -39,6 +46,8 @@ struct ThreadStorageUsed {  // 128 bytes
   uint32_t data;
   uint32_t unused[31];
 };
+
+static_assert(sizeof(ThreadStorageUsed) == 128, "ThreadStorageUsed size");
 
 
 // storage for a single work cell (single value of `pos`), for 32 threads =
@@ -53,6 +62,9 @@ struct ThreadStorageWorkCell {  // 256 bytes
   uint32_t count;
   uint32_t unused2[31];
 };
+
+static_assert(sizeof(ThreadStorageWorkCell) == 256,
+    "ThreadStorageWorkCell size");
 
 
 // defines how the algorithms map onto the GPU hardware

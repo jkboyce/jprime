@@ -734,6 +734,7 @@ void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank)
 }
 
 // Process the worker counters after a kernel run, and reset to initial values.
+// Also raise an exception if an error was encountered during kernel execution.
 
 void CoordinatorCUDA::process_worker_counters(unsigned bank)
 {
@@ -742,6 +743,21 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank)
   }
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
+    const auto errorcode = wi_h[bank][id].status & 6u;
+    if (errorcode != 0) {
+      ostringstream ss;
+      ss << "bank " << bank << ", worker " << id << ": "
+         << read_work_assignment(bank, id);
+      std::string errorstring = ss.str();
+      if (errorcode == 2) {
+        throw std::runtime_error("Error during initialization: " + errorstring);
+      } else if (errorcode == 4) {
+        throw std::runtime_error("Error during runtime: " + errorstring);
+      } else {
+        throw std::runtime_error("Error (unknown): " + errorstring);
+      }
+    }
+
     context.nnodes += wi_h[bank][id].nnodes;
     wi_h[bank][id].nnodes = 0;
 
@@ -1002,7 +1018,7 @@ void CoordinatorCUDA::gather_unfinished_work_assignments()
         WorkAssignment wa = read_work_assignment(bank, id);
         context.assignments.push_back(wa);
       }
-      wi_h[bank][id].status = 1;
+      wi_h[bank][id].status |= 1;
     }
   }
 }
