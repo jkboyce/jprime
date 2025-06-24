@@ -40,6 +40,162 @@ __device__ uint32_t pattern_index_bank1_d = 0;
 
 
 //------------------------------------------------------------------------------
+// Helper functions
+//------------------------------------------------------------------------------
+
+__device__ __forceinline__ void set_bit(ThreadStorageUsed* arr, unsigned st)
+{
+  arr[st / 32].data |= (1u << (st & 31));
+}
+
+__device__ __forceinline__ void clear_bit(ThreadStorageUsed* arr, unsigned st)
+{
+  arr[st / 32].data &= ~(1u << (st & 31));
+}
+
+__device__ __forceinline__ bool is_bit_set(ThreadStorageUsed* arr, unsigned st)
+{
+  return (arr[st / 32].data & (1u << (st & 31))) != 0;
+}
+
+__device__ __forceinline__ bool mark_throw(statenum_t from_st,
+    statenum_t from_cy, statenum_t* gr, uint8_t od, ThreadStorageUsed* u,
+    ThreadStorageUsed* ds, int& maxp, unsigned nmin)
+{
+  // unusable states in excludestates_throw[]
+  const uint16_t idx_low = gr[(from_st - 1) * (od + 6) + (od + 2)];
+  const uint16_t idx_high = gr[(from_st - 1) * (od + 6) + (od + 3)];
+  uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+  if (idx == 0)
+    return true;
+
+  bool valid = true;
+  statenum_t st = 0;
+
+  while ((st = gr[idx])) {
+    const uint32_t old_used = u[st / 32].data;
+    const uint32_t new_used = old_used ^ (1u << (st & 31));
+    u[st / 32].data = new_used;
+
+    if (new_used > old_used) {
+      const uint32_t mask = static_cast<uint32_t>(255u) << ((from_cy & 3u) * 8);
+      const uint32_t old_ds = (ds[from_cy / 4].data & mask);
+      if (old_ds != 0) {
+        --maxp;
+        if (maxp < static_cast<int>(nmin)) {
+          valid = false;
+        }
+      }
+      ds[from_cy / 4].data += (1u << ((from_cy & 3u) * 8));
+    }
+
+    ++idx;
+  }
+
+  return valid;
+}
+
+__device__ __forceinline__ bool mark_catch(statenum_t to_st,
+    statenum_t to_cy, statenum_t* gr, uint8_t od, ThreadStorageUsed* u,
+    ThreadStorageUsed* ds, int& maxp, unsigned nmin)
+{
+  // unusable states in excludestates_catch[]
+  const uint16_t idx_low = gr[(to_st - 1) * (od + 6) + (od + 4)];
+  const uint16_t idx_high = gr[(to_st - 1) * (od + 6) + (od + 5)];
+  uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+  if (idx == 0)
+    return true;
+
+  bool valid = true;
+  statenum_t st = 0;
+
+  while ((st = gr[idx])) {
+    const uint32_t old_used = u[st / 32].data;
+    const uint32_t new_used = old_used ^ (1u << (st & 31));
+    u[st / 32].data = new_used;
+
+    if (new_used > old_used) {
+      const uint32_t mask = static_cast<uint32_t>(255u) << ((to_cy & 3u) * 8);
+      const uint32_t old_ds = (ds[to_cy / 4].data & mask);
+      if (old_ds != 0) {
+        --maxp;
+        if (maxp < static_cast<int>(nmin)) {
+          valid = false;
+        }
+      }
+      ds[to_cy / 4].data += (1u << ((to_cy & 3u) * 8));
+    }
+
+    ++idx;
+  }
+
+  return valid;
+}
+
+__device__ __forceinline__ void unmark_throw(statenum_t from_st,
+    statenum_t from_cy, statenum_t* gr, uint8_t od, ThreadStorageUsed* u,
+    ThreadStorageUsed* ds, int& maxp, unsigned nmin)
+{
+  // unusable states in excludestates_throw[]
+  const uint16_t idx_low = gr[(from_st - 1) * (od + 6) + (od + 2)];
+  const uint16_t idx_high = gr[(from_st - 1) * (od + 6) + (od + 3)];
+  uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+  if (idx == 0)
+    return;
+
+  statenum_t st = 0;
+
+  while ((st = gr[idx])) {
+    const uint32_t old_used = u[st / 32].data;
+    const uint32_t new_used = old_used ^ (1u << (st & 31));
+    u[st / 32].data = new_used;
+
+    if (new_used < old_used) {
+      const uint32_t new_ds = ds[from_cy / 4].data -
+          (1u << ((from_cy & 3u) * 8));
+      const uint32_t mask = static_cast<uint32_t>(255u) << ((from_cy & 3u) * 8);
+      if ((new_ds & mask) != 0) {
+        ++maxp;
+      }
+      ds[from_cy / 4].data = new_ds;
+    }
+
+    ++idx;
+  }
+}
+
+__device__ __forceinline__ void unmark_catch(statenum_t to_st,
+    statenum_t to_cy, statenum_t* gr, uint8_t od, ThreadStorageUsed* u,
+    ThreadStorageUsed* ds, int& maxp, unsigned nmin)
+{
+  // unusable states in excludestates_catch[]
+  const uint16_t idx_low = gr[(to_st - 1) * (od + 6) + (od + 4)];
+  const uint16_t idx_high = gr[(to_st - 1) * (od + 6) + (od + 5)];
+  uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+  if (idx == 0)
+    return;
+
+  statenum_t st = 0;
+
+  while ((st = gr[idx])) {
+    const uint32_t old_used = u[st / 32].data;
+    const uint32_t new_used = old_used ^ (1u << (st & 31));
+    u[st / 32].data = new_used;
+
+    if (new_used < old_used) {
+      const uint32_t new_ds = ds[to_cy / 4].data - (1u << ((to_cy & 3u) * 8));
+      const uint32_t mask = static_cast<uint32_t>(255u) << ((to_cy & 3u) * 8);
+      if ((new_ds & mask) != 0) {
+        ++maxp;
+      }
+      ds[to_cy / 4].data = new_ds;
+    }
+
+    ++idx;
+  }
+}
+
+//------------------------------------------------------------------------------
 // NORMAL mode
 //------------------------------------------------------------------------------
 
@@ -137,29 +293,36 @@ __global__ void cuda_gen_loops_normal(
       (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
       &workcell_d[pos_upper_s] : nullptr;
 
-  // starting a new value of `start_state`
+  // set up working variables --------------------------------------------------
+
   if (pos == -1) {
-    pos = 0;
+    pos = 0;  // starting a new value of `start_state`
   }
 
-  // initialize used[]
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
   }
-  for (int i = 0; i < st_state; ++i) {
-    used[i / 32].data |= (1u << (i & 31));
-  }
-  for (int i = 1; i <= pos; ++i) {
-    const statenum_t from_state = workcell_d[i].from_state;
-    used[from_state / 32].data |= (1u << (from_state & 31));
+  for (int i = 1; i < st_state; ++i) {
+    set_bit(used, i);
   }
 
-  // initialize current workcell pointer
+  // replay partial pattern ----------------------------------------------------
+
+  for (int i = 0; i < pos; ++i) {
+    const statenum_t to_st = workcell_d[i + 1].from_state;
+    if (is_bit_set(used, to_st)) {
+      wi_d[id].status |= 2;  // initialization error
+      return;
+    }
+    set_bit(used, to_st);
+  }
+
+  // current workcell pointer
   ThreadStorageWorkCell* wc =
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
-
   unsigned from_state = wc->from_state;
+
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
@@ -172,7 +335,7 @@ __global__ void cuda_gen_loops_normal(
     if (wc->col == wc->col_limit || (to_state =
           graphmatrix[(from_state - 1) * outdegree + wc->col]) == 0) {
       // beat is finished, go back to previous one
-      used[from_state / 32].data &= ~(1u << (from_state & 31));
+      clear_bit(used, from_state);
       ++nnodes;
 
       if (pos == 0) {
@@ -220,7 +383,7 @@ __global__ void cuda_gen_loops_normal(
       continue;
     }
 
-    if (used[to_state / 32].data & (1u << (to_state & 31))) {
+    if (is_bit_set(used, to_state)) {
       ++wc->col;
       continue;
     }
@@ -236,7 +399,7 @@ __global__ void cuda_gen_loops_normal(
     if (clock64() > end_clock)
       break;
 
-    used[to_state / 32].data |= (1u << (to_state & 31));
+    set_bit(used, to_state);
 
     ++pos;
     if (wc == workcell_pos_lower_minus1) {
@@ -302,7 +465,7 @@ __global__ void cuda_gen_loops_normal_marking(
         &warp_start_u32[id & 31]);
   }
 
-    // arrays that are in device memory or shared memory
+  // arrays that are in device memory or shared memory
   ThreadStorageUsed* used = nullptr;
   ThreadStorageUsed* deadstates = nullptr;
 
@@ -385,37 +548,110 @@ __global__ void cuda_gen_loops_normal_marking(
       (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
       &workcell_d[pos_upper_s] : nullptr;
 
-  // starting a new value of `start_state`
+  // set up working variables --------------------------------------------------
+
   if (pos == -1) {
-    pos = 0;
+    pos = 0;  // starting a new value of `start_state`
   }
 
-  // initialize used[]
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
   }
-  for (int i = 0; i < st_state; ++i) {
-    used[i / 32].data |= (1u << (i & 31));
+  for (int i = 1; i < st_state; ++i) {
+    set_bit(used, i);
+
+    // unusable states in excludestates_throw[]
+    uint16_t idx_low =
+        graphmatrix[(i - 1) * (outdegree + 6) + (outdegree + 2)];
+    uint16_t idx_high =
+        graphmatrix[(i - 1) * (outdegree + 6) + (outdegree + 3)];
+    uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+    if (idx != 0) {
+      while (true) {
+        const statnum_t st = graphmatrix[idx];
+        if (st == 0)
+          break;
+        set_bit(used, st);
+        ++idx;
+      }
+    }
+
+    // unusable states in excludestates_catch[]
+    idx_low = graphmatrix[(i - 1) * (outdegree + 6) + (outdegree + 4)];
+    idx_high = graphmatrix[(i - 1) * (outdegree + 6) + (outdegree + 5)];
+    idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
+    if (idx != 0) {
+      while (true) {
+        const statnum_t st = graphmatrix[idx];
+        if (st == 0)
+          break;
+        set_bit(used, st);
+        ++idx;
+      }
+    }
   }
 
-  // initialize deadstates[]
+  // initialize deadstates[] and maxpossible
   for (unsigned i = 0; i < ((numcycles_d + 3) / 4); ++i) {
     deadstates[i].data = 0;
   }
-
-  // TODO: mark excluded states here
-  // TODO: initialize deadstates[] and maxpossible
-  for (int i = 1; i <= pos; ++i) {
-    const statenum_t from_state = workcell_d[i].from_state;
-    used[from_state / 32].data |= (1u << (from_state & 31));
+  for (unsigned i = 1; i <= numstates_d; ++i) {
+    if (is_bit_set(used, i)) {
+      const auto cyclenum =
+          graphmatrix[(i - 1) * (outdegree + 6) + (outdegree)];
+      const uint32_t mask = static_cast<uint32_t>(1u) << ((cyclenum & 3u) * 8);
+      deadstates[cyclenum / 4].data += mask;
+    }
   }
 
-  // initialize current workcell pointer
+  int max_possible = numstates_d - numcycles_d;
+  for (unsigned i = 0; i < graph.numcycles; ++i) {
+    const uint32_t mask = static_cast<uint32_t>(255u) << ((i & 3u) * 8);
+    const uint32_t ds = (deadstates[i / 4].data & mask) >> ((i & 3u) * 8);
+    if (ds > 1) {
+      max_possible -= (static_cast<int>(ds) - 1);
+    }
+  }
+
+  // replay partial pattern ----------------------------------------------------
+
+  for (int i = 0; i < pos; ++i) {
+    const statenum_t from_st = workcell_d[i].from_state;
+    const statenum_t from_cy =
+        graphmatrix[(from_st - 1) * (outdegree + 1) + outdegree];
+    const statenum_t to_st = workcell_d[i + 1].from_state;
+    const statenum_t to_cy =
+        graphmatrix[(to_st - 1) * (outdegree + 1) + outdegree];
+    const statenum_t downstream_st =
+        graphmatrix[(from_st - 1) * (outdegree + 6) + (outdegree + 1)]
+
+    if (is_bit_set(used, to_st)) {
+      wi_d[id].status |= 2;  // initialization error
+      return;
+    }
+    set_bit(used, to_st);
+
+    if (to_st != downstream_st) {
+      // link throw from `from_st` to `to_st`
+      if (!mark_throw(from_st, from_cy, graphmatrix, outdegree, used,
+          deadstates, max_possible, n_min)) {
+        wi_d[id].status |= 2;  // initialization error
+        return;
+      }
+      if (!mark_catch(to_st, to_cy, graphmatrix, outdegree, used, deadstates,
+          max_possible, n_min)) {
+        wi_d[id].status |= 2;  // initialization error
+        return;
+      }
+    }
+  }
+
+  // current workcell pointer
   ThreadStorageWorkCell* wc =
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
-
   unsigned from_state = wc->from_state;
+
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
@@ -427,8 +663,14 @@ __global__ void cuda_gen_loops_normal_marking(
 
     if (wc->col == wc->col_limit || (to_state =
           graphmatrix[(from_state - 1) * (outdegree + 6) + wc->col]) == 0) {
-      // beat is finished, go back to previous one
-      used[from_state / 32].data &= ~(1u << (from_state & 31));
+      // beat is finished, backtrack after cleaning up marking operations
+      const statenum_t from_cycle =
+          graphmatrix[(from_state - 1) * (outdegree + 6) + (outdegree)];
+      if (wc->col > 1) {
+        unmark_throw(from_state, from_cycle, graphmatrix, outdegree, used,
+            deadstates, max_possible, n_min);
+      }
+      clear_bit(used, from_state);
       ++nnodes;
 
       if (pos == 0) {
@@ -448,6 +690,11 @@ __global__ void cuda_gen_loops_normal_marking(
         wc = workcell_pos_upper;
       } else {
         --wc;
+      }
+      // unmark link catch from `wc->from_state` into `from_state`
+      if (wc->col != 0) {
+        unmark_catch(from_state, from_cycle, graphmatrix, outdegree, used,
+            deadstates, max_possible, n_min);
       }
       from_state = wc->from_state;
       ++wc->col;
@@ -476,7 +723,7 @@ __global__ void cuda_gen_loops_normal_marking(
       continue;
     }
 
-    if (used[to_state / 32].data & (1u << (to_state & 31))) {
+    if (is_bit_set(used, to_state)) {
       ++wc->col;
       continue;
     }
@@ -486,25 +733,99 @@ __global__ void cuda_gen_loops_normal_marking(
       continue;
     }
 
-    // current throw is valid, so advance to next beat
+    if (wc->col != 0) {  // link throw
+      // mark states on the `from_state` shift cycle that are excluded by the
+      // link throw; only need to do this once since the link throws all come
+      // at the end of each row in `outmatrix` and the excluded states are
+      // independent of link throw value
+      if (wc->col == 1) {
+        const statenum_t from_cycle =
+            graphmatrix[(from_state - 1) * (outdegree + 6) + (outdegree)];
 
-    // invariant: only exit when we're about to move to the next beat
-    if (clock64() > end_clock)
-      break;
+        if (!mark_throw(from_state, from_cycle, graphmatrix, outdegree, used,
+            deadstates, max_possible, n_min)) {
+          // not valid, undo marking operation and bail to previous beat
+          unmark_throw(from_state, from_cycle, graphmatrix, outdegree, used,
+              deadstates, max_possible, n_min);
 
-    used[to_state / 32].data |= (1u << (to_state & 31));
+          clear_bit(used, from_state);
+          ++nnodes;
 
-    ++pos;
-    if (wc == workcell_pos_lower_minus1) {
-      wc = workcell_pos_lower;
-    } else if (wc == workcell_pos_upper) {
-      wc = workcell_pos_upper_plus1;
-    } else {
-      ++wc;
+          if (pos == 0) {
+            if (st_state == wi_d[id].end_state) {
+              wi_d[id].status |= 1;
+            } else {
+              ++st_state;
+            }
+            pos = -1;
+            break;
+          }
+
+          --pos;
+          if (wc == workcell_pos_lower) {
+            wc = workcell_pos_lower_minus1;
+          } else if (wc == workcell_pos_upper_plus1) {
+            wc = workcell_pos_upper;
+          } else {
+            --wc;
+          }
+          // unmark link catch from `wc->from_state` into `from_state`
+          if (wc->col != 0) {
+            unmark_catch(from_state, from_cycle, graphmatrix, outdegree, used,
+                deadstates, max_possible, n_min);
+          }
+          from_state = wc->from_state;
+          ++wc->col;
+          continue;
+        }
+      }
+
+      // mark states excluded by link catch
+      const statenum_t to_cycle =
+          graphmatrix[(to_state - 1) * (outdegree + 6) + (outdegree)];
+      if (mark_catch(to_state, to_cycle, graphmatrix, outdegree, used,
+          deadstates, max_possible, n_min) {
+        // valid, advance to next beat
+        set_bit(used, to_state);
+
+        ++pos;
+        if (wc == workcell_pos_lower_minus1) {
+          wc = workcell_pos_lower;
+        } else if (wc == workcell_pos_upper) {
+          wc = workcell_pos_upper_plus1;
+        } else {
+          ++wc;
+        }
+        wc->col = 0;
+        wc->col_limit = outdegree;
+        wc->from_state = from_state = to_state;
+        continue;
+      }
+
+      // couldn't advance to next beat, so go to next column in this one after
+      // undoing the catch marking operation done above
+      unmark_catch(to_state, to_cycle, graphmatrix, outdegree, used, deadstates,
+          max_possible, n_min);
+      ++wc->col;
+      continue;
+    } else {  // shift throw
+      if (clock64() > end_clock)
+        break;
+
+      set_bit(used, to_state);
+
+      ++pos;
+      if (wc == workcell_pos_lower_minus1) {
+        wc = workcell_pos_lower;
+      } else if (wc == workcell_pos_upper) {
+        wc = workcell_pos_upper_plus1;
+      } else {
+        ++wc;
+      }
+      wc->col = 0;
+      wc->col_limit = outdegree;
+      wc->from_state = from_state = to_state;
     }
-    wc->col = 0;
-    wc->col_limit = outdegree;
-    wc->from_state = from_state = to_state;
   }
 
   wi_d[id].start_state = st_state;
@@ -669,26 +990,22 @@ __global__ void cuda_gen_loops_super(
       (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
       &workcell_d[pos_upper_s] : nullptr;
 
-  // starting a new value of `start_state`
+  // set up working variables --------------------------------------------------
+
   if (pos == -1) {
-    pos = 0;
+    pos = 0;  // starting a new value of `start_state`
   }
 
-  // initialize used[]
   if (used != nullptr) {
     for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
       used[i].data = 0;
     }
-    for (int i = 0; i < st_state; ++i) {
-      used[i / 32].data |= (1u << (i & 31));
-    }
-    for (int i = 1; i <= pos; ++i) {
-      const statenum_t from_state = workcell_d[i].from_state;
-      used[from_state / 32].data |= (1u << (from_state & 31));
+    for (int i = 1; i < st_state; ++i) {
+      set_bit(used, i);
     }
   }
 
-  // initialize cycleused[], isexitcycle[], exitcycles_left, and shiftcount
+  // initialize cycleused[], isexitcycle[], and exitcycles_left
   {
     for (unsigned i = 0; i < ((numcycles_d + 31) / 32); ++i) {
       cycleused[i].data = 0;
@@ -698,45 +1015,56 @@ __global__ void cuda_gen_loops_super(
       for (unsigned j = 0; j < outdegree; ++j) {
         if (graphmatrix[(i - 1) * (outdegree + 1) + j] == st_state) {
           const auto cyc = graphmatrix[(i - 1) * (outdegree + 1) + outdegree];
-          isexitcycle[cyc / 32].data |= (1u << (cyc & 31));
+          set_bit(isexitcycle, cyc);
           break;
         }
       }
     }
     const auto st_cyc = graphmatrix[(st_state - 1) * (outdegree + 1) +
         outdegree];
-    isexitcycle[st_cyc / 32].data &= ~(1u << (st_cyc & 31));
+    clear_bit(isexitcycle, st_cyc);
     for (unsigned i = 0; i < numcycles_d; ++i) {
-      if (isexitcycle[i / 32].data & (1u << (i & 31))) {
+      if (is_bit_set(isexitcycle, i)) {
         ++exitcycles_left;
-      }
-    }
-
-    for (int i = 0; i < pos; ++i) {
-      const statenum_t from_state = workcell_d[i].from_state;
-      const statenum_t from_cycle =
-          graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
-      const statenum_t to_state = workcell_d[i + 1].from_state;
-      const statenum_t to_cycle =
-          graphmatrix[(to_state - 1) * (outdegree + 1) + outdegree];
-      if (from_cycle == to_cycle) {
-        ++shiftcount;
-      } else {
-        cycleused[to_cycle / 32].data |= (1u << (to_cycle & 31));
-        if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
-          --exitcycles_left;
-        }
       }
     }
   }
 
-  // initialize current workcell pointer
+  // replay partial pattern ----------------------------------------------------
+
+  for (int i = 0; i < pos; ++i) {
+    const statenum_t from_st = workcell_d[i].from_state;
+    const statenum_t from_cy =
+        graphmatrix[(from_st - 1) * (outdegree + 1) + outdegree];
+    const statenum_t to_st = workcell_d[i + 1].from_state;
+    const statenum_t to_cy =
+        graphmatrix[(to_st - 1) * (outdegree + 1) + outdegree];
+
+    if (used != nullptr) {
+      if (is_bit_set(used, to_st)) {
+        wi_d[id].status |= 2;  // initialization error
+        return;
+      }
+      set_bit(used, to_st);
+    }
+
+    if (from_cy == to_cy) {
+      ++shiftcount;
+    } else {
+      set_bit(cycleused, to_cy);
+      if (is_bit_set(isexitcycle, to_cy)) {
+        --exitcycles_left;
+      }
+    }
+  }
+
+  // current workcell pointer
   ThreadStorageWorkCell* wc =
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
-
   from_state = wc->from_state;
   from_cycle = graphmatrix[(from_state - 1) * (outdegree + 1) + outdegree];
+
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
@@ -750,7 +1078,7 @@ __global__ void cuda_gen_loops_super(
           graphmatrix[(from_state - 1) * (outdegree + 1) + wc->col]) == 0) {
       // beat is finished, go back to previous one
       if (shiftlimit != 0) {
-        used[from_state / 32].data &= ~(1u << (from_state & 31));
+        clear_bit(used, from_state);
       }
       ++nnodes;
 
@@ -780,8 +1108,8 @@ __global__ void cuda_gen_loops_super(
       if (from_cycle == to_cycle) {  // unwinding a shift throw
         --shiftcount;
       } else {  // link throw
-        cycleused[to_cycle / 32].data &= ~(1u << (to_cycle & 31));
-        if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
+        clear_bit(cycleused, to_cycle);
+        if (is_bit_set(isexitcycle, to_cycle)) {
           ++exitcycles_left;
         }
       }
@@ -794,8 +1122,7 @@ __global__ void cuda_gen_loops_super(
       continue;
     }
 
-    if (shiftlimit != 0 &&
-          (used[to_state / 32].data & (1u << (to_state & 31)))) {
+    if (shiftlimit != 0 && is_bit_set(used, to_state)) {
       ++wc->col;
       continue;
     }
@@ -826,7 +1153,7 @@ __global__ void cuda_gen_loops_super(
         continue;
       }
 
-      if (cycleused[to_cycle / 32].data & (1u << (to_cycle & 31))) {
+      if (is_bit_set(cycleused, to_cycle)) {
         ++wc->col;
         continue;
       }
@@ -847,11 +1174,11 @@ __global__ void cuda_gen_loops_super(
 
       // go to next beat
       if (shiftlimit != 0) {
-        used[to_state / 32].data |= (1u << (to_state & 31));
+        set_bit(used, to_state);
       }
 
-      cycleused[to_cycle / 32].data |= (1u << (to_cycle & 31));
-      if (isexitcycle[to_cycle / 32].data & (1u << (to_cycle & 31))) {
+      set_bit(cycleused, to_cycle);
+      if (is_bit_set(isexitcycle, to_cycle)) {
         --exitcycles_left;
       }
     } else {  // shift throw
@@ -890,7 +1217,7 @@ __global__ void cuda_gen_loops_super(
       }
 
       // go to next beat
-      used[to_state / 32].data |= (1u << (to_state & 31));
+      set_bit(used, to_state);
       ++shiftcount;
     }
 
