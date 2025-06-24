@@ -217,7 +217,6 @@ void Worker::iterative_gen_loops_normal_marking()
     es_throw_row.at(i) = excludestates_throw.at(i).data();
   }
   unsigned** const outmatrix = om_row.data();
-  unsigned** const outthrowval = otv_row.data();
   unsigned** const es_throw = es_throw_row.data();
 
   unsigned p = pos;
@@ -296,9 +295,7 @@ void Worker::iterative_gen_loops_normal_marking()
       continue;
     }
 
-    const unsigned throwval = outthrowval[from_state][wc->col];
-
-    if (throwval != 0 && throwval != graph.h) {  // link throw
+    if (wc->col != 0) {  // link throw
       if (wc->excludes_throw == nullptr) {
         // mark states on the `from_state` shift cycle that are excluded by the
         // link throw; only need to do this once since the link throws all come
