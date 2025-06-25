@@ -244,6 +244,7 @@ void Worker::iterative_gen_loops_normal_marking()
     if (wc->col == wc->col_limit) {
       // beat is finished, backtrack after cleaning up marking operations
       unsigned* const ds = ds_bystate[from_state];
+      assert((wc->excludes_throw != nullptr) == (wc->col > 1));
       unmark(u, wc->excludes_throw, ds);
       u[from_state] = 0;
       ++nn;
@@ -262,6 +263,21 @@ void Worker::iterative_gen_loops_normal_marking()
         assert(wc->col == wc->col_limit);
       }
       continue;
+    }
+
+    if (wc->col == 1) {
+      // First link throw; mark states on the `from_state` shift cycle that are
+      // excluded by a link throw. Only need to do this once for all wc->col > 0
+      // since the excluded states are independent of link throw value.
+      unsigned* es = es_throw[from_state];
+      unsigned* const ds = ds_bystate[from_state];
+      wc->excludes_throw = es;  // save for backtracking
+
+      if (!mark(u, es, ds)) {
+        // not valid, bail to previous beat
+        wc->col = wc->col_limit;
+        continue;
+      }
     }
 
     const unsigned to_state = outmatrix[from_state][wc->col];
@@ -296,43 +312,6 @@ void Worker::iterative_gen_loops_normal_marking()
     }
 
     if (wc->col != 0) {  // link throw
-      if (wc->excludes_throw == nullptr) {
-        // mark states on the `from_state` shift cycle that are excluded by the
-        // link throw; only need to do this once since the link throws all come
-        // at the end of each row in `outmatrix` and the excluded states are
-        // independent of link throw value
-        unsigned* es = es_throw[from_state];
-        unsigned* const ds = ds_bystate[from_state];
-        wc->excludes_throw = es;  // save for backtracking
-
-        if (!mark(u, es, ds)) {
-          // not valid, undo marking operation and bail to previous beat
-          unmark(u, wc->excludes_throw, ds);
-          u[from_state] = 0;
-          ++nn;
-
-          if (p == 0) {
-            break;
-          }
-          --p;
-          --wc;
-          unmark(u, wc->excludes_catch, ds);
-          from_state = wc->from_state;
-          ++wc->col;
-          if constexpr (REPLAY) {
-            // we might get here if we're loading a job that was stolen from
-            // another worker, and the job's prefix throws cause us to
-            // backtrack due to `max_possible`, i.e. we can't replay up to
-            // `root_pos`.
-            std::cerr << "---- worker " << worker_id << ", condition 1 ----\n"
-                      << "---- worker " << worker_id << " backtracked to pos "
-                      << pos << '\n';
-            assert(wc->col == wc->col_limit);
-          }
-          continue;
-        }
-      }
-
       // mark states excluded by link catch
       unsigned* es = excludestates_catch[to_state].data();
       unsigned* const ds = ds_bystate[to_state];
