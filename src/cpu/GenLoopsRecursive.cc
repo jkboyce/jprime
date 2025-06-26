@@ -103,6 +103,19 @@ void Worker::gen_loops_normal_marking()
       continue;
 
     const unsigned throwval = graph.outthrowval[from][col];
+
+    if (throwval != 0 && throwval != graph.h && !did_mark_for_throw) {
+      // all larger `col` values will also be link throws, so we only need to
+      // mark the "from" shift cycle once (marking is independent of link
+      // throw value)
+      if (!mark_unreachable_states_throw()) {
+        unmark_unreachable_states_throw();
+        ++nnodes;
+        return;
+      }
+      did_mark_for_throw = true;
+    }
+
     if (to == start_state) {
       pattern[pos] = throwval;
       handle_finished_pattern();
@@ -113,19 +126,6 @@ void Worker::gen_loops_normal_marking()
       continue;
 
     if (throwval != 0 && throwval != graph.h) {
-      // link throws make certain nearby states unreachable
-      if (!did_mark_for_throw) {
-        // all larger `col` values will also be link throws, so we only need to
-        // mark the "from" shift cycle once (marking is independent of link
-        // throw value)
-        if (!mark_unreachable_states_throw()) {
-          unmark_unreachable_states_throw();
-          ++nnodes;
-          return;
-        }
-        did_mark_for_throw = true;
-      }
-
       if (mark_unreachable_states_catch(to)) {
         pattern[pos] = throwval;
         ++used[to];
@@ -156,7 +156,6 @@ void Worker::gen_loops_normal_marking()
       --used[to];
     }
 
-    // only a single allowed throw value for `pos` < `root_pos`
     if (pos < static_cast<int>(root_pos))
       break;
   }

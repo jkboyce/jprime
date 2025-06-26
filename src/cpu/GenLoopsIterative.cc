@@ -233,6 +233,7 @@ void Worker::iterative_gen_loops_normal_marking()
 
   // register-based state variables during search
   unsigned from_state = wc->from_state;
+  bool doexclude = true;
 
   while (true) {
     if constexpr (REPLAY) {
@@ -243,8 +244,13 @@ void Worker::iterative_gen_loops_normal_marking()
 
     if (wc->col == wc->col_limit) {
       // beat is finished, backtrack after cleaning up marking operations
+      if constexpr (REPLAY) {
+        assert(false);
+      }
+
+      // equivalence of two ways of determining whether to unmark a throw
+      assert( (wc->col > 1) == (wc->excludes_throw != nullptr) );
       unsigned* const ds = ds_bystate[from_state];
-      assert((wc->excludes_throw != nullptr) == (wc->col > 1));
       unmark(u, wc->excludes_throw, ds);
       u[from_state] = 0;
       ++nn;
@@ -254,27 +260,36 @@ void Worker::iterative_gen_loops_normal_marking()
       }
       --p;
       --wc;
+      // equivalence of two ways of determining whether to unmark a catch
+      assert( (wc->col != 0) == (wc->excludes_catch != nullptr) );
       unmark(u, wc->excludes_catch, ds);
       from_state = wc->from_state;
       ++wc->col;
-      if constexpr (REPLAY) {
-        std::cerr << "---- worker " << worker_id << " backtracked to pos "
-                  << p << '\n';
-        assert(wc->col == wc->col_limit);
-      }
       continue;
     }
 
-    if (wc->col == 1) {
-      // First link throw; mark states on the `from_state` shift cycle that are
-      // excluded by a link throw. Only need to do this once for all wc->col > 0
-      // since the excluded states are independent of link throw value.
+    // equivalence of two ways of determining whether we need to do a link throw
+    // marking operation (note wc->col = 0 always corresponds to shift throws)
+    assert( (wc->col == 1 || (doexclude && wc->col != 0)) ==
+            (wc->excludes_throw == nullptr && wc->col != 0) );
+
+    if (wc->col == 1 || (doexclude && wc->col != 0)) {
+      // First link throw at this position; mark states on the `from_state`
+      // shift cycle that are excluded by a link throw. Only need to do this
+      // once since the excluded states are independent of link throw value.
+      if constexpr (!REPLAY) {
+        doexclude = false;  // switch to only marking at col = 1
+      }
+
       unsigned* es = es_throw[from_state];
       unsigned* const ds = ds_bystate[from_state];
       wc->excludes_throw = es;  // save for backtracking
 
       if (!mark(u, es, ds)) {
         // not valid, bail to previous beat
+        if constexpr (REPLAY) {
+          assert(false);
+        }
         wc->col = wc->col_limit;
         continue;
       }
@@ -312,39 +327,20 @@ void Worker::iterative_gen_loops_normal_marking()
     }
 
     if (wc->col != 0) {  // link throw
-      // mark states excluded by link catch
+      // mark states excluded by catch
       unsigned* es = excludestates_catch[to_state].data();
       unsigned* const ds = ds_bystate[to_state];
       wc->excludes_catch = es;
 
-      if (mark(u, es, ds)) {
-        // valid, advance to next beat
-        u[to_state] = 1;
-
-        ++p;
-        ++wc;
+      if (!mark(u, es, ds)) {
+        // couldn't advance to next beat
         if constexpr (REPLAY) {
-          assert(wc->from_state == to_state);
-        } else {
-          wc->col = 0;
-          wc->col_limit = outdegree[to_state];
-          wc->from_state = to_state;
+          assert(false);
         }
-        wc->excludes_throw = nullptr;
-        wc->excludes_catch = nullptr;
-        from_state = to_state;
+        unmark(u, wc->excludes_catch, ds);
+        ++wc->col;
         continue;
       }
-
-      // couldn't advance to next beat, so go to next column in this one after
-      // undoing the catch marking operation done above
-      unmark(u, wc->excludes_catch, ds);
-      ++wc->col;
-      if constexpr (REPLAY) {
-        std::cerr << "---- worker " << worker_id << ", condition 2 ----\n";
-        assert(wc->col == wc->col_limit);
-      }
-      continue;
     } else {  // shift throw
       if constexpr (!REPLAY) {
         if (++steps >= steps_limit) {
@@ -365,31 +361,26 @@ void Worker::iterative_gen_loops_normal_marking()
           }
         }
       }
-
-      // advance to next beat
-      u[to_state] = 1;
-
-      ++p;
-      ++wc;
-      if constexpr (REPLAY) {
-        assert(wc->from_state == to_state);
-      } else {
-        wc->col = 0;
-        wc->col_limit = outdegree[to_state];
-        wc->from_state = to_state;
-      }
-      wc->excludes_throw = nullptr;
-      wc->excludes_catch = nullptr;
-      from_state = to_state;
-      continue;
     }
+
+    // advance to next beat
+    u[to_state] = 1;
+
+    ++p;
+    ++wc;
+    if constexpr (REPLAY) {
+      assert(wc->from_state == to_state);
+    } else {
+      wc->col = 0;
+      wc->col_limit = outdegree[to_state];
+      wc->from_state = to_state;
+    }
+    wc->excludes_throw = nullptr;
+    wc->excludes_catch = nullptr;
+    from_state = to_state;
   }
 
   if constexpr (REPLAY) {
-    if (p != replay_to_pos) {
-      std::cerr << "### worker " << worker_id << " couldn't replay to pos "
-                << replay_to_pos << ", exited at pos " << p << '\n';
-    }
     assert(p == replay_to_pos);
     assert(nn == nnodes);
   } else {
