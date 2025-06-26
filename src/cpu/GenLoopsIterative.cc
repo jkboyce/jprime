@@ -247,11 +247,17 @@ void Worker::iterative_gen_loops_normal_marking()
       if constexpr (REPLAY) {
         assert(false);
       }
-
       // equivalence of two ways of determining whether to unmark a throw
       assert( (wc->col > 1) == (wc->excludes_throw != nullptr) );
       unsigned* const ds = ds_bystate[from_state];
-      unmark(u, wc->excludes_throw, ds);
+      if (wc->col > 1) {
+        unmark(u, wc->excludes_throw, ds);
+        /*
+        unsigned* es = es_throw[from_state];
+        unmark(u, es, ds);
+        wc->excludes_throw = nullptr;
+        */
+      }
       u[from_state] = 0;
       ++nn;
 
@@ -262,14 +268,21 @@ void Worker::iterative_gen_loops_normal_marking()
       --wc;
       // equivalence of two ways of determining whether to unmark a catch
       assert( (wc->col != 0) == (wc->excludes_catch != nullptr) );
-      unmark(u, wc->excludes_catch, ds);
+      if (wc->col != 0) {
+        unmark(u, wc->excludes_catch, ds);
+        /*
+        unsigned* es = excludestates_catch[from_state].data();
+        unmark(u, es, ds);
+        wc->excludes_catch = nullptr;
+        */
+      }
       from_state = wc->from_state;
       ++wc->col;
       continue;
     }
 
-    // equivalence of two ways of determining whether we need to do a link throw
-    // marking operation (note wc->col = 0 always corresponds to shift throws)
+    // equivalence of two ways of determining whether we need to do link throw
+    // marking (note wc->col = 0 always corresponds to a shift throw)
     assert( (wc->col == 1 || (doexclude && wc->col != 0)) ==
             (wc->excludes_throw == nullptr && wc->col != 0) );
 
@@ -282,10 +295,9 @@ void Worker::iterative_gen_loops_normal_marking()
       }
 
       unsigned* es = es_throw[from_state];
-      unsigned* const ds = ds_bystate[from_state];
       wc->excludes_throw = es;  // save for backtracking
 
-      if (!mark(u, es, ds)) {
+      if (!mark(u, es, ds_bystate[from_state])) {
         // not valid, bail to previous beat
         if constexpr (REPLAY) {
           assert(false);
