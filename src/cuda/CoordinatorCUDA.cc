@@ -387,7 +387,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
     unsigned algnum = 0;
     switch (alg) {
       case Coordinator::SearchAlgorithm::NONE:
-        algnum = 1;
+        algnum = 0;
         break;
       case Coordinator::SearchAlgorithm::NORMAL:
         algnum = 1;
@@ -745,7 +745,7 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank)
   for (unsigned id = 0; id < config.num_threads; ++id) {
     const auto errorcode = wi_h[bank][id].status & 6u;
     if (errorcode != 0) {
-      ostringstream ss;
+      std::ostringstream ss;
       ss << "bank " << bank << ", worker " << id << ": "
          << read_work_assignment(bank, id);
       std::string errorstring = ss.str();
