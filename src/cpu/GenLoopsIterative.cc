@@ -353,7 +353,7 @@ void Worker::iterative_gen_loops_normal_marking()
         ++wc->col;
         continue;
       }
-    } else {  // shift throw
+
       if constexpr (!REPLAY) {
         if (++steps >= steps_limit) {
           steps = 0;
