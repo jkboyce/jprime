@@ -298,10 +298,7 @@ __global__ void cuda_gen_loops_normal(
       &workcell_d[pos_upper_s] : nullptr;
 
   // set up working variables --------------------------------------------------
-
-  if (pos == -1) {
-    pos = 0;  // starting a new value of `start_state`
-  }
+  // identical to CPU version in Worker::initialize_working_variables()
 
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
@@ -311,6 +308,10 @@ __global__ void cuda_gen_loops_normal(
   }
 
   // replay partial pattern ----------------------------------------------------
+
+  if (pos == -1) {
+    pos = 0;  // starting a new value of `start_state`
+  }
 
   for (int i = 0; i < pos; ++i) {
     const statenum_t to_st = workcell_d[i + 1].from_state;
@@ -560,10 +561,7 @@ __global__ void cuda_gen_loops_normal_marking(
       &workcell_d[pos_upper_s] : nullptr;
 
   // set up working variables --------------------------------------------------
-
-  if (pos == -1) {
-    pos = 0;  // starting a new value of `start_state`
-  }
+  // identical to CPU version in Worker::initialize_working_variables()
 
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
@@ -624,15 +622,18 @@ __global__ void cuda_gen_loops_normal_marking(
 
   // replay partial pattern ----------------------------------------------------
 
+  if (pos == -1) {
+    pos = 0;  // starting a new value of `start_state`
+  }
+
   for (int i = 0; i < pos; ++i) {
     const statenum_t from_st = workcell_d[i].from_state;
+    const statenum_t to_st =
+        graphmatrix[(from_st - 1) * (outdegree + 6) + workcell_d[i].col];
     const statenum_t from_cy =
         graphmatrix[(from_st - 1) * (outdegree + 6) + outdegree];
-    const statenum_t to_st = workcell_d[i + 1].from_state;
     const statenum_t to_cy =
         graphmatrix[(to_st - 1) * (outdegree + 6) + outdegree];
-    const statenum_t downstream_st =
-        graphmatrix[(from_st - 1) * (outdegree + 6) + (outdegree + 1)];
 
     if (is_bit_set(used, to_st)) {
       wi_d[id].status |= 2;  // initialization error
@@ -640,7 +641,7 @@ __global__ void cuda_gen_loops_normal_marking(
     }
     set_bit(used, to_st);
 
-    if (to_st != downstream_st) {
+    if (workcell_d[i].col != 0) {
       // link throw from `from_st` to `to_st`
       if (!mark_throw(from_st, from_cy, graphmatrix, outdegree, used,
           deadstates, max_possible, n_min)) {
@@ -771,7 +772,10 @@ __global__ void cuda_gen_loops_normal_marking(
         ++wc->col;
         continue;
       }
+    }
 
+    const bool zerothrow = (wc->col == 0 && to_state < from_state);
+    if (!zerothrow) {
       if (clock64() > end_clock)
         break;
     }
@@ -955,10 +959,7 @@ __global__ void cuda_gen_loops_super(
       &workcell_d[pos_upper_s] : nullptr;
 
   // set up working variables --------------------------------------------------
-
-  if (pos == -1) {
-    pos = 0;  // starting a new value of `start_state`
-  }
+  // identical to CPU version in Worker::initialize_working_variables()
 
   if (used != nullptr) {
     for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
@@ -995,6 +996,10 @@ __global__ void cuda_gen_loops_super(
   }
 
   // replay partial pattern ----------------------------------------------------
+
+  if (pos == -1) {
+    pos = 0;  // starting a new value of `start_state`
+  }
 
   for (int i = 0; i < pos; ++i) {
     const statenum_t from_st = workcell_d[i].from_state;

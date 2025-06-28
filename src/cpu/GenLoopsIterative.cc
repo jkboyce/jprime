@@ -138,6 +138,8 @@ void Worker::iterative_gen_loops_normal()
       continue;
     }
 
+    // invariant: check the inbox when we know the current throw is valid, and
+    // just before moving to the next beat
     if constexpr (!REPLAY) {
       if (++steps >= steps_limit) {
         // check the inbox for incoming messages, after doing some prep work
@@ -163,7 +165,7 @@ void Worker::iterative_gen_loops_normal()
       }
     }
 
-    // current throw is valid, so advance to next beat
+    // advance to next beat
     u[to_state] = 1;
 
     ++p;
@@ -353,24 +355,24 @@ void Worker::iterative_gen_loops_normal_marking()
         ++wc->col;
         continue;
       }
+    }
 
-      if constexpr (!REPLAY) {
-        if (++steps >= steps_limit) {
-          steps = 0;
+    if constexpr (!REPLAY) {
+      if (++steps >= steps_limit) {
+        steps = 0;
 
-          pos = p;
-          if (iterative_can_split()) {
-            for (int i = 0; i <= pos; ++i) {
-              pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                .at(beat.at(i).col);
-            }
-            pattern.at(pos + 1) = -1;
-            nnodes = nn;
-            process_inbox_running();
-            iterative_update_after_split();
-            nn = nnodes;
-            steps_limit = steps_per_inbox_check;
+        pos = p;
+        if (iterative_can_split()) {
+          for (int i = 0; i <= pos; ++i) {
+            pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
+              .at(beat.at(i).col);
           }
+          pattern.at(pos + 1) = -1;
+          nnodes = nn;
+          process_inbox_running();
+          iterative_update_after_split();
+          nn = nnodes;
+          steps_limit = steps_per_inbox_check;
         }
       }
     }
