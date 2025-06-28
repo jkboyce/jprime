@@ -279,7 +279,7 @@ void Worker::send_stats_to_coordinator()
       }
     }
   } else {
-    for (size_t i = 0; i < start_state; ++i) {
+    for (size_t i = 1; i < start_state; ++i) {
       u.at(i) = 1;
     }
   }
@@ -650,7 +650,7 @@ void Worker::initialize_working_variables()
     (void)max_possible_gpu;
     assert(max_possible_gpu == max_possible);
   } else {
-    for (size_t i = 0; i < start_state; ++i) {
+    for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;
     }
 
