@@ -385,7 +385,8 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
 // Public methods
 //------------------------------------------------------------------------------
 
-// Update graph data structures after an edit operation.
+// Update graph data structures after an edit operation, by removing states and
+// links that are unusable.
 //
 // NOTE: This function must be called after any kind of edit operation that
 // removes links and/or states, to ensure the internal state of the graph is
@@ -411,8 +412,8 @@ void Graph::validate_graph()
     }
   }
 
-  // Update/remove unusable states from:
-  //   unsigned numstates = 0;
+  // Items to update:
+  //   unsigned numstates;
   //   std::vector<State> state;
   //   std::vector<unsigned> cyclenum;
   //   std::vector<unsigned> max_startstate_usable;
@@ -442,6 +443,11 @@ void Graph::validate_graph()
     }
     assert(outthrownum != 0);
     outdegree.at(newi) = outthrownum;
+
+    for (size_t j = outthrownum; j < maxoutdegree; ++j) {
+      outmatrix.at(newi).at(j) = 0;
+      outthrowval.at(newi).at(j) = 0;
+    }
   }
 
   numstates = statenum - 1;
