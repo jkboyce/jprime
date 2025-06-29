@@ -18,6 +18,10 @@
 #include <cassert>
 
 
+//------------------------------------------------------------------------------
+// NORMAL and NORMAL_MARKING modes
+//------------------------------------------------------------------------------
+
 // This is a non-recursive version of gen_loops_normal() and
 // gen_loops_normal_marking(), with identical interface and behavior.
 //
@@ -280,7 +284,6 @@ void Worker::iterative_gen_loops_normal()
   nnodes = nn;
 }
 
-
 // Helpers for marking mode
 //
 // See comments for the analagous functions in GenLoopsRecursive.cc
@@ -308,6 +311,10 @@ inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
     es = nullptr;
   }
 }
+
+//------------------------------------------------------------------------------
+// SUPER and SUPER0 modes
+//------------------------------------------------------------------------------
 
 // Non-recursive version of gen_loops_super() and gen_loops_super0().
 //
@@ -536,6 +543,10 @@ void Worker::iterative_gen_loops_super()
   pos = p;
   nnodes = nn;
 }
+
+//------------------------------------------------------------------------------
+// Template instantiations
+//------------------------------------------------------------------------------
 
 // Explicit template instantiations since template method definitions are not in
 // the `.h` file.

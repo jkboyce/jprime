@@ -38,7 +38,6 @@ __device__ uint32_t pattern_buffer_size_d;
 __device__ uint32_t pattern_index_bank0_d = 0;
 __device__ uint32_t pattern_index_bank1_d = 0;
 
-
 //------------------------------------------------------------------------------
 // Helper functions
 //------------------------------------------------------------------------------
@@ -243,7 +242,7 @@ __global__ void cuda_gen_loops_normal(
           (((numstates_d + 1) + 31) / 32) + (id & 31)];
   }
 
-  // set up shared memory
+  // set up shared memory ------------------------------------------------------
   //
   // if used_d is nullptr then we put used[] into shared memory. It is stored
   // as bitfields for 32 threads, in (numstates_d + 1)/32 instances of
@@ -500,7 +499,7 @@ __global__ void cuda_gen_loops_normal_marking(
         (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 3) / 4);
   }
 
-  // set up shared memory
+  // set up shared memory ------------------------------------------------------
   //
   // if used_d is nullptr then we put used[] into shared memory. It is stored
   // as bitfields for 32 threads, in (numstates_d + 1)/32 instances of
@@ -888,7 +887,7 @@ __global__ void cuda_gen_loops_super(
     }
   }
 
-  // set up shared memory
+  // set up shared memory ------------------------------------------------------
   //
   // if used_d is nullptr then we put used[] into shared memory. It is stored
   // as bitfields for 32 threads, in (numstates_d + 1)/32 instances of

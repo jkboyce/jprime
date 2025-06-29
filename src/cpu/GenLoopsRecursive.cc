@@ -17,6 +17,10 @@
 #include <cassert>
 
 
+//------------------------------------------------------------------------------
+// NORMAL mode
+//------------------------------------------------------------------------------
+
 // Try all allowed throw values at the current pattern position `pos`,
 // recursively continuing until a pattern is found or `n_max` is exceeded.
 //
@@ -77,6 +81,10 @@ void Worker::gen_loops_normal()
 
   ++nnodes;
 }
+
+//------------------------------------------------------------------------------
+// NORMAL_MARKING mode
+//------------------------------------------------------------------------------
 
 // As above, but for pattern periods `n` close to `n_bound`.
 //
@@ -165,6 +173,10 @@ void Worker::gen_loops_normal_marking()
   }
   ++nnodes;
 }
+
+//------------------------------------------------------------------------------
+// SUPER mode
+//------------------------------------------------------------------------------
 
 // As above, but for SUPER mode.
 //
@@ -267,6 +279,10 @@ void Worker::gen_loops_super()
 
   ++nnodes;
 }
+
+//------------------------------------------------------------------------------
+// SUPER0 mode
+//------------------------------------------------------------------------------
 
 // A specialization of gen_loops_super() for the case `shiftlimit` == 0.
 //
