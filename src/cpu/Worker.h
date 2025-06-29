@@ -126,8 +126,8 @@ class Worker : public WorkSpace {
   void handle_finished_pattern();
 
   // iterative search routines; defined in GenLoopsIterative.cc
-  template<bool REPORT, bool REPLAY> void iterative_gen_loops_normal();
-  template<bool REPLAY> void iterative_gen_loops_normal_marking();
+  template<bool MARKING, bool REPORT, bool REPLAY>
+    void iterative_gen_loops_normal();
   bool mark(int* const& u, unsigned*& es, unsigned* const& ds);
   void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();

@@ -574,13 +574,13 @@ void Worker::gen_loops()
       gen_loops_super0();
       break;
     case 4:
-      iterative_gen_loops_normal<false, false>();
+      iterative_gen_loops_normal<false, false, false>();
       break;
     case 5:
-      iterative_gen_loops_normal<true, false>();
+      iterative_gen_loops_normal<false, true, false>();
       break;
     case 6:
-      iterative_gen_loops_normal_marking<false>();
+      iterative_gen_loops_normal<true, true, false>();
       break;
     case 7:
       iterative_gen_loops_super<false, false>();
