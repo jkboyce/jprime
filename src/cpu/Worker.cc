@@ -543,9 +543,9 @@ void Worker::gen_loops()
       "gen_loops_normal_marking()",
       "gen_loops_super()",
       "gen_loops_super0()",
-      "iterative_gen_loops_normal<REPORT=false>()",
-      "iterative_gen_loops_normal<REPORT=true>()",
-      "iterative_gen_loops_normal_marking()",
+      "iterative_gen_loops_normal<MARKING=false,REPORT=false>()",
+      "iterative_gen_loops_normal<MARKING=false,REPORT=true>()",
+      "iterative_gen_loops_normal<MARKING=true,REPORT=true>()",
       "iterative_gen_loops_super<SUPER0=false>()",
       "iterative_gen_loops_super<SUPER0=true>()",
     };
