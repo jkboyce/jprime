@@ -217,11 +217,13 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
         for (auto s : excludestates_throw.at(i)) {
-          exclude_buffer.push_back(static_cast<statenum_t>(s));
-          ++exclude_offset;
           if (s == 0)
             break;
+          exclude_buffer.push_back(static_cast<statenum_t>(s));
+          ++exclude_offset;
         }
+        exclude_buffer.push_back(0);
+        ++exclude_offset;
       }
       if (excludestates_catch.at(i).at(0) == 0) {
         buffer.push_back(0);
@@ -231,11 +233,13 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
         for (auto s : excludestates_catch.at(i)) {
-          exclude_buffer.push_back(static_cast<statenum_t>(s));
-          ++exclude_offset;
           if (s == 0)
             break;
+          exclude_buffer.push_back(static_cast<statenum_t>(s));
+          ++exclude_offset;
         }
+        exclude_buffer.push_back(0);
+        ++exclude_offset;
       }
     }
   }
