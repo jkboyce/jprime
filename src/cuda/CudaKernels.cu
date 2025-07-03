@@ -436,6 +436,38 @@ __global__ void cuda_gen_loops_normal(
 // NORMAL_MARKING mode
 //------------------------------------------------------------------------------
 
+// Helper for debugging
+
+__device__ void dump_info(int16_t pos, ThreadStorageWorkCell* workcell_d,
+      ThreadStorageUsed* used, ThreadStorageUsed* deadstates,
+      int max_possible)
+{
+  const auto nstates = numstates_d;
+  const auto ncycles = numcycles_d;
+
+  printf("  pos = %d, max_possible = %d\n", pos, max_possible);
+  printf("  workcells:  ");
+  for (unsigned i = 0; i <= pos; ++i) {
+    printf("(%d,%d,%d,%d), ", i, workcell_d[i].col, workcell_d[i].col_limit,
+        workcell_d[i].from_state);
+  }
+  printf("\n");
+  printf("  used states:  ");
+  for (unsigned i = 1; i <= nstates; ++i) {
+    if (is_bit_set(used, i)) {
+      printf("%d, ", i);
+    }
+  }
+  printf("\n");
+  printf("  deadstates:  ");
+  for (unsigned i = 0; i < ncycles; ++i) {
+    const uint32_t ds = (deadstates[i / 4].data >> ((i & 3) * 8)) & 255;
+    printf("(%d,%d), ", i, ds);
+  }
+  printf("\n");
+}
+
+
 // graphmatrix elements:
 //   [(from_state - 1) * (outdegree + 6) + outdegree] = cyclenum
 //   [(from_state - 1) * (outdegree + 6) + outdegree + 1] = downstream state
@@ -458,6 +490,7 @@ __global__ void cuda_gen_loops_normal_marking(
     return;
   }
   const auto start_clock = clock64();
+  constexpr bool debugprint = false;
 
   // set up register variables
   auto st_state = wi_d[id].start_state;
@@ -662,6 +695,13 @@ __global__ void cuda_gen_loops_normal_marking(
   unsigned from_state = wc->from_state;
   bool doexclude = true;
 
+  if constexpr(debugprint) {
+    if (id == 0) {
+      printf("State after initialization:\n");
+      dump_info(pos, workcell_d, used, deadstates, max_possible);
+    }
+  }
+
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
   wi_d[id].cycles_startup = init_clock - start_clock;
@@ -706,6 +746,7 @@ __global__ void cuda_gen_loops_normal_marking(
         unmark_catch(from_state, from_cycle, graphmatrix, outdegree, used,
             deadstates, max_possible, n_min);
       }
+      doexclude = false;
       from_state = wc->from_state;
       ++wc->col;
       continue;
@@ -773,11 +814,8 @@ __global__ void cuda_gen_loops_normal_marking(
       }
     }
 
-    const bool zerothrow = (wc->col == 0 && to_state < from_state);
-    if (!zerothrow) {
-      if (clock64() > end_clock)
-        break;
-    }
+    if (clock64() > end_clock)
+      break;
 
     // advance to next beat
     set_bit(used, to_state);
@@ -793,6 +831,7 @@ __global__ void cuda_gen_loops_normal_marking(
     wc->col = 0;
     wc->col_limit = outdegree;
     wc->from_state = from_state = to_state;
+    doexclude = false;
   }
 
   wi_d[id].start_state = st_state;
@@ -806,6 +845,13 @@ __global__ void cuda_gen_loops_normal_marking(
       workcell_d[i].col_limit = workcell_s[i - pos_lower_s].col_limit;
       workcell_d[i].from_state = workcell_s[i - pos_lower_s].from_state;
       workcell_d[i].count = workcell_s[i - pos_lower_s].count;
+    }
+  }
+
+  if constexpr (debugprint) {
+    if (id == 0 && (wi_d[id].status & 1) == 0) {
+      printf("State after execution:\n");
+      dump_info(pos, workcell_d, used, deadstates, max_possible);
     }
   }
 }
