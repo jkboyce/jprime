@@ -57,6 +57,8 @@ __device__ __forceinline__ bool is_bit_set(ThreadStorageUsed* arr, unsigned st)
   return (arr[st / 32].data & (static_cast<uint32_t>(1) << (st & 31))) != 0;
 }
 
+// Helpers for NORMAL_MARKING mode
+
 __device__ __forceinline__ bool mark_throw(statenum_t from_st,
     statenum_t from_cy, const statenum_t* const gr, uint8_t od,
     ThreadStorageUsed* u, ThreadStorageUsed* ds, int& maxp, unsigned nmin)
@@ -70,23 +72,25 @@ __device__ __forceinline__ bool mark_throw(statenum_t from_st,
 
   bool valid = true;
   statenum_t st = 0;
+  const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
+  uint32_t& ds_ref = ds[from_cy / 4].data;
 
-  while ((st = gr[idx])) {
+  while ((st = gr[idx]) != 0) {
     const uint32_t old_used = u[st / 32].data;
     const uint32_t new_used = old_used ^
         (static_cast<uint32_t>(1) << (st & 31));
     u[st / 32].data = new_used;
 
     if (new_used > old_used) {
-      const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
-      const uint32_t old_ds = (ds[from_cy / 4].data & mask);
+      // state flipped from used==0 to used==1
+      const uint32_t old_ds = (ds_ref & mask);
       if (old_ds != 0) {
         --maxp;
         if (maxp < static_cast<int>(nmin)) {
           valid = false;
         }
       }
-      ds[from_cy / 4].data += (static_cast<uint32_t>(1) << ((from_cy & 3) * 8));
+      ds_ref += (static_cast<uint32_t>(1) << ((from_cy & 3) * 8));
     }
 
     ++idx;
@@ -108,22 +112,23 @@ __device__ __forceinline__ bool mark_catch(statenum_t to_st,
 
   bool valid = true;
   statenum_t st = 0;
+  const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
+  uint32_t& ds_ref = ds[to_cy / 4].data;
 
-  while ((st = gr[idx])) {
+  while ((st = gr[idx]) != 0) {
     const uint32_t old_used = u[st / 32].data;
     const uint32_t new_used = old_used ^ (1u << (st & 31));
     u[st / 32].data = new_used;
 
     if (new_used > old_used) {
-      const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
-      const uint32_t old_ds = (ds[to_cy / 4].data & mask);
+      const uint32_t old_ds = (ds_ref & mask);
       if (old_ds != 0) {
         --maxp;
         if (maxp < static_cast<int>(nmin)) {
           valid = false;
         }
       }
-      ds[to_cy / 4].data += (static_cast<uint32_t>(1) << ((to_cy & 3) * 8));
+      ds_ref += (static_cast<uint32_t>(1) << ((to_cy & 3) * 8));
     }
 
     ++idx;
@@ -144,6 +149,8 @@ __device__ __forceinline__ void unmark_throw(statenum_t from_st,
     return;
 
   statenum_t st = 0;
+  const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
+  uint32_t& ds_ref = ds[from_cy / 4].data;
 
   while ((st = gr[idx])) {
     const uint32_t old_used = u[st / 32].data;
@@ -152,13 +159,12 @@ __device__ __forceinline__ void unmark_throw(statenum_t from_st,
     u[st / 32].data = new_used;
 
     if (new_used < old_used) {
-      const uint32_t new_ds = ds[from_cy / 4].data -
+      const uint32_t new_ds = ds_ref -
           (static_cast<uint32_t>(1) << ((from_cy & 3) * 8));
-      const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
       if ((new_ds & mask) != 0) {
         ++maxp;
       }
-      ds[from_cy / 4].data = new_ds;
+      ds_ref = new_ds;
     }
 
     ++idx;
@@ -177,6 +183,8 @@ __device__ __forceinline__ void unmark_catch(statenum_t to_st,
     return;
 
   statenum_t st = 0;
+  const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
+  uint32_t& ds_ref = ds[to_cy / 4].data;
 
   while ((st = gr[idx])) {
     const uint32_t old_used = u[st / 32].data;
@@ -185,16 +193,48 @@ __device__ __forceinline__ void unmark_catch(statenum_t to_st,
     u[st / 32].data = new_used;
 
     if (new_used < old_used) {
-      const uint32_t new_ds = ds[to_cy / 4].data -
+      const uint32_t new_ds = ds_ref -
           (static_cast<uint32_t>(1) << ((to_cy & 3) * 8));
-      const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
       if ((new_ds & mask) != 0) {
         ++maxp;
       }
-      ds[to_cy / 4].data = new_ds;
+      ds_ref = new_ds;
     }
 
     ++idx;
+  }
+}
+
+// Helper for debugging
+
+__device__ void dump_info(int16_t pos, ThreadStorageWorkCell* workcell_d,
+      ThreadStorageUsed* used, ThreadStorageUsed* deadstates,
+      int max_possible)
+{
+  const auto nstates = numstates_d;
+  const auto ncycles = numcycles_d;
+
+  printf("  pos = %d, max_possible = %d\n", pos, max_possible);
+  printf("  workcells:  ");
+  for (unsigned i = 0; i <= pos; ++i) {
+    printf("(%d,%d,%d,%d), ", i, workcell_d[i].col, workcell_d[i].col_limit,
+        workcell_d[i].from_state);
+  }
+  printf("\n");
+  printf("  used states:  ");
+  for (unsigned i = 1; i <= nstates; ++i) {
+    if (is_bit_set(used, i)) {
+      printf("%d, ", i);
+    }
+  }
+  printf("\n");
+  if (deadstates != nullptr) {
+    printf("  deadstates:  ");
+    for (unsigned i = 0; i < ncycles; ++i) {
+      const uint32_t ds = (deadstates[i / 4].data >> ((i & 3) * 8)) & 255;
+      printf("(%d,%d), ", i, ds);
+    }
+    printf("\n");
   }
 }
 
@@ -435,38 +475,6 @@ __global__ void cuda_gen_loops_normal(
 //------------------------------------------------------------------------------
 // NORMAL_MARKING mode
 //------------------------------------------------------------------------------
-
-// Helper for debugging
-
-__device__ void dump_info(int16_t pos, ThreadStorageWorkCell* workcell_d,
-      ThreadStorageUsed* used, ThreadStorageUsed* deadstates,
-      int max_possible)
-{
-  const auto nstates = numstates_d;
-  const auto ncycles = numcycles_d;
-
-  printf("  pos = %d, max_possible = %d\n", pos, max_possible);
-  printf("  workcells:  ");
-  for (unsigned i = 0; i <= pos; ++i) {
-    printf("(%d,%d,%d,%d), ", i, workcell_d[i].col, workcell_d[i].col_limit,
-        workcell_d[i].from_state);
-  }
-  printf("\n");
-  printf("  used states:  ");
-  for (unsigned i = 1; i <= nstates; ++i) {
-    if (is_bit_set(used, i)) {
-      printf("%d, ", i);
-    }
-  }
-  printf("\n");
-  printf("  deadstates:  ");
-  for (unsigned i = 0; i < ncycles; ++i) {
-    const uint32_t ds = (deadstates[i / 4].data >> ((i & 3) * 8)) & 255;
-    printf("(%d,%d), ", i, ds);
-  }
-  printf("\n");
-}
-
 
 // graphmatrix elements:
 //   [(from_state - 1) * (outdegree + 6) + outdegree] = cyclenum
