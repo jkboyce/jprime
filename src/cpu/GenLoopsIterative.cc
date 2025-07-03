@@ -272,10 +272,8 @@ void Worker::iterative_gen_loops_normal()
     wc->excludes_throw = nullptr;
     wc->excludes_catch = nullptr;
     from_state = to_state;
-    if constexpr (MARKING) {
-      if constexpr (!REPLAY) {
-        doexclude = false;
-      }
+    if constexpr (MARKING && !REPLAY) {
+      doexclude = false;
     }
   }
 
