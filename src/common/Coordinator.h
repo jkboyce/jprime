@@ -60,6 +60,7 @@ class Coordinator {
   int status_lines_displayed = 0;
   bool status_printed = false;
 
+ public:
   static volatile sig_atomic_t stopping;  // to handle ctrl-c
   static constexpr unsigned MAX_STATES = 1000000u;  // memory limit
 

@@ -25,7 +25,6 @@ struct TestCase {
   //   1 = interative
   //   2 = recursive
   //   4 = CUDA (if available)
-  //   8 = CUDA, where node counts do not need to match
   uint32_t engines;
 
   // command line input
@@ -120,6 +119,10 @@ bool run_one_test(const TestCase& tc)
       success = false;
       continue;
     }
+    if (Coordinator::stopping) {
+      std::cout << "TEST ABORTED\n" << std::endl;
+      return false;
+    }
 
     if (run == 0) {
       std::cout << "iterative";
@@ -133,13 +136,9 @@ bool run_one_test(const TestCase& tc)
                    context.secs_elapsed)
               << std::endl;
 
-    if (context.npatterns != tc.npatterns) {
+    if (context.npatterns != tc.npatterns || context.ntotal != tc.ntotal ||
+        context.nnodes != tc.nnodes) {
       success = false;
-    }
-    if (run < 3) {
-      if (context.ntotal != tc.ntotal || context.nnodes != tc.nnodes) {
-        success = false;
-      }
     }
   }
 
@@ -177,11 +176,13 @@ int do_tests(int testnum)
     if (testnum != -1 && casenum != testnum)
       continue;
 
-    ++runs;
     std::cout << std::format("\nStarting test {}:\n\n", casenum);
     if (run_one_test(testcase)) {
       ++passes;
+    } else if (Coordinator::stopping) {
+      break;
     }
+    ++runs;
   }
 
   std::cout << "------------------------------------------------------------\n"
