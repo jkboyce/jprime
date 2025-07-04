@@ -701,7 +701,7 @@ __global__ void cuda_gen_loops_normal_marking(
       (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
   unsigned from_state = wc->from_state;
-  bool doexclude = true;
+  bool firstworkcell = true;
 
   if constexpr(debugprint) {
     if (id == 0) {
@@ -754,17 +754,17 @@ __global__ void cuda_gen_loops_normal_marking(
         unmark_catch(from_state, from_cycle, graphmatrix, outdegree, used,
             deadstates, max_possible, n_min);
       }
-      doexclude = false;
+      firstworkcell = false;
       from_state = wc->from_state;
       ++wc->col;
       continue;
     }
 
-    if (wc->col == 1 || (doexclude && wc->col != 0)) {
+    if (wc->col == 1 || (firstworkcell && wc->col != 0)) {
       // First link throw at this position; mark states on the `from_state`
       // shift cycle that are excluded by a link throw. Only need to do this
       // once since the excluded states are independent of link throw value.
-      doexclude = false;
+      firstworkcell = false;
 
       const statenum_t from_cycle =
           graphmatrix[(from_state - 1) * (outdegree + 6) + (outdegree)];
@@ -839,7 +839,7 @@ __global__ void cuda_gen_loops_normal_marking(
     wc->col = 0;
     wc->col_limit = outdegree;
     wc->from_state = from_state = to_state;
-    doexclude = false;
+    firstworkcell = false;
   }
 
   wi_d[id].start_state = st_state;

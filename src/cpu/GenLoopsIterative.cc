@@ -95,7 +95,7 @@ void Worker::iterative_gen_loops_normal()
 
   // register-based state variables during search
   unsigned from_state = wc->from_state;
-  bool doexclude = true;
+  bool firstworkcell = true;
 
   while (true) {
     if constexpr (REPLAY) {
@@ -142,7 +142,7 @@ void Worker::iterative_gen_loops_normal()
           wc->excludes_catch = nullptr;
           */
         }
-        doexclude = false;
+        firstworkcell = false;
       }
       from_state = wc->from_state;
       ++wc->col;
@@ -152,15 +152,15 @@ void Worker::iterative_gen_loops_normal()
     if constexpr (MARKING) {
       // equivalence of two ways of determining whether we need to do link throw
       // marking (note wc->col == 0 always corresponds to a shift throw)
-      assert( (wc->col == 1 || (doexclude && wc->col != 0)) ==
+      assert( (wc->col == 1 || (firstworkcell && wc->col != 0)) ==
               (wc->excludes_throw == nullptr && wc->col != 0) );
 
-      if (wc->col == 1 || (doexclude && wc->col != 0)) {
+      if (wc->col == 1 || (firstworkcell && wc->col != 0)) {
         // First link throw at this position; mark states on the `from_state`
         // shift cycle that are excluded by a link throw. Only need to do this
         // once since the excluded states are independent of link throw value.
         if constexpr (!REPLAY) {
-          doexclude = false;  // switch to marking only when col == 1
+          firstworkcell = false;  // switch to marking only when col == 1
         }
 
         unsigned* es = es_throw[from_state];
@@ -273,7 +273,7 @@ void Worker::iterative_gen_loops_normal()
     wc->excludes_catch = nullptr;
     from_state = to_state;
     if constexpr (MARKING && !REPLAY) {
-      doexclude = false;
+      firstworkcell = false;
     }
   }
 
