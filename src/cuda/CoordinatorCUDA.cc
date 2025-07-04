@@ -184,7 +184,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
     std::tie(excludestates_throw, excludestates_catch) =
         graph.get_exclude_states();
   }
-  uint32_t exclude_offset = graph.numstates * (graph.maxoutdegree + 6);
+  uint32_t exclude_offset = graph.numstates * (graph.maxoutdegree + 5);
 
   for (unsigned i = 1; i <= graph.numstates; ++i) {
     // state numbers for outgoing links
@@ -202,12 +202,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
       buffer.push_back(static_cast<statenum_t>(graph.cyclenum.at(i)));
     }
 
-    // downstream state, to identify link throws in MARKING mode
-    if (alg == SearchAlgorithm::NORMAL_MARKING) {
-      buffer.push_back(static_cast<statenum_t>(graph.downstream_state(i)));
-    }
-
-    // excluded states, in MARKING mode
+    // pointers to lists of excluded states, in MARKING mode
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
       if (excludestates_throw.at(i).at(0) == 0) {
         buffer.push_back(0);
@@ -246,7 +241,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
   // append the exclude buffer, in MARKING mode
   if (alg == SearchAlgorithm::NORMAL_MARKING) {
-    assert(buffer.size() == graph.numstates * (graph.maxoutdegree + 6));
+    assert(buffer.size() == graph.numstates * (graph.maxoutdegree + 5));
     buffer.insert(buffer.end(), exclude_buffer.begin(),
         exclude_buffer.end());
   }
