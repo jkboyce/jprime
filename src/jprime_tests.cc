@@ -40,7 +40,7 @@ static const std::vector<TestCase> tests {
   // NORMAL mode
   {  7, "jprime 3 8 -count",                 11906414,   11906414,   49961711 },
   {  7, "jprime 5 15 1-12 -g -count",        17996072,   17996072,  229780787 },
-  // MARKING mode
+  // NORMAL_MARKING mode
   {  7, "jprime 3 16 524",                         30,    8045966,  291293062 },
   {  7, "jprime 5 10 225",                        838,   23754590, 1458188812 },
   {  7, "jprime 4 8 41- -ng -count",           298662,    7084550,   43179517 },
