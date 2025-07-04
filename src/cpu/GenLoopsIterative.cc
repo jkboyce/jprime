@@ -123,6 +123,7 @@ void Worker::iterative_gen_loops_normal()
           */
         }
       }
+      assert(from_state == st_state || u[from_state] == 1);
       u[from_state] = 0;
       ++nn;
 
@@ -258,6 +259,7 @@ void Worker::iterative_gen_loops_normal()
     }
 
     // advance to next beat
+    assert(u[to_state] == 0);
     u[to_state] = 1;
 
     ++p;
