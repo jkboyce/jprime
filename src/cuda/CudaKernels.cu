@@ -208,7 +208,8 @@ __device__ __forceinline__ void unmark_catch(statenum_t to_st,
 // Return pointers to working buffers for this CUDA thread
 
 __device__ CudaThreadPointers get_thread_pointers(
-    const CudaGlobalPointers& gptrs, unsigned bank, unsigned pos_lower_s,
+    const CudaGlobalPointers& gptrs, unsigned bank,
+    Coordinator::SearchAlgorithm alg, unsigned pos_lower_s,
     unsigned pos_upper_s, unsigned n_max)
 {
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -228,6 +229,15 @@ __device__ CudaThreadPointers get_thread_pointers(
     ptrs.used = (ThreadStorageUsed*)&gptrs.used_d[
           (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
           (((numstates_d + 1) + 31) / 32) + (id & 31)];
+
+    if (alg == Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+      // deadstates[]
+      size_t device_base_u32 = gridDim.x * ((blockDim.x + 31) / 32) *
+          (sizeof(ThreadStorageUsed) / 4) * (((numstates_d + 1) + 31) / 32);
+      ptrs.deadstates = (ThreadStorageUsed*)&gptrs.used_d[device_base_u32 +
+            (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
+            ((numcycles_d + 3) / 4) + (id & 31)];
+    }
   }
 
   // set up shared memory
@@ -247,6 +257,14 @@ __device__ CudaThreadPointers get_thread_pointers(
               (((numstates_d + 1) + 31) / 32) + (threadIdx.x & 31)];
     shared_base_u32 = ((blockDim.x + 31) / 32) *
         (sizeof(ThreadStorageUsed) / 4) * (((numstates_d + 1) + 31) / 32);
+
+    if (alg == Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+      ptrs.deadstates = (ThreadStorageUsed*)&shared[shared_base_u32 +
+          (threadIdx.x / 32) * (sizeof(ThreadStorageUsed) / 4) *
+          ((numcycles_d + 3) / 4) + (threadIdx.x & 31)];
+      shared_base_u32 += ((blockDim.x + 31) / 32) *
+          (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 3) / 4);
+    }
   }
 
   // workcells in shared memory, if any
@@ -328,6 +346,7 @@ __device__ void dump_info(int16_t pos, ThreadStorageWorkCell* workcell_d,
 __global__ void cuda_gen_loops_normal(
         // execution setup
         CudaGlobalPointers gptrs, unsigned bank,
+        Coordinator::SearchAlgorithm alg,
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
         bool report, unsigned n_min, unsigned n_max)
@@ -339,8 +358,8 @@ __global__ void cuda_gen_loops_normal(
   }
 
   const auto start_clock = clock64();
-  const auto ptrs = get_thread_pointers(gptrs, bank, pos_lower_s, pos_upper_s,
-      n_max);
+  const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
+      pos_upper_s, n_max);
 
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
@@ -507,122 +526,45 @@ __global__ void cuda_gen_loops_normal(
 
 __global__ void cuda_gen_loops_normal_marking(
         // execution setup
+        CudaGlobalPointers gptrs, unsigned bank,
+        Coordinator::SearchAlgorithm alg,
+        /*
         WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
         statenum_t* const patterns_d, uint32_t* const pattern_index_d,
-        const statenum_t* const graphmatrix_d, uint32_t* const used_d,
+        const statenum_t* const graphmatrix_d, uint32_t* const used_d,*/
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
         bool report, unsigned n_min, unsigned n_max)
 {
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
-  if (wi_d[id].status & 1) {
+  WorkerInfo& wi = gptrs.wi_d[bank][id];
+  if ((wi.status & 1) != 0) {
     return;
   }
+
   const auto start_clock = clock64();
+  const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
+      pos_upper_s, n_max);
   constexpr bool debugprint = false;
 
-  // set up register variables
-  auto st_state = wi_d[id].start_state;
-  auto pos = wi_d[id].pos;
-  auto nnodes = wi_d[id].nnodes;
+  // local variables for fast access
   const auto outdegree = maxoutdegree_d;
-  const statenum_t* const graphmatrix = (graphmatrix_d == nullptr ?
-      graphmatrix_c : graphmatrix_d);
+  const auto graphmatrix = (gptrs.graphmatrix_d == nullptr ?
+      graphmatrix_c : gptrs.graphmatrix_d);
+  auto st_state = wi.start_state;
+  auto pos = wi.pos;
+  auto nnodes = wi.nnodes;
+  auto used = ptrs.used;
+  auto deadstates = ptrs.deadstates;
+  auto workcell_d = ptrs.workcell_d;
+  auto workcell_s = ptrs.workcell_s;
+  auto workcell_pos_lower_minus1 = ptrs.workcell_pos_lower_minus1;
+  auto workcell_pos_lower = ptrs.workcell_pos_lower;
+  auto workcell_pos_upper = ptrs.workcell_pos_upper;
+  auto workcell_pos_upper_plus1 = ptrs.workcell_pos_upper_plus1;
 
-  // find base address of workcell[] in device memory, for this thread
-  ThreadStorageWorkCell* workcell_d = nullptr;
-  {
-    ThreadStorageWorkCell* const warp_start = &wc_d[(id / 32) * n_max];
-    uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
-    workcell_d = reinterpret_cast<ThreadStorageWorkCell*>(
-        &warp_start_u32[id & 31]);
-  }
-
-  // arrays that are in device memory or shared memory
-  ThreadStorageUsed* used = nullptr;
-  ThreadStorageUsed* deadstates = nullptr;
-
-  // if used[] arrays in device memory, set up base addresses for this thread
-  if (used_d != nullptr) {
-    size_t device_base_u32 = 0;
-
-    // used[]
-    used = (ThreadStorageUsed*)&used_d[
-          (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
-          (((numstates_d + 1) + 31) / 32) + (id & 31)];
-    device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
-        (sizeof(ThreadStorageUsed) / 4) * (((numstates_d + 1) + 31) / 32);
-
-    // deadstates[]
-    deadstates = (ThreadStorageUsed*)&used_d[device_base_u32 +
-          (id / 32) * (sizeof(ThreadStorageUsed) / 4) *
-          ((numcycles_d + 3) / 4) + (id & 31)];
-    device_base_u32 += gridDim.x * ((blockDim.x + 31) / 32) *
-        (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 3) / 4);
-  }
-
-  // set up shared memory ------------------------------------------------------
-  //
-  // if used_d is nullptr then we put used[] into shared memory. It is stored
-  // as bitfields for 32 threads, in (numstates_d + 1)/32 instances of
-  // ThreadStorageUsed, each of which is 32 uint32s
-  //
-  // workcell[] arrays for 32 threads are stored in (pos_upper_s - pos_lower_s)
-  // instances of ThreadStorageWorkCell, each of which is 64 uint32s
-  extern __shared__ uint32_t shared[];
-
-  size_t shared_base_u32 = 0;
-  if (used_d == nullptr) {
-    used = (ThreadStorageUsed*)&shared[
-        (threadIdx.x / 32) * (sizeof(ThreadStorageUsed) / 4) *
-        (((numstates_d + 1) + 31) / 32) + (threadIdx.x & 31)];
-    shared_base_u32 += ((blockDim.x + 31) / 32) *
-        (sizeof(ThreadStorageUsed) / 4) * (((numstates_d + 1) + 31) / 32);
-
-    deadstates = (ThreadStorageUsed*)&shared[shared_base_u32 +
-        (threadIdx.x / 32) * (sizeof(ThreadStorageUsed) / 4) *
-        ((numcycles_d + 3) / 4) + (threadIdx.x & 31)];
-    shared_base_u32 += ((blockDim.x + 31) / 32) *
-        (sizeof(ThreadStorageUsed) / 4) * ((numcycles_d + 3) / 4);
-  }
-
-  const unsigned upper = (n_max < pos_upper_s ? n_max : pos_upper_s);
-  ThreadStorageWorkCell* const workcell_s =
-      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
-      (ThreadStorageWorkCell*)&shared[shared_base_u32 +
-          (threadIdx.x / 32) * (sizeof(ThreadStorageWorkCell) / 4) *
-                (upper - pos_lower_s) + (threadIdx.x & 31)
-      ] : nullptr;
-
-  // initialize workcell_s[]
-  for (unsigned i = pos_lower_s; i < pos_upper_s; ++i) {
-    if (workcell_s != nullptr && i < n_max) {
-      workcell_s[i - pos_lower_s].col = workcell_d[i].col;
-      workcell_s[i - pos_lower_s].col_limit = workcell_d[i].col_limit;
-      workcell_s[i - pos_lower_s].from_state = workcell_d[i].from_state;
-      workcell_s[i - pos_lower_s].count = workcell_d[i].count;
-    }
-  }
-
-  // set up four pointers to indicate when we're moving between the portions of
-  // workcell[] in device memory and shared memory
-  ThreadStorageWorkCell* const workcell_pos_lower_minus1 =
-      (pos_lower_s > 0 && pos_lower_s <= n_max &&
-            pos_lower_s < pos_upper_s) ?
-      &workcell_d[pos_lower_s - 1] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_lower =
-      (pos_lower_s < n_max && pos_lower_s < pos_upper_s) ?
-      &workcell_s[0] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_upper =
-      (pos_lower_s < pos_upper_s && pos_upper_s < n_max &&
-          pos_lower_s < pos_upper_s) ?
-      &workcell_s[pos_upper_s - pos_lower_s - 1] : nullptr;
-  ThreadStorageWorkCell* const workcell_pos_upper_plus1 =
-      (pos_upper_s < n_max && pos_lower_s < pos_upper_s) ?
-      &workcell_d[pos_upper_s] : nullptr;
-
-  // set up working variables --------------------------------------------------
-  // identical to CPU version in Worker::initialize_working_variables()
+  // initialize workspace ------------------------------------------------------
+  // (identical to CPU version in Worker::initialize_working_variables)
 
   for (unsigned i = 0; i < (((numstates_d + 1) + 31) / 32); ++i) {
     used[i].data = 0;
@@ -695,7 +637,7 @@ __global__ void cuda_gen_loops_normal_marking(
         graphmatrix[to_st * (outdegree + 5) + outdegree];
 
     if (is_bit_set(used, to_st)) {
-      wi_d[id].status |= 2;  // initialization error
+      wi.status |= 2;  // initialization error
       return;
     }
     set_bit(used, to_st);
@@ -704,22 +646,21 @@ __global__ void cuda_gen_loops_normal_marking(
       // link throw from `from_st` to `to_st`
       if (!mark_throw(from_st, from_cy, graphmatrix, outdegree, used,
           deadstates, max_possible, n_min)) {
-        wi_d[id].status |= 2;  // initialization error
+        wi.status |= 2;  // initialization error
         return;
       }
       if (!mark_catch(to_st, to_cy, graphmatrix, outdegree, used, deadstates,
           max_possible, n_min)) {
-        wi_d[id].status |= 2;  // initialization error
+        wi.status |= 2;  // initialization error
         return;
       }
     }
   }
 
   // current workcell pointer
-  ThreadStorageWorkCell* wc =
-      (pos >= pos_lower_s && pos < pos_upper_s) ?
+  auto wc = (pos >= pos_lower_s && pos < pos_upper_s) ?
       &workcell_s[pos - pos_lower_s] : &workcell_d[pos];
-  unsigned from_state = wc->from_state;
+  auto from_state = wc->from_state;
   bool firstworkcell = true;
 
   if constexpr(debugprint) {
@@ -731,7 +672,7 @@ __global__ void cuda_gen_loops_normal_marking(
 
   const auto init_clock = clock64();
   const auto end_clock = init_clock + cycles;
-  wi_d[id].cycles_startup = init_clock - start_clock;
+  wi.cycles_startup = init_clock - start_clock;
 
   // main loop -----------------------------------------------------------------
 
@@ -751,8 +692,8 @@ __global__ void cuda_gen_loops_normal_marking(
       ++nnodes;
 
       if (pos == 0) {
-        if (st_state == wi_d[id].end_state) {
-          wi_d[id].status |= 1;
+        if (st_state == wi.end_state) {
+          wi.status |= 1;
         } else {
           ++st_state;
         }
@@ -798,7 +739,8 @@ __global__ void cuda_gen_loops_normal_marking(
     if (to_state == st_state) {
       // found a valid pattern
       if (report && pos + 1 >= n_min) {
-        const uint32_t idx = atomicAdd(pattern_index_d, 1);
+        const uint32_t idx = atomicAdd(gptrs.pattern_index_d[bank], 1);
+        statenum_t*& patterns_d = gptrs.pb_d[bank];
         if (idx < pattern_buffer_size_d) {
           // write to the pattern buffer
           for (unsigned j = 0; j <= pos; ++j) {
@@ -861,9 +803,9 @@ __global__ void cuda_gen_loops_normal_marking(
     firstworkcell = false;
   }
 
-  wi_d[id].start_state = st_state;
-  wi_d[id].pos = pos;
-  wi_d[id].nnodes = nnodes;
+  wi.start_state = st_state;
+  wi.pos = pos;
+  wi.nnodes = nnodes;
 
   // save workcell_s[] to device memory
   for (unsigned i = pos_lower_s; i < pos_upper_s; ++i) {
@@ -876,7 +818,7 @@ __global__ void cuda_gen_loops_normal_marking(
   }
 
   if constexpr (debugprint) {
-    if (id == 0 && (wi_d[id].status & 1) == 0) {
+    if (id == 0 && (wi.status & 1) == 0) {
       printf("State after execution:\n");
       dump_info(pos, workcell_d, used, deadstates, max_possible);
     }
@@ -1332,23 +1274,25 @@ CudaGlobalPointers get_gpu_static_pointers()
 // In the event of an error, throw a `std::runtime_error` exception with an
 // appropriate error message.
 
-void launch_kernel(const CudaRuntimeParams& p, const CudaGlobalPointers& gptrs,
-    Coordinator::SearchAlgorithm alg, unsigned bank, uint64_t cycles,
-    cudaStream_t& stream)
+void launch_kernel(const CudaGlobalPointers& gptrs, unsigned bank,
+    Coordinator::SearchAlgorithm alg, const CudaRuntimeParams& p,
+    uint64_t cycles, cudaStream_t& stream)
 {
   switch (alg) {
     case Coordinator::SearchAlgorithm::NORMAL:
       cuda_gen_loops_normal
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
-          gptrs, bank, p.window_lower, p.window_upper, cycles,
+          gptrs, bank, alg, p.window_lower, p.window_upper, cycles,
           p.report, p.n_min, p.n_max
         );
       break;
     case Coordinator::SearchAlgorithm::NORMAL_MARKING:
       cuda_gen_loops_normal_marking
         <<<p.num_blocks, p.num_threadsperblock, p.shared_memory_used, stream>>>(
+          gptrs, bank, alg,
+          /*
           gptrs.wi_d[bank], gptrs.wc_d[bank], gptrs.pb_d[bank],
-          gptrs.pattern_index_d[bank], gptrs.graphmatrix_d, gptrs.used_d,
+          gptrs.pattern_index_d[bank], gptrs.graphmatrix_d, gptrs.used_d,*/
           p.window_lower, p.window_upper, cycles,
           p.report, p.n_min, p.n_max
         );

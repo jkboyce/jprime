@@ -23,9 +23,9 @@
 // defined in CudaKernels.cu
 void configure_cuda_shared_memory(const CudaRuntimeParams& p);
 CudaGlobalPointers get_gpu_static_pointers();
-void launch_kernel(const CudaRuntimeParams& p, const CudaGlobalPointers& gptrs,
-  Coordinator::SearchAlgorithm alg, unsigned bank, uint64_t cycles,
-  cudaStream_t& stream);
+void launch_kernel(const CudaGlobalPointers& gptrs, unsigned bank,
+  Coordinator::SearchAlgorithm alg, const CudaRuntimeParams& p,
+  uint64_t cycles, cudaStream_t& stream);
 
 
 CoordinatorCUDA::CoordinatorCUDA(SearchConfig& a, SearchContext& b,
@@ -709,7 +709,7 @@ void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles)
   if (summary_before[bank].workers_idle.size() == config.num_threads)
     return;
 
-  launch_kernel(params, gptrs, alg, bank, cycles, stream[bank]);
+  launch_kernel(gptrs, bank, alg, params, cycles, stream[bank]);
 
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
