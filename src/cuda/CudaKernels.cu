@@ -152,7 +152,7 @@ __device__ __forceinline__ void unmark_throw(statenum_t from_st,
   const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
   uint32_t& ds_ref = ds[from_cy / 4].data;
 
-  while ((st = gr[idx])) {
+  while ((st = gr[idx]) != 0) {
     const uint32_t old_used = u[st / 32].data;
     const uint32_t new_used = old_used ^
         (static_cast<uint32_t>(1) << (st & 31));
@@ -186,7 +186,7 @@ __device__ __forceinline__ void unmark_catch(statenum_t to_st,
   const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
   uint32_t& ds_ref = ds[to_cy / 4].data;
 
-  while ((st = gr[idx])) {
+  while ((st = gr[idx]) != 0) {
     const uint32_t old_used = u[st / 32].data;
     const uint32_t new_used = old_used ^
         (static_cast<uint32_t>(1) << (st & 31));
@@ -870,10 +870,6 @@ __global__ void cuda_gen_loops_super(
         // execution setup
         CudaGlobalPointers gptrs, unsigned bank,
         Coordinator::SearchAlgorithm alg,
-        /*
-        WorkerInfo* const wi_d, ThreadStorageWorkCell* const wc_d,
-        statenum_t* const patterns_d, uint32_t* const pattern_index_d,
-        const statenum_t* const graphmatrix_d, uint32_t* const used_d,*/
         unsigned pos_lower_s, unsigned pos_upper_s, uint64_t cycles,
         // algorithm config
         bool report, unsigned n_min, unsigned n_max, unsigned shiftlimit)
