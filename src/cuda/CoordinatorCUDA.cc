@@ -22,8 +22,8 @@
 
 // defined in CudaKernels.cu
 void configure_cuda_shared_memory(const CudaRuntimeParams& p);
-CudaMemoryPointers get_gpu_static_pointers();
-void launch_kernel(const CudaRuntimeParams& p, const CudaMemoryPointers& ptrs,
+CudaGlobalPointers get_gpu_static_pointers();
+void launch_kernel(const CudaRuntimeParams& p, const CudaGlobalPointers& gptrs,
   Coordinator::SearchAlgorithm alg, unsigned bank, uint64_t cycles,
   cudaStream_t& stream);
 
@@ -123,7 +123,7 @@ void CoordinatorCUDA::initialize()
   prop = initialize_cuda_device();
   graph_buffer = make_graph_buffer();
   params = find_runtime_params();
-  ptrs = get_gpu_static_pointers();
+  gptrs = get_gpu_static_pointers();
 
   allocate_memory();
   copy_graph_to_gpu();
@@ -479,15 +479,16 @@ void CoordinatorCUDA::allocate_memory()
   // GPU memory
   for (unsigned bank = 0; bank < 2; ++bank) {
     throw_on_cuda_error(
-        cudaMalloc(&(ptrs.wi_d[bank]), sizeof(WorkerInfo) * config.num_threads),
+        cudaMalloc(&(gptrs.wi_d[bank]), sizeof(WorkerInfo) *
+          config.num_threads),
         __FILE__, __LINE__);
     throw_on_cuda_error(
-        cudaMalloc(&(ptrs.wc_d[bank]), sizeof(ThreadStorageWorkCell) * n_max *
+        cudaMalloc(&(gptrs.wc_d[bank]), sizeof(ThreadStorageWorkCell) * n_max *
             ((config.num_threads + 31) / 32)),
         __FILE__, __LINE__);
     if (!config.countflag) {
       throw_on_cuda_error(
-          cudaMalloc(&(ptrs.pb_d[bank]), sizeof(statenum_t) * n_max *
+          cudaMalloc(&(gptrs.pb_d[bank]), sizeof(statenum_t) * n_max *
               params.pattern_buffer_size),
           __FILE__, __LINE__);
     }
@@ -496,7 +497,7 @@ void CoordinatorCUDA::allocate_memory()
   if (graph_buffer.size() * sizeof(statenum_t) > 65536) {
     // graph doesn't fit in constant memory
     throw_on_cuda_error(
-        cudaMalloc(&(ptrs.graphmatrix_d),
+        cudaMalloc(&(gptrs.graphmatrix_d),
         graph_buffer.size() * sizeof(statenum_t)), __FILE__, __LINE__);
   }
 
@@ -534,7 +535,7 @@ void CoordinatorCUDA::allocate_memory()
               << " bytes)\n";
       }
       throw_on_cuda_error(
-        cudaMalloc(&(ptrs.used_d), used_size), __FILE__, __LINE__);
+        cudaMalloc(&(gptrs.used_d), used_size), __FILE__, __LINE__);
     }
   }
 
@@ -585,12 +586,12 @@ void CoordinatorCUDA::copy_graph_to_gpu()
 {
   if (config.verboseflag) {
     print_string(std::format("  placing graph into {} memory ({} bytes)",
-               (ptrs.graphmatrix_d != nullptr ? "device" : "constant"),
+               (gptrs.graphmatrix_d != nullptr ? "device" : "constant"),
                sizeof(statenum_t) * graph_buffer.size()));
   }
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.graphmatrix_d != nullptr ? ptrs.graphmatrix_d :
-          ptrs.graphmatrix_c, graph_buffer.data(),
+      cudaMemcpy(gptrs.graphmatrix_d != nullptr ? gptrs.graphmatrix_d :
+          gptrs.graphmatrix_c, graph_buffer.data(),
           sizeof(statenum_t) * graph_buffer.size(), cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
 }
@@ -606,27 +607,27 @@ void CoordinatorCUDA::copy_static_vars_to_gpu()
       static_cast<uint32_t>(params.pattern_buffer_size);
   uint32_t pattern_index_h = 0;
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t),
+      cudaMemcpy(gptrs.maxoutdegree_d, &maxoutdegree_h, sizeof(uint8_t),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.numstates_d, &numstates_h, sizeof(uint16_t),
+      cudaMemcpy(gptrs.numstates_d, &numstates_h, sizeof(uint16_t),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.numcycles_d, &numcycles_h, sizeof(uint16_t),
+      cudaMemcpy(gptrs.numcycles_d, &numcycles_h, sizeof(uint16_t),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.pattern_buffer_size_d, &pattern_buffer_size_h,
+      cudaMemcpy(gptrs.pattern_buffer_size_d, &pattern_buffer_size_h,
           sizeof(uint32_t), cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.pattern_index_d[0], &pattern_index_h, sizeof(uint32_t),
+      cudaMemcpy(gptrs.pattern_index_d[0], &pattern_index_h, sizeof(uint32_t),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpy(ptrs.pattern_index_d[1], &pattern_index_h, sizeof(uint32_t),
+      cudaMemcpy(gptrs.pattern_index_d[1], &pattern_index_h, sizeof(uint32_t),
           cudaMemcpyHostToDevice),
       __FILE__, __LINE__);
 }
@@ -688,11 +689,11 @@ void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup)
   auto idx_count = startup ? config.num_threads : (max_active_idx[bank] + 1);
 
   throw_on_cuda_error(
-      cudaMemcpyAsync(ptrs.wi_d[bank], wi_h[bank], sizeof(WorkerInfo) *
+      cudaMemcpyAsync(gptrs.wi_d[bank], wi_h[bank], sizeof(WorkerInfo) *
           idx_count, cudaMemcpyHostToDevice, stream[bank]),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpyAsync(ptrs.wc_d[bank], wc_h[bank],
+      cudaMemcpyAsync(gptrs.wc_d[bank], wc_h[bank],
           sizeof(ThreadStorageWorkCell) * (max_active_idx[bank] / 32 + 1) *
           n_max, cudaMemcpyHostToDevice, stream[bank]),
       __FILE__, __LINE__);
@@ -708,7 +709,7 @@ void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles)
   if (summary_before[bank].workers_idle.size() == config.num_threads)
     return;
 
-  launch_kernel(params, ptrs, alg, bank, cycles, stream[bank]);
+  launch_kernel(params, gptrs, alg, bank, cycles, stream[bank]);
 
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
@@ -723,12 +724,12 @@ void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles)
 void CoordinatorCUDA::copy_worker_data_from_gpu(unsigned bank)
 {
   throw_on_cuda_error(
-      cudaMemcpyAsync(wi_h[bank], ptrs.wi_d[bank],
+      cudaMemcpyAsync(wi_h[bank], gptrs.wi_d[bank],
           sizeof(WorkerInfo) * (max_active_idx[bank] + 1),
           cudaMemcpyDeviceToHost, stream[bank]),
       __FILE__, __LINE__);
   throw_on_cuda_error(
-      cudaMemcpyAsync(wc_h[bank], ptrs.wc_d[bank],
+      cudaMemcpyAsync(wc_h[bank], gptrs.wc_d[bank],
           sizeof(ThreadStorageWorkCell) * (max_active_idx[bank] / 32 + 1) *
           n_max, cudaMemcpyDeviceToHost, stream[bank]),
       __FILE__, __LINE__);
@@ -801,13 +802,13 @@ void CoordinatorCUDA::process_worker_counters(unsigned bank)
 
 uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
 {
-  if (ptrs.pb_d[bank] == nullptr) {
+  if (gptrs.pb_d[bank] == nullptr) {
     return 0;
   }
 
   // get the number of patterns in the buffer
   throw_on_cuda_error(
-    cudaMemcpyAsync(pattern_count_h, ptrs.pattern_index_d[bank],
+    cudaMemcpyAsync(pattern_count_h, gptrs.pattern_index_d[bank],
         sizeof(uint32_t), cudaMemcpyDeviceToHost, stream[bank]),
     __FILE__, __LINE__
   );
@@ -821,7 +822,7 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
 
   // copy pattern data to host
   throw_on_cuda_error(
-    cudaMemcpyAsync(pb_h, ptrs.pb_d[bank], sizeof(statenum_t) * n_max *
+    cudaMemcpyAsync(pb_h, gptrs.pb_d[bank], sizeof(statenum_t) * n_max *
         (*pattern_count_h), cudaMemcpyDeviceToHost, stream[bank]),
     __FILE__, __LINE__
   );
@@ -892,7 +893,7 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
   const uint32_t pattern_count = *pattern_count_h;
   *pattern_count_h = 0;
   throw_on_cuda_error(
-    cudaMemcpyAsync(ptrs.pattern_index_d[bank], pattern_count_h,
+    cudaMemcpyAsync(gptrs.pattern_index_d[bank], pattern_count_h,
         sizeof(uint32_t), cudaMemcpyHostToDevice, stream[bank]),
     __FILE__, __LINE__
   );
@@ -1038,26 +1039,26 @@ void CoordinatorCUDA::cleanup()
 
   // GPU memory
   for (unsigned bank = 0; bank < 2; ++bank) {
-    if (ptrs.wi_d[bank] != nullptr) {
-      cudaFree(ptrs.wi_d[bank]);
-      ptrs.wi_d[bank] = nullptr;
+    if (gptrs.wi_d[bank] != nullptr) {
+      cudaFree(gptrs.wi_d[bank]);
+      gptrs.wi_d[bank] = nullptr;
     }
-    if (ptrs.wc_d[bank] != nullptr) {
-      cudaFree(ptrs.wc_d[bank]);
-      ptrs.wc_d[bank] = nullptr;
+    if (gptrs.wc_d[bank] != nullptr) {
+      cudaFree(gptrs.wc_d[bank]);
+      gptrs.wc_d[bank] = nullptr;
     }
-    if (ptrs.pb_d[bank] != nullptr) {
-      cudaFree(ptrs.pb_d[bank]);
-      ptrs.pb_d[bank] = nullptr;
+    if (gptrs.pb_d[bank] != nullptr) {
+      cudaFree(gptrs.pb_d[bank]);
+      gptrs.pb_d[bank] = nullptr;
     }
   }
-  if (ptrs.graphmatrix_d != nullptr) {
-    cudaFree(ptrs.graphmatrix_d);
-    ptrs.graphmatrix_d = nullptr;
+  if (gptrs.graphmatrix_d != nullptr) {
+    cudaFree(gptrs.graphmatrix_d);
+    gptrs.graphmatrix_d = nullptr;
   }
-  if (ptrs.used_d != nullptr) {
-    cudaFree(ptrs.used_d);
-    ptrs.used_d = nullptr;
+  if (gptrs.used_d != nullptr) {
+    cudaFree(gptrs.used_d);
+    gptrs.used_d = nullptr;
   }
 
   // Host memory

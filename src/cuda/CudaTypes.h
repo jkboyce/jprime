@@ -85,7 +85,8 @@ struct CudaRuntimeParams {
 };
 
 
-struct CudaMemoryPointers {
+// addresses of items in global GPU memory
+struct CudaGlobalPointers {
   // statically allocated items in GPU memory
   statenum_t* graphmatrix_c = nullptr;
   uint8_t* maxoutdegree_d = nullptr;
@@ -100,6 +101,22 @@ struct CudaMemoryPointers {
   statenum_t* pb_d[2] = { nullptr, nullptr };  // if needed
   statenum_t* graphmatrix_d = nullptr;  // if needed
   uint32_t* used_d = nullptr;  // if needed
+};
+
+
+// addresses of working buffers for a specific CUDA thread
+struct CudaThreadPointers {
+  ThreadStorageUsed* used = nullptr;
+  ThreadStorageUsed* deadstates = nullptr;
+  ThreadStorageUsed* cycleused = nullptr;
+  ThreadStorageUsed* isexitcycle = nullptr;
+
+  ThreadStorageWorkCell* workcell_d = nullptr;
+  ThreadStorageWorkCell* workcell_s = nullptr;
+  ThreadStorageWorkCell* workcell_pos_lower_minus1 = nullptr;
+  ThreadStorageWorkCell* workcell_pos_lower = nullptr;
+  ThreadStorageWorkCell* workcell_pos_upper = nullptr;
+  ThreadStorageWorkCell* workcell_pos_upper_plus1 = nullptr;
 };
 
 

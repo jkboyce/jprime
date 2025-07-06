@@ -51,7 +51,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   cudaStream_t stream[2] = { nullptr, nullptr };  // stream for each job bank
   std::vector<statenum_t> graph_buffer;
   CudaRuntimeParams params;
-  CudaMemoryPointers ptrs;
+  CudaGlobalPointers gptrs;
 
   // pinned memory blocks in host
   WorkerInfo* wi_h[2] = { nullptr, nullptr };  // workerinfo arrays
