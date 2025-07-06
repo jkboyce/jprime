@@ -141,8 +141,10 @@ if(JPRIME_ENABLE_CUDA)
     set(CMAKE_CUDA_EXTENSIONS OFF)
 
     # CUDA-specific compiler flags for .cu files
-    set(JPRIME_CUDA_CU_FLAGS "-O3" "-lineinfo" "-Wno-deprecated-gpu-targets")
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(JPRIME_CUDA_CU_FLAGS "-lineinfo" "-Wno-deprecated-gpu-targets")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        list(APPEND JPRIME_CUDA_CU_FLAGS "-O3")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
         list(APPEND JPRIME_CUDA_CU_FLAGS "-g")
     endif()
 
