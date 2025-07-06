@@ -122,8 +122,8 @@ struct CudaThreadPointers {
 
 // summarizes the status of an entire bank of workers
 struct CudaWorkerSummary {
-  unsigned root_pos_min;  // minimum `root_pos` across all active workers
-  statenum_t max_start_state;  // maximum `start_state` across all workers
+  unsigned root_pos_min = 0;  // minimum `root_pos` across all active workers
+  statenum_t max_start_state = 0;  // maximum `start_state` across all workers
   unsigned count_total = 0;  // total number of active jobs
   uint32_t cycles_startup = 0;  // average GPU clock cycles to initialize
 
