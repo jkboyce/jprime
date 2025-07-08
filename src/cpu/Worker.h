@@ -48,8 +48,8 @@ class Worker : public WorkSpace {
   const unsigned n_min;  // minimum period to find
   const unsigned n_max;  // maximum period
   Graph& graph;
-  std::vector<std::vector<unsigned>> excludestates_throw;
-  std::vector<std::vector<unsigned>> excludestates_catch;
+  std::vector<std::vector<unsigned>> excludestates_tail;
+  std::vector<std::vector<unsigned>> excludestates_head;
 
   // working variables for search
   std::vector<WorkCell> beat;  // workspace for iterative search
@@ -119,10 +119,10 @@ class Worker : public WorkSpace {
   unsigned load_one_throw();
   bool mark_off_rootpos_option(unsigned throwval, unsigned to_state);
   void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
-  bool mark_unreachable_states_throw();
-  bool mark_unreachable_states_catch(unsigned to_state);
-  void unmark_unreachable_states_throw();
-  void unmark_unreachable_states_catch(unsigned to_state);
+  bool mark_unreachable_states_tail();
+  bool mark_unreachable_states_head(unsigned to_state);
+  void unmark_unreachable_states_tail();
+  void unmark_unreachable_states_head(unsigned to_state);
   void handle_finished_pattern();
 
   // iterative search routines; defined in GenLoopsIterative.cc

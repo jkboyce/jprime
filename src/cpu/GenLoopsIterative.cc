@@ -69,16 +69,16 @@ void Worker::iterative_gen_loops_normal()
   unsigned** const outmatrix = om_row.data();
 
   // marking-related items
-  std::vector<unsigned*> es_throw_row;
+  std::vector<unsigned*> es_tail_row;
   unsigned** ds_bystate = nullptr;
   if constexpr (MARKING) {
-    es_throw_row.resize(graph.numstates + 1, nullptr);
+    es_tail_row.resize(graph.numstates + 1, nullptr);
     for (size_t i = 0; i <= graph.numstates; ++i) {
-      es_throw_row.at(i) = excludestates_throw.at(i).data();
+      es_tail_row.at(i) = excludestates_tail.at(i).data();
     }
     ds_bystate = deadstates_bystate.data();
   }
-  unsigned** const es_throw = es_throw_row.data();
+  unsigned** const es_tail = es_tail_row.data();
 
   // local variables to improve performance
   unsigned p = pos;
@@ -112,14 +112,14 @@ void Worker::iterative_gen_loops_normal()
       unsigned* ds = nullptr;
       if constexpr (MARKING) {
         // equivalence of two ways of determining whether to unmark a throw
-        assert( (wc->col > 1) == (wc->excludes_throw != nullptr) );
+        assert( (wc->col > 1) == (wc->excludes_tail != nullptr) );
         ds = ds_bystate[from_state];
         if (wc->col > 1) {
-          unmark(u, wc->excludes_throw, ds);
+          unmark(u, wc->excludes_tail, ds);
           /*
-          unsigned* es = es_throw[from_state];
+          unsigned* es = es_tail[from_state];
           unmark(u, es, ds);
-          wc->excludes_throw = nullptr;
+          wc->excludes_tail = nullptr;
           */
         }
       }
@@ -133,14 +133,14 @@ void Worker::iterative_gen_loops_normal()
       --p;
       --wc;
       if constexpr (MARKING) {
-        // equivalence of two ways of determining whether to unmark a catch
-        assert( (wc->col != 0) == (wc->excludes_catch != nullptr) );
+        // equivalence of two ways of determining whether to unmark the head
+        assert( (wc->col != 0) == (wc->excludes_head != nullptr) );
         if (wc->col != 0) {
-          unmark(u, wc->excludes_catch, ds);
+          unmark(u, wc->excludes_head, ds);
           /*
-          unsigned* es = excludestates_catch[from_state].data();
+          unsigned* es = excludestates_head[from_state].data();
           unmark(u, es, ds);
-          wc->excludes_catch = nullptr;
+          wc->excludes_head = nullptr;
           */
         }
         firstworkcell = false;
@@ -154,7 +154,7 @@ void Worker::iterative_gen_loops_normal()
       // equivalence of two ways of determining whether we need to do link throw
       // marking (note wc->col == 0 always corresponds to a shift throw)
       assert( (wc->col == 1 || (firstworkcell && wc->col != 0)) ==
-              (wc->excludes_throw == nullptr && wc->col != 0) );
+              (wc->excludes_tail == nullptr && wc->col != 0) );
 
       if (wc->col == 1 || (firstworkcell && wc->col != 0)) {
         // First link throw at this position; mark states on the `from_state`
@@ -164,8 +164,8 @@ void Worker::iterative_gen_loops_normal()
           firstworkcell = false;  // switch to marking only when col == 1
         }
 
-        unsigned* es = es_throw[from_state];
-        wc->excludes_throw = es;  // save for backtracking
+        unsigned* es = es_tail[from_state];
+        wc->excludes_tail = es;  // save for backtracking
 
         if (!mark(u, es, ds_bystate[from_state])) {
           // not valid, bail to previous beat
@@ -214,17 +214,17 @@ void Worker::iterative_gen_loops_normal()
 
     if constexpr (MARKING) {
       if (wc->col != 0) {  // link throw
-        // mark states excluded by catch
-        unsigned* es = excludestates_catch[to_state].data();
+        // mark states excluded by the head
+        unsigned* es = excludestates_head[to_state].data();
         unsigned* const ds = ds_bystate[to_state];
-        wc->excludes_catch = es;
+        wc->excludes_head = es;
 
         if (!mark(u, es, ds)) {
           // couldn't advance to next beat
           if constexpr (REPLAY) {
             assert(false);
           }
-          unmark(u, wc->excludes_catch, ds);
+          unmark(u, wc->excludes_head, ds);
           ++wc->col;
           continue;
         }
@@ -271,8 +271,8 @@ void Worker::iterative_gen_loops_normal()
       wc->col_limit = outdegree[to_state];
       wc->from_state = to_state;
     }
-    wc->excludes_throw = nullptr;
-    wc->excludes_catch = nullptr;
+    wc->excludes_tail = nullptr;
+    wc->excludes_head = nullptr;
     from_state = to_state;
     if constexpr (MARKING && !REPLAY) {
       firstworkcell = false;

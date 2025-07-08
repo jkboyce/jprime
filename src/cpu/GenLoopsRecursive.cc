@@ -96,7 +96,7 @@ void Worker::gen_loops_normal()
 
 void Worker::gen_loops_normal_marking()
 {
-  bool did_mark_for_throw = false;
+  bool did_mark_for_tail = false;
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
@@ -112,16 +112,16 @@ void Worker::gen_loops_normal_marking()
 
     const unsigned throwval = graph.outthrowval[from][col];
 
-    if (throwval != 0 && throwval != graph.h && !did_mark_for_throw) {
+    if (throwval != 0 && throwval != graph.h && !did_mark_for_tail) {
       // all larger `col` values will also be link throws, so we only need to
       // mark the "from" shift cycle once (marking is independent of link
       // throw value)
-      if (!mark_unreachable_states_throw()) {
-        unmark_unreachable_states_throw();
+      if (!mark_unreachable_states_tail()) {
+        unmark_unreachable_states_tail();
         ++nnodes;
         return;
       }
-      did_mark_for_throw = true;
+      did_mark_for_tail = true;
     }
 
     if (to == start_state) {
@@ -134,7 +134,7 @@ void Worker::gen_loops_normal_marking()
       continue;
 
     if (throwval != 0 && throwval != graph.h) {
-      if (mark_unreachable_states_catch(to)) {
+      if (mark_unreachable_states_head(to)) {
         pattern[pos] = throwval;
         ++used[to];
         ++pos;
@@ -144,7 +144,7 @@ void Worker::gen_loops_normal_marking()
         --pos;
         --used[to];
       }
-      unmark_unreachable_states_catch(to);
+      unmark_unreachable_states_head(to);
     } else {
       pattern[pos] = throwval;
 
@@ -168,8 +168,8 @@ void Worker::gen_loops_normal_marking()
       break;
   }
 
-  if (did_mark_for_throw) {
-    unmark_unreachable_states_throw();
+  if (did_mark_for_tail) {
+    unmark_unreachable_states_tail();
   }
   ++nnodes;
 }
@@ -515,58 +515,49 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
 // Implementation notes
 //
 // NOTE 1: In some cases it is possible for a state to be excluded twice during
-// the construction of a pattern: Once via a catch, and again via a throw.
-// Because of this we exclude states by flipping the used[] variable, rather
-// than by setting used=1. This (a) makes the marking process reversible, and
-// (b) avoids double-counting the changes to `max_possible`. Any state that
-// gets marked twice, back to used=0, does not affect the search because it
-// cannot be accessed by a future link throw; such states end with 'x' and are
-// only reachable with a shift throw `h`.
+// the construction of a pattern: Once via the head of a link throw, and again
+// via the tail of a different link throw. Because of this we exclude states by
+// flipping the used[] variable, rather than setting used=1. This (a) makes the
+// marking process reversible, and (b) avoids double-counting the changes to
+// `max_possible`. Any state that gets marked twice, back to used=0, does not
+// affect the search because it cannot be accessed by a future link throw; such
+// states end with 'x' and are only reachable with a shift throw `h`.
 //
 // INITIALIZATION: Prior to the start of gen_loops(), we initialize the
 // algorithm by setting used=1 for any state that is a priori unusable. This
 // consists of states < `start_state`, plus any states in their
-// excludestates_throw[] and excludestates_catch[] arrays. We then set
+// excludestates_tail[] and excludestates_head[] arrays. We then set
 // deadstates[] and `max_possible` to be consistent with used[]. See
 // Worker::initialize_working_variables().
 //
 // NOTE 2: For the states that are marked used=1 by this initialization
 // procedure, some can be flipped back to used=0 during subsequent marking
 // operations. However, a state that was excluded as part of an
-// excludestates_catch list for some state < `start_state` can only be flipped
-// by the excludestates_throw list of a subsequent throw – and vice versa. This
+// excludestates_head list for some state < `start_state` can only be flipped
+// by the excludestates_tail list of a subsequent throw – and vice versa. This
 // is because of how we've ordered the states: The excludestates[] arrays are
 // monotonically increasing, so if state S is excluded by, say, the
-// excludestates_throw[] list for some state < `start_state`, then all
+// excludestates_tail[] list for some state < `start_state`, then all
 // intermediate states have been marked used=1 as well, so none of the throws
-// that could flip S via a throw will be encountered during pattern
+// that could flip S via a tail will be encountered during pattern
 // construction. A similar argument applies to states excluded by
-// excludestates_catch[]. An implication of this fact is that no state can be
-// flipped two times, back to used=1.
+// excludestates_head[]. An implication is that no state can be flipped twice,
+// back to used=1.
 //
 // NOTE 3: The unusable states that are flipped back to used=0 (per NOTE 2)
-// have a special form because they are in both an excludestates_catch[] list
-// and an excludestates_throw[] list: They start with `-` and end with `x`.
+// have a special form because they are in both an excludestates_head[] list
+// and an excludestates_tail[] list: They start with `-` and end with `x`.
 // As discussed in NOTE 1, such states ending in `x` do not affect subsequent
 // pattern construction.
 
-inline bool Worker::mark_unreachable_states_throw()
+inline bool Worker::mark_unreachable_states_tail()
 {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = excludestates_throw[from].data();
+  unsigned* es = excludestates_tail[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
-    /*if (start_state > graph.max_startstate_usable.at(statenum)) {
-      std::cerr << "Flipping unusable state " << statenum
-                << " (" << graph.state.at(statenum) << ")"
-                << " due to throw from state " << from
-                << " (" << graph.state.at(from) << ")"
-                << "; start_state = " << start_state
-                << " (" << graph.state.at(start_state) << ")\n";
-    }*/
-
     // assert that if we're flipping one of the unusable states, that it begins
     // with `-` and ends with `x`
     assert(start_state <= graph.max_startstate_usable.at(statenum) ||
@@ -592,11 +583,11 @@ inline bool Worker::mark_unreachable_states_throw()
 // Returns false if `max_possible` falls below `n_min`, indicating we should
 // backtrack from the current position. Returns true otherwise.
 
-inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
+inline bool Worker::mark_unreachable_states_head(unsigned to_state)
 {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = excludestates_catch[to_state].data();
+  unsigned* es = excludestates_head[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
@@ -615,10 +606,10 @@ inline bool Worker::mark_unreachable_states_catch(unsigned to_state)
 
 // Reverse the marking operations above, so we can backtrack.
 
-inline void Worker::unmark_unreachable_states_throw()
+inline void Worker::unmark_unreachable_states_tail()
 {
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = excludestates_throw[from].data();
+  unsigned* es = excludestates_tail[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {
@@ -628,10 +619,10 @@ inline void Worker::unmark_unreachable_states_throw()
   }
 }
 
-inline void Worker::unmark_unreachable_states_catch(unsigned to_state)
+inline void Worker::unmark_unreachable_states_head(unsigned to_state)
 {
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = excludestates_catch[to_state].data();
+  unsigned* es = excludestates_head[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++)) {

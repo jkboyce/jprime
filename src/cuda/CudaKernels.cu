@@ -59,11 +59,11 @@ __device__ __forceinline__ bool is_bit_set(ThreadStorageUsed* arr, unsigned st)
 
 // Helpers for NORMAL_MARKING mode
 
-__device__ __forceinline__ bool mark_throw(statenum_t from_st,
+__device__ __forceinline__ bool mark_tail(statenum_t from_st,
     statenum_t from_cy, const statenum_t* const gr, uint8_t od,
     ThreadStorageUsed* u, ThreadStorageUsed* ds, int& maxp, unsigned nmin)
 {
-  // unusable states in excludestates_throw[]
+  // unusable states in excludestates_tail[]
   const uint16_t idx_low = gr[from_st * (od + 5) + (od + 1)];
   const uint16_t idx_high = gr[from_st * (od + 5) + (od + 2)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -99,11 +99,11 @@ __device__ __forceinline__ bool mark_throw(statenum_t from_st,
   return valid;
 }
 
-__device__ __forceinline__ bool mark_catch(statenum_t to_st,
+__device__ __forceinline__ bool mark_head(statenum_t to_st,
     statenum_t to_cy, const statenum_t* const gr, uint8_t od,
     ThreadStorageUsed* u, ThreadStorageUsed* ds, int& maxp, unsigned nmin)
 {
-  // unusable states in excludestates_catch[]
+  // unusable states in excludestates_head[]
   const uint16_t idx_low = gr[to_st * (od + 5) + (od + 3)];
   const uint16_t idx_high = gr[to_st * (od + 5) + (od + 4)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -137,11 +137,11 @@ __device__ __forceinline__ bool mark_catch(statenum_t to_st,
   return valid;
 }
 
-__device__ __forceinline__ void unmark_throw(statenum_t from_st,
+__device__ __forceinline__ void unmark_tail(statenum_t from_st,
     statenum_t from_cy, const statenum_t* const gr, uint8_t od,
     ThreadStorageUsed* u, ThreadStorageUsed* ds, int& maxp, unsigned nmin)
 {
-  // unusable states in excludestates_throw[]
+  // unusable states in excludestates_tail[]
   const uint16_t idx_low = gr[from_st * (od + 5) + (od + 1)];
   const uint16_t idx_high = gr[from_st * (od + 5) + (od + 2)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -171,11 +171,11 @@ __device__ __forceinline__ void unmark_throw(statenum_t from_st,
   }
 }
 
-__device__ __forceinline__ void unmark_catch(statenum_t to_st,
+__device__ __forceinline__ void unmark_head(statenum_t to_st,
     statenum_t to_cy, const statenum_t* const gr, uint8_t od,
     ThreadStorageUsed* u, ThreadStorageUsed* ds, int& maxp, unsigned nmin)
 {
-  // unusable states in excludestates_catch[]
+  // unusable states in excludestates_head[]
   const uint16_t idx_low = gr[to_st * (od + 5) + (od + 3)];
   const uint16_t idx_high = gr[to_st * (od + 5) + (od + 4)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -559,10 +559,10 @@ __global__ void cuda_gen_loops_normal(
 
 // graphmatrix elements:
 //   [from_state * (outdegree + 5) + outdegree] = cyclenum
-//   [from_state * (outdegree + 5) + outdegree + 1] = esthrow_index_lower
-//   [from_state * (outdegree + 5) + outdegree + 2] = esthrow_index_upper
-//   [from_state * (outdegree + 5) + outdegree + 3] = escatch_index_lower
-//   [from_state * (outdegree + 5) + outdegree + 4] = escatch_index_upper
+//   [from_state * (outdegree + 5) + outdegree + 1] = estail_index_lower
+//   [from_state * (outdegree + 5) + outdegree + 2] = estail_index_upper
+//   [from_state * (outdegree + 5) + outdegree + 3] = eshead_index_lower
+//   [from_state * (outdegree + 5) + outdegree + 4] = eshead_index_upper
 
 __global__ void cuda_gen_loops_normal_marking(
         // execution setup
@@ -610,7 +610,7 @@ __global__ void cuda_gen_loops_normal_marking(
   for (int i = 1; i < st_state; ++i) {
     set_bit(used, i);
 
-    // unusable states in excludestates_throw[]
+    // unusable states in excludestates_tail[]
     uint16_t idx_low = graphmatrix[i * (outdegree + 5) + (outdegree + 1)];
     uint16_t idx_high = graphmatrix[i * (outdegree + 5) + (outdegree + 2)];
     uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -624,7 +624,7 @@ __global__ void cuda_gen_loops_normal_marking(
       }
     }
 
-    // unusable states in excludestates_catch[]
+    // unusable states in excludestates_head[]
     idx_low = graphmatrix[i * (outdegree + 5) + (outdegree + 3)];
     idx_high = graphmatrix[i * (outdegree + 5) + (outdegree + 4)];
     idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
@@ -681,12 +681,12 @@ __global__ void cuda_gen_loops_normal_marking(
 
     if (workcell_d[i].col != 0) {
       // link throw from `from_st` to `to_st`
-      if (!mark_throw(from_st, from_cy, graphmatrix, outdegree, used,
+      if (!mark_tail(from_st, from_cy, graphmatrix, outdegree, used,
           deadstates, max_possible, n_min)) {
         wi.status |= 2;  // initialization error
         return;
       }
-      if (!mark_catch(to_st, to_cy, graphmatrix, outdegree, used, deadstates,
+      if (!mark_head(to_st, to_cy, graphmatrix, outdegree, used, deadstates,
           max_possible, n_min)) {
         wi.status |= 2;  // initialization error
         return;
@@ -722,7 +722,7 @@ __global__ void cuda_gen_loops_normal_marking(
       const statenum_t from_cycle =
           graphmatrix[from_state * (outdegree + 5) + (outdegree)];
       if (wc->col > 1) {
-        unmark_throw(from_state, from_cycle, graphmatrix, outdegree, used,
+        unmark_tail(from_state, from_cycle, graphmatrix, outdegree, used,
             deadstates, max_possible, n_min);
       }
       clear_bit(used, from_state);
@@ -746,9 +746,9 @@ __global__ void cuda_gen_loops_normal_marking(
       } else {
         --wc;
       }
-      // unmark link catch from `wc->from_state` into `from_state`
+      // unmark head of link throw from `wc->from_state` into `from_state`
       if (wc->col != 0) {
-        unmark_catch(from_state, from_cycle, graphmatrix, outdegree, used,
+        unmark_head(from_state, from_cycle, graphmatrix, outdegree, used,
             deadstates, max_possible, n_min);
       }
       firstworkcell = false;
@@ -765,7 +765,7 @@ __global__ void cuda_gen_loops_normal_marking(
 
       const statenum_t from_cycle =
           graphmatrix[from_state * (outdegree + 5) + (outdegree)];
-      if (!mark_throw(from_state, from_cycle, graphmatrix, outdegree, used,
+      if (!mark_tail(from_state, from_cycle, graphmatrix, outdegree, used,
           deadstates, max_possible, n_min)) {
         // not valid, bail to previous beat
         wc->col = wc->col_limit;
@@ -807,13 +807,13 @@ __global__ void cuda_gen_loops_normal_marking(
     }
 
     if (wc->col != 0) {  // link throw
-      // mark states excluded by catch
+      // mark states excluded by head of link throw
       const statenum_t to_cycle =
           graphmatrix[to_state * (outdegree + 5) + (outdegree)];
-      if (!mark_catch(to_state, to_cycle, graphmatrix, outdegree, used,
+      if (!mark_head(to_state, to_cycle, graphmatrix, outdegree, used,
           deadstates, max_possible, n_min)) {
         // couldn't advance to next beat
-        unmark_catch(to_state, to_cycle, graphmatrix, outdegree, used,
+        unmark_head(to_state, to_cycle, graphmatrix, outdegree, used,
             deadstates, max_possible, n_min);
         ++wc->col;
         continue;

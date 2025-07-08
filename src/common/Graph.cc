@@ -491,14 +491,14 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 std::tuple<std::vector<std::vector<unsigned>>,
     std::vector<std::vector<unsigned>>> Graph::get_exclude_states() const
 {
-  std::vector<std::vector<unsigned>> excludestates_throw;
-  std::vector<std::vector<unsigned>> excludestates_catch;
+  std::vector<std::vector<unsigned>> excludestates_tail;
+  std::vector<std::vector<unsigned>> excludestates_head;
 
-  excludestates_throw.resize(numstates + 1);
-  excludestates_catch.resize(numstates + 1);
+  excludestates_tail.resize(numstates + 1);
+  excludestates_head.resize(numstates + 1);
   for (size_t i = 0; i <= numstates; ++i) {
-    excludestates_throw.at(i).assign(h, 0);
-    excludestates_catch.at(i).assign(h, 0);
+    excludestates_tail.at(i).assign(h, 0);
+    excludestates_head.at(i).assign(h, 0);
   }
 
   for (size_t i = 1; i <= numstates; ++i) {
@@ -515,12 +515,12 @@ std::tuple<std::vector<std::vector<unsigned>>,
       // assert that state numbers are monotonically increasing; see note
       // on Worker::mark_unreachable_states_throw()
       assert((j == 0 && statenum > i) ||
-          (j > 0 && statenum > excludestates_throw.at(i).at(j - 1)));
+          (j > 0 && statenum > excludestates_tail.at(i).at(j - 1)));
 
-      excludestates_throw.at(i).at(j++) = statenum;
+      excludestates_tail.at(i).at(j++) = statenum;
       s = s.downstream();
     }
-    excludestates_throw.at(i).at(j) = 0;
+    excludestates_tail.at(i).at(j) = 0;
 
     // Find states that are excluded by a link throw into state `i`. These are
     // the states upstream in i's shift cycle that start with '-'.
@@ -532,14 +532,14 @@ std::tuple<std::vector<std::vector<unsigned>>,
         break;
       }
       assert((j == 0 && statenum > i) ||
-          (j > 0 && statenum > excludestates_catch.at(i).at(j - 1)));
-      excludestates_catch.at(i).at(j++) = statenum;
+          (j > 0 && statenum > excludestates_head.at(i).at(j - 1)));
+      excludestates_head.at(i).at(j++) = statenum;
       s = s.upstream();
     }
-    excludestates_catch.at(i).at(j) = 0;
+    excludestates_head.at(i).at(j) = 0;
   }
 
-  return make_tuple(excludestates_throw, excludestates_catch);
+  return make_tuple(excludestates_tail, excludestates_head);
 }
 
 //------------------------------------------------------------------------------

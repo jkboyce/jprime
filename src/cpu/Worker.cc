@@ -107,7 +107,7 @@ void Worker::init()
 
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
-    std::tie(excludestates_throw, excludestates_catch) =
+    std::tie(excludestates_tail, excludestates_head) =
         graph.get_exclude_states();
   }
 }
@@ -311,11 +311,11 @@ void Worker::send_stats_to_coordinator()
 
       // number of deadstates induced by a link throw, above the
       // one-per-shift cycle baseline
-      if (!excludestates_throw.empty() && throwval != 0 &&
+      if (!excludestates_tail.empty() && throwval != 0 &&
           throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
-          auto es = excludestates_throw.at(from_state).at(j);
+          auto es = excludestates_tail.at(from_state).at(j);
           if (es == 0)
             break;
           if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
@@ -325,7 +325,7 @@ void Worker::send_stats_to_coordinator()
 
         // catch
         for (size_t j = 0; ; ++j) {
-          auto es = excludestates_catch.at(to_state).at(j);
+          auto es = excludestates_head.at(to_state).at(j);
           if (es == 0)
             break;
           if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
@@ -610,15 +610,15 @@ void Worker::initialize_working_variables()
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
     // for a discussion of the MARKING initialization procedure see
-    // Worker::mark_unreachable_states_throw()
+    // Worker::mark_unreachable_states_tail()
     for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;
-      for (auto s : excludestates_throw.at(i)) {
+      for (auto s : excludestates_tail.at(i)) {
         if (s != 0) {
           used.at(s) = 1;
         }
       }
-      for (auto s : excludestates_catch.at(i)) {
+      for (auto s : excludestates_head.at(i)) {
         if (s != 0) {
           used.at(s) = 1;
         }

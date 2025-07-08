@@ -178,10 +178,10 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
   // in MARKING mode, append a list of excluded states to the graph
   std::vector<statenum_t> exclude_buffer;
-  std::vector<std::vector<unsigned>> excludestates_throw;
-  std::vector<std::vector<unsigned>> excludestates_catch;
+  std::vector<std::vector<unsigned>> excludestates_tail;
+  std::vector<std::vector<unsigned>> excludestates_head;
   if (alg == SearchAlgorithm::NORMAL_MARKING) {
-    std::tie(excludestates_throw, excludestates_catch) =
+    std::tie(excludestates_tail, excludestates_head) =
         graph.get_exclude_states();
   }
   uint32_t exclude_offset = (graph.numstates + 1) * (graph.maxoutdegree + 5);
@@ -206,14 +206,14 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
     // pointers to lists of excluded states, in MARKING mode
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
-      if (excludestates_throw.at(i).at(0) == 0) {
+      if (excludestates_tail.at(i).at(0) == 0) {
         buffer.push_back(0);
         buffer.push_back(0);
       } else {
         buffer.push_back(static_cast<statenum_t>(exclude_offset & 0xFFFF));
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
-        for (auto s : excludestates_throw.at(i)) {
+        for (auto s : excludestates_tail.at(i)) {
           if (s == 0)
             break;
           exclude_buffer.push_back(static_cast<statenum_t>(s));
@@ -222,14 +222,14 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         exclude_buffer.push_back(0);
         ++exclude_offset;
       }
-      if (excludestates_catch.at(i).at(0) == 0) {
+      if (excludestates_head.at(i).at(0) == 0) {
         buffer.push_back(0);
         buffer.push_back(0);
       } else {
         buffer.push_back(static_cast<statenum_t>(exclude_offset & 0xFFFF));
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
-        for (auto s : excludestates_catch.at(i)) {
+        for (auto s : excludestates_head.at(i)) {
           if (s == 0)
             break;
           exclude_buffer.push_back(static_cast<statenum_t>(s));
