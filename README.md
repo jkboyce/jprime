@@ -1,15 +1,15 @@
 # jprime
-Parallel depth first search (DFS) to find prime siteswap juggling patterns.
-
-Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns. This is most easily understood by looking at siteswaps as paths on an associated "state diagram" graph. Prime patterns then correpond to *cycles* in the graph, i.e. circuits that visit each state in the pattern only once.
+Parallel depth first search (DFS) to find prime juggling patterns. Prime [siteswap](https://en.wikipedia.org/wiki/Siteswap) patterns are those which cannot be expressed as compositions (concatenations) of shorter patterns.
 
 `jprime` searches the juggling state graph for prime patterns, using efficiency tricks to speed up the search. The search is done in parallel using a work-stealing scheme to distribute the search across multiple execution threads. `jprime` can also run on a CUDA GPU, scaling to 50,000 or more concurrent workers.
+
+The software can also analyze siteswap patterns provided by the user, and compute pattern inverses where they exist.
 
 ## Description and results
 
 The following notes discuss the theory of prime juggling patterns, some details about algorithms used by `jprime`, and search results to date:
 
-* [Notes on Prime Juggling Patterns (2025.05.09)](papers/prime%20juggling_2025.pdf)
+* [Notes on Prime Juggling Patterns (2025.07.11)](papers/prime%20juggling_2025.pdf)
 
 ## Building and running jprime
 
@@ -26,8 +26,8 @@ Prerequisites:
   * Version 3.21 or later
   * For Linux and Windows this is included in the above build tools; for macOS it can be installed via Homebrew
 * Optional: CUDA Toolkit from NVIDIA
-  * Enables the CUDA build option, which allows searches to be run on the GPU
-  * Linux and Windows installers are available from NVIDIA (NVIDIA no longer supports the CUDA Toolkit on macOS)
+  * Enables the CUDA build option, which allows searches to be run on a GPU
+  * Linux and Windows installers are available from NVIDIA
 
 How to build:
 * See instructions in `CMakeLists.txt` for how to configure and build from the command line
