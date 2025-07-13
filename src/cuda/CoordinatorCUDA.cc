@@ -73,7 +73,7 @@ void CoordinatorCUDA::run_search()
     const auto host_time = calc_duration_secs(after_kernel[bankB],
         after_host[bankA]);
     record_working_time(bankB, kernel_time, host_time, cycles[bankB]);
-    do_status_display(bankB, kernel_time, host_time);
+    do_status_display(bankB, kernel_time, host_time, run);
 
     if (Coordinator::stopping) {
       process_worker_counters(bankA);  // node count changes from splitting
@@ -321,8 +321,14 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   double best_throughput = -1;
   const int max_warps = prop.maxThreadsPerBlock / 32;
 
+  constexpr bool set_warps = true;
+  constexpr int warps_target = 9;
+  constexpr bool print_info = false;
+
   for (int warps = 1; warps <= max_warps; ++warps) {
-    // jpout << "calculating for " << warps << " warps:\n";
+    if constexpr (print_info) {
+      jpout << "calculating for " << warps << " warps:\n";
+    }
 
     // find the maximum window size that fits into shared memory
     unsigned lower = 0;
@@ -357,20 +363,26 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
     const double throughput_est = (warps <= 32 ?
         throughput[warps][1] * S + throughput[warps][2] * (1 - S) :
         0.5 * warps * S + 0.25 * warps * (1 - S));
-    /* jpout << "  window [" << lower << ',' << upper
-          << "), S = " << S << ", T = " << throughput_avg << '\n'; */
+    if constexpr (print_info) {
+      jpout << "  window [" << lower << ',' << upper
+            << "), S = " << S << ", T = " << throughput_est << '\n';
+    }
 
-    if (throughput_est > best_throughput + 0.25) {
-      // jpout << "  new best warps: " << warps << '\n';
+    if ((!set_warps && throughput_est > best_throughput + 0.25) ||
+        (set_warps && warps == warps_target)) {
+      if constexpr (print_info) {
+        jpout << "  new best warps: " << warps << '\n';
+      }
       best_throughput = throughput_est;
       best_warps = warps;
       best_lower = lower;
       best_upper = upper;
     }
 
-    /*
-    jpout << std::format("warps {}: window [{},{}) S = {}, throughput = {}\n",
-          warps, lower, upper, S, throughput_avg);*/
+    if constexpr (print_info) {
+      jpout << std::format("warps {}: window [{},{}) S = {}, throughput = {}\n",
+          warps, lower, upper, S, throughput_est);
+    }
   }
 
   p.num_threadsperblock = 32 * best_warps;
@@ -1276,7 +1288,7 @@ CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
 // Create and display the live status indicator, if needed.
 
 void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
-      double host_time)
+      double host_time, int run)
 {
   // some housekeeping before the status display
   const auto& summary_afterB = summary_after[bankB];
@@ -1286,8 +1298,8 @@ void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
 
   if (config.verboseflag) {
     print_string(std::format(
-        "kernel = {:.3}, host = {:.3}, startup = {}, busy = {}",
-        kernel_time, host_time, summary_afterB.cycles_startup,
+        "run = {}, kernel = {:.3}, host = {:.3}, startup = {}, busy = {}",
+        run, kernel_time, host_time, summary_afterB.cycles_startup,
         config.num_threads - summary_afterB.workers_idle.size()));
   }
 

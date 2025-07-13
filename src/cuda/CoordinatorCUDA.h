@@ -116,7 +116,8 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   CudaWorkerSummary summarize_worker_status(unsigned bank);
   CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
     const CudaWorkerSummary& b);
-  void do_status_display(unsigned bankB, double kernel_time, double host_time);
+  void do_status_display(unsigned bankB, double kernel_time, double host_time,
+    int run);
 
   // manage work assignments
   void load_initial_work_assignments();
