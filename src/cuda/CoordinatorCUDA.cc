@@ -1484,10 +1484,12 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, const unsigned id,
   wi_h[bank][id].nnodes = 0;
   wi_h[bank][id].status = 0;
 
+#ifndef NDEBUG
   // verify the assignment is unchanged by round trip through the workspace
   WorkAssignment wa2;
   wa2.from_workspace(this, bank * config.num_threads + id);
   assert(wa == wa2);
+#endif
 }
 
 // Read out the work assignment for worker `id` from the workcells in bank

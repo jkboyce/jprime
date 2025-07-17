@@ -95,7 +95,7 @@ void Worker::iterative_gen_loops_normal()
 
   // register-based state variables during search
   unsigned from_state = wc->from_state;
-  bool firstworkcell = true;
+  bool mark_any_link_throw = true;
 
   while (true) {
     if constexpr (REPLAY) {
@@ -143,7 +143,7 @@ void Worker::iterative_gen_loops_normal()
           wc->excludes_head = nullptr;
           */
         }
-        firstworkcell = false;
+        mark_any_link_throw = false;
       }
       from_state = wc->from_state;
       ++wc->col;
@@ -153,15 +153,15 @@ void Worker::iterative_gen_loops_normal()
     if constexpr (MARKING) {
       // equivalence of two ways of determining whether we need to do link throw
       // marking (note wc->col == 0 always corresponds to a shift throw)
-      assert( (wc->col == 1 || (firstworkcell && wc->col != 0)) ==
+      assert( (wc->col == 1 || (mark_any_link_throw && wc->col != 0)) ==
               (wc->excludes_tail == nullptr && wc->col != 0) );
 
-      if (wc->col == 1 || (firstworkcell && wc->col != 0)) {
+      if (wc->col == 1 || (mark_any_link_throw && wc->col != 0)) {
         // First link throw at this position; mark states on the `from_state`
         // shift cycle that are excluded by a link throw. Only need to do this
         // once since the excluded states are independent of link throw value.
         if constexpr (!REPLAY) {
-          firstworkcell = false;  // switch to marking only when col == 1
+          mark_any_link_throw = false;  // switch to marking only when col == 1
         }
 
         unsigned* es = es_tail[from_state];
@@ -275,7 +275,7 @@ void Worker::iterative_gen_loops_normal()
     wc->excludes_head = nullptr;
     from_state = to_state;
     if constexpr (MARKING && !REPLAY) {
-      firstworkcell = false;
+      mark_any_link_throw = false;
     }
   }
 
@@ -586,10 +586,12 @@ void Worker::iterative_init_workspace()
   WorkAssignment wa = get_work_assignment();
   wa.to_workspace(this, 0);
 
+#ifndef NDEBUG
   // verify the assignment is unchanged by round trip through the workspace
   WorkAssignment wa2;
   wa2.from_workspace(this, 0);
   assert(wa == wa2);
+#endif
 }
 
 // Determine whether we will be able to respond to a SPLIT_WORK request at our
@@ -626,10 +628,12 @@ void Worker::iterative_update_after_split()
   (void)pos_orig;
   assert(pos == pos_orig);
 
+#ifndef NDEBUG
   // verify the assignment is unchanged by round trip through the workspace
   WorkAssignment wa2;
   wa2.from_workspace(this, 0);
   assert(wa == wa2);
+#endif
 }
 
 inline void Worker::iterative_handle_finished_pattern()

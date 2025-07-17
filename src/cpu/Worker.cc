@@ -346,28 +346,14 @@ void Worker::send_stats_to_coordinator()
     assert(found);
   }
 
-  if (config.mode != SearchConfig::RunMode::SUPER_SEARCH ||
-      config.shiftlimit != 0) {
+#ifndef NDEBUG
+  if (coordinator.get_search_algorithm() !=
+      Coordinator::SearchAlgorithm::SUPER0) {
     // check that we're accounting for used states in the correct way above;
     // note that `used` isn't used in SUPER0 mode
-    /*
-    if (u != used) {
-      std::cout << "worker " << worker_id << ":\n";
-      for (unsigned i = 0; i <= pos; ++i) {
-        std::cout << "pattern[" << i << "] = " << pattern.at(i) << '\n';
-      }
-      for (unsigned i = 0; i <= graph.numstates; ++i) {
-        std::cout << "state = " << i << ", u = " << u.at(i) << ", used = "
-                  << used.at(i)
-                  << (u.at(i) != used.at(i) ? " ERROR" : "") << '\n';
-      }
-      for (unsigned st : statenum) {
-        std::cout << st << ',';
-      }
-      std::cout << '\n';
-    }*/
     assert(u == used);
   }
+#endif
 
   message_coordinator(msg);
 }
@@ -467,7 +453,14 @@ void Worker::do_work_assignment()
   while (start_state <= end_state) {
     max_possible = coordinator.get_max_length(start_state);
 
-    if (max_possible != -1) {
+    if (max_possible == -1) {
+      // can't form prime patterns from this `start_state`
+      if (config.verboseflag) {
+        const auto text = std::format("worker {} skipping start state {} ({})",
+            worker_id, graph.state_string(start_state), start_state);
+        message_coordinator_text(text);
+      }
+    } else {
       if (config.verboseflag) {
         unsigned num_inactive = 0;
         for (size_t i = 1; i <= graph.numstates; ++i) {
