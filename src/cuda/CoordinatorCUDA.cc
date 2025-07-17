@@ -248,6 +248,11 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         exclude_buffer.end());
   }
 
+  // ensure that buffer length (in bytes) is divisible by 4
+  if ((buffer.size() % 2) == 1) {
+    buffer.push_back(0);
+  }
+
   return buffer;
 }
 
@@ -302,13 +307,22 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   p.pattern_buffer_size = (config.countflag ? 0 :
     (prop.totalGlobalMem / 16) / sizeof(statenum_t) / n_max);
 
-  // heuristic: see if used[] arrays for 10 warps will fit into shared memory;
-  // if not then put into device memory
+  // heuristic: put graph into shared memory if it needs less than half of total
+  // available; otherwise leave in device memory
+  const size_t graph_size = graph_buffer.size() * sizeof(statenum_t);
+  if (graph_size < prop.sharedMemPerBlockOptin / 2) {
+    p.graph_size_s = graph_size;
+  } else {
+    p.graph_size_s = 0;
+  }
+
+  // heuristic: see if used[] arrays for 10 warps will fit into remaining shared
+  // memory; if not then put into device memory
   p.num_threadsperblock = 32 * 10;
   p.used_in_shared = true;
   p.window_lower = p.window_upper = 0;
   size_t shared_mem = calc_shared_memory_size(n_max, p);
-  if (shared_mem > prop.sharedMemPerBlockOptin) {
+  if (shared_mem > prop.sharedMemPerBlockOptin - p.graph_size_s) {
     p.used_in_shared = false;
   }
 
@@ -321,7 +335,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   double best_throughput = -1;
   const int max_warps = prop.maxThreadsPerBlock / 32;
 
-  constexpr bool set_warps = true;
+  constexpr bool set_warps = false;
   constexpr int warps_target = 9;
   constexpr bool print_info = false;
 
@@ -340,7 +354,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
       shared_mem = calc_shared_memory_size(n_max, p);
       // jpout << "  upper = " << upper << ", mem = " << shared_mem << '\n';
 
-      if (shared_mem <= prop.sharedMemPerBlockOptin)
+      if (shared_mem <= prop.sharedMemPerBlockOptin - p.graph_size_s)
         break;
     }
     if (upper == 0) {
@@ -388,7 +402,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   p.num_threadsperblock = 32 * best_warps;
   p.window_lower = best_lower;
   p.window_upper = best_upper;
-  p.shared_memory_used = calc_shared_memory_size(n_max, p);
+  p.total_allocated_s = p.graph_size_s + calc_shared_memory_size(n_max, p);
   config.num_threads = p.num_blocks * p.num_threadsperblock;
 
   p.n_min = config.n_min;
@@ -431,7 +445,9 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
           << " patterns ("
           << (sizeof(statenum_t) * n_max * p.pattern_buffer_size)
           << " bytes)"
-          << "\n  shared memory used: " << p.shared_memory_used << " bytes"
+          << "\n  shared memory used: " << p.total_allocated_s << " bytes"
+          << std::format("\n  placing graph into {} memory ({} bytes)",
+                (p.graph_size_s ? "shared" : "device"), p.graph_size_s)
           << std::format("\n  placing used[] into {} memory",
                 p.used_in_shared ? "shared" : "device")
           << "\n  workcell[] window in shared memory = ["
@@ -597,9 +613,9 @@ void CoordinatorCUDA::allocate_memory()
 void CoordinatorCUDA::copy_graph_to_gpu()
 {
   if (config.verboseflag) {
-    print_string(std::format("  placing graph into {} memory ({} bytes)",
-               (gptrs.graphmatrix_d != nullptr ? "device" : "constant"),
-               sizeof(statenum_t) * graph_buffer.size()));
+    print_string(std::format("  placing graph buffer into {} memory ({} bytes)",
+        (gptrs.graphmatrix_d != nullptr ? "device" : "constant"),
+        sizeof(statenum_t) * graph_buffer.size()));
   }
   throw_on_cuda_error(
       cudaMemcpy(gptrs.graphmatrix_d != nullptr ? gptrs.graphmatrix_d :

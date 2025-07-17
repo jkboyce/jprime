@@ -71,8 +71,11 @@ static_assert(sizeof(ThreadStorageWorkCell) == 256,
 struct CudaRuntimeParams {
   unsigned num_blocks = 1;
   unsigned num_threadsperblock = 32;
-  size_t pattern_buffer_size = 1;
-  size_t shared_memory_used = 0;
+
+  // memory usage
+  size_t pattern_buffer_size = 0;  // patterns
+  size_t total_allocated_s = 0;  // bytes
+  size_t graph_size_s = 0;  // bytes
   bool used_in_shared = true;
   unsigned window_lower = 0;
   unsigned window_upper = 0;
@@ -106,6 +109,8 @@ struct CudaGlobalPointers {
 
 // addresses of working buffers for a specific CUDA thread
 struct CudaThreadPointers {
+  statenum_t* graphmatrix = nullptr;
+
   ThreadStorageUsed* used = nullptr;
   ThreadStorageUsed* deadstates = nullptr;
   ThreadStorageUsed* cycleused = nullptr;
