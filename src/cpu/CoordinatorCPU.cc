@@ -82,15 +82,16 @@ void CoordinatorCPU::give_assignments()
     auto iter = workers_idle.begin();
     auto id = *iter;
     workers_idle.erase(iter);
-    WorkAssignment wa = context.assignments.front();
+    WorkAssignment wa = std::move(context.assignments.front());
     context.assignments.pop_front();
 
-    MessageC2W msg;
-    msg.type = MessageC2W::Type::DO_WORK;
-    msg.assignment = wa;
     worker_startstate.at(id) = wa.start_state;
     worker_endstate.at(id) = wa.end_state;
     worker_rootpos.at(id) = wa.root_pos;
+
+    MessageC2W msg;
+    msg.type = MessageC2W::Type::DO_WORK;
+    msg.assignment = std::move(wa);
     message_worker(msg, id);
 
     if (config.statusflag) {

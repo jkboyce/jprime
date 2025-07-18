@@ -1045,8 +1045,7 @@ void CoordinatorCUDA::gather_unfinished_work_assignments()
   for (unsigned bank = 0; bank < 2; ++bank) {
     for (unsigned id = 0; id < config.num_threads; ++id) {
       if ((wi_h[bank][id].status & 1) == 0) {
-        WorkAssignment wa = read_work_assignment(bank, id);
-        context.assignments.push_back(wa);
+        context.assignments.push_back(read_work_assignment(bank, id));
       }
       wi_h[bank][id].status |= 1;
     }
@@ -1453,7 +1452,7 @@ void CoordinatorCUDA::load_initial_work_assignments()
     if (context.assignments.empty())
       break;
 
-    WorkAssignment wa = context.assignments.front();
+    WorkAssignment wa = std::move(context.assignments.front());
     context.assignments.pop_front();
 
     if (wa.get_type() == WorkAssignment::Type::STARTUP) {
@@ -1557,8 +1556,6 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
     if (wa.is_splittable()) {
       WorkAssignment wa2 = wa.split(graph, config.split_alg);
       load_work_assignment(bankB, *it, wa);
-      context.assignments.push_back(wa2);
-      ++context.splits_total;
 
       // Avoid double counting nodes: Each of the nodes in the partial path for
       // the new assignment will be reported twice to the coordinator: by the
@@ -1566,6 +1563,9 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
       if (wa.start_state == wa2.start_state) {
         wi_h[bankB][*it].nnodes -= wa2.partial_pattern.size();
       }
+
+      context.assignments.push_back(std::move(wa2));
+      ++context.splits_total;
     }
     ++it;
   }
@@ -1578,7 +1578,7 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
     if (context.assignments.empty())
       break;
 
-    WorkAssignment wa = context.assignments.front();
+    WorkAssignment wa = std::move(context.assignments.front());
     context.assignments.pop_front();
     load_work_assignment(bankB, id, wa);
     max_active_idx[bankB] = std::max(max_active_idx[bankB], id);

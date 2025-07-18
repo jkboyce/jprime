@@ -195,6 +195,7 @@ void SearchContext::to_file(const std::string& file)
     for (const auto& wa : assignments) {
       const auto wa_str = wa.to_string();
 
+#ifndef NDEBUG
       // verify the WorkAssignment is unchanged by round trip through a string
       WorkAssignment wa_rt;
       wa_rt.from_string(wa_str);
@@ -205,6 +206,7 @@ void SearchContext::to_file(const std::string& file)
                   << "round-trip: " << wa_rt << '\n';
       }
       assert(wa_rt == wa);
+#endif
 
       myfile << "  " << wa_str << '\n';
     }
@@ -397,7 +399,7 @@ void SearchContext::from_file(const std::string& file)
       // read work assignments
       WorkAssignment wa;
       if (wa.from_string(val)) {
-        assignments.push_back(wa);
+        assignments.push_back(std::move(wa));
       } else {
         myfile.close();
         throw std::invalid_argument(std::format(
