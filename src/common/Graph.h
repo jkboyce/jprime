@@ -32,7 +32,7 @@ class Graph {
   unsigned b = 0;  // number of objects
   unsigned h = 0;  // maximum throw value
   unsigned n = 0;  // if nonzero then single-period graph
-  std::vector<bool> xarray;
+  std::vector<bool> xarray;  // throw values to exclude
 
   // information about states
   unsigned numstates = 0;

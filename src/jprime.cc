@@ -131,9 +131,7 @@ void print_analysis(int argc, char** argv)
 
   try {
     Pattern pat(input);
-    std::cout << pat.make_analysis()
-              << "------------------------------------------------------------"
-              << std::endl;
+    std::cout << pat.make_analysis();
   } catch (const std::invalid_argument& ie) {
     std::cout << std::format("Error analyzing input: {}\n{}\n", input,
                    ie.what());

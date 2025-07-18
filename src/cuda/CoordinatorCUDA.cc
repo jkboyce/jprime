@@ -176,7 +176,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 {
   std::vector<statenum_t> buffer;
 
-  // in MARKING mode, append a list of excluded states to the graph
+  // in NORMAL_MARKING mode, append a list of excluded states to the graph
   std::vector<statenum_t> exclude_buffer;
   std::vector<std::vector<unsigned>> excludestates_tail;
   std::vector<std::vector<unsigned>> excludestates_head;
@@ -204,7 +204,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
       buffer.push_back(static_cast<statenum_t>(graph.cyclenum.at(i)));
     }
 
-    // pointers to lists of excluded states, in MARKING mode
+    // indexes to lists of excluded states
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
       if (excludestates_tail.at(i).at(0) == 0) {
         buffer.push_back(0);
@@ -241,7 +241,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
     }
   }
 
-  // append the exclude buffer, in MARKING mode
+  // append the exclude buffer
   if (alg == SearchAlgorithm::NORMAL_MARKING) {
     assert(buffer.size() == (graph.numstates + 1) * (graph.maxoutdegree + 5));
     buffer.insert(buffer.end(), exclude_buffer.begin(),

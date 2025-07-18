@@ -290,7 +290,7 @@ void Worker::iterative_gen_loops_normal()
   nnodes = nn;
 }
 
-// Helpers for marking mode
+// Helpers for NORMAL_MARKING mode
 //
 // See comments for the analagous functions in GenLoopsRecursive.cc
 
@@ -407,6 +407,9 @@ void Worker::iterative_gen_loops_super()
 
     if constexpr (SUPER0) {
       if (to_state < start_state) {
+        if (REPLAY) {
+          assert(false);
+        }
         ++wc->col;
         continue;
       }
