@@ -79,13 +79,10 @@ __device__ CudaThreadPointers get_thread_pointers(
     ptrs.graphmatrix = reinterpret_cast<statenum_t*>(shared);
     shared_base_u32 += params.graph_size_s / 4;
 
-    if (threadIdx.x == 0) {
-      uint32_t* graphmatrix_u32 = reinterpret_cast<uint32_t*>(graphmatrix_d);
-      for (unsigned i = 0; i < params.graph_size_s / 4; ++i) {
-        shared[i] = graphmatrix_u32[i];
-      }
+    uint32_t* graphmatrix_u32 = reinterpret_cast<uint32_t*>(graphmatrix_d);
+    for (int i = threadIdx.x; i < params.graph_size_s / 4; i += blockDim.x) {
+      shared[i] = graphmatrix_u32[i];
     }
-
     __syncthreads();
   } else {
     ptrs.graphmatrix = graphmatrix_d;
