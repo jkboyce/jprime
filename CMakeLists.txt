@@ -76,7 +76,7 @@ add_executable(jprime)
 target_sources(jprime PRIVATE ${JPRIME_CXX_SOURCES})
 target_include_directories(jprime PRIVATE ${JPRIME_BASE_INCLUDE_DIRS})
 
-# Common C++ compile flags
+# C++ compile flags (non-default)
 if(MSVC)
     # MSVC specific C++ compiler flags
     # /W4 is similar to -Wall, /EHsc is for exception handling
@@ -99,11 +99,6 @@ else()
     # GCC/Clang specific C++ compiler flags
     target_compile_options(jprime PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra>)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O3>)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-g>)
-    endif()
 endif()
 
 if(JPRIME_ENABLE_CUDA)
