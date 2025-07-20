@@ -418,7 +418,7 @@ Pattern Pattern::inverse()
     if (cyclestates.at(i) == cyclestates.at((i + 1) % period()))
       continue;
 
-    if (inverse_states.size() == 0) {
+    if (inverse_states.empty()) {
       // the inverse pattern starts at the (reversed version of) the next state
       // 'downstream' from `patternstate[i]`
       inverse_states.push_back(states.at(i).downstream().reverse());
