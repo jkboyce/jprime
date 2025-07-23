@@ -9,7 +9,7 @@ The software can also analyze siteswap patterns provided by the user, and comput
 
 The following notes discuss the theory of prime juggling patterns, some details about algorithms used by `jprime`, and search results to date:
 
-* [Notes on Prime Juggling Patterns (2025.07.11)](papers/prime%20juggling_2025.pdf)
+* [Notes on Prime Juggling Patterns (2025.07.11)](prime%20juggling_2025.pdf)
 
 ## Building and running jprime
 
