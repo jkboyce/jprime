@@ -10,13 +10,17 @@ Bengt Magnusson at Caltech wrote a siteswap generator in Fortran, which he later
 information about whether the Cambridge group of siteswap inventors (Mike Day, Colin Wright, Adam Chalcraft)
 wrote software in that timeframe, but it seems likely.
 
+These programs have been lightly edited to comply with ANSI C99 so they will compile in modern C compilers.
+In other respects they are unchanged.
+
 ## `j.c` (Nov 1990)
 
 This was the first program to generate prime juggling patterns, and to generate patterns using a juggling state graph,
 which were new ideas at the time.
 
 For reasons I now forget, the program did not generate patterns containing zero throws. Versions immediately
-after this fixed that problem.
+after this fixed that problem. Also this code used a method to store and notate juggling states that isn't as
+efficient as what soon emerged. The ideas took a while to gel.
 
 ## `j2.c` (Dec 1991)
 
