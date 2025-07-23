@@ -4,14 +4,14 @@ This folder contains some early siteswap pattern generators that I wrote, intere
 reasons. They show some of the evolution of ideas behind `jprime` and juggling pattern generators in general.
 
 The first juggling pattern generator was written by Don Hatch and Paul Klimek of Santa Cruz California,
-sometime around 1981 or 1982. To my knowledge this code has never been made public, but pattern list printouts
-from that era are shown in Sean Gandini's "Siteswaps" documentary, released on DVD in 2006. In the mid-late 1980s
-Bengt Magnusson at Caltech wrote a siteswap generator in Fortran, which he later rewrote in C in 1991. I have no
+sometime between 1981 and 1984. To my knowledge this code has never been made public, but pattern list printouts
+dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https://vimeo.com/497788314) from 2006.
+Later in the mid-late 1980s
+Bengt Magnusson at Caltech wrote a siteswap generator in Fortran, which he rewrote in C in 1991. I have no
 information about whether the Cambridge group of siteswap inventors (Mike Day, Colin Wright, Adam Chalcraft)
 wrote software in that timeframe, but it seems likely.
 
-These programs have been lightly edited to comply with ANSI C99 so they will compile in modern C compilers.
-In other respects they are unchanged.
+The programs here have been lightly edited to compile on a modern ANSI C99 compiler. In other respects they are unchanged.
 
 ## `j.c` (Nov 1990)
 
