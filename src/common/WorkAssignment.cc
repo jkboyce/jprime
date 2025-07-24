@@ -246,11 +246,10 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
     from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
   }
 
-  if (partial_pattern.size() == 0 || pos < static_cast<int>(root_pos)) {
+  if (partial_pattern.empty() || pos < static_cast<int>(root_pos)) {
     // loading a work assignment of type UNSPLITTABLE; we didn't initialize the
     // workcell at `root_pos` in the loop above, so do it here
-    assert(partial_pattern.size() == 0 ||
-        pos + 1 == static_cast<int>(root_pos));
+    assert(partial_pattern.empty() || pos + 1 == static_cast<int>(root_pos));
     assert(get_type() == WorkAssignment::Type::UNSPLITTABLE);
 
     WorkCell rwc;

@@ -47,8 +47,8 @@ void CoordinatorCPU::run_search()
     steal_work();
     collect_status();
 
-    if (Coordinator::stopping || (workers_idle.size() == config.num_threads
-          && context.assignments.empty())) {
+    if (Coordinator::stopping || (workers_idle.size() == config.num_threads &&
+          context.assignments.empty())) {
       break;
     }
 
@@ -367,7 +367,7 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
 
 void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
 {
-  if (msg.meta.size() > 0) {
+  if (!msg.meta.empty()) {
     if (config.verboseflag) {
       print_string(msg.meta);
     }

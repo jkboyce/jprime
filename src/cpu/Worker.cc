@@ -80,16 +80,17 @@ void Worker::run()
     // complete the new work assignment
     try {
       do_work_assignment();
-      record_elapsed_time_from(start);
-      notify_coordinator_idle();
     } catch (const JprimeStopException& jpse) {
       // a STOP_WORKER message while running unwinds back here; send any
-      // remaining work back to the coordinator
+      // remaining work back to the coordinator and exit
       (void)jpse;
       record_elapsed_time_from(start);
       send_work_to_coordinator(get_work_assignment());
       break;
     }
+
+    record_elapsed_time_from(start);
+    notify_coordinator_idle();
   }
 }
 
@@ -602,7 +603,7 @@ void Worker::initialize_working_variables()
 
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
-    // for a discussion of the MARKING initialization procedure see
+    // for a discussion of the NORMAL_MARKING initialization procedure see
     // Worker::mark_unreachable_states_tail()
     for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;
@@ -632,6 +633,7 @@ void Worker::initialize_working_variables()
       }
     }
 
+#ifndef NDEBUG
     // compare the method we use to calculate `max_possible` in the GPU to the
     // value returned by Coordinator::get_max_length()
     int max_possible_gpu = graph.numstates - graph.numcycles;
@@ -642,6 +644,7 @@ void Worker::initialize_working_variables()
     }
     (void)max_possible_gpu;
     assert(max_possible_gpu == max_possible);
+#endif
   } else {
     for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;

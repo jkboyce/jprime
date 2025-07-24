@@ -76,9 +76,9 @@ bool run_one_test(const TestCase& tc)
             << std::endl;
 
   int run_limit = 2;
-  #ifdef CUDA_ENABLED
+#ifdef CUDA_ENABLED
   run_limit = 3;
-  #endif
+#endif
 
   bool success = true;
 
@@ -168,10 +168,10 @@ int do_tests(int testnum)
   for (const auto& testcase : tests) {
     ++casenum;
 
-    #ifndef CUDA_ENABLED
+#ifndef CUDA_ENABLED
     if ((testcase.engines & 3) == 0)
       continue;
-    #endif
+#endif
 
     if (testnum != -1 && casenum != testnum)
       continue;
