@@ -61,7 +61,8 @@ __device__ __forceinline__ bool is_bit_set(ThreadStorageUsed* arr, unsigned st)
 
 __device__ CudaThreadPointers get_thread_pointers(
     const CudaGlobalPointers& gptrs, unsigned bank,
-    Coordinator::SearchAlgorithm alg, const CudaRuntimeParams& params)
+    Coordinator::SearchAlgorithm alg, unsigned pos_lower_s,
+    unsigned pos_upper_s, size_t graph_size_s, unsigned n_max)
 {
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   CudaThreadPointers ptrs;
@@ -74,13 +75,13 @@ __device__ CudaThreadPointers get_thread_pointers(
   statenum_t* graphmatrix_d = (gptrs.graphmatrix_d == nullptr ?
       graphmatrix_c : gptrs.graphmatrix_d);  // source of data
 
-  if (params.graph_size_s != 0) {
+  if (graph_size_s != 0) {
     // put into shared memory
     ptrs.graphmatrix = reinterpret_cast<statenum_t*>(shared);
-    shared_base_u32 += params.graph_size_s / 4;
+    shared_base_u32 += graph_size_s / 4;
 
     uint32_t* graphmatrix_u32 = reinterpret_cast<uint32_t*>(graphmatrix_d);
-    for (int i = threadIdx.x; i < params.graph_size_s / 4; i += blockDim.x) {
+    for (int i = threadIdx.x; i < graph_size_s / 4; i += blockDim.x) {
       shared[i] = graphmatrix_u32[i];
     }
     __syncthreads();
@@ -91,7 +92,7 @@ __device__ CudaThreadPointers get_thread_pointers(
   // find base address of workcell[] in device memory, for this thread
   {
     ThreadStorageWorkCell* const warp_start =
-        &gptrs.wc_d[bank][(id / 32) * params.n_max];
+        &gptrs.wc_d[bank][(id / 32) * n_max];
     uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
     ptrs.workcell_d = reinterpret_cast<ThreadStorageWorkCell*>(
         &warp_start_u32[id & 31]);
@@ -177,9 +178,6 @@ __device__ CudaThreadPointers get_thread_pointers(
   //
   // workcell[] arrays for 32 threads are stored in (pos_upper_s - pos_lower_s)
   // instances of ThreadStorageWorkCell, each of which is 64 uint32s
-  const unsigned pos_lower_s = params.window_lower;
-  const unsigned pos_upper_s = params.window_upper;
-  const unsigned n_max = params.n_max;
   const unsigned upper = (n_max < pos_upper_s ? n_max : pos_upper_s);
 
   if (pos_lower_s < upper) {
@@ -410,11 +408,16 @@ __device__ __forceinline__ void unmark_head(statenum_t to_st,
 //------------------------------------------------------------------------------
 
 __global__ void cuda_gen_loops_normal(
+    // execution setup
     CudaGlobalPointers gptrs, unsigned bank, Coordinator::SearchAlgorithm alg,
-    CudaRuntimeParams params, uint64_t cycles)
+    unsigned pos_lower_s, unsigned pos_upper_s, size_t graph_size_s,
+    uint64_t cycles,
+    // algorithm config
+    bool report, unsigned n_min, unsigned n_max)
 {
   const auto start_clock = clock64();
-  const auto ptrs = get_thread_pointers(gptrs, bank, alg, params);
+  const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
+      pos_upper_s, graph_size_s, n_max);
 
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   WorkerInfo& wi = gptrs.wi_d[bank][id];
@@ -425,12 +428,6 @@ __global__ void cuda_gen_loops_normal(
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
   const auto graphmatrix = ptrs.graphmatrix;
-  const auto pos_lower_s = params.window_lower;
-  const auto pos_upper_s = params.window_upper;
-  const auto report = params.report;
-  const auto n_min = params.n_min;
-  const auto n_max = params.n_max;
-
   auto st_state = wi.start_state;
   auto pos = wi.pos;
   auto nnodes = wi.nnodes;
@@ -591,11 +588,16 @@ __global__ void cuda_gen_loops_normal(
 //   [from_state * (outdegree + 5) + outdegree + 4] = eshead_index_upper
 
 __global__ void cuda_gen_loops_normal_marking(
+    // execution setup
     CudaGlobalPointers gptrs, unsigned bank, Coordinator::SearchAlgorithm alg,
-    CudaRuntimeParams params, uint64_t cycles)
+    unsigned pos_lower_s, unsigned pos_upper_s, size_t graph_size_s,
+    uint64_t cycles,
+    // algorithm config
+    bool report, unsigned n_min, unsigned n_max)
 {
   const auto start_clock = clock64();
-  const auto ptrs = get_thread_pointers(gptrs, bank, alg, params);
+  const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
+      pos_upper_s, graph_size_s, n_max);
   constexpr bool debugprint = false;
 
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -607,12 +609,6 @@ __global__ void cuda_gen_loops_normal_marking(
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
   const auto graphmatrix = ptrs.graphmatrix;
-  const auto pos_lower_s = params.window_lower;
-  const auto pos_upper_s = params.window_upper;
-  const auto report = params.report;
-  const auto n_min = params.n_min;
-  const auto n_max = params.n_max;
-
   auto st_state = wi.start_state;
   auto pos = wi.pos;
   auto nnodes = wi.nnodes;
@@ -893,11 +889,16 @@ __global__ void cuda_gen_loops_normal_marking(
 //------------------------------------------------------------------------------
 
 __global__ void cuda_gen_loops_super(
+    // execution setup
     CudaGlobalPointers gptrs, unsigned bank, Coordinator::SearchAlgorithm alg,
-    CudaRuntimeParams params, uint64_t cycles)
+    unsigned pos_lower_s, unsigned pos_upper_s, size_t graph_size_s,
+    uint64_t cycles,
+    // algorithm config
+    bool report, unsigned n_min, unsigned n_max, unsigned shiftlimit)
 {
   const auto start_clock = clock64();
-  const auto ptrs = get_thread_pointers(gptrs, bank, alg, params);
+  const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
+      pos_upper_s, graph_size_s, n_max);
 
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   WorkerInfo& wi = gptrs.wi_d[bank][id];
@@ -908,13 +909,6 @@ __global__ void cuda_gen_loops_super(
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
   const auto graphmatrix = ptrs.graphmatrix;
-  const auto pos_lower_s = params.window_lower;
-  const auto pos_upper_s = params.window_upper;
-  const auto report = params.report;
-  const auto n_min = params.n_min;
-  const auto n_max = params.n_max;
-  const auto shiftlimit = params.shiftlimit;
-
   auto st_state = wi.start_state;
   auto pos = wi.pos;
   auto nnodes = wi.nnodes;
@@ -1244,18 +1238,21 @@ void launch_kernel(const CudaGlobalPointers& gptrs, unsigned bank,
   switch (alg) {
     case Coordinator::SearchAlgorithm::NORMAL:
       cuda_gen_loops_normal<<<blocks, threads, shared_mem, stream>>>(
-          gptrs, bank, alg, p, cycles
+          gptrs, bank, alg, p.window_lower, p.window_upper, p.graph_size_s,
+          cycles, p.report, p.n_min, p.n_max
       );
       break;
     case Coordinator::SearchAlgorithm::NORMAL_MARKING:
       cuda_gen_loops_normal_marking<<<blocks, threads, shared_mem, stream>>>(
-          gptrs, bank, alg, p, cycles
+          gptrs, bank, alg, p.window_lower, p.window_upper, p.graph_size_s,
+          cycles, p.report, p.n_min, p.n_max
       );
       break;
     case Coordinator::SearchAlgorithm::SUPER:
     case Coordinator::SearchAlgorithm::SUPER0:
       cuda_gen_loops_super<<<blocks, threads, shared_mem, stream>>>(
-          gptrs, bank, alg, p, cycles
+          gptrs, bank, alg, p.window_lower, p.window_upper, p.graph_size_s,
+          cycles, p.report, p.n_min, p.n_max, p.shiftlimit
       );
       break;
     default:
