@@ -87,14 +87,6 @@ if(MSVC)
     #   C4996 -- 'ctime' may be unsafe
     target_compile_options(jprime PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:/wd4127 /wd4146 /wd4996>)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # /O2 is the Maximize Speed optimization, equivalent to gcc -O3
-        target_compile_options(jprime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/O2>)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # /Od disables optimization, /Zi creates debug info
-        target_compile_options(jprime PRIVATE
-            $<$<COMPILE_LANGUAGE:CXX>:/Od /Zi>)
-    endif()
 else()
     # GCC/Clang specific C++ compiler flags
     target_compile_options(jprime PRIVATE
