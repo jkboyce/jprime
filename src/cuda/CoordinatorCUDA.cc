@@ -302,6 +302,11 @@ static const double throughput[33][3] = {
 
 CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
 {
+  // temporary for development
+  constexpr bool set_warps = false;
+  constexpr int warps_target = 9;
+  constexpr bool print_info = false;
+
   CudaRuntimeParams p;
   p.num_blocks = prop.multiProcessorCount;
   p.pattern_buffer_size = (config.countflag ? 0 :
@@ -315,6 +320,7 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   } else {
     p.graph_size_s = 0;
   }
+  p.graph_size_s = 0;  // don't put graph into shared memory for now
 
   // heuristic: see if used[] arrays for 10 warps will fit into remaining shared
   // memory; if not then put into device memory
@@ -334,10 +340,6 @@ CudaRuntimeParams CoordinatorCUDA::find_runtime_params()
   unsigned best_upper = 0;
   double best_throughput = -1;
   const int max_warps = prop.maxThreadsPerBlock / 32;
-
-  constexpr bool set_warps = false;
-  constexpr int warps_target = 9;
-  constexpr bool print_info = false;
 
   for (int warps = 1; warps <= max_warps; ++warps) {
     if constexpr (print_info) {
