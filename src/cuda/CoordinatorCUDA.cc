@@ -581,11 +581,12 @@ void CoordinatorCUDA::allocate_memory()
       __FILE__, __LINE__);
 
     for (unsigned id = 0; id < config.num_threads; ++id) {
-      wi_h[bank][id].start_state = 0;
-      wi_h[bank][id].end_state = 0;
-      wi_h[bank][id].pos = 0;
-      wi_h[bank][id].nnodes = 0;
-      wi_h[bank][id].status = 1;  // done
+      WorkerInfo& wi = wi_h[bank][id];
+      wi.start_state = 0;
+      wi.end_state = 0;
+      wi.pos = 0;
+      wi.nnodes = 0;
+      wi.status = 1;  // done
       for (unsigned i = 0; i < n_max; ++i) {
         auto& cell = workcell(bank, id, i);
         cell.col = 0;
@@ -1510,80 +1511,108 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
 
 void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
 {
-  const CudaWorkerSummary& summary = summary_after[bankB];
+  CudaWorkerSummary& summary = summary_after[bankB];
+  auto it_idle = summary.workers_idle.begin();
+  const auto it_idle_end = summary.workers_idle.end();
+
+  // first try to assign from `context.assignments`
+  while (it_idle != it_idle_end && !context.assignments.empty()) {
+    WorkAssignment wa = std::move(context.assignments.front());
+    context.assignments.pop_front();
+    load_work_assignment(bankB, *it_idle, wa);
+    max_active_idx[bankB] = std::max(max_active_idx[bankB], *it_idle);
+    ++it_idle;
+  }
+
+  // split jobs until (a) all idle workers in this bank have jobs, and
+  // (b) we have `idle_before_a` jobs saved for the other bank
+
   const auto idle_before_a =
       static_cast<unsigned>(summary_before[1 - bankB].workers_idle.size());
-  const auto idle_after_b =
-      static_cast<unsigned>(summary.workers_idle.size());
 
-  // split working jobs and add them to the pool, until all workers are
-  // processed or pool size >= target_job_count
-  //
-  // jobs needed:
-  //   this bank (bankB):  `idle_after_b`
-  //   other bank (bankA): `idle_before_a`
+  // iterate through the workers in this order, for splitting
+  std::vector<const std::vector<unsigned>*> worker_lists = {
+      &summary.workers_multiple_start_states,
+      &summary.workers_rpm_plus0,
+      &summary.workers_rpm_plus1,
+      &summary.workers_rpm_plus2,
+      &summary.workers_rpm_plus3,
+      &summary.workers_rpm_plus4p
+  };
 
-  const unsigned target_job_count = idle_after_b + idle_before_a;
+  // convenience function to add an assignment into `summary`, which we can now
+  // modify at this point in overall processing
+  auto add_worker_to_summary = [&](const WorkAssignment& wa, unsigned id) {
+    if (wa.end_state > wa.start_state) {
+      summary.workers_multiple_start_states.push_back(id);
+    } else {
+      switch (static_cast<unsigned>(wa.root_pos) - summary.root_pos_min) {
+        case 0:
+          summary.workers_rpm_plus0.push_back(id);
+          break;
+        case 1:
+          summary.workers_rpm_plus1.push_back(id);
+          break;
+        case 2:
+          summary.workers_rpm_plus2.push_back(id);
+          break;
+        case 3:
+          summary.workers_rpm_plus3.push_back(id);
+          break;
+        default:
+          summary.workers_rpm_plus4p.push_back(id);
+          break;
+      }
+    }
+  };
+  const auto enable_resplit = (!warmed_up[bankB] || alg ==
+      Coordinator::SearchAlgorithm::NORMAL_MARKING);
 
-  std::vector<int> has_split(config.num_threads, 0);
-  auto it = summary.workers_multiple_start_states.begin();
+  for (const auto* list_ptr : worker_lists) {
+    for (size_t index = 0; index < list_ptr->size(); ++index) {
+      if (it_idle == it_idle_end &&
+            context.assignments.size() >= idle_before_a) {
+        return;
+      }
 
-  while (context.assignments.size() < target_job_count) {
-    if (it == summary.workers_multiple_start_states.end()) {
-      it = summary.workers_rpm_plus0.begin();
-    }
-    if (it == summary.workers_rpm_plus0.end()) {
-      it = summary.workers_rpm_plus1.begin();
-    }
-    if (it == summary.workers_rpm_plus1.end()) {
-      it = summary.workers_rpm_plus2.begin();
-    }
-    if (it == summary.workers_rpm_plus2.end()) {
-      it = summary.workers_rpm_plus3.begin();
-    }
-    if (it == summary.workers_rpm_plus3.end()) {
-      it = summary.workers_rpm_plus4p.begin();
-    }
-    if (it == summary.workers_rpm_plus4p.end()) {
-      break;
-    }
+      // do we have a splittable assignment?
+      const auto splitting_id = list_ptr->at(index);
+      WorkAssignment wa = read_work_assignment(bankB, splitting_id);
+      if (!wa.is_splittable())
+        continue;
 
-    if (has_split.at(*it)) {
-      ++it;
-      continue;
-    }
-    has_split.at(*it) = 1;
-
-    WorkAssignment wa = read_work_assignment(bankB, *it);
-    if (wa.is_splittable()) {
       WorkAssignment wa2 = wa.split(graph, config.split_alg);
-      load_work_assignment(bankB, *it, wa);
+
+      // reload the split assignment into the same slot, preserving node count
+      WorkerInfo& wi = wi_h[bankB][splitting_id];
+      auto nodes = wi.nnodes;
+      load_work_assignment(bankB, splitting_id, wa);
+      wi.nnodes = nodes;
+      if (enable_resplit) {
+        add_worker_to_summary(wa, splitting_id);
+      }
 
       // Avoid double counting nodes: Each of the nodes in the partial path for
       // the new assignment will be reported twice to the coordinator: by the
       // worker doing the original job `wa`, and by the worker that does `wa2`.
       if (wa.start_state == wa2.start_state) {
-        wi_h[bankB][*it].nnodes -= wa2.partial_pattern.size();
+        wi.nnodes -= wa2.partial_pattern.size();
       }
 
-      context.assignments.push_back(std::move(wa2));
+      // put the second assignment into an idle worker, or save for other bank
+      if (it_idle != it_idle_end) {
+        load_work_assignment(bankB, *it_idle, wa2);
+        if (enable_resplit) {
+          add_worker_to_summary(wa2, *it_idle);
+        }
+        max_active_idx[bankB] = std::max(max_active_idx[bankB], *it_idle);
+        ++it_idle;
+      } else {
+        context.assignments.push_back(std::move(wa2));
+      }
+
       ++context.splits_total;
     }
-    ++it;
-  }
-
-  // assign to idle workers from the pool
-
-  for (unsigned id = 0; id < config.num_threads; ++id) {
-    if ((wi_h[bankB][id].status & 1) == 0)
-      continue;
-    if (context.assignments.empty())
-      break;
-
-    WorkAssignment wa = std::move(context.assignments.front());
-    context.assignments.pop_front();
-    load_work_assignment(bankB, id, wa);
-    max_active_idx[bankB] = std::max(max_active_idx[bankB], id);
   }
 }
 
