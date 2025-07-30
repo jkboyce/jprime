@@ -26,8 +26,7 @@ efficient as what soon emerged. The ideas took a while to gel.
 ## `j2.c` (Dec 1991)
 
 `j2` was a rewrite of `j.c` and was I believe the first program to generate synchronous juggling patterns
-like `(6x,4)(4,6x)`, and multiplexed patterns like `24[54]`. In any case the notation I introduced in `j2` for
-synchronous and multiplexed juggling stuck with the juggling community and is in wide use today.
+like `(6x,4)(4,6x)`, and multiplexed patterns like `24[54]`. It also introduced the notation of using letters A, B, C, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
 
 In the mid-1990s, `j2` evolved into the siteswap generator component of JuggleAnim, a Java juggling applet, which
 evolved into [Juggling Lab](https://jugglinglab.org) which is still in use today. The siteswap generator in Juggling Lab
@@ -40,8 +39,7 @@ The files `j2.txt` and `3person` are for use with `j2`.
 When Johannes Waldmann started looking at long prime patterns in 1998, I became interested and started adapting my
 pattern-finding software to be as efficient as possible at the task.
 
-`jdeep.c` was the initial result, and it continued to evolve rapidly through subsequent versions.
-Eventually `jdeep` became `jprime` so in terms of code lineage this represents v1 of `jprime`.
+`jdeep.c` was the initial result, and it continued to evolve rapidly. Eventually `jdeep` became `jprime` so in terms of code lineage this represents version 1 of `jprime`.
 
 ## Longest prime siteswaps paper (1999)
 
