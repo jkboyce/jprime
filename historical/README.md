@@ -1,18 +1,18 @@
 # Historical information
 
-This folder contains some early siteswap pattern generators that I wrote, interesting now only for historical
+This folder contains some early juggling pattern generators I wrote, interesting now only for historical
 reasons. They show some of the evolution of ideas behind `jprime` and juggling pattern generators in general.
 These programs have been lightly edited to compile on a modern ANSI C99 compiler but in other respects they
 are unchanged.
 
-The first juggling pattern generator was written by Don Hatch and Paul Klimek of Santa Cruz California,
+The first juggling pattern generator was apparently written by Don Hatch of Santa Cruz California,
 sometime between 1981 and 1984. To my knowledge this code has never been made public, but pattern list printouts
 dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https://vimeo.com/497788314) from 2006.
 
 The other early pattern generator I'm aware of is the one written by Bengt Magnusson at Caltech, who wrote a
-siteswap generator in Fortran sometime in the mid-late 1980s. He later rewrote it in C in 1991 when he was a grad student at UCSB. I have no
-information about whether the Cambridge group of siteswap inventors (Mike Day, Colin Wright, Adam Chalcraft)
-also wrote software in that timeframe, but it seems likely.
+siteswap generator in Fortran sometime in the mid-late 1980s. He later rewrote it in C in 1991 when he was a
+graduate student at UCSB. I have no information about whether the Cambridge group of siteswap inventors (Mike Day,
+Colin Wright, Adam Chalcraft) also wrote software in that timeframe, but it seems likely.
 
 ## `j.c` (Nov 1990)
 
@@ -26,7 +26,7 @@ efficient as what soon emerged. The ideas took a while to gel.
 ## `j2.c` (Dec 1991)
 
 `j2` was a rewrite of `j.c` and was I believe the first program to generate synchronous juggling patterns
-like `(6x,4)(4,6x)`, and multiplexed patterns like `24[54]`. It also introduced the notation of using letters A, B, C, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
+like `(6x,4)(4,6x)` and multiplexed patterns like `24[54]`. It also introduced the notation of using letters A, B, C, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
 
 In the mid-1990s, `j2` evolved into the siteswap generator component of JuggleAnim, a Java juggling applet, which
 evolved into [Juggling Lab](https://jugglinglab.org) which is still in use today. The siteswap generator in Juggling Lab
@@ -44,7 +44,7 @@ pattern-finding software to be as efficient as possible at the task.
 ## Longest prime siteswaps paper (1999)
 
 This was my first writeup of things I'd learned in the course of developing and running `jdeep/jprime`.
-Unfortunately, due to a software bug there are a couple of errors in the tabulated results for 4 balls.
+Due to a software bug there were two errors in the tabulated results for 4 balls.
 
 Some of the ideas weren't yet mature here. For example the definition of a *superprime* pattern was overly
 restrictive and missed the main idea.
