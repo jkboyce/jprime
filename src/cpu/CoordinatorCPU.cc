@@ -615,10 +615,11 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
 
     // use ANSI terminal codes to do inverse, bolding, and color
     const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
+    bool semi = false;
     if (escape) { buffer << '\x1B' << '['; }
-    if (hl_start) { buffer << "7;"; }
-    if (hl_last) { buffer << "1;"; }
-    if (hl_deadstate || hl_shift) { buffer << "32"; }
+    if (hl_start) { buffer << '7'; semi = true; }
+    if (hl_last) { if (semi) buffer << ';'; buffer << '1'; semi = true; }
+    if (hl_deadstate || hl_shift) { if (semi) buffer << ';'; buffer << "32"; }
     if (escape) { buffer << 'm'; }
     buffer << ch;
     if (escape) { buffer << '\x1B' << "[0m"; }
