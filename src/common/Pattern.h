@@ -45,8 +45,8 @@ class Pattern {
 
   // operator overrides
   int operator[](size_t index) const;
-  bool operator==(const Pattern& s2) const;
-  bool operator!=(const Pattern& s2) const;
+  bool operator==(const Pattern& p2) const;
+  bool operator!=(const Pattern& p2) const;
 
   // string output
   std::string to_string(int throwdigits = 0, bool blockform = false) const;

@@ -23,7 +23,7 @@ State::State(unsigned h)
 
 // Initialize from a string representation.
 
-State::State(std::string s)
+State::State(const std::string& s)
 {
   for (const char ch : s) {
     _slot.push_back((ch == 'x' || ch == '1') ? 1 : 0);
@@ -136,7 +136,7 @@ std::string State::to_string() const
 {
   std::string result;
   for (size_t i = 0; i < size(); ++i) {
-    result += (slot(i) ? 'x' : '-');
+    result += (slot(i) != 0 ? 'x' : '-');
   }
   return result;
 }
@@ -163,20 +163,26 @@ bool state_compare(const State& s1, const State& s2)
     b2 += s2.slot(i);
   }
 
-  if (b1 < b2)
+  if (b1 < b2) {
     return true;
-  if (b1 > b2)
+  }
+  if (b1 > b2) {
     return false;
-  if (s1.size() < s2.size())
+  }
+  if (s1.size() < s2.size()) {
     return true;
-  if (s1.size() > s2.size())
+  }
+  if (s1.size() > s2.size()) {
     return false;
+  }
 
   for (int i = static_cast<int>(s1.size()) - 1; i >= 0; --i) {
-    if (s1.slot(i) < s2.slot(i))
+    if (s1.slot(i) < s2.slot(i)) {
       return true;
-    if (s1.slot(i) > s2.slot(i))
+    }
+    if (s1.slot(i) > s2.slot(i)) {
       return false;
+    }
   }
   return false;
 }

@@ -10,10 +10,10 @@
 
 #include "SearchContext.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <thread>
-#include <algorithm>
 #include <format>
 #include <stdexcept>
 #include <cassert>
@@ -43,8 +43,9 @@ std::vector<int> parse_pattern_line(const std::string& p)
     auto y = std::find(x, pat.cend(), ',');
     const std::string s{x, y};
     result.push_back(std::stoi(s));
-    if (y == pat.cend())
+    if (y == pat.cend()) {
       break;
+    }
     x = y + 1;
   }
 
@@ -60,27 +61,34 @@ bool pattern_compare_ints(const std::string& pat1, const std::string& pat2)
   const std::vector<int> vec1 = parse_pattern_line(pat1);
   const std::vector<int> vec2 = parse_pattern_line(pat2);
 
-  if (vec2.size() == 0)
+  if (vec2.size() == 0) {
     return false;
-  if (vec1.size() == 0)
+  }
+  if (vec1.size() == 0) {
     return true;
+  }
 
   // shorter patterns sort earlier
-  if (vec1.size() < vec2.size())
+  if (vec1.size() < vec2.size()) {
     return true;
-  if (vec1.size() > vec2.size())
+  }
+  if (vec1.size() > vec2.size()) {
     return false;
+  }
 
   // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
+  if (pat1[0] == ' ' && pat2[0] == '*') {
     return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
+  }
+  if (pat1[0] == '*' && pat2[0] == ' ') {
     return false;
+  }
 
   // sort lower leading throws first
   for (size_t i = 0; i < vec1.size(); ++i) {
-    if (vec1[i] == vec2[i])
+    if (vec1[i] == vec2[i]) {
       continue;
+    }
     return vec1[i] < vec2[i];
   }
   return false;
@@ -90,10 +98,12 @@ bool pattern_compare_ints(const std::string& pat1, const std::string& pat2)
 
 bool pattern_compare_letters(const std::string& pat1, const std::string& pat2)
 {
-  if (pat2.size() == 0)
+  if (pat2.size() == 0) {
     return false;
-  if (pat1.size() == 0)
+  }
+  if (pat1.size() == 0) {
     return true;
+  }
 
   const unsigned pat1_start = (pat1[0] == ' ' || pat1[0] == '*') ? 2 : 0;
   unsigned pat1_end = pat1_start;
@@ -108,25 +118,32 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2)
   }
 
   // shorter patterns sort earlier
-  if (pat1_end - pat1_start < pat2_end - pat2_start)
+  if (pat1_end - pat1_start < pat2_end - pat2_start) {
     return true;
-  if (pat1_end - pat1_start > pat2_end - pat2_start)
+  }
+  if (pat1_end - pat1_start > pat2_end - pat2_start) {
     return false;
+  }
 
   // ground state before excited state patterns
-  if (pat1[0] == ' ' && pat2[0] == '*')
+  if (pat1[0] == ' ' && pat2[0] == '*') {
     return true;
-  if (pat1[0] == '*' && pat2[0] == ' ')
+  }
+  if (pat1[0] == '*' && pat2[0] == ' ') {
     return false;
+  }
 
   // ascii order, except '+' is higher than any other character
   for (size_t i = pat1_start; i < pat1_end; ++i) {
-    if (pat1[i] == pat2[i])
+    if (pat1[i] == pat2[i]) {
       continue;
-    if (pat1[i] == '+' && pat2[i] != '+')
+    }
+    if (pat1[i] == '+' && pat2[i] != '+') {
       return false;
-    if (pat1[i] != '+' && pat2[i] == '+')
+    }
+    if (pat1[i] != '+' && pat2[i] == '+') {
       return true;
+    }
     return pat1[i] < pat2[i];
   }
   return false;
@@ -139,15 +156,13 @@ bool pattern_compare_letters(const std::string& pat1, const std::string& pat2)
 
 bool pattern_compare(const std::string& pat1, const std::string& pat2)
 {
-  const bool has_comma =
-      (std::find(pat1.cbegin(), pat1.cend(), ',') != pat1.cend() ||
-      std::find(pat2.cbegin(), pat2.cend(), ',') != pat2.cend());
+  const bool has_comma = (std::ranges::find(pat1, ',') != pat1.cend() ||
+      std::ranges::find(pat2, ',') != pat2.cend());
 
   if (has_comma) {
     return pattern_compare_ints(pat1, pat2);
-  } else {
-    return pattern_compare_letters(pat1, pat2);
   }
+  return pattern_compare_letters(pat1, pat2);
 }
 
 //------------------------------------------------------------------------------
@@ -160,8 +175,9 @@ void SearchContext::to_file(const std::string& file)
 
   std::ofstream myfile;
   myfile.open(file, std::ios::out | std::ios::trunc);
-  if (!myfile || !myfile.is_open())
+  if (!myfile || !myfile.is_open()) {
     return;
+  }
 
   myfile << "version           7.1\n"
          << "command line      " << arglist << '\n'
@@ -260,7 +276,7 @@ void SearchContext::from_file(const std::string& file)
 
     switch (linenum) {
       case 0:
-        if (s.rfind("version", 0) != 0) {
+        if (!s.starts_with("version")) {
           error = "syntax in line 1";
           break;
         }
@@ -272,7 +288,7 @@ void SearchContext::from_file(const std::string& file)
         version = val;
         break;
       case 1:
-        if (s.rfind("command", 0) != 0) {
+        if (!s.starts_with("command")) {
           error = "syntax in line 2";
           break;
         }
@@ -287,7 +303,7 @@ void SearchContext::from_file(const std::string& file)
       case 6:
         break;
       case 7:
-        if (s.rfind("patterns", 0) != 0) {
+        if (!s.starts_with("patterns")) {
           error = "syntax in line 8";
           break;
         }
@@ -296,7 +312,7 @@ void SearchContext::from_file(const std::string& file)
         npatterns = std::stoull(val);
         break;
       case 8:
-        if (s.rfind("patterns (", 0) != 0) {
+        if (!s.starts_with("patterns (")) {
           error = "syntax in line 9";
           break;
         }
@@ -305,7 +321,7 @@ void SearchContext::from_file(const std::string& file)
         ntotal = std::stoull(val);
         break;
       case 9:
-        if (s.rfind("nodes", 0) != 0) {
+        if (!s.starts_with("nodes")) {
           error = "syntax in line 10";
           break;
         }
@@ -314,7 +330,7 @@ void SearchContext::from_file(const std::string& file)
         nnodes = std::stoull(val);
         break;
       case 10:
-        if (s.rfind("work splits", 0) != 0) {
+        if (!s.starts_with("work splits")) {
           error = "syntax in line 11";
           break;
         }
@@ -323,7 +339,7 @@ void SearchContext::from_file(const std::string& file)
         splits_total = static_cast<unsigned>(std::stoi(val));
         break;
       case 11:
-        if (s.rfind("seconds elapsed", 0) != 0) {
+        if (!s.starts_with("seconds elapsed")) {
           error = "syntax in line 12";
           break;
         }
@@ -332,7 +348,7 @@ void SearchContext::from_file(const std::string& file)
         secs_elapsed = std::stod(val);
         break;
       case 12:
-        if (s.rfind("seconds working", 0) != 0) {
+        if (!s.starts_with("seconds working")) {
           error = "syntax in line 13";
           break;
         }
@@ -341,7 +357,7 @@ void SearchContext::from_file(const std::string& file)
         secs_working = std::stod(val);
         break;
       case 13:
-        if (s.rfind("seconds avail", 0) != 0) {
+        if (!s.starts_with("seconds avail")) {
           error = "syntax in line 14";
           break;
         }
@@ -353,11 +369,13 @@ void SearchContext::from_file(const std::string& file)
       case 15:
         break;
       case 16:
-        if (s.rfind("patterns", 0) != 0) {
+        if (!s.starts_with("patterns")) {
           error = "syntax in line 17";
           break;
         }
         section = 2;
+        break;
+      default:
         break;
     }
 
@@ -376,15 +394,15 @@ void SearchContext::from_file(const std::string& file)
 
     if (val.size() == 0) {
       // ignore empty lines
-    } else if (s.rfind("counts", 0) == 0) {
+    } else if (s.starts_with("counts")) {
       section = 3;
-    } else if (s.rfind("work", 0) == 0) {
+    } else if (s.starts_with("work")) {
       section = 4;
     } else if (section == 2) {
       patterns.push_back(s);
     } else if (section == 3) {
       // read counts
-      const size_t commapos = s.find(",");
+      const size_t commapos = s.find(',');
       if (commapos == std::string::npos) {
         myfile.close();
         throw std::invalid_argument(

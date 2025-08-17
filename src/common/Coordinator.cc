@@ -21,7 +21,6 @@
 #include "Pattern.h"
 
 #include <iostream>
-#include <iomanip>
 #include <sstream>
 #include <algorithm>
 #include <cmath>
@@ -154,7 +153,7 @@ void Coordinator::calc_graph_size()
   } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
     if (context.full_numcycles < 2) {
       context.n_bound = 0;
-    } else if (config.shiftlimit == -1u) {
+    } else if (config.shiftlimit == -1U) {
       context.n_bound = context.full_numstates - context.full_numcycles;
     } else {
       context.n_bound =
@@ -227,7 +226,7 @@ void Coordinator::initialize_graph()
     if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
       max_possible = graph.prime_period_bound(start_state);
     } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
-      if (config.shiftlimit == -1u) {
+      if (config.shiftlimit == -1U) {
         max_possible = graph.superprime_period_bound(start_state);
       } else {
         max_possible = graph.superprime_period_bound(start_state,
@@ -244,7 +243,7 @@ void Coordinator::initialize_graph()
 //
 // Note this routine should never set states as active!
 
-void Coordinator::customize_graph(Graph& g)
+void Coordinator::customize_graph(Graph& g) const
 {
   std::vector<bool> state_active(g.numstates + 1, true);
 
@@ -336,15 +335,17 @@ void Coordinator::customize_graph(Graph& g)
         }
 
         // if either of the above is true, keep the shift throw out of i
-        if (allowed_to_shift_throw)
+        if (allowed_to_shift_throw) {
           continue;
+        }
 
         // otherwise remove it
         unsigned outthrownum = 0;
         for (size_t j = 0; j < g.outdegree.at(i); ++j) {
           const auto tv = g.outthrowval.at(i).at(j);
-          if (tv == 0 || tv == config.h)
+          if (tv == 0 || tv == config.h) {
             continue;
+          }
 
           g.outmatrix.at(i).at(outthrownum) = g.outmatrix.at(i).at(j);
           g.outthrowval.at(i).at(outthrownum) = tv;
@@ -392,7 +393,7 @@ void Coordinator::select_search_algorithm()
 //
 // Returns a normalized std::vector<double> with `n_max` elements.
 
-std::vector<double> Coordinator::build_access_model(unsigned num_states)
+std::vector<double> Coordinator::build_access_model(unsigned num_states) const
 {
   const double pos_mean = 0.48 * static_cast<double>(num_states) - 1;
   const double pos_fwhm = sqrt(pos_mean + 1) * (config.b == 2 ? 3.25 : 2.26);
@@ -446,16 +447,23 @@ double Coordinator::expected_patterns_at_maxperiod()
   }
 
   // fit a parabola to the log of pattern count
-  double s1 = 0, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0;
-  double sy = 0, sxy = 0, sx2y = 0;
+  double s1 = 0;
+  double sx = 0;
+  double sx2 = 0;
+  double sx3 = 0;
+  double sx4 = 0;
+  double sy = 0;
+  double sxy = 0;
+  double sx2y = 0;
   const size_t xstart = std::max(max - 10, mode);
 
   for (size_t i = xstart; i < context.count.size(); ++i) {
-    if (context.count.at(i) < 5)
+    if (context.count.at(i) < 5) {
       continue;
+    }
 
-    const double x = static_cast<double>(i);
-    const double y = log(static_cast<double>(context.count.at(i)));
+    const auto x = static_cast<double>(i);
+    const auto y = log(static_cast<double>(context.count.at(i)));
     s1 += 1;
     sx += x;
     sx2 += x * x;
@@ -466,48 +474,48 @@ double Coordinator::expected_patterns_at_maxperiod()
     sx2y += x * x * y;
   }
 
-  // Solve this 3x3 linear system for A, B, C, the coefficients in the parabola
-  // of best fit y = Ax^2 + Bx + C:
+  // Solve this 3x3 linear system for a, b, c, the coefficients in the parabola
+  // of best fit y = ax^2 + bx + c:
   //
-  // | sx4  sx3  sx2  | | A |   | sx2y |
-  // | sx3  sx2  sx   | | B | = | sxy  |
-  // | sx2  sx   s1   | | C |   | sy   |
+  // | sx4  sx3  sx2  | | a |   | sx2y |
+  // | sx3  sx2  sx   | | b | = | sxy  |
+  // | sx2  sx   s1   | | c |   | sy   |
 
   // Find matrix inverse
   const double det = sx4 * (sx2 * s1 - sx * sx) - sx3 * (sx3 * s1 - sx * sx2) +
       sx2 * (sx3 * sx - sx2 * sx2);
-  const double M11 = (sx2 * s1 - sx * sx) / det;
-  const double M12 = (sx2 * sx - sx3 * s1) / det;
-  const double M13 = (sx3 * sx - sx2 * sx2) / det;
-  const double M21 = M12;
-  const double M22 = (sx4 * s1 - sx2 * sx2) / det;
-  const double M23 = (sx2 * sx3 - sx4 * sx) / det;
-  const double M31 = M13;
-  const double M32 = M23;
-  const double M33 = (sx4 * sx2 - sx3 * sx3) / det;
+  const double m11 = (sx2 * s1 - sx * sx) / det;
+  const double m12 = (sx2 * sx - sx3 * s1) / det;
+  const double m13 = (sx3 * sx - sx2 * sx2) / det;
+  const double m21 = m12;
+  const double m22 = (sx4 * s1 - sx2 * sx2) / det;
+  const double m23 = (sx2 * sx3 - sx4 * sx) / det;
+  const double m31 = m13;
+  const double m32 = m23;
+  const double m33 = (sx4 * sx2 - sx3 * sx3) / det;
 
   auto is_close = [](double a, double b) {
     double epsilon = 1e-3;
     return (b > a - epsilon && b < a + epsilon);
   };
   (void)is_close;
-  assert(is_close(M11 * sx4 + M12 * sx3 + M13 * sx2, 1));
-  assert(is_close(M11 * sx3 + M12 * sx2 + M13 * sx, 0));
-  assert(is_close(M11 * sx2 + M12 * sx + M13 * s1, 0));
-  assert(is_close(M21 * sx4 + M22 * sx3 + M23 * sx2, 0));
-  assert(is_close(M21 * sx3 + M22 * sx2 + M23 * sx, 1));
-  assert(is_close(M21 * sx2 + M22 * sx + M23 * s1, 0));
-  assert(is_close(M31 * sx4 + M32 * sx3 + M33 * sx2, 0));
-  assert(is_close(M31 * sx3 + M32 * sx2 + M33 * sx, 0));
-  assert(is_close(M31 * sx2 + M32 * sx + M33 * s1, 1));
+  assert(is_close(m11 * sx4 + m12 * sx3 + m13 * sx2, 1));
+  assert(is_close(m11 * sx3 + m12 * sx2 + m13 * sx, 0));
+  assert(is_close(m11 * sx2 + m12 * sx + m13 * s1, 0));
+  assert(is_close(m21 * sx4 + m22 * sx3 + m23 * sx2, 0));
+  assert(is_close(m21 * sx3 + m22 * sx2 + m23 * sx, 1));
+  assert(is_close(m21 * sx2 + m22 * sx + m23 * s1, 0));
+  assert(is_close(m31 * sx4 + m32 * sx3 + m33 * sx2, 0));
+  assert(is_close(m31 * sx3 + m32 * sx2 + m33 * sx, 0));
+  assert(is_close(m31 * sx2 + m32 * sx + m33 * s1, 1));
 
-  const double A = M11 * sx2y + M12 * sxy + M13 * sy;
-  const double B = M21 * sx2y + M22 * sxy + M23 * sy;
-  const double C = M31 * sx2y + M32 * sxy + M33 * sy;
+  const double a = m11 * sx2y + m12 * sxy + m13 * sy;
+  const double b = m21 * sx2y + m22 * sxy + m23 * sy;
+  const double c = m31 * sx2y + m32 * sxy + m33 * sy;
 
   // evaluate the expected number of patterns found at x = n_bound
-  const double x = static_cast<double>(context.n_bound);
-  const double lny = A * x * x + B * x + C;
+  const auto x = static_cast<double>(context.n_bound);
+  const auto lny = a * x * x + b * x + c;
   return exp(lny);
 }
 
@@ -520,7 +528,7 @@ volatile sig_atomic_t Coordinator::stopping = 0;
 void Coordinator::signal_handler(int signum)
 {
   (void)signum;
-  stopping = true;
+  stopping = 1;
 }
 
 //------------------------------------------------------------------------------
@@ -538,7 +546,7 @@ void Coordinator::print_search_description() const
     jpout << "superprime";
     if (config.shiftlimit == 1) {
       jpout << " (+1 shift)";
-    } else if (config.shiftlimit != -1u) {
+    } else if (config.shiftlimit != -1U) {
       jpout << std::format(" (+{} shifts)", config.shiftlimit);
     }
   }
@@ -562,13 +570,13 @@ void Coordinator::print_search_description() const
   jpout << std::format("graph: {} states, {} shift cycles, {} short cycles",
              context.full_numstates, context.full_numcycles,
              context.full_numshortcycles)
-        << std::endl;
+        << '\n';
 
   if (config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
     jpout << std::format("period-{} subgraph: {} {}", config.n_min,
                context.memory_numstates,
                context.memory_numstates == 1 ? "state" : "states")
-          << std::endl;
+          << '\n';
   }
 }
 
@@ -610,14 +618,15 @@ void Coordinator::print_string(const std::string& s)
     jpout << s << '\n';
     print_status_output();
   } else {
-    jpout << s << std::endl;
+    jpout << s << '\n' << std::flush;
   }
 }
 
 void Coordinator::erase_status_output()
 {
-  if (!config.statusflag || !status_printed)
+  if (!config.statusflag || !status_printed) {
     return;
+  }
   assert(status_lines_displayed != 0);
   for (int i = 0; i < status_lines_displayed; ++i) {
     std::cout << '\x1B' << "[1A"
@@ -628,8 +637,9 @@ void Coordinator::erase_status_output()
 
 void Coordinator::print_status_output()
 {
-  if (!config.statusflag)
+  if (!config.statusflag) {
     return;
+  }
 
   assert(status_lines_displayed == 0);
   status_printed = true;

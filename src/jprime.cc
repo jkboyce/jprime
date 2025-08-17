@@ -62,7 +62,7 @@ int do_tests(int testnum = -1);  // defined in jprime_tests.cc
 
 void print_help()
 {
-  static const std::string helpString =
+  static const std::string help_string =
     "jprime version 7.0 (2025.03.22)\n"
     "Copyright (C) 1998-2025 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
@@ -110,9 +110,9 @@ void print_help()
     "   jprime 4 9 14- -super 0 -inverse\n"
     "   jprime 7 42 6 -g -file 7_42_6_g\n"
     "   jprime 2 60 30 -count -threads 4 -status\n"
-    "   jprime -analyze ++3--+-+1+--+-6-+--+4--++-6---\n";
+    "   jprime -analyze ++3--+-+1+--+-6-+--+4--++-6---\n\n";
 
-  std::cout << helpString << std::endl;
+  std::cout << help_string;
 }
 
 //------------------------------------------------------------------------------
@@ -121,8 +121,9 @@ void print_help()
 
 void print_analysis(int argc, char** argv)
 {
-  if (argc < 3)
+  if (argc < 3) {
     return;
+  }
 
   std::string input;
   for (int i = 2; i < argc; ++i) {
@@ -151,7 +152,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
   // first check if the user wants file output mode
   std::string outfile;
   for (int i = 1; i < argc - 1; ++i) {
-    if (!strcmp(argv[i], "-file")) {
+    if (strcmp(argv[i], "-file") == 0) {
       outfile = std::string(argv[i + 1]);
       break;
     }
@@ -178,10 +179,9 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 
         std::cout << std::format("Resuming calculation: {}\n"
                        "with overrides:{}\n"
-                       "Loaded {} patterns and {} work assignments",
+                       "Loaded {} patterns and {} work assignments\n",
                        context.arglist, overrides, context.npatterns,
-                       context.assignments.size())
-                  << std::endl;
+                       context.assignments.size());
         return std::make_tuple(config, context);
       } catch (const std::invalid_argument& ie) {
         std::cerr << ie.what() << '\n';
@@ -219,7 +219,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
 
 int main(int argc, char** argv)
 {
-  if (argc > 1 && !strcmp(argv[1], "-test")) {
+  if (argc > 1 && strcmp(argv[1], "-test") == 0) {
     if (argc > 2) {
       return do_tests(std::stoi(argv[2]));
     }
@@ -231,7 +231,7 @@ int main(int argc, char** argv)
     return EXIT_SUCCESS;
   }
 
-  if (!strcmp(argv[1], "-analyze")) {
+  if (strcmp(argv[1], "-analyze") == 0) {
     print_analysis(argc, argv);
     return EXIT_SUCCESS;
   }

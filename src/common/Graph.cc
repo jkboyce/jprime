@@ -14,13 +14,12 @@
 #include <sstream>
 #include <algorithm>
 #include <cassert>
-#include <limits>
 
 
 // Full graph for `b` objects, max throw `h`.
 
 Graph::Graph(unsigned b, unsigned h)
-    : b(b), h(h), n(0), xarray(h + 1, false)
+    : b(b), h(h), xarray(h + 1, false)
 {
   initialize();
 }
@@ -89,8 +88,9 @@ void Graph::initialize()
 
 void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left)
 {
-  if (left > (pos + 1))
+  if (left > (pos + 1)) {
     return;  // no way to succeed
+  }
 
   if (pos == 0) {
     s.back().slot(0) = left;
@@ -150,16 +150,18 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
   }
   const unsigned min_fill = (left > max_later ? left - max_later : 0);
 
-  if (min_fill == 0)
+  if (min_fill == 0) {
     gen_states_for_period_helper(s, pos + 1, left, h, n);
+  }
 
   // successively fill slots at `pos`
   unsigned filled = 0;
   for (size_t i = pos; i < h && filled < left; i += n) {
     s.back().slot(i) = 1;
     ++filled;
-    if (filled >= min_fill)
+    if (filled >= min_fill) {
       gen_states_for_period_helper(s, pos + 1, left - filled, h, n);
+    }
   }
 }
 
@@ -190,7 +192,7 @@ void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
 
 unsigned Graph::find_shift_cycles()
 {
-  const unsigned state_unused = -1u;
+  const unsigned state_unused = -1U;
   cyclenum.assign(numstates + 1, state_unused);
   assert(cycleperiod.size() == 0);
 
@@ -198,8 +200,9 @@ unsigned Graph::find_shift_cycles()
   std::vector<unsigned> cyclestates(h);
 
   for (size_t i = 1; i <= numstates; ++i) {
-    if (cyclenum.at(i) != state_unused)
+    if (cyclenum.at(i) != state_unused) {
       continue;
+    }
 
     State s = state.at(i);
     bool periodfound = false;
@@ -210,8 +213,9 @@ unsigned Graph::find_shift_cycles()
       s = s.upstream();
       const auto k = get_statenum(s);
       cyclestates.at(j) = k;
-      if (k == 0)
+      if (k == 0) {
         continue;
+      }
 
       if (k == i && !periodfound) {
         cycleper = static_cast<unsigned>(j + 1);
@@ -274,11 +278,13 @@ void Graph::build_graph_matrix()
   for (size_t i = 1; i <= numstates; ++i) {
     unsigned outthrownum = 0;
     for (unsigned throwval = h + 1; throwval-- > 0; ) {
-      if (xarray.at(throwval))
+      if (xarray.at(throwval)) {
         continue;
+      }
       const auto k = advance_state(static_cast<unsigned>(i), throwval);
-      if (k == 0)
+      if (k == 0) {
         continue;
+      }
 
       outmatrix.at(i).at(outthrownum) = k;
       outthrowval.at(i).at(outthrownum) = throwval;
@@ -356,8 +362,9 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
     usable_indegree.assign(numstates + 1, 0);
 
     for (size_t i = 1; i <= numstates; ++i) {
-      if (!state_usable.at(i))
+      if (!state_usable.at(i)) {
         continue;
+      }
       if (usable_outdegree.at(i) == 0) {
         state_usable.at(i) = false;
         changed = true;
@@ -376,8 +383,9 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
       }
     }
 
-    if (!changed)
+    if (!changed) {
       break;
+    }
   }
 }
 
@@ -565,7 +573,7 @@ unsigned Graph::prime_period_bound(unsigned start_state) const
     }
   }
 
-  const int cycles_active = numcycles -
+  const int cycles_active = static_cast<int>(numcycles) -
       static_cast<int>(std::count(num_active.cbegin(), num_active.cend(), 0));
 
   for (size_t i = 0; i < numcycles; ++i) {
@@ -600,7 +608,7 @@ unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
   if (cycles_active < 2) {
     return 0;
   }
-  if (shifts == -1u) {
+  if (shifts == -1U) {
     return prime_period_bound(start_state);
   }
   return std::min(prime_period_bound(start_state), cycles_active + shifts);
@@ -613,15 +621,19 @@ unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
 
 unsigned Graph::get_statenum(const State& s) const
 {
-  if (state_compare(s, state.at(1)))
+  if (state_compare(s, state.at(1))) {
     return 0;
-  if (state_compare(state.at(numstates), s))
+  }
+  if (state_compare(state.at(numstates), s)) {
     return 0;
+  }
 
-  if (state.at(1) == s)
+  if (state.at(1) == s) {
     return 1;
-  if (state.at(numstates) == s)
+  }
+  if (state.at(numstates) == s) {
     return numstates;
+  }
 
   size_t below = 1;
   size_t above = numstates;
@@ -629,8 +641,9 @@ unsigned Graph::get_statenum(const State& s) const
   // loop invariant: state[below] < s < state[above]
   while (below < above - 1) {
     size_t mid = (below + above) / 2;
-    if (state.at(mid) == s)
+    if (state.at(mid) == s) {
       return static_cast<unsigned>(mid);
+    }
     if (state_compare(state.at(mid), s)) {
       below = mid;
     } else {
@@ -647,12 +660,15 @@ unsigned Graph::advance_state(unsigned statenum, unsigned throwval) const
 {
   const auto& s = state.at(statenum);
 
-  if (throwval > 0 && s.slot(0) == 0)  // no object to throw
+  if (throwval > 0 && s.slot(0) == 0) {  // no object to throw
     return 0;
-  if (throwval < s.size() && s.slot(throwval) != 0)  // collision w/prev throw
+  }
+  if (throwval < s.size() && s.slot(throwval) != 0) {  // collision w/prev throw
     return 0;
-  if (throwval > s.size())  // out of range
+  }
+  if (throwval > s.size()) {  // out of range
     return 0;
+  }
 
   return get_statenum(s.advance_with_throw(throwval));
 }

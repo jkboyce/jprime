@@ -10,7 +10,6 @@
 
 #include "SearchConfig.h"
 
-#include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <format>
@@ -66,17 +65,17 @@ void SearchConfig::from_args(size_t argc, char** argv)
   }
 
   for (size_t i = 1; i < argc; ++i) {
-    if (!strcmp(argv[i], "-noprint")) {
+    if (strcmp(argv[i], "-noprint") == 0) {
       printflag = false;
-    } else if (!strcmp(argv[i], "-inverse")) {
+    } else if (strcmp(argv[i], "-inverse") == 0) {
       invertflag = true;
-    } else if (!strcmp(argv[i], "-g")) {
+    } else if (strcmp(argv[i], "-g") == 0) {
       groundmode = GroundMode::GROUND_SEARCH;
-    } else if (!strcmp(argv[i], "-ng")) {
+    } else if (strcmp(argv[i], "-ng") == 0) {
       groundmode = GroundMode::EXCITED_SEARCH;
-    } else if (!strcmp(argv[i], "-noblock")) {
+    } else if (strcmp(argv[i], "-noblock") == 0) {
       noblockflag = true;
-    } else if (!strcmp(argv[i], "-super")) {
+    } else if (strcmp(argv[i], "-super") == 0) {
       mode = RunMode::SUPER_SEARCH;
       if (i + 1 < argc) {
         std::string error;
@@ -99,7 +98,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
           throw std::invalid_argument(error);
         }
       }
-    } else if (!strcmp(argv[i], "-file")) {
+    } else if (strcmp(argv[i], "-file") == 0) {
       if (i + 1 < argc) {
         ++i;
         fileoutputflag = true;
@@ -107,7 +106,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
       } else {
         throw std::invalid_argument("No filename provided after -file");
       }
-    } else if (!strcmp(argv[i], "-steal_alg")) {
+    } else if (strcmp(argv[i], "-steal_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
         val = std::stoi(argv[i]);
@@ -118,7 +117,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
       } else {
         throw std::invalid_argument("No number provided after -steal_alg");
       }
-    } else if (!strcmp(argv[i], "-split_alg")) {
+    } else if (strcmp(argv[i], "-split_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
         val = std::stoi(argv[i]);
@@ -129,7 +128,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
       } else {
         throw std::invalid_argument("No number provided after -split_alg");
       }
-    } else if (!strcmp(argv[i], "-x")) {
+    } else if (strcmp(argv[i], "-x") == 0) {
       ++i;
       while (i < argc && argv[i][0] != '-') {
         try {
@@ -153,19 +152,19 @@ void SearchConfig::from_args(size_t argc, char** argv)
         ++i;
       }
       --i;
-    } else if (!strcmp(argv[i], "-verbose")) {
+    } else if (strcmp(argv[i], "-verbose") == 0) {
       verboseflag = true;
-    } else if (!strcmp(argv[i], "-count")) {
+    } else if (strcmp(argv[i], "-count") == 0) {
       countflag = true;
-    } else if (!strcmp(argv[i], "-info")) {
+    } else if (strcmp(argv[i], "-info") == 0) {
       infoflag = true;
-    } else if (!strcmp(argv[i], "-status")) {
+    } else if (strcmp(argv[i], "-status") == 0) {
       statusflag = true;
-    } else if (!strcmp(argv[i], "-recursive")) {
+    } else if (strcmp(argv[i], "-recursive") == 0) {
       recursiveflag = true;
-    } else if (!strcmp(argv[i], "-cuda")) {
+    } else if (strcmp(argv[i], "-cuda") == 0) {
       cudaflag = true;
-    } else if (!strcmp(argv[i], "-threads")) {
+    } else if (strcmp(argv[i], "-threads") == 0) {
       if (i + 1 < argc) {
         ++i;
         try {
@@ -308,8 +307,9 @@ void SearchConfig::from_args(const std::string& str)
 
   const size_t argc = args.size();
   std::vector<char*> argv;
+  argv.reserve(argc);
   for (size_t i = 0; i < argc; ++i) {
-    argv.push_back(&(args[i][0]));
+    argv.push_back(args[i].data());
   }
 
   from_args(argc, argv.data());
@@ -324,30 +324,30 @@ std::string SearchConfig::get_overrides(size_t argc, char** argv)
   std::string overrides;
 
   for (size_t i = 1; i < argc; ++i) {
-    if (!strcmp(argv[i], "-noprint")) {
+    if (strcmp(argv[i], "-noprint") == 0) {
       overrides += " -noprint";
-    } else if (!strcmp(argv[i], "-file")) {
+    } else if (strcmp(argv[i], "-file") == 0) {
       if (i + 1 < argc) {
         ++i;
         overrides += " -file " + std::string(argv[i]);
       }
-    } else if (!strcmp(argv[i], "-steal_alg")) {
+    } else if (strcmp(argv[i], "-steal_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
         overrides += " -steal_alg " + std::string(argv[i]);
       }
-    } else if (!strcmp(argv[i], "-split_alg")) {
+    } else if (strcmp(argv[i], "-split_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
         overrides += " -split_alg " + std::string(argv[i]);
       }
-    } else if (!strcmp(argv[i], "-verbose")) {
+    } else if (strcmp(argv[i], "-verbose") == 0) {
       overrides += " -verbose";
-    } else if (!strcmp(argv[i], "-status")) {
+    } else if (strcmp(argv[i], "-status") == 0) {
       overrides += " -status";
-    } else if (!strcmp(argv[i], "-cuda")) {
+    } else if (strcmp(argv[i], "-cuda") == 0) {
       overrides += " -cuda";
-    } else if (!strcmp(argv[i], "-threads")) {
+    } else if (strcmp(argv[i], "-threads") == 0) {
       if (i + 1 < argc) {
         ++i;
         overrides += " -threads " + std::string(argv[i]);

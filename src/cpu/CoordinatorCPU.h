@@ -27,10 +27,8 @@
 
 class CoordinatorCPU : public Coordinator {
  public:
-  CoordinatorCPU(SearchConfig& config, SearchContext& context,
-    std::ostream& jpout);
+  CoordinatorCPU(SearchConfig& a, SearchContext& b, std::ostream& c);
 
- public:
   // for communicating with workers
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
@@ -62,8 +60,7 @@ class CoordinatorCPU : public Coordinator {
   uint64_t last_nnodes = 0;
   uint64_t last_ntotal = 0;
 
- protected:
-  virtual void run_search() override;
+  void run_search() override;
 
   // handle interactions with worker threads
   void message_worker(const MessageC2W& msg, unsigned worker_id) const;
@@ -80,8 +77,8 @@ class CoordinatorCPU : public Coordinator {
   // helper functions
   void start_workers();
   void stop_workers();
-  bool is_worker_idle(const unsigned id) const;
-  bool is_worker_splitting(const unsigned id) const;
+  bool is_worker_idle(unsigned id) const;
+  bool is_worker_splitting(unsigned id) const;
 
   // manage worker status
   void record_data_from_message(const MessageW2C& msg);

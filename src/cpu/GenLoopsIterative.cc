@@ -12,9 +12,6 @@
 
 #include "Worker.h"
 
-#include <iostream>
-#include <sstream>
-#include <algorithm>
 #include <cassert>
 
 
@@ -238,7 +235,7 @@ void Worker::iterative_gen_loops_normal()
         // check the inbox for incoming messages, after doing some prep work
         // to ensure we can respond to any type of message we might receive
         //
-        // this code is rarely evaluated so it is not performance-critical
+        // this code is rarely executed so it is not performance-critical
         steps = 0;
 
         pos = p;
@@ -297,8 +294,9 @@ void Worker::iterative_gen_loops_normal()
 inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
 {
   bool valid = true;
-  for (unsigned statenum; (statenum = *es); ++es) {
-    if ((u[statenum] ^= 1) && ++*ds > 1 &&
+  for (unsigned statenum; (statenum = *es) != 0; ++es) {
+    const auto new_used = (u[statenum] ^= 1);
+    if (new_used != 0 && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
@@ -308,9 +306,10 @@ inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
 
 inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
 {
-  if (es) {
-    for (unsigned statenum; (statenum = *es); ++es) {
-      if (!(u[statenum] ^= 1) && --*ds > 0) {
+  if (es != nullptr) {
+    for (unsigned statenum; (statenum = *es) != 0; ++es) {
+      const auto new_used = (u[statenum] ^= 1);
+      if (new_used == 0 && --*ds > 0) {
         ++max_possible;
       }
     }

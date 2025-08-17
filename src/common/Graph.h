@@ -15,7 +15,6 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <tuple>
 #include <cstdint>
 #include <stdexcept>
@@ -28,7 +27,6 @@ class Graph {
   Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n = 0);
   Graph() = default;
 
- public:
   unsigned b = 0;  // number of objects
   unsigned h = 0;  // maximum throw value
   unsigned n = 0;  // if nonzero then single-period graph
@@ -55,7 +53,7 @@ class Graph {
   void initialize();
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
-    unsigned h, unsigned l);
+    unsigned h, unsigned );
   unsigned find_shift_cycles();
   void build_graph_matrix();
   void find_max_startstate_usable();
@@ -67,7 +65,7 @@ class Graph {
   std::tuple<std::vector<std::vector<unsigned>>,
     std::vector<std::vector<unsigned>>> get_exclude_states() const;
   unsigned prime_period_bound(unsigned start_state) const;
-  unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1u)
+  unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1U)
     const;
   unsigned get_statenum(const State& s) const;
   unsigned advance_state(unsigned statenum, unsigned throwval) const;
@@ -99,14 +97,15 @@ std::ostream& operator<<(std::ostream& ost, const Graph& g);
 
 constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b)
 {
-  if (a < b)
+  if (a < b) {
     return 0;
+  }
 
   std::uint64_t result = 1;
-  constexpr auto max_uint64 = std::numeric_limits<std::uint64_t>::max();
+  constexpr auto MAX_UINT64 = std::numeric_limits<std::uint64_t>::max();
 
   for (unsigned denom = 1; denom <= std::min(b, a - b); ++denom) {
-    if ((a - denom + 1) > max_uint64 / result) {
+    if ((a - denom + 1) > MAX_UINT64 / result) {
       throw std::overflow_error(
           std::format("Overflow in combinations({},{})", a, b));
     }
@@ -124,12 +123,15 @@ constexpr std::uint64_t Graph::combinations(unsigned a, unsigned b)
 constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
     unsigned p)
 {
-  if (h % p != 0)
+  if (h % p != 0) {
     return 0;
-  if (b % (h / p) != 0)
+  }
+  if (b % (h / p) != 0) {
     return 0;
-  if (p < h)
+  }
+  if (p < h) {
     return shift_cycle_count(b * p / h, p, p);
+  }
 
   std::uint64_t val = combinations(h, b);
   for (unsigned p2 = 1; p2 <= h / 2; ++p2) {
@@ -156,10 +158,11 @@ constexpr std::uint64_t Graph::shift_cycle_count(unsigned b, unsigned h,
 constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
     unsigned n)
 {
-  if (n == 0)
+  if (n == 0) {
     return 0;
+  }
   std::vector<std::uint64_t> options((b + 1) * n, 0);
-  constexpr auto max_uint64 = std::numeric_limits<std::uint64_t>::max();
+  constexpr auto MAX_UINT64 = std::numeric_limits<std::uint64_t>::max();
 
   // calculate the number of ways to fill slots `pos` and higher using `left`
   // balls, working backward from the end
@@ -178,7 +181,7 @@ constexpr std::uint64_t Graph::ordered_partitions(unsigned b, unsigned h,
         for (unsigned i = 0; i <= max_fill && i <= left; ++i) {
           // put `i` balls into slot `pos`
           const unsigned index2 = (pos + 1) + (left - i) * n;
-          if (options.at(index2) > max_uint64 - options.at(index)) {
+          if (options.at(index2) > MAX_UINT64 - options.at(index)) {
             throw std::overflow_error(
               std::format("Overflow in ordered_partitions({},{},{})", b, h, n));
           }

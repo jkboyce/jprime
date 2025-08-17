@@ -14,14 +14,10 @@
 
 #include "Worker.h"
 #include "CoordinatorCPU.h"
-#include "Pattern.h"
 
-#include <iostream>
-#include <iomanip>
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <sstream>
 #include <cassert>
 #include <format>
 #include <array>
@@ -69,10 +65,12 @@ void Worker::run()
       }
     }
 
-    if (stop_worker)
+    if (stop_worker) {
       break;
-    if (!new_assignment)
+    }
+    if (!new_assignment) {
       continue;
+    }
 
     // get timestamp so we can report working time to coordinator
     const auto start = std::chrono::high_resolution_clock::now();
@@ -292,8 +290,9 @@ void Worker::send_stats_to_coordinator()
     bool found = false;
     for (unsigned col = 0; col < graph.outdegree.at(from_state); ++col) {
       const auto throwval = graph.outthrowval.at(from_state).at(col);
-      if (throwval != static_cast<unsigned>(pattern.at(i)))
+      if (throwval != static_cast<unsigned>(pattern.at(i))) {
         continue;
+      }
 
       const auto to_state = graph.outmatrix.at(from_state).at(col);
       assert(to_state > 0);
@@ -317,9 +316,11 @@ void Worker::send_stats_to_coordinator()
         // throw
         for (size_t j = 0; ; ++j) {
           auto es = excludestates_tail.at(from_state).at(j);
-          if (es == 0)
+          if (es == 0) {
             break;
-          if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
+          }
+          const auto new_used = (u.at(es) ^= 1);
+          if (new_used != 0 && ++ds.at(graph.cyclenum.at(from_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
@@ -327,9 +328,11 @@ void Worker::send_stats_to_coordinator()
         // catch
         for (size_t j = 0; ; ++j) {
           auto es = excludestates_head.at(to_state).at(j);
-          if (es == 0)
+          if (es == 0) {
             break;
-          if ((u.at(es) ^= 1) && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
+          }
+          const auto new_used = (u.at(es) ^= 1);
+          if (new_used != 0 && ++ds.at(graph.cyclenum.at(to_state)) > 1) {
             ++msg.worker_deadstates_extra.at(i);
           }
         }
@@ -407,8 +410,9 @@ WorkAssignment Worker::get_work_assignment() const
   wa.root_pos = root_pos;
   wa.root_throwval_options = root_throwval_options;
   for (const auto v : pattern) {
-    if (v == -1)
+    if (v == -1) {
       break;
+    }
     wa.partial_pattern.push_back(v);
   }
   return wa;
@@ -508,7 +512,7 @@ void Worker::do_work_assignment()
 void Worker::gen_loops()
 {
   // choose a CPU search algorithm to use
-  unsigned algnum = -1u;
+  unsigned algnum = -1U;
 
   switch (coordinator.get_search_algorithm()) {
     case Coordinator::SearchAlgorithm::NORMAL:
@@ -532,7 +536,7 @@ void Worker::gen_loops()
   }
 
   if (config.verboseflag) {
-    static constexpr std::array cpu_algs = {
+    static constexpr std::array CPU_ALGS = {
       "gen_loops_normal()",
       "gen_loops_normal_marking()",
       "gen_loops_super()",
@@ -544,7 +548,7 @@ void Worker::gen_loops()
       "iterative_gen_loops_super<SUPER0=true>()",
     };
     const auto text = std::format("worker {} starting algorithm {}", worker_id,
-        cpu_algs.at(algnum));
+        CPU_ALGS.at(algnum));
     message_coordinator_text(text);
   }
 

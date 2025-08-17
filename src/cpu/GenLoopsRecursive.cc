@@ -38,10 +38,12 @@ void Worker::gen_loops_normal()
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
       continue;
-    if (used[to] != 0)
+    }
+    if (used[to] != 0) {
       continue;
+    }
     pattern[pos] = graph.outthrowval[from][col];
 
     if (to == start_state) {
@@ -49,8 +51,9 @@ void Worker::gen_loops_normal()
       continue;
     }
 
-    if (pos + 1 == static_cast<int>(n_max))
+    if (pos + 1 == static_cast<int>(n_max)) {
       continue;
+    }
 
     // see if it's time to check the inbox
     if (++steps_taken >= steps_per_inbox_check &&
@@ -75,8 +78,9 @@ void Worker::gen_loops_normal()
     --used[to];
 
     // only a single allowed throw value for `pos` < `root_pos`
-    if (pos < static_cast<int>(root_pos))
+    if (pos < static_cast<int>(root_pos)) {
       break;
+    }
   }
 
   ++nnodes;
@@ -105,10 +109,12 @@ void Worker::gen_loops_normal_marking()
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
       continue;
-    if (used[to] != 0)
+    }
+    if (used[to] != 0) {
       continue;
+    }
 
     const unsigned throwval = graph.outthrowval[from][col];
 
@@ -130,8 +136,9 @@ void Worker::gen_loops_normal_marking()
       continue;
     }
 
-    if (pos + 1 == static_cast<int>(n_max))
+    if (pos + 1 == static_cast<int>(n_max)) {
       continue;
+    }
 
     if (throwval != 0 && throwval != graph.h) {
       if (mark_unreachable_states_head(to)) {
@@ -164,8 +171,9 @@ void Worker::gen_loops_normal_marking()
       --used[to];
     }
 
-    if (pos < static_cast<int>(root_pos))
+    if (pos < static_cast<int>(root_pos)) {
       break;
+    }
   }
 
   if (did_mark_for_tail) {
@@ -201,10 +209,12 @@ void Worker::gen_loops_super()
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(ov[col], to))
+        !mark_off_rootpos_option(ov[col], to)) {
       continue;
-    if (used[to] != 0)
+    }
+    if (used[to] != 0) {
       continue;
+    }
 
     const unsigned throwval = ov[col];
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
@@ -218,39 +228,42 @@ void Worker::gen_loops_super()
 
       // going to a shift cycle that's already been visited?
       const unsigned to_cycle = graph.cyclenum[to];
-      if (cycleused[to_cycle]) {
+      if (cycleused[to_cycle] != 0) {
         continue;
-      } else if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
-        continue;
-      } else if (pos + 1 == static_cast<int>(n_max)) {
-        continue;
-      } else {
-        if (++steps_taken >= steps_per_inbox_check &&
-              pos > static_cast<int>(root_pos) && col < limit - 1) {
-          pattern.at(pos + 1) = -1;
-          process_inbox_running();
-          steps_taken = 0;
-        }
-
-        const int old_exitcyclesleft = exitcyclesleft;
-        if (isexitcycle[to_cycle]) {
-          --exitcyclesleft;
-        }
-        cycleused[to_cycle] = true;
-        ++used[to];
-        ++pos;
-        from = to;
-        gen_loops_super();
-        from = old_from;
-        --pos;
-        --used[to];
-        cycleused[to_cycle] = false;
-        exitcyclesleft = old_exitcyclesleft;
       }
+      if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
+        continue;
+      }
+      if (pos + 1 == static_cast<int>(n_max)) {
+        continue;
+      }
+
+      if (++steps_taken >= steps_per_inbox_check &&
+            pos > static_cast<int>(root_pos) && col < limit - 1) {
+        pattern.at(pos + 1) = -1;
+        process_inbox_running();
+        steps_taken = 0;
+      }
+
+      const auto old_exitcyclesleft = exitcyclesleft;
+      if (isexitcycle[to_cycle] != 0) {
+        --exitcyclesleft;
+      }
+      cycleused[to_cycle] = 1;
+      ++used[to];
+      ++pos;
+      from = to;
+      gen_loops_super();
+      from = old_from;
+      --pos;
+      --used[to];
+      cycleused[to_cycle] = 0;
+      exitcyclesleft = old_exitcyclesleft;
     } else {
       // check for shift throw limits
-      if (shiftcount == config.shiftlimit)
+      if (shiftcount == config.shiftlimit) {
         continue;
+      }
 
       pattern[pos] = throwval;
       if (to == start_state) {
@@ -273,8 +286,9 @@ void Worker::gen_loops_super()
       }
     }
 
-    if (pos < static_cast<int>(root_pos))
+    if (pos < static_cast<int>(root_pos)) {
       break;
+    }
   }
 
   ++nnodes;
@@ -298,10 +312,12 @@ void Worker::gen_loops_super0()
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to))
+        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
       continue;
-    if (to < start_state)
+    }
+    if (to < start_state) {
       continue;
+    }
 
     pattern[pos] = graph.outthrowval[from][col];
     if (to == start_state) {
@@ -310,36 +326,39 @@ void Worker::gen_loops_super0()
     }
 
     const unsigned to_cycle = graph.cyclenum[to];
-    if (cycleused[to_cycle]) {
+    if (cycleused[to_cycle] != 0) {
       continue;
-    } else if (exitcyclesleft == 0) {
+    }
+    if (exitcyclesleft == 0) {
       continue;
-    } else if (pos + 1 == static_cast<int>(n_max)) {
+    }
+    if (pos + 1 == static_cast<int>(n_max)) {
       continue;
-    } else {
-      if (++steps_taken >= steps_per_inbox_check &&
-            pos > static_cast<int>(root_pos) && col < limit - 1) {
-        pattern.at(pos + 1) = -1;
-        process_inbox_running();
-        steps_taken = 0;
-      }
-
-      const int old_exitcyclesleft = exitcyclesleft;
-      if (isexitcycle[to_cycle]) {
-        --exitcyclesleft;
-      }
-      cycleused[to_cycle] = true;
-      ++pos;
-      from = to;
-      gen_loops_super0();
-      from = old_from;
-      --pos;
-      cycleused[to_cycle] = false;
-      exitcyclesleft = old_exitcyclesleft;
     }
 
-    if (pos < static_cast<int>(root_pos))
+    if (++steps_taken >= steps_per_inbox_check &&
+          pos > static_cast<int>(root_pos) && col < limit - 1) {
+      pattern.at(pos + 1) = -1;
+      process_inbox_running();
+      steps_taken = 0;
+    }
+
+    const auto old_exitcyclesleft = exitcyclesleft;
+    if (isexitcycle[to_cycle] != 0) {
+      --exitcyclesleft;
+    }
+    cycleused[to_cycle] = 1;
+    ++pos;
+    from = to;
+    gen_loops_super0();
+    from = old_from;
+    --pos;
+    cycleused[to_cycle] = 0;
+    exitcyclesleft = old_exitcyclesleft;
+
+    if (pos < static_cast<int>(root_pos)) {
       break;
+    }
   }
 
   ++nnodes;
@@ -557,14 +576,15 @@ inline bool Worker::mark_unreachable_states_tail()
   unsigned* es = excludestates_tail[from].data();
   unsigned statenum = 0;
 
-  while ((statenum = *es++)) {
+  while ((statenum = *es++) != 0) {
     // assert that if we're flipping one of the unusable states, that it begins
     // with `-` and ends with `x`
     assert(start_state <= graph.max_startstate_usable.at(statenum) ||
         (graph.state.at(statenum).slot(0) == 0 &&
         graph.state.at(statenum).slot(graph.h - 1) == 1));
 
-    if ((used[statenum] ^= 1) && ++*ds > 1 &&
+    const auto new_used = (used[statenum] ^= 1);
+    if (new_used != 0 && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
@@ -590,12 +610,13 @@ inline bool Worker::mark_unreachable_states_head(unsigned to_state)
   unsigned* es = excludestates_head[to_state].data();
   unsigned statenum = 0;
 
-  while ((statenum = *es++)) {
+  while ((statenum = *es++) != 0) {
     assert(start_state <= graph.max_startstate_usable.at(statenum) ||
         (graph.state.at(statenum).slot(0) == 0 &&
         graph.state.at(statenum).slot(graph.h - 1) == 1));
 
-    if ((used[statenum] ^= 1) && ++*ds > 1 &&
+    const auto new_used = (used[statenum] ^= 1);
+    if (new_used != 0 && ++*ds > 1 &&
         --max_possible < static_cast<int>(n_min)) {
       valid = false;
     }
@@ -612,8 +633,9 @@ inline void Worker::unmark_unreachable_states_tail()
   unsigned* es = excludestates_tail[from].data();
   unsigned statenum = 0;
 
-  while ((statenum = *es++)) {
-    if (!(used[statenum] ^= 1) && --*ds > 0) {
+  while ((statenum = *es++) != 0) {
+    const auto new_used = (used[statenum] ^= 1);
+    if (new_used == 0 && --*ds > 0) {
       ++max_possible;
     }
   }
@@ -625,8 +647,9 @@ inline void Worker::unmark_unreachable_states_head(unsigned to_state)
   unsigned* es = excludestates_head[to_state].data();
   unsigned statenum = 0;
 
-  while ((statenum = *es++)) {
-    if (!(used[statenum] ^= 1) && --*ds > 0) {
+  while ((statenum = *es++) != 0) {
+    const auto new_used = (used[statenum] ^= 1);
+    if (new_used == 0 && --*ds > 0) {
       ++max_possible;
     }
   }

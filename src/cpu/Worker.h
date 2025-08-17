@@ -35,7 +35,6 @@ class Worker : public WorkSpace {
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
 
- public:
   std::queue<MessageC2W> inbox;
   std::mutex inbox_lock;
   static constexpr double SECS_PER_INBOX_CHECK_TARGET = 0.01;
@@ -80,7 +79,7 @@ class Worker : public WorkSpace {
   bool running = false;
 
   // for managing the frequency to check the inbox while running
-  static constexpr unsigned STEPS_PER_INBOX_CHECK_INITIAL = 50000u;
+  static constexpr unsigned STEPS_PER_INBOX_CHECK_INITIAL = 50000U;
   unsigned steps_per_inbox_check = STEPS_PER_INBOX_CHECK_INITIAL;
   static constexpr unsigned CALIBRATIONS_INITIAL = 10;
   unsigned calibrations_remaining = CALIBRATIONS_INITIAL;
@@ -118,7 +117,7 @@ class Worker : public WorkSpace {
   void gen_loops_super0();
   unsigned load_one_throw();
   bool mark_off_rootpos_option(unsigned throwval, unsigned to_state);
-  void build_rootpos_throw_options(unsigned from_state, unsigned min_column);
+  void build_rootpos_throw_options(unsigned from_state, unsigned start_column);
   bool mark_unreachable_states_tail();
   bool mark_unreachable_states_head(unsigned to_state);
   void unmark_unreachable_states_tail();
@@ -137,15 +136,14 @@ class Worker : public WorkSpace {
   void iterative_handle_finished_pattern();
 
   // WorkSpace methods; defined in GenLoopsIterative.cc
-  virtual const Graph& get_graph() const override;
-  virtual void set_cell(unsigned slot, unsigned index, unsigned col,
-    unsigned col_limit, unsigned from_state) override;
-  virtual std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
+  const Graph& get_graph() const override;
+  void set_cell(unsigned slot, unsigned index, unsigned col, unsigned col_limit,
+    unsigned from_state) override;
+  std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
     unsigned index) const override;
-  virtual void set_info(unsigned slot, unsigned new_start_state,
+  void set_info(unsigned slot, unsigned new_start_state,
     unsigned new_end_state, int new_pos) override;
-  virtual std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const
-    override;
+  std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const override;
 };
 
 

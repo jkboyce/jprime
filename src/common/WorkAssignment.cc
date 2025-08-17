@@ -11,6 +11,7 @@
 #include "WorkAssignment.h"
 #include "WorkCell.h"
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <set>
@@ -155,8 +156,9 @@ bool WorkAssignment::from_string(const std::string& str)
     const auto y = std::find(x, rto.cend(), ',');
     const std::string s{x, y};
     root_throwval_options.push_back(std::stoi(s));
-    if (y == rto.cend())
+    if (y == rto.cend()) {
       break;
+    }
     x = y + 1;
   }
 
@@ -167,8 +169,9 @@ bool WorkAssignment::from_string(const std::string& str)
     const auto y = std::find(x, pp.cend(), ',');
     const std::string s{x, y};
     partial_pattern.push_back(std::stoi(s));
-    if (y == pp.cend())
+    if (y == pp.cend()) {
       break;
+    }
     x = y + 1;
   }
 
@@ -198,15 +201,16 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
   int pos = 0;
 
   for (size_t i = 0; i < partial_pattern.size(); ++i) {
-    pos = static_cast<unsigned>(i);
+    pos = static_cast<int>(i);
     WorkCell wc;
     wc.from_state = from_state;
     wc.col_limit = graph.outdegree.at(wc.from_state);
 
     const auto tv = partial_pattern.at(i);
     for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
-      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv)
+      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv) {
         break;
+      }
     }
 
     if (wc.col == wc.col_limit) {
@@ -295,7 +299,7 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
 
   // find `partial_pattern` and `root_pos`
   unsigned from_state = start_state;
-  root_pos = -1u;
+  root_pos = -1U;
   partial_pattern.clear();
 
   for (int i = 0; i <= pos; ++i) {
@@ -304,10 +308,8 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
 
     partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
 
-    if (graph.outdegree.at(from_state) < col_limit) {
-      col_limit = graph.outdegree.at(from_state);
-    }
-    if (root_pos == -1u && col < col_limit - 1) {
+    col_limit = std::min(graph.outdegree.at(from_state), col_limit);
+    if (root_pos == -1U && col < col_limit - 1) {
       root_pos = i;
     }
     from_state = graph.outmatrix.at(from_state).at(col);
@@ -316,7 +318,7 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
   // find `root_throwval_options`
   root_throwval_options.clear();
 
-  if (root_pos == -1u) {
+  if (root_pos == -1U) {
     // current WorkAssignment is UNSPLITTABLE
     root_pos = pos + 1;
     assert(get_type() == Type::UNSPLITTABLE);
@@ -324,9 +326,7 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
     // current WorkAssignment is SPLITTABLE
     auto [rwc_col, rwc_col_limit, rwc_fr_state] = ws->get_cell(slot, root_pos);
 
-    if (graph.outdegree.at(rwc_fr_state) < rwc_col_limit) {
-      rwc_col_limit = graph.outdegree.at(rwc_fr_state);
-    }
+    rwc_col_limit = std::min(graph.outdegree.at(rwc_fr_state), rwc_col_limit);
 
     for (size_t col = rwc_col + 1; col < rwc_col_limit; ++col) {
       root_throwval_options.push_back(
@@ -427,8 +427,8 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
   // move `take_count` unexplored root_pos options to the new work assignment,
   // specifically the highest `col` values so that each resulting assignment has
   // consecutive values of `col` in its root_throwval_options
-  auto take_count =
-      static_cast<size_t>(0.51 + f * root_throwval_options.size());
+  auto take_count = static_cast<size_t>(0.51 +
+      f * static_cast<double>(root_throwval_options.size()));
   take_count = std::min(std::max(take_count, static_cast<size_t>(1)),
       root_throwval_options.size());
 
@@ -472,7 +472,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
     // new_root_pos = partial_pattern.size().
 
     unsigned from_state = start_state;
-    unsigned new_root_pos = -1u;
+    unsigned new_root_pos = -1U;
     unsigned col = 0;
 
     // have to scan from the beginning because we don't record the traversed
@@ -504,7 +504,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
       from_state = graph.outmatrix.at(from_state).at(col);
     }
 
-    if (new_root_pos == -1u) {
+    if (new_root_pos == -1U) {
       root_pos = static_cast<unsigned>(partial_pattern.size());
       // leave root_throwval_options empty
       assert(get_type() == Type::UNSPLITTABLE);
@@ -561,10 +561,7 @@ bool work_assignment_compare(const WorkAssignment& wa1,
     return false;
   }
   diff = wa1.root_throwval_options.size() <=> wa2.root_throwval_options.size();
-  if (diff > 0) {
-    return true;
-  }
-  return false;
+  return (diff > 0);
 }
 
 // Print to an output stream using the default text format.

@@ -71,9 +71,9 @@ bool run_one_test(const TestCase& tc)
   std::cout << std::format("Executing: {}\n", tc.input)
             << "               patterns,         seen,"
             << "        nodes,  time (sec)\n"
-            << std::format("target     {:12}, {:12}, {:12}", tc.npatterns,
+            << std::format("target     {:12}, {:12}, {:12}\n", tc.npatterns,
                  tc.ntotal, tc.nnodes)
-            << std::endl;
+            << std::flush;
 
   int run_limit = 2;
 #ifdef CUDA_ENABLED
@@ -83,8 +83,9 @@ bool run_one_test(const TestCase& tc)
   bool success = true;
 
   for (int run = 0; run < run_limit; ++run) {
-    if ((tc.engines & (1u << run)) == 0)
+    if ((tc.engines & (1U << run)) == 0) {
       continue;
+    }
 
     // prep config
     SearchConfig config;
@@ -98,8 +99,8 @@ bool run_one_test(const TestCase& tc)
       }
     } catch (const std::invalid_argument& ie) {
       std::cout << "Error parsing test input: " << ie.what()
-          << "\nTEST FAILED ################################################"
-          << std::endl;
+          << "\nTEST FAILED ################################################\n"
+          << std::flush;
       return false;
     }
 
@@ -114,13 +115,13 @@ bool run_one_test(const TestCase& tc)
     // run test
     if (!coordinator->run()) {
       std::cout
-          << "TEST FAILED TO EXECUTE #####################################\n"
-          << std::endl;
+          << "TEST FAILED TO EXECUTE #####################################\n\n"
+          << std::flush;
       success = false;
       continue;
     }
-    if (Coordinator::stopping) {
-      std::cout << "TEST ABORTED\n" << std::endl;
+    if (Coordinator::stopping == 1) {
+      std::cout << "TEST ABORTED\n\n" << std::flush;
       return false;
     }
 
@@ -131,10 +132,10 @@ bool run_one_test(const TestCase& tc)
     } else {
       std::cout << "CUDA     ";
     }
-    std::cout << std::format("  {:12}, {:12}, {:12},  {:.4f}",
+    std::cout << std::format("  {:12}, {:12}, {:12},  {:.4f}\n",
                    context.npatterns, context.ntotal, context.nnodes,
                    context.secs_elapsed)
-              << std::endl;
+              << std::flush;
 
     if (context.npatterns != tc.npatterns || context.ntotal != tc.ntotal ||
         context.nnodes != tc.nnodes) {
@@ -143,11 +144,11 @@ bool run_one_test(const TestCase& tc)
   }
 
   if (success) {
-    std::cout << "Test succeeded\n" << std::endl;
+    std::cout << "Test succeeded\n\n" << std::flush;
   } else {
     std::cout
-        << "TEST FAILED ################################################\n"
-        << std::endl;
+        << "TEST FAILED ################################################\n\n"
+        << std::flush;
   }
 
   return success;
@@ -169,24 +170,26 @@ int do_tests(int testnum)
     ++casenum;
 
 #ifndef CUDA_ENABLED
-    if ((testcase.engines & 3) == 0)
+    if ((testcase.engines & 3) == 0) {
       continue;
+    }
 #endif
 
-    if (testnum != -1 && casenum != testnum)
+    if (testnum != -1 && casenum != testnum) {
       continue;
+    }
 
     std::cout << std::format("\nStarting test {}:\n\n", casenum);
     if (run_one_test(testcase)) {
       ++passes;
-    } else if (Coordinator::stopping) {
+    } else if (Coordinator::stopping == 1) {
       break;
     }
     ++runs;
   }
 
   std::cout << "------------------------------------------------------------\n"
-            << std::format("Passed {} out of {} tests", passes, runs)
-            << std::endl;
+            << std::format("Passed {} out of {} tests\n", passes, runs)
+            << std::flush;
   return (passes == runs) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

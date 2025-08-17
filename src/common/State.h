@@ -19,7 +19,7 @@
 class State {
  public:
   State(unsigned h);
-  State(std::string s);
+  State(const std::string& s);
   State() = delete;
 
  private:

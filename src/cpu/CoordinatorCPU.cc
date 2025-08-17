@@ -16,11 +16,9 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
-#include <cmath>
 #include <csignal>
 #include <cassert>
 #include <format>
-#include <stdexcept>
 
 
 CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
@@ -47,7 +45,8 @@ void CoordinatorCPU::run_search()
     steal_work();
     collect_status();
 
-    if (Coordinator::stopping || (workers_idle.size() == config.num_threads &&
+    if (Coordinator::stopping == 1 ||
+          (workers_idle.size() == config.num_threads &&
           context.assignments.empty())) {
       break;
     }
@@ -129,9 +128,10 @@ void CoordinatorCPU::steal_work()
       break;
     }
 
-    unsigned id = -1u;
+    unsigned id = -1U;
     switch (config.steal_alg) {
       case 1:
+      default:
         id = find_stealing_target_mostremaining();
         break;
     }
@@ -164,8 +164,9 @@ unsigned CoordinatorCPU::find_stealing_target_mostremaining() const
   unsigned min_rootpos = 0;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (is_worker_idle(id) || is_worker_splitting(id))
+    if (is_worker_idle(id) || is_worker_splitting(id)) {
       continue;
+    }
 
     unsigned startstates_remaining =
         worker_endstate.at(id) - worker_startstate.at(id);
@@ -188,11 +189,13 @@ unsigned CoordinatorCPU::find_stealing_target_mostremaining() const
 
 void CoordinatorCPU::collect_status()
 {
-  if (!config.statusflag)
+  if (!config.statusflag) {
     return;
+  }
   const auto now = std::chrono::high_resolution_clock::now();
-  if (calc_duration_secs(last_status_time, now) < SECS_PER_STATUS)
+  if (calc_duration_secs(last_status_time, now) < SECS_PER_STATUS) {
     return;
+  }
 
   status_interval = calc_duration_secs(last_status_time, now);
   last_status_time = now;
@@ -266,7 +269,7 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
     std::ostringstream buffer;
     buffer << std::format("worker {} went idle ({} idle)", msg.worker_id,
                workers_idle.size());
-    if (workers_splitting.count(msg.worker_id) > 0) {
+    if (workers_splitting.contains(msg.worker_id)) {
       buffer << std::format(", removed from splitting queue ({} splitting)",
                  (workers_splitting.size() - 1));
     }
@@ -286,7 +289,7 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
 
 void CoordinatorCPU::process_returned_work(const MessageW2C& msg)
 {
-  if (workers_splitting.count(msg.worker_id) > 0) {
+  if (workers_splitting.contains(msg.worker_id)) {
     ++context.splits_total;
     workers_splitting.erase(msg.worker_id);
   }
@@ -310,14 +313,16 @@ void CoordinatorCPU::process_returned_work(const MessageW2C& msg)
 void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
 {
   record_data_from_message(msg);
-  if (!config.statusflag)
+  if (!config.statusflag) {
     return;
+  }
 
   status_lines.at(msg.worker_id + 2) = make_worker_status(msg);
 
   assert(stats_received < config.num_threads);
-  if (++stats_received != config.num_threads)
+  if (++stats_received != config.num_threads) {
     return;
+  }
 
   // add bottom line to status output
   auto format2 = [](double a) {
@@ -327,16 +332,17 @@ void CoordinatorCPU::process_returned_stats(const MessageW2C& msg)
     if (a < 99999) {
       auto result = std::format("{:5g}", a);
       return result.substr(0, 5);
-    } else if (a < 1000000) {
+    }
+    if (a < 1000000) {
       auto result = std::format("{:4g}", a / 1000);
       return result.substr(0, 4) + "K";
-    } else if (a < 1000000000) {
+    }
+    if (a < 1000000000) {
       auto result = std::format("{:4g}", a / 1000000);
       return result.substr(0, 4) + "M";
-    } else {
-      auto result = std::format("{:4g}", a / 1000000000);
-      return result.substr(0, 4) + "B";
     }
+    auto result = std::format("{:4g}", a / 1000000000);
+    return result.substr(0, 4) + "B";
   };
 
   const double nodespersec =
@@ -489,12 +495,12 @@ void CoordinatorCPU::stop_workers()
 
 bool CoordinatorCPU::is_worker_idle(const unsigned id) const
 {
-  return (workers_idle.count(id) != 0);
+  return (workers_idle.contains(id));
 }
 
 bool CoordinatorCPU::is_worker_splitting(const unsigned id) const
 {
-  return (workers_splitting.count(id) != 0);
+  return (workers_splitting.contains(id));
 }
 
 //------------------------------------------------------------------------------
@@ -551,9 +557,9 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
   std::vector<unsigned>& ops_start = worker_options_left_start.at(id);
   std::vector<unsigned>& ops_last = worker_options_left_current.at(id);
 
-  buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999u) << '/';
-  buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999u) << ' ';
-  buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999u) << ' ';
+  buffer << std::setw(4) << std::min(worker_startstate.at(id), 9999U) << '/';
+  buffer << std::setw(4) << std::min(worker_endstate.at(id), 9999U) << ' ';
+  buffer << std::setw(3) << std::min(worker_rootpos.at(id), 999U) << ' ';
 
   const bool compressed = (config.mode == SearchConfig::RunMode::NORMAL_SEARCH
       && n_max > 3 * STATUS_WIDTH);
@@ -561,7 +567,7 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
       (config.mode == SearchConfig::RunMode::NORMAL_SEARCH &&
       config.graphmode == SearchConfig::GraphMode::FULL_GRAPH);
   const bool show_shifts = (config.mode == SearchConfig::RunMode::SUPER_SEARCH
-      && config.shiftlimit != -1u);
+      && config.shiftlimit != -1U);
 
   unsigned printed = 0;
   bool hl_start = false;
@@ -593,40 +599,44 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
       hl_shift = true;
     }
 
-    if (i < root_pos)
+    if (i < root_pos) {
       continue;
-
-    char ch = '\0';
-
-    if (compressed) {
-      if (i == root_pos) {
-        ch = '0' + static_cast<char>(ops.at(i));
-      } else if (throwval == 0 || throwval == config.h) {
-        // skip
-      } else {
-        ch = '0' + static_cast<char>(ops.at(i));
-      }
-    } else {
-      ch = '0' + static_cast<char>(ops.at(i));
     }
 
-    if (ch == '\0')
+    char ch;
+    if (!compressed || i == root_pos || (throwval != 0 && throwval != config.h)) {
+      ch = '0' + static_cast<char>(ops.at(i));
+    } else {
       continue;
+    }
 
     // use ANSI terminal codes to do inverse, bolding, and color
     const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
-    bool semi = false;
-    if (escape) { buffer << '\x1B' << '['; }
-    if (hl_start) { buffer << '7'; semi = true; }
-    if (hl_last) { if (semi) buffer << ';'; buffer << '1'; semi = true; }
-    if (hl_deadstate || hl_shift) { if (semi) buffer << ';'; buffer << "32"; }
-    if (escape) { buffer << 'm'; }
-    buffer << ch;
-    if (escape) { buffer << '\x1B' << "[0m"; }
-    hl_start = hl_last = hl_deadstate = hl_shift = false;
+    if (escape) {
+      bool semi = false;
+      buffer << '\x1B' << '[';
+      if (hl_start) {
+        buffer << '7'; semi = true;
+      }
+      if (hl_last) {
+        if (semi) { buffer << ';'; } buffer << '1'; semi = true;
+      }
+      if (hl_deadstate || hl_shift) {
+        if (semi) { buffer << ';'; } buffer << "32";
+      }
+      buffer << 'm';
+      hl_start = hl_last = hl_deadstate = hl_shift = false;
+    }
 
-    if (++printed >= STATUS_WIDTH)
+    buffer << ch;
+
+    if (escape) {
+      buffer << '\x1B' << "[0m";
+    }
+
+    if (++printed >= STATUS_WIDTH) {
       break;
+    }
   }
 
   while (printed < STATUS_WIDTH) {

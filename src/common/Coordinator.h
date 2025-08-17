@@ -28,8 +28,7 @@ using jptimer_t = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 class Coordinator {
  public:
-  Coordinator(SearchConfig& config, SearchContext& context,
-    std::ostream& jpout);
+  Coordinator(SearchConfig& a, SearchContext& b, std::ostream& c);
   Coordinator() = delete;
   virtual ~Coordinator();
 
@@ -62,9 +61,8 @@ class Coordinator {
 
  public:
   static volatile sig_atomic_t stopping;  // to handle ctrl-c
-  static constexpr unsigned MAX_STATES = 1000000u;  // memory limit
+  static constexpr unsigned MAX_STATES = 1000000U;  // memory limit
 
- public:
   bool run();
 
  protected:
@@ -74,9 +72,9 @@ class Coordinator {
   void calc_graph_size();
   bool passes_prechecks();
   void initialize_graph();
-  void customize_graph(Graph& graph);
+  void customize_graph(Graph& graph) const;
   void select_search_algorithm();
-  std::vector<double> build_access_model(unsigned num_states);
+  std::vector<double> build_access_model(unsigned num_states) const;
   double expected_patterns_at_maxperiod();
   static void signal_handler(int signum);
 
@@ -92,7 +90,7 @@ class Coordinator {
  public:
   // utility methods
   std::string pattern_output_format(const std::vector<int>& pattern,
-    const unsigned start_state) const;
+    unsigned start_state) const;
   static double calc_duration_secs(const jptimer_t& before,
     const jptimer_t& after);
   SearchAlgorithm get_search_algorithm() const;

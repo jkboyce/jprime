@@ -36,8 +36,9 @@ Pattern::Pattern(const std::vector<int>& p, int hmax)
 {
   int maxval = 0;
   for (const int val : p) {
-    if (val < 0)
+    if (val < 0) {
       break;
+    }
     throwval.push_back(val);
     maxval = std::max(val, maxval);
   }
@@ -110,8 +111,9 @@ Pattern::Pattern(const std::string& p)
       }
       throwval.push_back(val);
       maxval = std::max(val, maxval);
-      if (y == pat.cend())
+      if (y == pat.cend()) {
         break;
+      }
       x = y + 1;
     }
 
@@ -189,8 +191,9 @@ Pattern::Pattern(const std::string& p)
   h = (per > plusses) ? 1 + std::max(maxval, (sum - 1) / (per - plusses)) : 1;
 
   for (; h <= per + maxval; ++h) {
-    if ((plusses * h + sum) % per != 0)
+    if ((plusses * h + sum) % per != 0) {
       continue;
+    }
     assert(h > maxval);
     assert(h >= (plusses * h + sum) / per);  // h >= b
 
@@ -386,7 +389,7 @@ Pattern Pattern::inverse()
 
     if (cycle_next != cycle_current) {
       // mark a shift cycle as used only when we transition off it
-      if (cycles_used.count(cycle_current) != 0) {
+      if (cycles_used.contains(cycle_current)) {
         // revisited cycle number `cycle_current` --> no inverse
         return {empty_throwval, h};
       }
@@ -415,8 +418,9 @@ Pattern Pattern::inverse()
 
   for (size_t i = 0; i < throwval.size(); ++i) {
     // continue until `throwval[i]` is a link throw
-    if (cyclestates.at(i) == cyclestates.at((i + 1) % period()))
+    if (cyclestates.at(i) == cyclestates.at((i + 1) % period())) {
       continue;
+    }
 
     if (inverse_states.empty()) {
       // the inverse pattern starts at the (reversed version of) the next state
@@ -434,11 +438,12 @@ Pattern Pattern::inverse()
 
     while (true) {
       const State trial_state = inverse_states.back().downstream();
-      if (states_used.count(trial_state.reverse()) != 0)
+      if (states_used.contains(trial_state.reverse())) {
         break;
+      }
 
       inverse_states.push_back(trial_state);
-      inverse_throwval.push_back(trial_state.slot(h - 1) ? h : 0);
+      inverse_throwval.push_back(trial_state.slot(h - 1) != 0 ? h : 0);
     }
   }
   assert(inverse_states.size() > 0);
@@ -560,11 +565,11 @@ char Pattern::throw_char(int val)
 {
   if (val < 0 || val > 35) {
     return '?';
-  } else if (val < 10) {
-    return static_cast<char>(val + '0');
-  } else {
-    return static_cast<char>(val - 10 + 'a');
   }
+  if (val < 10) {
+    return static_cast<char>(val + '0');
+  }
+  return static_cast<char>(val - 10 + 'a');
 }
 
 //------------------------------------------------------------------------------
@@ -605,8 +610,9 @@ std::string Pattern::make_analysis()
       } else {
         buffer << s;
       }
-      if (y == patstring.cend())
+      if (y == patstring.cend()) {
         break;
+      }
       buffer << ',';
       x = y + 1;
       ++index;
@@ -632,8 +638,8 @@ std::string Pattern::make_analysis()
   buffer << "   standard form        " << to_string(1) << "\n\n";
 
   check_have_states();
-  const auto is_prime_ = is_prime();
-  const auto is_superprime_ = is_superprime();
+  const auto is_prime_val = is_prime();
+  const auto is_superprime_val = is_superprime();
   const auto per = period();
   const auto graphstring = std::format("({},{})", objects(), h);
 
@@ -642,9 +648,9 @@ std::string Pattern::make_analysis()
          << "   period               " << per << '\n'
          << "   maximum throw        " << maxval << '\n'
          << "   beats in state       " << h << '\n'
-         << "   prime                " << std::boolalpha << is_prime_ << '\n'
+         << "   prime                " << std::boolalpha << is_prime_val << '\n'
          << "   superprime in "        << std::format("{:6} ", graphstring)
-                                       << std::boolalpha << is_superprime_
+                                       << std::boolalpha << is_superprime_val
          << "\n\n";
 
   // graph information
@@ -676,7 +682,7 @@ std::string Pattern::make_analysis()
 
   // table of states, shift cycles, and excluded states
 
-  const bool show_sc = is_prime_;
+  const bool show_sc = is_prime_val;
   const int separation = std::max(15, 4 + h + 4);
 
   int throwdigits = 1;
@@ -759,7 +765,7 @@ std::string Pattern::make_analysis()
     bool es_printed = false;
     if (prev_linkthrow) {
       State excluded = states.at(i).upstream();
-      if (printed.count(excluded) == 0) {
+      if (!printed.contains(excluded)) {
         buffer2 << excluded;
         printed.insert(excluded);
         es_printed = true;
@@ -767,7 +773,7 @@ std::string Pattern::make_analysis()
     }
     if (curr_linkthrow) {
       State excluded = states.at(i).downstream();
-      if (printed.count(excluded) == 0) {
+      if (!printed.contains(excluded)) {
         if (es_printed) {
           buffer2 << ", ";
         }
@@ -833,10 +839,10 @@ std::string Pattern::make_analysis()
   // inverse pattern, if it exists
 
   Pattern inverse_pattern = inverse();
-  assert(is_superprime_ == (inverse_pattern.period() != 0));
-  assert(is_superprime_ == inverse_pattern.is_superprime());
+  assert(is_superprime_val == (inverse_pattern.period() != 0));
+  assert(is_superprime_val == inverse_pattern.is_superprime());
 
-  if (is_superprime_) {
+  if (is_superprime_val) {
     buffer << std::format("\nInverse pattern (period {}):\n   {} /{}\n",
               inverse_pattern.period(), inverse_pattern.to_string(0, true), h);
   }
@@ -857,8 +863,9 @@ std::string Pattern::make_analysis()
 void Pattern::check_have_states()
 {
   const auto per = period();
-  if (states.size() == per)
+  if (states.size() == per) {
     return;
+  }
   assert(states.size() == 0);
   assert(cyclestates.size() == 0);
 
@@ -867,7 +874,7 @@ void Pattern::check_have_states()
   for (size_t i = 0; i < per; ++i) {
     int fillslot = throwval.at(i) - static_cast<int>(per) + static_cast<int>(i);
     while (fillslot >= 0) {
-      if (fillslot < static_cast<int>(h)) {
+      if (fillslot < h) {
         assert(start_state.slot(fillslot) == 0);
         start_state.slot(fillslot) = 1;
       }
@@ -885,7 +892,7 @@ void Pattern::check_have_states()
   }
   assert(state == start_state);
 
-  for (State s : states) {
+  for (const State& s : states) {
     State cyclestate = s;
     State s2 = s.downstream();
     while (s2 != s) {

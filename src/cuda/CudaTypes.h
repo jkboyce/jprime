@@ -84,7 +84,7 @@ struct CudaRuntimeParams {
   unsigned n_min = 0;
   unsigned n_max = 0;
   bool report = false;
-  unsigned shiftlimit = -1u;
+  unsigned shiftlimit = -1U;
 };
 
 

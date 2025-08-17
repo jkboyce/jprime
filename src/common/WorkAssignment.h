@@ -97,7 +97,6 @@ class WorkAssignment {
     UNSPLITTABLE,
   };
 
- public:
   // current value of `start_state` for search; 0 auto-calculates based on
   // command-line flags
   unsigned start_state = 0;
@@ -117,7 +116,6 @@ class WorkAssignment {
   // the search tree
   std::vector<unsigned> partial_pattern;
 
- public:
   // utility methods
   Type get_type() const;
   bool is_valid() const;

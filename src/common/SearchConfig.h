@@ -86,10 +86,10 @@ struct SearchConfig {
   std::string outfile;
 
   // number of worker threads to use
-  unsigned num_threads = 1u;
+  unsigned num_threads = 1U;
 
   // for super mode, number of shift throws to allow (-1u means no limit)
-  unsigned shiftlimit = -1u;
+  unsigned shiftlimit = -1U;
 
   // throw values to exclude from search
   std::vector<bool> xarray;
