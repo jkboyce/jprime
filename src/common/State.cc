@@ -154,11 +154,11 @@ std::ostream& operator<<(std::ostream& ost, const State& s)
 
 bool state_compare(const State& s1, const State& s2)
 {
-  int b1 = 0;
+  unsigned b1 = 0;
   for (size_t i = 0; i < s1.size(); ++i) {
     b1 += s1.slot(i);
   }
-  int b2 = 0;
+  unsigned b2 = 0;
   for (size_t i = 0; i < s2.size(); ++i) {
     b2 += s2.slot(i);
   }

@@ -173,12 +173,12 @@ unsigned CoordinatorCPU::find_stealing_target_mostremaining() const
     if (startstates_remaining > 0 && (id_startstates == -1 ||
         max_startstates_remaining < startstates_remaining)) {
       max_startstates_remaining = startstates_remaining;
-      id_startstates = id;
+      id_startstates = static_cast<int>(id);
     }
 
     if (id_rootpos == -1 || min_rootpos > worker_rootpos.at(id)) {
       min_rootpos = worker_rootpos.at(id);
-      id_rootpos = id;
+      id_rootpos = static_cast<int>(id);
     }
   }
   assert(id_startstates != -1 || id_rootpos != -1);
@@ -604,8 +604,10 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
     }
 
     char ch;
-    if (!compressed || i == root_pos || (throwval != 0 && throwval != config.h)) {
-      ch = '0' + static_cast<char>(ops.at(i));
+    if (!compressed || i == root_pos || (throwval != 0 &&
+          throwval != config.h)) {
+      const unsigned n_ops = ops.at(i);
+      ch = (n_ops < 10) ? static_cast<char>('0' + n_ops) : '?';
     } else {
       continue;
     }

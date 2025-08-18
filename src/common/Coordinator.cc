@@ -233,7 +233,7 @@ void Coordinator::initialize_graph()
             config.shiftlimit);
       }
     }
-    max_length.push_back(max_possible);
+    max_length.push_back(static_cast<int>(max_possible));
   }
 }
 
@@ -691,11 +691,13 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
     }
   }
 
-  Pattern pat(pattern, config.h);
+  Pattern pat(pattern, static_cast<int>(config.h));
   if (config.dualflag) {
-    buffer << pat.dual().to_string(config.throwdigits, !config.noblockflag);
+    buffer << pat.dual().to_string(static_cast<int>(config.throwdigits),
+        !config.noblockflag);
   } else {
-    buffer << pat.to_string(config.throwdigits, !config.noblockflag);
+    buffer << pat.to_string(static_cast<int>(config.throwdigits),
+        !config.noblockflag);
   }
 
   if (start_state != 1) {
@@ -730,11 +732,11 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
         buffer << "  ";
       }
       if (config.dualflag) {
-        buffer << " : " << inverse.dual().to_string(config.throwdigits,
-            !config.noblockflag);
+        buffer << " : " << inverse.dual().to_string(
+            static_cast<int>(config.throwdigits), !config.noblockflag);
       } else {
-        buffer << " : " << inverse.to_string(config.throwdigits,
-            !config.noblockflag);
+        buffer << " : " << inverse.to_string(
+            static_cast<int>(config.throwdigits), !config.noblockflag);
       }
     }
   }

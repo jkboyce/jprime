@@ -388,8 +388,8 @@ void Worker::load_work_assignment(const WorkAssignment& wa)
   root_throwval_options = wa.root_throwval_options;
 
   for (size_t i = 0; i <= graph.numstates; ++i) {
-    pattern.at(i) =
-      (i < wa.partial_pattern.size() ? wa.partial_pattern.at(i) : -1);
+    pattern.at(i) = (i < wa.partial_pattern.size()) ?
+        static_cast<int>(wa.partial_pattern.at(i)) : -1;
   }
 
   if (wa.get_type() == WorkAssignment::Type::STARTUP) {
@@ -640,10 +640,11 @@ void Worker::initialize_working_variables()
 #ifndef NDEBUG
     // compare the method we use to calculate `max_possible` in the GPU to the
     // value returned by Coordinator::get_max_length()
-    int max_possible_gpu = graph.numstates - graph.numcycles;
+    int max_possible_gpu = static_cast<int>(graph.numstates) -
+        static_cast<int>(graph.numcycles);
     for (size_t i = 0; i < graph.numcycles; ++i) {
       if (deadstates.at(i) > 1) {
-        max_possible_gpu -= (deadstates.at(i) - 1);
+        max_possible_gpu -= (static_cast<int>(deadstates.at(i)) - 1);
       }
     }
     (void)max_possible_gpu;

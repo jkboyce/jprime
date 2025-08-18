@@ -184,7 +184,7 @@ void Worker::iterative_gen_loops_normal()
       }
       if constexpr (REPORT) {
         if (p + 1 >= n_min && !config.countflag) {
-          pos = p;
+          pos = static_cast<int>(p);
           iterative_handle_finished_pattern();
         }
       }
@@ -238,11 +238,11 @@ void Worker::iterative_gen_loops_normal()
         // this code is rarely executed so it is not performance-critical
         steps = 0;
 
-        pos = p;
+        pos = static_cast<int>(p);
         if (iterative_can_split()) {
           for (int i = 0; i <= pos; ++i) {
-            pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-              .at(beat.at(i).col);
+            pattern.at(i) = static_cast<int>(graph.outthrowval
+                .at(beat.at(i).from_state).at(beat.at(i).col));
           }
           pattern.at(pos + 1) = -1;
           nnodes = nn;
@@ -283,7 +283,7 @@ void Worker::iterative_gen_loops_normal()
     assert(p == 0);
   }
 
-  pos = p;
+  pos = static_cast<int>(p);
   nnodes = nn;
 }
 
@@ -432,7 +432,7 @@ void Worker::iterative_gen_loops_super()
           assert(false);
         }
         if (p + 1 >= n_min && !config.countflag) {
-          pos = p;
+          pos = static_cast<int>(p);
           iterative_handle_finished_pattern();
         }
         ++count[p + 1];
@@ -468,11 +468,11 @@ void Worker::iterative_gen_loops_super()
         if (++steps >= steps_per_inbox_check) {
           steps = 0;
 
-          pos = p;
+          pos = static_cast<int>(p);
           if (iterative_can_split()) {
             for (int i = 0; i <= pos; ++i) {
-              pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                .at(beat.at(i).col);
+              pattern.at(i) = static_cast<int>(graph.outthrowval
+                  .at(beat.at(i).from_state).at(beat.at(i).col));
             }
             pattern.at(pos + 1) = -1;
             nnodes = nn;
@@ -506,7 +506,7 @@ void Worker::iterative_gen_loops_super()
         if (shiftcount < p) {
           // don't allow all shift throws
           if (p + 1 >= n_min && !config.countflag) {
-            pos = p;
+            pos = static_cast<int>(p);
             iterative_handle_finished_pattern();
           }
           ++count[p + 1];
@@ -548,7 +548,7 @@ void Worker::iterative_gen_loops_super()
     assert(p == 0);
   }
 
-  pos = p;
+  pos = static_cast<int>(p);
   nnodes = nn;
 }
 
@@ -641,8 +641,8 @@ void Worker::iterative_update_after_split()
 inline void Worker::iterative_handle_finished_pattern()
 {
   for (int i = 0; i <= pos; ++i) {
-    pattern.at(i) = graph.outthrowval.at(beat.at(i).from_state)
-                                     .at(beat.at(i).col);
+    pattern.at(i) = static_cast<int>(graph.outthrowval
+        .at(beat.at(i).from_state).at(beat.at(i).col));
   }
   pattern.at(pos + 1) = -1;
   report_pattern();

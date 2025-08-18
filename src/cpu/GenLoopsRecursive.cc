@@ -33,7 +33,7 @@ void Worker::gen_loops_normal()
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
-  const int old_from = from;
+  const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -44,7 +44,7 @@ void Worker::gen_loops_normal()
     if (used[to] != 0) {
       continue;
     }
-    pattern[pos] = graph.outthrowval[from][col];
+    pattern[pos] = static_cast<int>(graph.outthrowval[from][col]);
 
     if (to == start_state) {
       handle_finished_pattern();
@@ -104,7 +104,7 @@ void Worker::gen_loops_normal_marking()
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* om = graph.outmatrix[from].data();
-  const int old_from = from;
+  const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -131,7 +131,7 @@ void Worker::gen_loops_normal_marking()
     }
 
     if (to == start_state) {
-      pattern[pos] = throwval;
+      pattern[pos] = static_cast<int>(throwval);
       handle_finished_pattern();
       continue;
     }
@@ -142,7 +142,7 @@ void Worker::gen_loops_normal_marking()
 
     if (throwval != 0 && throwval != graph.h) {
       if (mark_unreachable_states_head(to)) {
-        pattern[pos] = throwval;
+        pattern[pos] = static_cast<int>(throwval);
         ++used[to];
         ++pos;
         from = to;
@@ -153,7 +153,7 @@ void Worker::gen_loops_normal_marking()
       }
       unmark_unreachable_states_head(to);
     } else {
-      pattern[pos] = throwval;
+      pattern[pos] = static_cast<int>(throwval);
 
       if (++steps_taken >= steps_per_inbox_check &&
             pos > static_cast<int>(root_pos) && col < limit - 1) {
@@ -204,7 +204,7 @@ void Worker::gen_loops_super()
   const unsigned limit = graph.outdegree[from];
   const unsigned* const om = graph.outmatrix[from].data();
   const unsigned* const ov = graph.outthrowval[from].data();
-  const int old_from = from;
+  const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
@@ -220,7 +220,7 @@ void Worker::gen_loops_super()
     const bool linkthrow = (throwval != 0 && throwval != graph.h);
 
     if (linkthrow) {
-      pattern[pos] = throwval;
+      pattern[pos] = static_cast<int>(throwval);
       if (to == start_state) {
         handle_finished_pattern();
         continue;
@@ -265,7 +265,7 @@ void Worker::gen_loops_super()
         continue;
       }
 
-      pattern[pos] = throwval;
+      pattern[pos] = static_cast<int>(throwval);
       if (to == start_state) {
         if (static_cast<int>(shiftcount) < pos) {
           // don't allow all shift throws
@@ -319,7 +319,7 @@ void Worker::gen_loops_super0()
       continue;
     }
 
-    pattern[pos] = graph.outthrowval[from][col];
+    pattern[pos] = static_cast<int>(graph.outthrowval[from][col]);
     if (to == start_state) {
       handle_finished_pattern();
       continue;
