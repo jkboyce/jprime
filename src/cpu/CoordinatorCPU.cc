@@ -599,18 +599,17 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
       hl_shift = true;
     }
 
+    // positions to skip in display
     if (i < root_pos) {
       continue;
     }
-
-    char ch;
-    if (!compressed || i == root_pos || (throwval != 0 &&
-          throwval != config.h)) {
-      const unsigned n_ops = ops.at(i);
-      ch = (n_ops < 10) ? static_cast<char>('0' + n_ops) : '?';
-    } else {
+    if (compressed && i != root_pos && (throwval == 0 ||
+          throwval == config.h)) {
       continue;
     }
+
+    const auto n_ops = ops.at(i);
+    const auto ch = (n_ops < 10) ? static_cast<char>('0' + n_ops) : '?';
 
     // use ANSI terminal codes to do inverse, bolding, and color
     const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
