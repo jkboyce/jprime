@@ -581,8 +581,10 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
   assert(ops.size() == ds_extra.size());
 
   for (size_t i = 0; i < ops.size(); ++i) {
-    const unsigned throwval = msg.worker_throw.at(i);
+    const auto throwval = msg.worker_throw.at(i);
+    const bool shiftthrow = (throwval == 0 || throwval == config.h);
 
+    // decide whether to highlight this position, and how
     if (!hl_start && !did_hl_start && i < ops_start.size() &&
         ops.at(i) != ops_start.at(i)) {
       hl_start = did_hl_start = true;
@@ -594,8 +596,7 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
     if (show_deadstates && i < ds_extra.size() && ds_extra.at(i) > 0) {
       hl_deadstate = true;
     }
-    if (show_shifts && i < msg.worker_throw.size() && (throwval == 0 ||
-        throwval == config.h)) {
+    if (show_shifts && i < msg.worker_throw.size() && shiftthrow) {
       hl_shift = true;
     }
 
@@ -603,15 +604,14 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
     if (i < root_pos) {
       continue;
     }
-    if (compressed && i != root_pos && (throwval == 0 ||
-          throwval == config.h)) {
+    if (compressed && i != root_pos && shiftthrow) {
       continue;
     }
 
     const auto n_ops = ops.at(i);
     const auto ch = (n_ops < 10) ? static_cast<char>('0' + n_ops) : '?';
 
-    // use ANSI terminal codes to do inverse, bolding, and color
+    // ANSI terminal codes to do inverse, bolding, and color
     const bool escape = (hl_start || hl_last || hl_deadstate || hl_shift);
     if (escape) {
       bool semi = false;

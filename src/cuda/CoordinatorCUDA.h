@@ -34,15 +34,14 @@ The basic loop is:
 - copy the data back to the GPU
 
 To increase efficiency, we use two separate banks of worker jobs and alternate
-between them, so that while bankA is executing we do host processing of bankB
+between them, so that while bank_a is executing we do host processing of bank_b
 concurrently. Most newer GPUs support asynchronous copying of data between
 device and host while kernels are executing.
 */
 
 class CoordinatorCUDA : public Coordinator, public WorkSpace {
  public:
-  CoordinatorCUDA(SearchConfig& config, SearchContext& context,
-    std::ostream& jpout);
+  CoordinatorCUDA(SearchConfig& a, SearchContext& b, std::ostream& c);
   virtual ~CoordinatorCUDA() override;
 
  protected:
@@ -71,7 +70,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   jptimer_t after_host[2];
   double total_kernel_time = 0;
   double total_host_time = 0;
-  static const uint64_t MINCYCLES = 100000;  // min GPU cycles to run kernel
+  static constexpr uint64_t MINCYCLES = 100000;  // min GPU cycles to run kernel
 
   // live status display
   std::vector<unsigned> longest_by_startstate_ever;
@@ -82,15 +81,14 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   uint64_t last_nnodes = 0;
   uint64_t last_ntotal = 0;
 
- protected:
-  virtual void run_search() override;
+  void run_search() override;
 
   // setup
   void initialize();
   cudaDeviceProp initialize_cuda_device();
   std::vector<statenum_t> make_graph_buffer();
   CudaRuntimeParams find_runtime_params();
-  size_t calc_shared_memory_size(unsigned n_max, const CudaRuntimeParams& p);
+  size_t calc_shared_memory_size(unsigned nmax, const CudaRuntimeParams& p);
   void allocate_memory();
   void copy_graph_to_gpu();
   void copy_static_vars_to_gpu();
@@ -114,14 +112,14 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
 
   // summarization and status display
   CudaWorkerSummary summarize_worker_status(unsigned bank);
-  CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& a,
-    const CudaWorkerSummary& b);
+  CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& last,
+    const CudaWorkerSummary& prev);
   void do_status_display(unsigned bankB, double kernel_time, double host_time,
-    int run);
+    unsigned run);
 
   // manage work assignments
   void load_initial_work_assignments();
-  void load_work_assignment(unsigned bank, const unsigned id,
+  void load_work_assignment(unsigned bank, unsigned id,
     const WorkAssignment& wa);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id);
   void assign_new_jobs(unsigned bankB);
@@ -130,18 +128,17 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
   const ThreadStorageWorkCell& workcell(unsigned bank, unsigned id,
     unsigned pos) const;
-  void throw_on_cuda_error(cudaError_t code, const char *file, int line);
+  static void throw_on_cuda_error(cudaError_t code, const char *file, int line);
 
   // WorkSpace methods
-  virtual const Graph& get_graph() const override;
-  virtual void set_cell(unsigned slot, unsigned index, unsigned col,
-    unsigned col_limit, unsigned from_state) override;
-  virtual std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
+  const Graph& get_graph() const override;
+  void set_cell(unsigned slot, unsigned index, unsigned col, unsigned col_limit,
+    unsigned from_state) override;
+  std::tuple<unsigned, unsigned, unsigned> get_cell(unsigned slot,
     unsigned index) const override;
-  virtual void set_info(unsigned slot, unsigned new_start_state,
-    unsigned new_end_state, int new_pos) override;
-  virtual std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const
-    override;
+  void set_info(unsigned slot, unsigned new_start_state, unsigned new_end_state,
+    int new_pos) override;
+  std::tuple<unsigned, unsigned, int> get_info(unsigned slot) const override;
 };
 
 void CUDART_CB record_kernel_completion_time(void* data);

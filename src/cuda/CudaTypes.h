@@ -11,7 +11,6 @@
 #ifndef JPRIME_CUDATYPES_H_
 #define JPRIME_CUDATYPES_H_
 
-#include <array>
 #include <vector>
 #include <cstdint>
 
