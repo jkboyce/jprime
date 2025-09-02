@@ -30,7 +30,7 @@ class CoordinatorCPU;
 
 class Worker : public WorkSpace {
  public:
-  Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
+  Worker(const SearchConfig& config, CoordinatorCPU& coord, const Graph& g,
       unsigned id, unsigned n_max);
   // Note that Worker contains a `std::mutex` so its default copy and move
   // constructors are deleted
@@ -46,7 +46,7 @@ class Worker : public WorkSpace {
   const unsigned worker_id;
   const unsigned n_min;  // minimum period to find
   const unsigned n_max;  // maximum period
-  Graph& graph;
+  const Graph& graph;
   std::vector<std::vector<unsigned>> excludestates_tail;
   std::vector<std::vector<unsigned>> excludestates_head;
 

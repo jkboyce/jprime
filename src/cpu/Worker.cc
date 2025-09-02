@@ -23,8 +23,8 @@
 #include <array>
 
 
-Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord, Graph& g,
-    unsigned id, unsigned n_max)
+Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord,
+    const Graph& g, unsigned id, unsigned n_max)
     : config(config), coordinator(coord), worker_id(id), n_min(config.n_min),
       n_max(n_max), graph(g)
 {}

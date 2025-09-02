@@ -59,11 +59,11 @@ void Worker::iterative_gen_loops_normal()
   }
 
   // temp storage to access matrix elements quickly
-  std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
+  std::vector<const unsigned*> om_row(graph.numstates + 1, nullptr);
   for (size_t i = 0; i <= graph.numstates; ++i) {
     om_row.at(i) = graph.outmatrix.at(i).data();
   }
-  unsigned** const outmatrix = om_row.data();
+  const unsigned** const outmatrix = om_row.data();
 
   // marking-related items
   std::vector<unsigned*> es_tail_row;
@@ -85,7 +85,7 @@ void Worker::iterative_gen_loops_normal()
   unsigned steps = 0;
   unsigned steps_limit = steps_per_inbox_check;
   const unsigned st_state = start_state;
-  unsigned* const outdegree = graph.outdegree.data();
+  const unsigned* const outdegree = graph.outdegree.data();
   std::uint64_t* const c = count.data();
 
   WorkCell* wc = &beat.at(pos);
@@ -343,11 +343,11 @@ void Worker::iterative_gen_loops_super()
     }
   }
 
-  std::vector<unsigned*> om_row(graph.numstates + 1, nullptr);
+  std::vector<const unsigned*> om_row(graph.numstates + 1, nullptr);
   for (size_t i = 0; i <= graph.numstates; ++i) {
     om_row.at(i) = graph.outmatrix.at(i).data();
   }
-  unsigned** const outmatrix = om_row.data();
+  const unsigned** const outmatrix = om_row.data();
 
   unsigned p = pos;
   uint64_t nn = nnodes;
@@ -355,8 +355,8 @@ void Worker::iterative_gen_loops_super()
   int* const u = used.data();
   unsigned steps = 0;
   int* const cu = cycleused.data();
-  unsigned* const outdegree = graph.outdegree.data();
-  unsigned* const cyclenum = graph.cyclenum.data();
+  const unsigned* const outdegree = graph.outdegree.data();
+  const unsigned* const cyclenum = graph.cyclenum.data();
   int* const iec = isexitcycle.data();
 
   WorkCell* wc = &beat.at(pos);
