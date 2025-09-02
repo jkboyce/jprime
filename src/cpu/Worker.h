@@ -40,8 +40,8 @@ class Worker : public WorkSpace {
   static constexpr double SECS_PER_INBOX_CHECK_TARGET = 0.01;
 
  private:
-  // set during construction and do not change
-  const SearchConfig config;
+  // set during construction/initialization and do not change
+  const SearchConfig& config;
   CoordinatorCPU& coordinator;
   const unsigned worker_id;
   const unsigned n_min;  // minimum period to find
