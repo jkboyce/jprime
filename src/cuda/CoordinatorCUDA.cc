@@ -86,7 +86,7 @@ void CoordinatorCUDA::run_search()
       break;
     }
 
-    // prepare bankB for its next run
+    // prepare bank_b for its next run
     assign_new_jobs(bank_b);
     skip_unusable_startstates(bank_b);
     copy_worker_data_to_gpu(bank_b);
@@ -1314,14 +1314,14 @@ CudaWorkerSummary CoordinatorCUDA::summarize_all_jobs(
 
 // Create and display the live status indicator, if needed.
 
-void CoordinatorCUDA::do_status_display(unsigned bankB, double kernel_time,
+void CoordinatorCUDA::do_status_display(unsigned bank_b, double kernel_time,
       double host_time, unsigned run)
 {
   // some housekeeping before the status display
-  const auto& summary_after_b = summary_after[bankB];
-  const auto& summary_before_a = summary_before[1 - bankB];
+  const auto& summary_after_b = summary_after[bank_b];
+  const auto& summary_before_a = summary_before[1 - bank_b];
   njobs += (summary_after_b.workers_idle.size() -
-      summary_before[bankB].workers_idle.size());
+      summary_before[bank_b].workers_idle.size());
 
   if (config.verboseflag) {
     print_string(std::format(
@@ -1518,11 +1518,11 @@ WorkAssignment CoordinatorCUDA::read_work_assignment(unsigned bank,
   return wa;
 }
 
-// Assign new jobs to idle workers in bankB.
+// Assign new jobs to idle workers in bank_b.
 
-void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
+void CoordinatorCUDA::assign_new_jobs(unsigned bank_b)
 {
-  CudaWorkerSummary& summary = summary_after[bankB];
+  CudaWorkerSummary& summary = summary_after[bank_b];
   auto it_idle = summary.workers_idle.begin();
   const auto it_idle_end = summary.workers_idle.end();
 
@@ -1530,8 +1530,8 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
   while (it_idle != it_idle_end && !context.assignments.empty()) {
     WorkAssignment wa = std::move(context.assignments.front());
     context.assignments.pop_front();
-    load_work_assignment(bankB, *it_idle, wa);
-    max_active_idx[bankB] = std::max(max_active_idx[bankB], *it_idle);
+    load_work_assignment(bank_b, *it_idle, wa);
+    max_active_idx[bank_b] = std::max(max_active_idx[bank_b], *it_idle);
     ++it_idle;
   }
 
@@ -1539,7 +1539,7 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
   // (b) we have `idle_before_a` jobs saved for the other bank
 
   const auto idle_before_a =
-      static_cast<unsigned>(summary_before[1 - bankB].workers_idle.size());
+      static_cast<unsigned>(summary_before[1 - bank_b].workers_idle.size());
 
   // iterate through the workers in this order, for splitting
   std::vector<const std::vector<unsigned>*> worker_lists = {
@@ -1576,7 +1576,7 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
       }
     }
   };
-  const auto enable_resplit = (!warmed_up[bankB] || alg ==
+  const auto enable_resplit = (!warmed_up[bank_b] || alg ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING);
 
   for (const auto* list_ptr : worker_lists) {
@@ -1588,7 +1588,7 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
 
       // do we have a splittable assignment?
       const auto splitting_id = list_ptr->at(index);
-      WorkAssignment wa = read_work_assignment(bankB, splitting_id);
+      WorkAssignment wa = read_work_assignment(bank_b, splitting_id);
       if (!wa.is_splittable()) {
         continue;
       }
@@ -1596,9 +1596,9 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
       WorkAssignment wa2 = wa.split(graph, config.split_alg);
 
       // reload the split assignment into the same slot, preserving node count
-      WorkerInfo& wi = wi_h[bankB][splitting_id];
+      WorkerInfo& wi = wi_h[bank_b][splitting_id];
       auto nodes = wi.nnodes;
-      load_work_assignment(bankB, splitting_id, wa);
+      load_work_assignment(bank_b, splitting_id, wa);
       wi.nnodes = nodes;
       if (enable_resplit) {
         add_worker_to_summary(wa, splitting_id);
@@ -1613,11 +1613,11 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bankB)
 
       // put the second assignment into an idle worker, or save for other bank
       if (it_idle != it_idle_end) {
-        load_work_assignment(bankB, *it_idle, wa2);
+        load_work_assignment(bank_b, *it_idle, wa2);
         if (enable_resplit) {
           add_worker_to_summary(wa2, *it_idle);
         }
-        max_active_idx[bankB] = std::max(max_active_idx[bankB], *it_idle);
+        max_active_idx[bank_b] = std::max(max_active_idx[bank_b], *it_idle);
         ++it_idle;
       } else {
         context.assignments.push_back(std::move(wa2));

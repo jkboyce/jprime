@@ -114,7 +114,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   CudaWorkerSummary summarize_worker_status(unsigned bank);
   CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& last,
     const CudaWorkerSummary& prev);
-  void do_status_display(unsigned bankB, double kernel_time, double host_time,
+  void do_status_display(unsigned bank_b, double kernel_time, double host_time,
     unsigned run);
 
   // manage work assignments
@@ -122,7 +122,7 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   void load_work_assignment(unsigned bank, unsigned id,
     const WorkAssignment& wa);
   WorkAssignment read_work_assignment(unsigned bank, unsigned id);
-  void assign_new_jobs(unsigned bankB);
+  void assign_new_jobs(unsigned bank_b);
 
   // helper
   ThreadStorageWorkCell& workcell(unsigned bank, unsigned id, unsigned pos);
