@@ -474,13 +474,15 @@ void CoordinatorCPU::start_workers()
 }
 
 // Stop all workers.
+//
+// Has no effect if workers were not started or have already been stopped.
 
 void CoordinatorCPU::stop_workers()
 {
   bool status_erased = false;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
-    if (!worker_thread.at(id)->joinable()) {
+    if (id >= worker_thread.size() || !worker_thread.at(id)->joinable()) {
       continue;
     }
 
