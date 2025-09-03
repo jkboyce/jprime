@@ -28,6 +28,7 @@
 class CoordinatorCPU : public Coordinator {
  public:
   CoordinatorCPU(SearchConfig& a, SearchContext& b, std::ostream& c);
+  virtual ~CoordinatorCPU() override;
 
   // for communicating with workers
   std::queue<MessageW2C> inbox;

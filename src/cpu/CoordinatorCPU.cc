@@ -26,6 +26,11 @@ CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
     : Coordinator(a, b, c)
 {}
 
+CoordinatorCPU::~CoordinatorCPU()
+{
+  stop_workers();  // does nothing if search exits cleanly
+}
+
 //------------------------------------------------------------------------------
 // Execution entry point
 //------------------------------------------------------------------------------
@@ -472,23 +477,29 @@ void CoordinatorCPU::start_workers()
 
 void CoordinatorCPU::stop_workers()
 {
-  if (config.verboseflag) {
-    erase_status_output();
-  }
+  bool status_erased = false;
 
   for (unsigned id = 0; id < config.num_threads; ++id) {
+    if (!worker_thread.at(id)->joinable()) {
+      continue;
+    }
+
     MessageC2W msg;
     msg.type = MessageC2W::Type::STOP_WORKER;
     message_worker(msg, id);
 
     if (config.verboseflag) {
-      print_string(std::format("worker {} asked to stop", id));
+      if (!status_erased) {
+        erase_status_output();
+        status_erased = true;
+      }
+      jpout << std::format("worker {} asked to stop\n", id);
     }
 
     worker_thread.at(id)->join();
   }
 
-  if (config.verboseflag) {
+  if (config.verboseflag && status_erased) {
     print_status_output();
   }
 }
