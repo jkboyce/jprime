@@ -28,7 +28,7 @@ CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
 
 CoordinatorCPU::~CoordinatorCPU()
 {
-  stop_workers();  // does nothing if search exits cleanly
+  stop_workers();  // does nothing if run_search() exits cleanly
 }
 
 //------------------------------------------------------------------------------
@@ -501,19 +501,19 @@ void CoordinatorCPU::stop_workers()
     worker_thread.at(id)->join();
   }
 
-  if (config.verboseflag && status_erased) {
+  if (status_erased) {
     print_status_output();
   }
 }
 
 bool CoordinatorCPU::is_worker_idle(const unsigned id) const
 {
-  return (workers_idle.contains(id));
+  return workers_idle.contains(id);
 }
 
 bool CoordinatorCPU::is_worker_splitting(const unsigned id) const
 {
-  return (workers_splitting.contains(id));
+  return workers_splitting.contains(id);
 }
 
 //------------------------------------------------------------------------------
