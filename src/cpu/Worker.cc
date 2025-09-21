@@ -38,7 +38,7 @@ Worker::Worker(const SearchConfig& config, CoordinatorCPU& coord,
 
 void Worker::run()
 {
-  init();
+  initialize();
 
   while (true) {
     bool new_assignment = false;
@@ -51,7 +51,7 @@ void Worker::run()
         inbox.pop();
 
         if (msg.type == MessageC2W::Type::DO_WORK) {
-          load_work_assignment(msg.assignment);
+          set_work_assignment(msg.assignment);
           new_assignment = true;
         } else if (msg.type == MessageC2W::Type::SPLIT_WORK) {
           // ignore in idle state
@@ -72,7 +72,6 @@ void Worker::run()
       continue;
     }
 
-    // get timestamp so we can report working time to coordinator
     const auto start = std::chrono::high_resolution_clock::now();
 
     // complete the new work assignment
@@ -94,7 +93,7 @@ void Worker::run()
 
 // Initialize the arrays used during search.
 
-void Worker::init()
+void Worker::initialize()
 {
   beat.resize(graph.numstates + 1);
   pattern.assign(graph.numstates + 1, -1);
@@ -378,7 +377,7 @@ void Worker::add_data_to_message(MessageW2C& msg)
 
 // Respond to the coordinator's request to do the given work assignment.
 
-void Worker::load_work_assignment(const WorkAssignment& wa)
+void Worker::set_work_assignment(const WorkAssignment& wa)
 {
   assert(!running);
 

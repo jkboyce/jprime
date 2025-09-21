@@ -54,7 +54,7 @@ WorkAssignment::Type WorkAssignment::get_type() const
 
 bool WorkAssignment::is_valid() const
 {
-  return (get_type() != Type::INVALID);
+  return get_type() != Type::INVALID;
 }
 
 // Perform comparisons on WorkAssignments.

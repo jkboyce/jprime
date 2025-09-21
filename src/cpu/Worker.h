@@ -90,7 +90,7 @@ class Worker : public WorkSpace {
   void run();
 
  private:
-  void init();
+  void initialize();
   void message_coordinator(MessageW2C& msg) const;
   void message_coordinator_text(const std::string& str) const;
   void process_inbox_running();
@@ -101,7 +101,7 @@ class Worker : public WorkSpace {
   void send_work_to_coordinator(const WorkAssignment& wa);
   void send_stats_to_coordinator();
   void add_data_to_message(MessageW2C& msg);
-  void load_work_assignment(const WorkAssignment& wa);
+  void set_work_assignment(const WorkAssignment& wa);
   WorkAssignment get_work_assignment() const;
   void notify_coordinator_idle();
   void notify_coordinator_update() const;
