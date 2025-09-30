@@ -447,26 +447,11 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
       ++iter;
     }
   }
-
-  if (wa.root_throwval_options.empty()) {
-    // diagnostic message if there's a problem
-    std::cerr << "error 1 splitting " << *this
-              << "\n  new assignment = " << wa
-              << "\nstart_state = " << wa.start_state
-              << " (" << graph.state.at(wa.start_state) << ")\n";
-    for (unsigned i = 0; i < graph.outdegree.at(wa.start_state); ++i) {
-      std::cerr << "  " << i << ": "
-                << graph.outthrowval.at(wa.start_state).at(i)
-                << " -> " << graph.outmatrix.at(wa.start_state).at(i) << '\n';
-    }
-  }
   assert(!wa.root_throwval_options.empty());
 
-  // did we give away all our throw options at `root_pos`?
   if (root_throwval_options.empty()) {
-    // Find the shallowest depth `new_root_pos` where there are unexplored throw
-    // options. We have no more options at the current root_pos, so
-    // new_root_pos > root_pos.
+    // Gave away all our throw options at `root_pos`. Find the shallowest depth
+    // `new_root_pos` > `root_pos` where there are unexplored throw options.
     //
     // If there is no such new_root_pos < partial_pattern.size(), then this
     // becomes an UNSPLITTABLE assignment and set
@@ -484,16 +469,6 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
         if (graph.outthrowval.at(from_state).at(col) == tv) {
           break;
         }
-      }
-      // diagnostics if there's a problem
-      if (col == graph.outdegree.at(from_state)) {
-        std::cerr << "i = " << i
-                  << ", from_state = " << from_state
-                  << ", start_state = " << start_state
-                  << ", root_pos = " << root_pos
-                  << ", col = " << col
-                  << ", throwval = " << tv
-                  << '\n';
       }
       assert(col < graph.outdegree.at(from_state));
 

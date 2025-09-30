@@ -605,16 +605,16 @@ bool Worker::iterative_can_split()
 {
   WorkAssignment wa;
   wa.from_workspace(this, 0);
-
-  root_throwval_options = wa.root_throwval_options;
+  const bool can_split = wa.is_splittable();
 
   assert(wa.root_pos >= root_pos);
   if (wa.root_pos != root_pos) {
     root_pos = wa.root_pos;
     notify_coordinator_update();
   }
+  root_throwval_options = std::move(wa.root_throwval_options);
 
-  return wa.is_splittable();
+  return can_split;
 }
 
 // Update the workspace in case a SPLIT_WORK request changed our work
