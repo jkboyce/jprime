@@ -707,24 +707,14 @@ std::string Coordinator::pattern_output_format(const std::vector<int>& pattern,
   if (config.invertflag) {
     Pattern inverse = pat.inverse();
 
-    if ((inverse.period() != 0) != pat.is_superprime()) {
-      std::cerr << "error with inverse of:\n"
-                << "  " << pat << " :\n"
-                << "  " << inverse << '\n'
-                << "inverse.period() = " << inverse.period() << '\n'
-                << "pat.is_superprime() = " << pat.is_superprime()
-                << '\n';
-    }
-    if (pat.is_superprime() != inverse.is_superprime()) {
-      std::cerr << "error with inverse of:\n"
-                << "  " << pat << " :\n"
-                << "  " << inverse << '\n'
-                << "pat.is_superprime() = " << pat.is_superprime() << '\n'
-                << "inverse.is_superprime() = " << inverse.is_superprime()
-                << '\n';
-    }
-    assert((inverse.period() != 0) == pat.is_superprime());
-    assert(pat.is_superprime() == inverse.is_superprime());
+#ifndef NDEBUG
+    // check that properties of pattern inverses are satisfied
+    const bool inverse_defined = (inverse.period() != 0);
+    const bool pat_superprime = pat.is_superprime();
+    const bool inverse_superprime = inverse.is_superprime();
+    assert(inverse_defined == pat_superprime);
+    assert(pat_superprime == inverse_superprime);
+#endif
 
     if (inverse.is_valid()) {
       if (config.groundmode != SearchConfig::GroundMode::GROUND_SEARCH &&
