@@ -20,8 +20,8 @@
 
 class Pattern {
  public:
-  Pattern(const std::vector<int>& p, int hmax = 0);
-  Pattern(const std::string& p);
+  explicit Pattern(const std::vector<int>& p, int hmax = 0);
+  explicit Pattern(const std::string& p);
   Pattern() = delete;
 
  private:

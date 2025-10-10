@@ -352,14 +352,14 @@ Pattern Pattern::dual() const
   const auto per = period();
   if (per == 0) {
     std::vector<int> empty_throwval;
-    return {empty_throwval, h};
+    return Pattern(empty_throwval, h);
   }
 
   std::vector<int> dual_throwval(per);
   for (size_t i = 0; i < per; ++i) {
     dual_throwval.at(i) = h - throwval.at(per - 1 - i);
   }
-  return {dual_throwval, h};
+  return Pattern(dual_throwval, h);
 }
 
 // Return the inverse of the pattern.
@@ -391,13 +391,13 @@ Pattern Pattern::inverse()
       // mark a shift cycle as used only when we transition off it
       if (cycles_used.contains(cycle_current)) {
         // revisited cycle number `cycle_current` --> no inverse
-        return {empty_throwval, h};
+        return Pattern(empty_throwval, h);
       }
       cycles_used.insert(cycle_current);
       cycles_multiple = true;
     } else if (throwval.at(i) != 0 && throwval.at(i) != h) {
       // link throw within a single cycle --> no inverse
-      return {empty_throwval, h};
+      return Pattern(empty_throwval, h);
     }
 
     cycle_current = cycle_next;
@@ -405,7 +405,7 @@ Pattern Pattern::inverse()
 
   if (!cycles_multiple) {
     // never left starting shift cycle --> no inverse
-    return {empty_throwval, h};
+    return Pattern(empty_throwval, h);
   }
 
   // Step 2. Find the states and throws of the inverse.
@@ -466,7 +466,7 @@ Pattern Pattern::inverse()
     const auto j = (i + min_index) % inverse_per;
     inverse_final.push_back(inverse_throwval.at(j));
   }
-  return {inverse_final, h};
+  return Pattern(inverse_final, h);
 }
 
 //------------------------------------------------------------------------------

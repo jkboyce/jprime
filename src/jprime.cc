@@ -207,8 +207,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
   }
 
   // default work assignment does entire calculation
-  WorkAssignment wa;
-  context.assignments.push_back(wa);
+  context.assignments.emplace_back();
 
   return std::make_tuple(config, context);
 }

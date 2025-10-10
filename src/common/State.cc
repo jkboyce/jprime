@@ -109,7 +109,7 @@ State State::upstream() const
 State State::reverse() const
 {
   State s = *this;
-  std::reverse(s._slot.begin(), s._slot.end());
+  std::ranges::reverse(s._slot);
   return s;
 }
 

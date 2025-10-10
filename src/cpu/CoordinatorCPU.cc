@@ -464,8 +464,8 @@ void CoordinatorCPU::start_workers()
     worker_endstate.push_back(0);
     worker_rootpos.push_back(0);
     if (config.statusflag) {
-      worker_options_left_start.push_back({});
-      worker_options_left_current.push_back({});
+      worker_options_left_start.emplace_back();
+      worker_options_left_current.emplace_back();
       longest_by_worker_ever.push_back(0);
       longest_by_worker_current.push_back(0);
     }

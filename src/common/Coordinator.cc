@@ -23,6 +23,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <numbers>
 #include <cmath>
 #include <csignal>
 #include <cassert>
@@ -397,7 +398,7 @@ std::vector<double> Coordinator::build_access_model(unsigned num_states) const
 {
   const double pos_mean = 0.48 * static_cast<double>(num_states) - 1;
   const double pos_fwhm = sqrt(pos_mean + 1) * (config.b == 2 ? 3.25 : 2.26);
-  const double pos_sigma = pos_fwhm / (2 * sqrt(2 * log(2)));
+  const double pos_sigma = pos_fwhm / (2 * sqrt(2 * std::numbers::ln2));
 
   std::vector<double> access_fraction(n_max, 0);
   double maxval = 0;

@@ -18,8 +18,8 @@
 
 class State {
  public:
-  State(unsigned h);
-  State(const std::string& s);
+  explicit State(unsigned h);
+  explicit State(const std::string& s);
   State() = delete;
 
  private:

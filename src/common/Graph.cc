@@ -14,6 +14,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
 
 
 // Full graph for `b` objects, max throw `h`.
@@ -48,18 +49,23 @@ Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
 //------------------------------------------------------------------------------
 
 // Initialize the Graph object.
+//
+// In the event of a math overflow error, throw a `std::overflow_error`
+// exception with a relevant error message.
 
 void Graph::initialize()
 {
   // fail if the number of states cannot fit into an unsigned int
   const std::uint64_t num = (n == 0 ? combinations(h, b) :
       ordered_partitions(b, h, n));
-  assert(num <= std::numeric_limits<unsigned>::max());
+  if (num > std::numeric_limits<unsigned>::max()) {
+    throw std::overflow_error("Graph initialization error: too many states");
+  }
   numstates = static_cast<unsigned>(num);
 
   // generate the states
   state.reserve(numstates + 2);
-  state.push_back({h});  // state at index 0 is unused
+  state.emplace_back(h);  // state at index 0 is unused
   if (n == 0) {
     gen_states_all(state, b, h);
     // states are generated in sorted order
@@ -116,7 +122,7 @@ void gen_states_all_helper(std::vector<State>& s, unsigned pos, unsigned left)
 
 void Graph::gen_states_all(std::vector<State>& s, unsigned b, unsigned h)
 {
-  s.push_back({h});
+  s.emplace_back(h);
   gen_states_all_helper(s, h - 1, b);
   s.pop_back();
 }
@@ -172,7 +178,7 @@ void gen_states_for_period_helper(std::vector<State>& s, unsigned pos,
 void Graph::gen_states_for_period(std::vector<State>& s, unsigned b, unsigned h,
     unsigned n)
 {
-  s.push_back({h});
+  s.emplace_back(h);
   gen_states_for_period_helper(s, 0, b, h, n);
   s.pop_back();
 }

@@ -26,28 +26,30 @@
 
 WorkAssignment::Type WorkAssignment::get_type() const
 {
-  if (start_state == 0 && end_state == 0 && partial_pattern.size() == 0 &&
-      root_pos == 0 && root_throwval_options.empty()) {
+  const auto pp_size = partial_pattern.size();
+  const auto rto_size = root_throwval_options.size();
+
+  if (start_state == 0 && end_state == 0 && pp_size == 0 && root_pos == 0 &&
+      rto_size == 0) {
     return Type::STARTUP;
   }
 
-  if (start_state == 0 || end_state < start_state ||
-      root_pos > partial_pattern.size()) {
+  if (start_state == 0 || end_state < start_state || root_pos > pp_size) {
     return Type::INVALID;
   }
 
-  if (root_pos == partial_pattern.size()) {
-    return root_throwval_options.empty() ? Type::UNSPLITTABLE : Type::INVALID;
+  if (root_pos == pp_size) {
+    return rto_size == 0 ? Type::UNSPLITTABLE : Type::INVALID;
   }
 
   // throws in `rto`, and pp.at(root_pos), must all be distinct
   std::set s(root_throwval_options.begin(), root_throwval_options.end());
   s.insert(partial_pattern.at(root_pos));
-  if (s.size() != root_throwval_options.size() + 1) {
+  if (s.size() != rto_size + 1) {
     return Type::INVALID;
   }
 
-  return root_throwval_options.empty() ? Type::INVALID : Type::SPLITTABLE;
+  return rto_size == 0 ? Type::INVALID : Type::SPLITTABLE;
 }
 
 // Determine if a WorkAssignment is valid.
