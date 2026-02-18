@@ -9,9 +9,12 @@ The first juggling pattern generator was apparently written by Don Hatch of Sant
 sometime between 1981 and 1984. To my knowledge this code has never been made public, but pattern list printouts
 dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https://vimeo.com/497788314) from 2006.
 
-The other early pattern generator I'm aware of is the one written by Bengt Magnusson at Caltech, who wrote a
-siteswap generator in Fortran sometime in the mid-late 1980s. He later rewrote it in C in 1991 when he was a
-graduate student at UCSB. I have no information about whether the Cambridge group of siteswap inventors (Mike Day,
+At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1985 or 1986, using
+the programming language APL. Code and printouts unfortunately no longer exist. Sometime later in the 1980s
+Bengt Magnusson wrote a generator in Fortran, which in 1991 he refined and rewrote in C when he was a graduate
+student at UCSB.
+
+I have no information about whether the Cambridge group of siteswap inventors (Mike Day,
 Colin Wright, Adam Chalcraft) also wrote software in that timeframe, but it seems likely.
 
 ## `j.c` (Nov 1990)
@@ -26,9 +29,9 @@ efficient as what soon emerged. The ideas took a while to gel.
 ## `j2.c` (Dec 1991)
 
 `j2` was a rewrite of `j.c` and was I believe the first program to generate synchronous juggling patterns
-like `(6x,4)(4,6x)` and multiplexed patterns like `24[54]`. It also introduced the notation of using letters A, B, C, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
+like `(6x,4)(4,6x)` and multiplexed patterns like `24[54]`. It also introduced the notation of using letters a, b, c, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
 
-In the mid-1990s, `j2` evolved into the siteswap generator component of JuggleAnim, a Java juggling applet, which
+In 1995, `j2` evolved into the siteswap generator component of JuggleAnim, a Java juggling applet, which
 evolved into [Juggling Lab](https://jugglinglab.org) which is still in use today. The siteswap generator in Juggling Lab
 remains my best attempt at a fully-featured juggling pattern generator.
 
