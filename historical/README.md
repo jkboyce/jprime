@@ -12,10 +12,13 @@ dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https:/
 At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1985 or 1986, using
 the programming language APL. Code and printouts unfortunately no longer exist. Sometime later in the 1980s
 Bengt Magnusson wrote a generator in Fortran, which in 1991 he refined and rewrote in C when he was a graduate
-student at UCSB.
+student at UCSB. Another notable early program at Caltech was Allen Knutson's [*Juggle*](http://www.juggling.org/programs/ibm-pc/)
+which dates from June 1988 and is to my knowledge the first juggling animation program. (I exclude Eric Graham's
+famous [*The Juggler*](https://www.youtube.com/watch?v=sHweR8uEGzU) demo in 1986 for the Amiga computer, since the
+latter was a single pre-rendered animation and not a configurable juggling animator.)
 
 I have no information about whether the Cambridge group of siteswap inventors (Mike Day,
-Colin Wright, Adam Chalcraft) also wrote software in that timeframe, but it seems likely.
+Colin Wright, Adam Chalcraft) also wrote pattern generator software in that timeframe, but it seems likely.
 
 ## `j.c` (Nov 1990)
 
@@ -29,7 +32,10 @@ efficient as what soon emerged. The ideas took a while to gel.
 ## `j2.c` (Dec 1991)
 
 `j2` was a rewrite of `j.c` and was I believe the first program to generate synchronous juggling patterns
-like `(6x,4)(4,6x)` and multiplexed patterns like `24[54]`. It also introduced the notation of using letters a, b, c, ... to denote throw values above 9. The notation introduced in `j2` stuck with the juggling community and is in wide use today.
+like `(6x,4)(4,6x)` and multiplexed patterns like `24[54]`. In addition to this notation, `j2` also introduced the
+use of letters a, b, c, ... to denote throw values above 9. The notation introduced by `j2` stuck with the juggling
+community, in part because the program was integrated into popular animation programs like Ed Carsten's
+[*JugglePro*](http://www.juggling.org/programs/ibm-pc/).
 
 In 1995, `j2` evolved into the siteswap generator component of JuggleAnim, a Java juggling applet, which
 evolved into [Juggling Lab](https://jugglinglab.org) which is still in use today. The siteswap generator in Juggling Lab
@@ -39,10 +45,11 @@ The files `j2.txt` and `3person` are for use with `j2`.
 
 ## `jdeep.c` (Jun 1998)
 
-When Johannes Waldmann started looking at long prime patterns in 1998, I became interested and started adapting my
+When Johannes Waldmann started looking at long prime patterns in 1998, I became interested and began adapting my
 pattern-finding software to be as efficient as possible at the task.
 
-`jdeep.c` was the initial result, and it continued to evolve rapidly. Eventually `jdeep` became `jprime` so in terms of code lineage this represents version 1 of `jprime`.
+`jdeep.c` was the initial result, and it continued to evolve through many iterations. Eventually `jdeep` became
+`jprime` so in terms of code lineage this represents version 1 of `jprime`.
 
 ## Longest prime siteswaps paper (1999)
 
