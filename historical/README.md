@@ -12,13 +12,13 @@ dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https:/
 At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1985 or 1986, using
 the programming language APL. Code and printouts unfortunately no longer exist. Sometime later in the 1980s
 Bengt Magnusson wrote a generator in Fortran, which in 1991 he refined and rewrote in C when he was a graduate
-student at UCSB. Another notable early program at Caltech was Allen Knutson's [*Juggle*](http://www.juggling.org/programs/ibm-pc/)
-which dates from June 1988 and is to my knowledge the first juggling animation program. (I exclude Eric Graham's
-famous [*The Juggler*](https://www.youtube.com/watch?v=sHweR8uEGzU) demo in 1986 for the Amiga computer, since the
-latter was a single pre-rendered animation and not a configurable juggling animator.)
+student at UCSB. (Another notable early program at Caltech was Allen Knutson's [*Juggle*](http://www.juggling.org/programs/ibm-pc/)
+from June 1988 which is to my knowledge the first juggling animation program. Eric Graham's
+[*The Juggler*](https://www.youtube.com/watch?v=sHweR8uEGzU) demo for Amiga pre-dated this but was not a
+configurable animator.)
 
-I have no information about whether the Cambridge group of siteswap inventors (Mike Day,
-Colin Wright, Adam Chalcraft) also wrote pattern generator software in that timeframe, but it seems likely.
+I have no information about whether the Cambridge group of siteswap inventors – Mike Day,
+Colin Wright, and Adam Chalcraft – also wrote pattern generator software in that timeframe, but it seems likely.
 
 ## `j.c` (Nov 1990)
 
