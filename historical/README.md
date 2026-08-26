@@ -9,7 +9,7 @@ The first juggling pattern generator was apparently written by Don Hatch of Sant
 sometime between 1981 and 1984. To my knowledge this code has never been made public, but pattern list printouts
 dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https://vimeo.com/497788314) from 2006.
 
-At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1985 or 1986, using
+At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1986, using
 the programming language APL. Code and printouts unfortunately no longer exist. Sometime later in the 1980s
 Bengt Magnusson wrote a generator in Fortran, which in 1991 he refined and rewrote in C when he was a graduate
 student at UCSB. (Another notable early program at Caltech was Allen Knutson's [*Juggle*](http://www.juggling.org/programs/ibm-pc/)
