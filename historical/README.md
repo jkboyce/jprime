@@ -9,6 +9,10 @@ The first juggling pattern generator was apparently written by Don Hatch of Sant
 sometime between 1981 and 1984. To my knowledge this code has never been made public, but pattern list printouts
 dated July 1, 1984 are [shown in Sean Gandini's "Siteswaps" documentary](https://vimeo.com/497788314) from 2006.
 
+Siteswap notation was later independently invented at Cambridge by Mike Day, Colin Wright, and Adam Chalcraft, and
+this group created their own pattern generators in 1985. Mike in particular wrote one in the BCPL programming
+language that ran on an IBM mainframe at Cambridge. It's unknown if source code or printouts survive.
+
 At Caltech there were two early pattern generators. The first was written by Joel Hamkins in 1986, using
 the programming language APL. Code and printouts unfortunately no longer exist. Sometime later in the 1980s
 Bengt Magnusson wrote a generator in Fortran, which in 1991 he refined and rewrote in C when he was a graduate
@@ -16,9 +20,6 @@ student at UCSB. (Another notable early program at Caltech was Allen Knutson's [
 from June 1988 which is to my knowledge the first juggling animation program. Eric Graham's
 [*The Juggler*](https://www.youtube.com/watch?v=sHweR8uEGzU) demo for Amiga pre-dated this but was not a
 configurable animator.)
-
-I have no information about whether the Cambridge group of siteswap inventors – Mike Day,
-Colin Wright, and Adam Chalcraft – also wrote pattern generator software in that timeframe, but it seems likely.
 
 ## `j.c` (Nov 1990)
 
