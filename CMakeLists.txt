@@ -102,8 +102,8 @@ if(JPRIME_ENABLE_CUDA)
     # Set target CUDA architectures:
     # PTX + SASS for 8.9 (RTX 4000 series)
     # PTX + SASS for 12.0 (RTX 5000 series)
-    # PTX for 6.0 (everything else)
-    set_property(TARGET jprime PROPERTY CUDA_ARCHITECTURES 89 120 60-virtual)
+    # PTX for 7.5 (everything else)
+    set_property(TARGET jprime PROPERTY CUDA_ARCHITECTURES 89 120 75-virtual)
 
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
