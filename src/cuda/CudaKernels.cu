@@ -4,7 +4,7 @@
 // GPU kernels for executing the core search functions of `jprime`. This file
 // should be compiled with `nvcc`, part of the CUDA Toolkit.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 2025-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -265,8 +265,9 @@ __device__ __forceinline__ bool mark_tail(statenum_t from_st,
   const uint16_t idx_low = gr[from_st * (od + 5) + (od + 1)];
   const uint16_t idx_high = gr[from_st * (od + 5) + (od + 2)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
-  if (idx == 0)
+  if (idx == 0) {
     return true;
+  }
 
   bool valid = true;
   statenum_t st = 0;
@@ -542,8 +543,9 @@ __global__ void cuda_gen_loops_normal(
     }
 
     // invariant: only exit when we're about to move to the next beat
-    if (clock64() > end_clock)
+    if (clock64() > end_clock) {
       break;
+    }
 
     // advance to next beat
     set_bit(used, to_state);
@@ -842,8 +844,9 @@ __global__ void cuda_gen_loops_normal_marking(
       }
     }
 
-    if (clock64() > end_clock)
+    if (clock64() > end_clock) {
       break;
+    }
 
     // advance to next beat
     set_bit(used, to_state);
@@ -1102,8 +1105,9 @@ __global__ void cuda_gen_loops_super(
         continue;
       }
 
-      if (clock64() > end_clock)
+      if (clock64() > end_clock) {
         break;
+      }
 
       // go to next beat
       if (shiftlimit != 0) {

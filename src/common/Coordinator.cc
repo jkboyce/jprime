@@ -7,7 +7,7 @@
 // stealing to keep the workers busy. The business of the coordinator is to
 // interact with the workers to distribute work, and also to manage output.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -95,6 +95,12 @@ bool Coordinator::run()
   const double runtime = calc_duration_secs(start, end);
   context.secs_elapsed += runtime;
   context.secs_available += runtime * config.num_threads;
+
+  if (context.nnodes >= split_duplicate_nodes) {
+    context.nnodes -= split_duplicate_nodes;
+  } else {
+    context.nnodes = 0;
+  }
 
   erase_status_output();
   std::flush(std::cout);

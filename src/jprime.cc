@@ -6,7 +6,7 @@
 // repeatable subpatterns; in a corresponding graph search problem they
 // correspond to cycles in the graph that visit no vertex more than once.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -38,6 +38,7 @@
 // 2024.06.16  Version 6.8 adds analyzer and efficiency improvements for (b,2b).
 // 2025.02.20  Version 6.9 makes <shifts> optional in -super mode.
 // 2025.03.22  Version 7.0 adds support for running on a CUDA GPU.
+// 2026.10.13  Version 7.1 adds dynamic performance optimization for CUDA.
 //
 
 #include "SearchConfig.h"
@@ -63,8 +64,8 @@ int do_tests(int testnum = -1);  // defined in jprime_tests.cc
 void print_help()
 {
   static const std::string help_string =
-    "jprime version 7.0 (2025.03.22)\n"
-    "Copyright (C) 1998-2025 Jack Boyce <jboyce@gmail.com>\n"
+    "jprime version 7.1 (2026.10.13)\n"
+    "Copyright (C) 1998-2026 Jack Boyce <jboyce@gmail.com>\n"
     "\n"
     "This program searches for prime siteswap juggling patterns. For an explanation\n"
     "of these terms see http://wikipedia.org/wiki/Siteswap\n"

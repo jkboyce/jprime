@@ -4,7 +4,7 @@
 // Coordinator that manages the overall search. This is a base class that needs
 // to be overridden to define the `run_search()` method.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -53,6 +53,7 @@ class Coordinator {
   SearchAlgorithm alg = SearchAlgorithm::NONE;
   std::vector<int> max_length;
   unsigned n_max = 0;  // max pattern period to find
+  uint64_t split_duplicate_nodes = 0;
 
   // live status display
   std::vector<std::string> status_lines;

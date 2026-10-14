@@ -3,7 +3,7 @@
 //
 // Coordinator that executes the search on a CUDA GPU.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 2025-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -18,6 +18,7 @@
 #include "WorkAssignment.h"
 #include "WorkSpace.h"
 #include "CudaTypes.h"
+#include "PerfTuner.h"
 
 #include <cuda_runtime.h>
 
@@ -49,8 +50,10 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   cudaDeviceProp prop;
   cudaStream_t stream[2] = { nullptr, nullptr };  // stream for each job bank
   std::vector<statenum_t> graph_buffer;
-  CudaRuntimeParams params;
+  size_t pattern_buffer_size = 0;  // number of patterns
   CudaGlobalPointers gptrs;
+  std::vector<double> access_fraction;
+  PerfTuner tuner;
 
   // pinned memory blocks in host
   WorkerInfo* wi_h[2] = { nullptr, nullptr };  // workerinfo arrays
@@ -58,10 +61,17 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   uint32_t* pattern_count_h = nullptr;  // pattern count, if needed
   statenum_t* pb_h = nullptr;  // pattern buffer, if needed
 
+  // runtime configurations
+  RunConfig run_config[2];
+  CudaRuntimeParams params[2];
+  unsigned num_threads[2] = { 0, 0 };
+  // TODO: put cycles[] here too eventually
+
   // worker summaries for two banks of jobs
   CudaWorkerSummary summary_before[2];
   CudaWorkerSummary summary_after[2];
   unsigned max_active_idx[2] = { 0, 0 };
+  unsigned last_max_active_idx[2] = { 0, 0 };
   bool warmed_up[2] = { false, false };
 
   // timing
@@ -87,24 +97,27 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   void initialize();
   cudaDeviceProp initialize_cuda_device();
   std::vector<statenum_t> make_graph_buffer();
-  CudaRuntimeParams find_runtime_params();
-  size_t calc_shared_memory_size(unsigned nmax, const CudaRuntimeParams& p);
   void allocate_memory();
   void copy_graph_to_gpu();
   void copy_static_vars_to_gpu();
+  RunConfig get_starting_config();
 
   // main loop
   void skip_unusable_startstates(unsigned bank);
   void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
   void launch_cuda_kernel(unsigned bank, uint64_t cycles);
+  void apply_next_run_config(unsigned bank);
+  CudaRuntimeParams get_runtime_params(const RunConfig& rc);
+  void print_execution_parameters(const CudaRuntimeParams& params);
+  size_t calc_shared_memory_size(const RunConfig& rc, unsigned window_size);
   void copy_worker_data_from_gpu(unsigned bank);
-  void process_worker_counters(unsigned bank);
+  uint64_t process_worker_counters(unsigned bank);
   uint32_t process_pattern_buffer(unsigned bank);
   void record_working_time(unsigned bank, double kernel_time, double host_time,
     uint64_t cycles_run);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles, unsigned bank,
-    double kernel_time, double host_time, unsigned idle_start,
-    uint32_t pattern_count);
+    unsigned last_threads, double kernel_time, double host_time,
+    unsigned idle_start, uint32_t pattern_count);
 
   // cleanup
   void gather_unfinished_work_assignments();
@@ -114,8 +127,9 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   CudaWorkerSummary summarize_worker_status(unsigned bank);
   CudaWorkerSummary summarize_all_jobs(const CudaWorkerSummary& last,
     const CudaWorkerSummary& prev);
-  void do_status_display(unsigned bank_b, double kernel_time, double host_time,
-    unsigned run);
+  void do_logging(unsigned run, unsigned bank_b, double kernel_time,
+    double host_time, double last_perf);
+  void do_status_display(unsigned bank_b);
 
   // manage work assignments
   void load_initial_work_assignments();
@@ -129,6 +143,11 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   const ThreadStorageWorkCell& workcell(unsigned bank, unsigned id,
     unsigned pos) const;
   static void throw_on_cuda_error(cudaError_t code, const char *file, int line);
+#ifndef NDEBUG
+  bool check_workerinfos(unsigned bank, int line = -1);
+#else
+  bool check_workerinfos(unsigned = 0, int = -1) { return false; }
+#endif
 
   // WorkSpace methods
   const Graph& get_graph() const override;

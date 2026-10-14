@@ -3,7 +3,7 @@
 //
 // Defines data types for searching on a CUDA GPU.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 2025-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -13,6 +13,8 @@
 
 #include <vector>
 #include <cstdint>
+#include <string>
+#include <ostream>
 
 
 // state numbers
@@ -66,18 +68,30 @@ static_assert(sizeof(ThreadStorageWorkCell) == 256,
     "ThreadStorageWorkCell size");
 
 
+// tunable kernel runtime parameters
+struct RunConfig {
+  bool graph_in_shared;
+  bool used_in_shared;
+  unsigned warps;
+
+  bool operator==(const RunConfig&) const = default;
+  std::string to_string() const;
+};
+
+std::ostream& operator<<(std::ostream& ost, const RunConfig& rc);
+
+
 // defines how the algorithms map onto the GPU hardware
 struct CudaRuntimeParams {
   unsigned num_blocks = 1;
   unsigned num_threadsperblock = 32;
 
-  // memory usage
-  size_t pattern_buffer_size = 0;  // patterns
-  size_t total_allocated_s = 0;  // bytes
+  // shared memory usage
   size_t graph_size_s = 0;  // bytes
   bool used_in_shared = true;
   unsigned window_lower = 0;
   unsigned window_upper = 0;
+  size_t total_allocated_s = 0;  // bytes
 
   // configures the search algorithm
   unsigned n_min = 0;
@@ -102,7 +116,7 @@ struct CudaGlobalPointers {
   ThreadStorageWorkCell* wc_d[2] = { nullptr, nullptr };
   statenum_t* pb_d[2] = { nullptr, nullptr };  // if needed
   statenum_t* graphmatrix_d = nullptr;  // if needed
-  uint32_t* used_d = nullptr;  // if needed
+  uint32_t* used_d = nullptr;
 };
 
 
@@ -128,7 +142,7 @@ struct CudaThreadPointers {
 struct CudaWorkerSummary {
   unsigned root_pos_min = 0;  // minimum `root_pos` across all active workers
   statenum_t max_start_state = 0;  // maximum `start_state` across all workers
-  unsigned count_total = 0;  // total number of active jobs
+  unsigned active_total = 0;  // total number of active jobs
   uint32_t cycles_startup = 0;  // average GPU clock cycles to initialize
 
   // vectors containing ids of workers in various states; note that all ids in

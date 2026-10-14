@@ -3,7 +3,7 @@
 //
 // Coordinator that executes the search on one or more CPU threads.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -16,7 +16,6 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
-#include <csignal>
 #include <cassert>
 #include <format>
 
@@ -297,6 +296,11 @@ void CoordinatorCPU::process_returned_work(const MessageW2C& msg)
   if (workers_splitting.contains(msg.worker_id)) {
     ++context.splits_total;
     workers_splitting.erase(msg.worker_id);
+
+    // Avoid double counting nodes: Each of the nodes in the partial path for
+    // the new assignment will be reported twice: once by the worker that did
+    // the split, and again by the worker that eventually does this new job.
+    split_duplicate_nodes += msg.assignment.partial_pattern.size();
   }
   context.assignments.push_back(msg.assignment);
   record_data_from_message(msg);

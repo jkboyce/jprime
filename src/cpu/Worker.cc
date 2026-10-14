@@ -7,7 +7,7 @@
 // with a work stealing scheme to balance work among the threads. Each worker
 // communicates only with the coordinator thread, via a set of message types.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
@@ -219,13 +219,6 @@ void Worker::process_split_work_request()
   root_throwval_options = wa.root_throwval_options;
   notify_coordinator_update();
   send_work_to_coordinator(wa2);
-
-  // Avoid double counting nodes: Each of the nodes in the partial path for the
-  // new assignment will be reported twice to the coordinator: by this worker,
-  // and by the worker that does the job we just split off and returned.
-  if (wa2.start_state == wa.start_state) {
-    nnodes -= wa2.partial_pattern.size();
-  }
 
   if (config.verboseflag) {
     auto text = std::format("worker {} remaining work after split:\n  {}",

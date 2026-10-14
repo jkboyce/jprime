@@ -3,7 +3,7 @@
 #
 # File to configure and build `jprime`, for use with the CMake build system.
 #
-# Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+# Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 #
 # This file is distributed under the MIT License.
 #
@@ -111,7 +111,10 @@ if(JPRIME_ENABLE_CUDA)
     message(STATUS "CUDA Toolkit bin: ${CUDAToolkit_BIN_DIR}")
 
     # Add CUDA-specific C++ source files (compiled as CXX with CUDA context)
-    target_sources(jprime PRIVATE src/cuda/CoordinatorCUDA.cc)
+    target_sources(jprime PRIVATE
+        src/cuda/CoordinatorCUDA.cc
+        src/cuda/PerfTuner.cc
+    )
 
     # Add CUDA kernel files (.cu)
     target_sources(jprime PRIVATE src/cuda/CudaKernels.cu)
