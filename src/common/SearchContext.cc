@@ -61,10 +61,10 @@ bool pattern_compare_ints(const std::string& pat1, const std::string& pat2)
   const std::vector<int> vec1 = parse_pattern_line(pat1);
   const std::vector<int> vec2 = parse_pattern_line(pat2);
 
-  if (vec2.size() == 0) {
+  if (vec2.empty()) {
     return false;
   }
-  if (vec1.size() == 0) {
+  if (vec1.empty()) {
     return true;
   }
 
@@ -98,10 +98,10 @@ bool pattern_compare_ints(const std::string& pat1, const std::string& pat2)
 
 bool pattern_compare_letters(const std::string& pat1, const std::string& pat2)
 {
-  if (pat2.size() == 0) {
+  if (pat2.empty()) {
     return false;
   }
-  if (pat1.size() == 0) {
+  if (pat1.empty()) {
     return true;
   }
 
@@ -206,7 +206,7 @@ void SearchContext::to_file(const std::string& file)
     myfile << i << ", " << count.at(i) << '\n';
   }
 
-  if (assignments.size() > 0) {
+  if (!assignments.empty()) {
     myfile << "\nwork assignments remaining\n";
     for (const auto& wa : assignments) {
       const auto wa_str = wa.to_string();
@@ -379,7 +379,7 @@ void SearchContext::from_file(const std::string& file)
         break;
     }
 
-    if (error.size() > 0) {
+    if (!error.empty()) {
       myfile.close();
       throw std::invalid_argument(std::format("Error reading file: {}", error));
     }
@@ -392,7 +392,7 @@ void SearchContext::from_file(const std::string& file)
     val = s;
     trim(val);
 
-    if (val.size() == 0) {
+    if (val.empty()) {
       // ignore empty lines
     } else if (s.starts_with("counts")) {
       section = 3;

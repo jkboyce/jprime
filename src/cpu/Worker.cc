@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 #include <cassert>
 #include <format>
@@ -105,6 +106,7 @@ void Worker::initialize()
 
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    assert(graph.has_shift_cycles());
     std::tie(excludestates_tail, excludestates_head) =
         graph.get_exclude_states();
   }
@@ -473,7 +475,7 @@ void Worker::do_work_assignment()
         message_coordinator_text(text);
       }
 
-      if (max_possible < static_cast<int>(n_min)) {
+      if (std::cmp_less(max_possible, n_min)) {
         // larger values of `start_state` will have `max_possible` values that
         // are the same or smaller, so we can exit the loop
         if (config.verboseflag) {
@@ -599,6 +601,7 @@ void Worker::initialize_working_variables()
 
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
+    assert(graph.has_shift_cycles());
     // for a discussion of the NORMAL_MARKING initialization procedure see
     // Worker::mark_unreachable_states_tail()
     for (size_t i = 1; i < start_state; ++i) {
@@ -660,6 +663,7 @@ void Worker::initialize_working_variables()
   }
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    assert(graph.has_shift_cycles());
     cycleused.assign(graph.numcycles, 0);
     shiftcount = 0;
     isexitcycle = graph.get_exit_cycles(start_state);

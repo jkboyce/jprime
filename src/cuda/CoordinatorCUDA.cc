@@ -213,6 +213,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
   std::vector<std::vector<unsigned>> excludestates_tail;
   std::vector<std::vector<unsigned>> excludestates_head;
   if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    assert(graph.has_shift_cycles());
     std::tie(excludestates_tail, excludestates_head) =
         graph.get_exclude_states();
   }
@@ -233,6 +234,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
     // cycle number, for modes that need it
     if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0 ||
         alg == SearchAlgorithm::NORMAL_MARKING) {
+      assert(graph.has_shift_cycles());
       buffer.push_back(static_cast<statenum_t>(graph.cyclenum.at(i)));
     }
 

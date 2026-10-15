@@ -54,13 +54,14 @@ class Graph {
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
   static void gen_states_for_period(std::vector<State>& s, unsigned b,
     unsigned h, unsigned );
-  unsigned find_shift_cycles();
   void build_graph_matrix();
   void find_max_startstate_usable();
   void update_usable_states(std::vector<bool>& state_usable) const;
 
  public:
-  void validate_graph();
+  unsigned find_shift_cycles();
+  bool has_shift_cycles() const { return numcycles > 0; }
+  void validate_graph(bool ground_only = false);
   std::vector<int> get_exit_cycles(unsigned start_state) const;
   std::tuple<std::vector<std::vector<unsigned>>,
     std::vector<std::vector<unsigned>>> get_exclude_states() const;

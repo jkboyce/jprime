@@ -82,8 +82,8 @@ bool Coordinator::run()
   n_max = (config.n_max > 0) ? config.n_max
       : static_cast<unsigned>(context.n_bound);
   context.count.resize(n_max + 1, 0);
-  initialize_graph();
   select_search_algorithm();
+  initialize_graph();
 
   // register signal handler for ctrl-c interrupt
   signal(SIGINT, Coordinator::signal_handler);
@@ -217,8 +217,19 @@ void Coordinator::initialize_graph()
     config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH
                       ? config.n_min : 0
   };
+
+  if (alg != SearchAlgorithm::NORMAL) {
+    graph.find_shift_cycles();
+  }
+
   customize_graph(graph);
-  graph.validate_graph();
+  graph.validate_graph(config.groundmode ==
+      SearchConfig::GroundMode::GROUND_SEARCH);
+
+  if (alg == SearchAlgorithm::NORMAL_MARKING &&
+      static_cast<uint64_t>(graph.numstates) < context.full_numstates) {
+    alg = SearchAlgorithm::NORMAL;
+  }
 
   // build table of maximum pattern length by start_state
   max_length.push_back(-1);
@@ -231,7 +242,10 @@ void Coordinator::initialize_graph()
 
     unsigned max_possible = 0;
     if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-      max_possible = graph.prime_period_bound(start_state);
+      max_possible = graph.has_shift_cycles()
+          ? graph.prime_period_bound(start_state)
+          : std::min(static_cast<unsigned>(context.n_bound),
+                     graph.numstates - start_state + 1);
     } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
       if (config.shiftlimit == -1U) {
         max_possible = graph.superprime_period_bound(start_state);
@@ -258,6 +272,7 @@ void Coordinator::customize_graph(Graph& g) const
   // shift cycle, so remove them.
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    assert(g.has_shift_cycles());
     for (size_t i = 1; i <= g.numstates; ++i) {
       unsigned outthrownum = 0;
 
@@ -377,9 +392,9 @@ void Coordinator::select_search_algorithm()
   alg = SearchAlgorithm::NONE;
 
   if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-    if (static_cast<uint64_t>(graph.numstates) == context.full_numstates &&
+    if (context.memory_numstates == context.full_numstates &&
         static_cast<double>(config.n_min) >
-        0.66 * static_cast<double>(get_max_length(1))) {
+        0.66 * static_cast<double>(context.n_bound)) {
       // the overhead of marking is only worth it for long-period patterns, and
       // the algorithm requires all states to be present in the graph
       alg = SearchAlgorithm::NORMAL_MARKING;

@@ -666,7 +666,7 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
          << std::setw(5) << longest_by_worker_ever.at(id);
 
   ops_last = ops;
-  if (ops_start.size() == 0) {
+  if (ops_start.empty()) {
     ops_start = ops;
   }
   longest_by_worker_current.at(id) = 0;

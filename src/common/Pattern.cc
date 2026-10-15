@@ -333,7 +333,7 @@ bool Pattern::is_superprime()
   }
 
   // remove the states at the end that are duplicates of the start
-  while (deduped.size() != 0 && deduped.back() == deduped.front()) {
+  while (!deduped.empty() && deduped.back() == deduped.front()) {
     deduped.pop_back();
   }
 
@@ -446,7 +446,7 @@ Pattern Pattern::inverse()
       inverse_throwval.push_back(trial_state.slot(h - 1) != 0 ? h : 0);
     }
   }
-  assert(inverse_states.size() > 0);
+  assert(!inverse_states.empty());
   assert(inverse_states.back() == inverse_states.front());
 
   // Step 3. Create the final inverse pattern.
@@ -866,8 +866,8 @@ void Pattern::check_have_states()
   if (states.size() == per) {
     return;
   }
-  assert(states.size() == 0);
-  assert(cyclestates.size() == 0);
+  assert(states.empty());
+  assert(cyclestates.empty());
 
   // find the starting state
   State start_state{static_cast<unsigned>(h)};

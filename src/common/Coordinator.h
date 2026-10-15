@@ -62,7 +62,7 @@ class Coordinator {
 
  public:
   static volatile sig_atomic_t stopping;  // to handle ctrl-c
-  static constexpr unsigned MAX_STATES = 1000000U;  // memory limit
+  static constexpr unsigned MAX_STATES = 100000000U;  // memory limit
 
   bool run();
 

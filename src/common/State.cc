@@ -11,6 +11,7 @@
 #include "State.h"
 
 #include <algorithm>
+#include <cstring>
 #include <format>
 #include <stdexcept>
 
@@ -49,6 +50,18 @@ const unsigned& State::slot(size_t i) const
   return _slot.at(i);
 }
 
+// Return raw pointer to the slot array.
+
+const unsigned* State::data() const
+{
+  return _slot.data();
+}
+
+unsigned* State::data()
+{
+  return _slot.data();
+}
+
 // Return a new State object that corresponds to the current State advanced by
 // throw `throwval`.
 //
@@ -82,15 +95,37 @@ State State::advance_with_throw(unsigned throwval) const
   return s;
 }
 
+// Shift the state downstream in place (rotate slots left by 1).
+
+void State::shift_downstream()
+{
+  if (_slot.empty()) {
+    return;
+  }
+  const unsigned head = _slot.front();
+  std::memmove(_slot.data(), _slot.data() + 1, (_slot.size() - 1) * sizeof(unsigned));
+  _slot.back() = head;
+}
+
 // Return the next state downstream in the state's shift cycle.
 
 State State::downstream() const
 {
   State s = *this;
-  const unsigned head = *s._slot.begin();
-  s._slot.erase(s._slot.begin());
-  s._slot.push_back(head);
+  s.shift_downstream();
   return s;
+}
+
+// Shift the state upstream in place (rotate slots right by 1).
+
+void State::shift_upstream()
+{
+  if (_slot.empty()) {
+    return;
+  }
+  const unsigned tail = _slot.back();
+  std::memmove(_slot.data() + 1, _slot.data(), (_slot.size() - 1) * sizeof(unsigned));
+  _slot[0] = tail;
 }
 
 // Return the next state upstream in the state's shift cycle.
@@ -98,9 +133,7 @@ State State::downstream() const
 State State::upstream() const
 {
   State s = *this;
-  const unsigned tail = s._slot.back();
-  s._slot.pop_back();
-  s._slot.insert(s._slot.begin(), tail);
+  s.shift_upstream();
   return s;
 }
 
@@ -114,6 +147,22 @@ State State::reverse() const
 }
 
 // Perform comparisons on States.
+
+// 3-way comparison of two states of the same size and ball count.
+// Returns -1 if *this < s2, 0 if *this == s2, and 1 if *this > s2.
+
+int State::compare_same_size(const State& s2) const
+{
+  for (int i = static_cast<int>(_slot.size()) - 1; i >= 0; --i) {
+    if (_slot[i] < s2._slot[i]) {
+      return -1;
+    }
+    if (_slot[i] > s2._slot[i]) {
+      return 1;
+    }
+  }
+  return 0;
+}
 
 bool State::operator==(const State& s2) const
 {
@@ -176,13 +225,5 @@ bool state_compare(const State& s1, const State& s2)
     return false;
   }
 
-  for (int i = static_cast<int>(s1.size()) - 1; i >= 0; --i) {
-    if (s1.slot(i) < s2.slot(i)) {
-      return true;
-    }
-    if (s1.slot(i) > s2.slot(i)) {
-      return false;
-    }
-  }
-  return false;
+  return s1.compare_same_size(s2) < 0;
 }

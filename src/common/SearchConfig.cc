@@ -94,7 +94,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
           (void)ie;
           // next arg didn't parse as a number; retain it
         }
-        if (error.size() > 0) {
+        if (!error.empty()) {
           throw std::invalid_argument(error);
         }
       }
@@ -205,7 +205,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
         const auto hpos = s.find('-');
         const auto s1 = s.substr(0, hpos);
         const auto s2 = s.substr(hpos + 1);
-        if (s1.size() > 0) {
+        if (!s1.empty()) {
           try {
             val = std::stoi(s1);
           } catch (const std::invalid_argument& ie) {
@@ -219,7 +219,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
             success = false;
           }
         }
-        if (s2.size() > 0) {
+        if (!s2.empty()) {
           try {
             val = std::stoi(s2);
           } catch (const std::invalid_argument& ie) {

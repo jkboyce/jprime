@@ -29,10 +29,15 @@ class State {
   size_t size() const;
   unsigned& slot(size_t i);
   const unsigned& slot(size_t i) const;
+  const unsigned* data() const;
+  unsigned* data();
   State advance_with_throw(unsigned throwval) const;
   State downstream() const;
   State upstream() const;
+  void shift_downstream();
+  void shift_upstream();
   State reverse() const;
+  int compare_same_size(const State& s2) const;
   bool operator==(const State& s2) const;
   bool operator!=(const State& s2) const;
   bool operator<(const State& s2) const;

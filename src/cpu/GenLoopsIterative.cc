@@ -329,6 +329,8 @@ inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
 template<bool SUPER0, bool REPLAY>
 void Worker::iterative_gen_loops_super()
 {
+  assert(graph.has_shift_cycles());
+
   if constexpr (!REPLAY) {
     iterative_init_workspace();
     if (pos == -1) {

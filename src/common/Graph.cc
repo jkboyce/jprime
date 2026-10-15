@@ -10,11 +10,14 @@
 
 #include "Graph.h"
 
-#include <iostream>
-#include <sstream>
 #include <algorithm>
 #include <cassert>
+#include <cstring>
+#include <iostream>
+#include <queue>
+#include <sstream>
 #include <stdexcept>
+#include <thread>
 
 
 // Full graph for `b` objects, max throw `h`.
@@ -77,11 +80,8 @@ void Graph::initialize()
   }
   assert(state.size() == numstates + 1);
 
-  // generate the shift cycles
-  numcycles = find_shift_cycles();
-
   build_graph_matrix();
-  find_max_startstate_usable();
+  max_startstate_usable.assign(numstates + 1, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -200,52 +200,45 @@ unsigned Graph::find_shift_cycles()
 {
   const unsigned state_unused = -1U;
   cyclenum.assign(numstates + 1, state_unused);
-  assert(cycleperiod.size() == 0);
+  cycleperiod.clear();
+  numshortcycles = 0;
 
   unsigned cycles = 0;
   std::vector<unsigned> cyclestates(h);
+  State s(h);
 
   for (size_t i = 1; i <= numstates; ++i) {
     if (cyclenum.at(i) != state_unused) {
       continue;
     }
 
-    State s = state.at(i);
-    bool periodfound = false;
-    bool newshiftcycle = true;
+    s = state.at(i);
     unsigned cycleper = h;
 
     for (size_t j = 0; j < h; ++j) {
-      s = s.upstream();
+      s.shift_upstream();
       const auto k = get_statenum(s);
       cyclestates.at(j) = k;
-      if (k == 0) {
-        continue;
-      }
 
-      if (k == i && !periodfound) {
+      if (k == i) {
         cycleper = static_cast<unsigned>(j + 1);
-        periodfound = true;
-      } else if (k < i) {
-        newshiftcycle = false;
+        break;
       }
     }
-    assert(cyclestates.at(h - 1) == i);
 
-    if (newshiftcycle) {
-      for (size_t j = 0; j < h; j++) {
-        if (cyclestates.at(j) > 0) {
-          cyclenum.at(cyclestates.at(j)) = cycles;
-        }
+    for (size_t j = 0; j < cycleper; ++j) {
+      if (cyclestates.at(j) > 0) {
+        cyclenum.at(cyclestates.at(j)) = cycles;
       }
-      cycleperiod.push_back(cycleper);
-      if (cycleper < h) {
-        ++numshortcycles;
-      }
-      ++cycles;
     }
+    cycleperiod.push_back(cycleper);
+    if (cycleper < h) {
+      ++numshortcycles;
+    }
+    ++cycles;
   }
   assert(cycleperiod.size() == cycles);
+  numcycles = cycles;
   return cycles;
 }
 
@@ -281,22 +274,69 @@ void Graph::build_graph_matrix()
     outthrowval.at(i).assign(maxoutdegree, 0);
   }
 
-  for (size_t i = 1; i <= numstates; ++i) {
-    unsigned outthrownum = 0;
-    for (unsigned throwval = h + 1; throwval-- > 0; ) {
-      if (xarray.at(throwval)) {
-        continue;
-      }
-      const auto k = advance_state(static_cast<unsigned>(i), throwval);
-      if (k == 0) {
-        continue;
-      }
+  auto process_range = [this](size_t start, size_t end) {
+    State temp(h);
+    for (size_t i = start; i < end; ++i) {
+      const auto& s = state.at(i);
+      unsigned outthrownum = 0;
 
-      outmatrix.at(i).at(outthrownum) = k;
-      outthrowval.at(i).at(outthrownum) = throwval;
-      ++outthrownum;
+      if (s.slot(0) == 0) {
+        if (!xarray.at(0)) {
+          std::memmove(temp.data(), s.data() + 1, (h - 1) * sizeof(unsigned));
+          temp.slot(h - 1) = 0;
+          const auto k = get_statenum(temp);
+          if (k != 0) {
+            outmatrix.at(i).at(outthrownum) = k;
+            outthrowval.at(i).at(outthrownum) = 0;
+            ++outthrownum;
+          }
+        }
+      } else {
+        std::memmove(temp.data(), s.data() + 1, (h - 1) * sizeof(unsigned));
+        temp.slot(h - 1) = 0;
+
+        for (unsigned throwval = h; throwval > 0; --throwval) {
+          if (xarray.at(throwval)) {
+            continue;
+          }
+          if (throwval < h && s.slot(throwval) != 0) {
+            continue;
+          }
+
+          temp.slot(throwval - 1) = 1;
+          const auto k = get_statenum(temp);
+          temp.slot(throwval - 1) = 0;
+
+          if (k != 0) {
+            outmatrix.at(i).at(outthrownum) = k;
+            outthrowval.at(i).at(outthrownum) = throwval;
+            ++outthrownum;
+          }
+        }
+      }
+      outdegree.at(i) = outthrownum;
     }
-    outdegree.at(i) = outthrownum;
+  };
+
+  unsigned num_threads = std::thread::hardware_concurrency();
+  if (num_threads == 0 || numstates < 1000) {
+    num_threads = 1;
+  }
+
+  if (num_threads == 1) {
+    process_range(1, numstates + 1);
+  } else {
+    std::vector<std::thread> workers;
+    workers.reserve(num_threads);
+    const size_t total = numstates;
+    for (unsigned t = 0; t < num_threads; ++t) {
+      const size_t start = 1 + (t * total) / num_threads;
+      const size_t end = 1 + ((t + 1) * total) / num_threads;
+      workers.emplace_back(process_range, start, end);
+    }
+    for (auto& w : workers) {
+      w.join();
+    }
   }
 }
 
@@ -308,21 +348,68 @@ void Graph::build_graph_matrix()
 
 void Graph::find_max_startstate_usable()
 {
-  max_startstate_usable.resize(numstates + 1);
   max_startstate_usable.assign(numstates + 1, 0);
-  std::vector<bool> state_usable(numstates + 1, true);
 
-  for (unsigned start_state = 1; start_state <= numstates; ++start_state) {
-    state_usable.at(start_state - 1) = false;
+  std::vector<unsigned> in_degree(numstates + 1, 0);
+  std::vector<unsigned> out_degree(numstates + 1, 0);
+  std::vector<std::vector<unsigned>> in_matrix(numstates + 1);
 
-    update_usable_states(state_usable);
-
-    for (size_t i = start_state; i <= numstates; ++i) {
-      if (state_usable.at(i)) {
-        // confirm we never switch from unusable back to usable
-        assert(max_startstate_usable.at(i) + 1 == start_state);
-        max_startstate_usable.at(i) = start_state;
+  for (unsigned u = 1; u <= numstates; ++u) {
+    out_degree.at(u) = outdegree.at(u);
+    for (unsigned col = 0; col < outdegree.at(u); ++col) {
+      const auto v = outmatrix.at(u).at(col);
+      if (v != 0) {
+        ++in_degree.at(v);
+        in_matrix.at(v).push_back(u);
       }
+    }
+  }
+
+  std::vector<bool> removed(numstates + 1, false);
+  std::queue<unsigned> q;
+
+  auto eliminate = [&](unsigned u, unsigned current_start_state) {
+    if (removed.at(u)) {
+      return;
+    }
+    removed.at(u) = true;
+    max_startstate_usable.at(u) = current_start_state - 1;
+    q.push(u);
+
+    while (!q.empty()) {
+      const auto curr = q.front();
+      q.pop();
+
+      for (unsigned col = 0; col < outdegree.at(curr); ++col) {
+        const auto v = outmatrix.at(curr).at(col);
+        if (v != 0 && !removed.at(v)) {
+          if (--in_degree.at(v) == 0) {
+            removed.at(v) = true;
+            max_startstate_usable.at(v) = current_start_state - 1;
+            q.push(v);
+          }
+        }
+      }
+
+      for (const auto p : in_matrix.at(curr)) {
+        if (!removed.at(p)) {
+          if (--out_degree.at(p) == 0) {
+            removed.at(p) = true;
+            max_startstate_usable.at(p) = current_start_state - 1;
+            q.push(p);
+          }
+        }
+      }
+    }
+  };
+
+  for (unsigned start_state = 2; start_state <= numstates; ++start_state) {
+    eliminate(start_state - 1, start_state);
+  }
+
+  for (unsigned u = 1; u <= numstates; ++u) {
+    if (!removed.at(u)) {
+      max_startstate_usable.at(u) = u;
     }
   }
 }
@@ -410,7 +497,7 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
 // state number 1, which is reserved for the ground state and is never removed
 // or renumbered.
 
-void Graph::validate_graph()
+void Graph::validate_graph(bool ground_only)
 {
   std::vector<bool> state_usable(numstates + 1, true);
   update_usable_states(state_usable);
@@ -444,7 +531,9 @@ void Graph::validate_graph()
 
     // copy graph data from row `i` to row `newi`
     state.at(newi) = state.at(i);
-    cyclenum.at(newi) = cyclenum.at(i);
+    if (!cyclenum.empty()) {
+      cyclenum.at(newi) = cyclenum.at(i);
+    }
 
     unsigned outthrownum = 0;
     for (size_t j = 0; j < outdegree.at(i); ++j) {
@@ -468,12 +557,19 @@ void Graph::validate_graph()
   // State is not default constructable
   state.erase(state.begin() + numstates + 1, state.end());
   assert(state.size() == numstates + 1);
-  cyclenum.resize(numstates + 1);
+  if (!cyclenum.empty()) {
+    cyclenum.resize(numstates + 1);
+  }
   outdegree.resize(numstates + 1);
   outmatrix.resize(numstates + 1);
   outthrowval.resize(numstates + 1);
 
-  find_max_startstate_usable();
+  if (ground_only) {
+    max_startstate_usable.assign(numstates + 1, 1);
+    max_startstate_usable.at(0) = 0;
+  } else {
+    find_max_startstate_usable();
+  }
 }
 
 // Return vector `isexitcycle` that indicates which shift cycles can exit
@@ -482,6 +578,8 @@ void Graph::validate_graph()
 
 std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 {
+  assert(has_shift_cycles());
+
   std::vector<int> isexitcycle(numcycles, 0);
 
   for (size_t i = start_state + 1; i <= numstates; ++i) {
@@ -565,6 +663,8 @@ std::tuple<std::vector<std::vector<unsigned>>,
 
 unsigned Graph::prime_period_bound(unsigned start_state) const
 {
+  assert(has_shift_cycles());
+
   // case 1: the pattern visits multiple shift cycles; it must miss at least one
   // state on each cycle it visits.
   // case 2: the pattern stays on a single shift cycle; find the cycle with the
@@ -601,6 +701,8 @@ unsigned Graph::prime_period_bound(unsigned start_state) const
 unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
     const
 {
+  assert(has_shift_cycles());
+
   std::vector<bool> any_active(numcycles, false);
   for (size_t i = start_state; i <= numstates; ++i) {
     if (start_state <= max_startstate_usable.at(i)) {
@@ -627,17 +729,23 @@ unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
 
 unsigned Graph::get_statenum(const State& s) const
 {
-  if (state_compare(s, state.at(1))) {
-    return 0;
-  }
-  if (state_compare(state.at(numstates), s)) {
+  if (s.size() != h) {
     return 0;
   }
 
-  if (state.at(1) == s) {
+  const int cmp1 = s.compare_same_size(state.at(1));
+  if (cmp1 < 0) {
+    return 0;
+  }
+  if (cmp1 == 0) {
     return 1;
   }
-  if (state.at(numstates) == s) {
+
+  const int cmpn = state.at(numstates).compare_same_size(s);
+  if (cmpn < 0) {
+    return 0;
+  }
+  if (cmpn == 0) {
     return numstates;
   }
 
@@ -647,10 +755,11 @@ unsigned Graph::get_statenum(const State& s) const
   // loop invariant: state[below] < s < state[above]
   while (below < above - 1) {
     size_t mid = (below + above) / 2;
-    if (state.at(mid) == s) {
+    const int cmp = state.at(mid).compare_same_size(s);
+    if (cmp == 0) {
       return static_cast<unsigned>(mid);
     }
-    if (state_compare(state.at(mid), s)) {
+    if (cmp < 0) {
       below = mid;
     } else {
       above = mid;
@@ -725,26 +834,28 @@ std::string Graph::to_string() const
   for (size_t i = 1; i < numstates; ++i) {
     buffer << ", " << state_string(static_cast<unsigned>(i));
   }
-  buffer << " }\n"
-         << "  numcycles = " << numcycles << "\n"
-         << "  cyclenum[] = { unused, ";
-  for (size_t i = 1; i <= numstates; ++i) {
-    buffer << cyclenum.at(i);
-    if (i < numstates) {
-      buffer << ", ";
+  buffer << " }\n";
+  if (!cyclenum.empty()) {
+    buffer << "  numcycles = " << numcycles << "\n"
+           << "  cyclenum[] = { unused, ";
+    for (size_t i = 1; i <= numstates; ++i) {
+      buffer << cyclenum.at(i);
+      if (i < numstates) {
+        buffer << ", ";
+      }
     }
-  }
-  buffer << " }\n"
-         << "  cycleperiod[] = { ";
-  for (size_t i = 0; i < numcycles; ++i) {
-    buffer << cycleperiod.at(i);
-    if (i < numcycles - 1) {
-      buffer << ", ";
+    buffer << " }\n"
+           << "  cycleperiod[] = { ";
+    for (size_t i = 0; i < numcycles; ++i) {
+      buffer << cycleperiod.at(i);
+      if (i < numcycles - 1) {
+        buffer << ", ";
+      }
     }
+    buffer << " }\n"
+           << "  numshortcycles = " << numshortcycles << "\n";
   }
-  buffer << " }\n"
-         << "  numshortcycles = " << numshortcycles << "\n"
-         << "  maxoutdegree = " << maxoutdegree << "\n"
+  buffer << "  maxoutdegree = " << maxoutdegree << "\n"
          << "  outdegree[] = { unused, ";
   for (size_t i = 1; i <= numstates; ++i) {
     buffer << outdegree.at(i);
