@@ -22,10 +22,10 @@ using statenum_t = uint16_t;
 
 
 // information about the state of a single worker
-struct WorkerInfo {  // 20 bytes
+struct WorkerInfo {  // 24 bytes
   statenum_t start_state = 0;  // current value of `start_state` (input/output)
   statenum_t end_state = 0;  // highest value of `start_state` (input)
-  int16_t pos = 0;  // position in WorkAssignmentCell array (input/output)
+  int32_t pos = 0;  // position in WorkAssignmentCell array (input/output)
   uint64_t nnodes = 0;  // number of nodes completed (output)
 
   uint16_t status = 1;

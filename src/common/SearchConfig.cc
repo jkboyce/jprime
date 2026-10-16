@@ -27,10 +27,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
   int val;
   try {
     val = std::stoi(argv[1]);
-  } catch (const std::invalid_argument& ie) {
-    (void)ie;
+  } catch (const std::invalid_argument&) {
     throw std::invalid_argument(
         std::format("Error parsing number of objects: {}", argv[1]));
+  } catch (const std::out_of_range&) {
+    throw std::invalid_argument(
+        std::format("Number of objects out of range: {}", argv[1]));
   }
   if (val < 1) {
     throw std::invalid_argument("Must have at least 1 object");
@@ -39,10 +41,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
 
   try {
     val = std::stoi(argv[2]);
-  } catch (const std::invalid_argument& ie) {
-    (void)ie;
+  } catch (const std::invalid_argument&) {
     throw std::invalid_argument(
         std::format("Error parsing max. throw value: {}", argv[2]));
+  } catch (const std::out_of_range&) {
+    throw std::invalid_argument(
+        std::format("Max. throw value out of range: {}", argv[2]));
   }
   if (val < 1) {
     throw std::invalid_argument("Max. throw value must be at least 1");
@@ -90,9 +94,10 @@ void SearchConfig::from_args(size_t argc, char** argv)
             error = "Shift limit must be non-negative";
           }
           ++i;
-        } catch (const std::invalid_argument& ie) {
-          (void)ie;
+        } catch (const std::invalid_argument&) {
           // next arg didn't parse as a number; retain it
+        } catch (const std::out_of_range&) {
+          error = std::format("Shift limit out of range: {}", argv[i + 1]);
         }
         if (!error.empty()) {
           throw std::invalid_argument(error);
@@ -109,7 +114,14 @@ void SearchConfig::from_args(size_t argc, char** argv)
     } else if (strcmp(argv[i], "-steal_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
-        val = std::stoi(argv[i]);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument&) {
+          throw std::invalid_argument(
+              std::format("Error parsing steal_alg: {}", argv[i]));
+        } catch (const std::out_of_range&) {
+          throw std::invalid_argument("Steal_alg out of range");
+        }
         if (val < 1 || val > 1) {
           throw std::invalid_argument("Steal_alg out of range");
         }
@@ -120,7 +132,14 @@ void SearchConfig::from_args(size_t argc, char** argv)
     } else if (strcmp(argv[i], "-split_alg") == 0) {
       if (i + 1 < argc) {
         ++i;
-        val = std::stoi(argv[i]);
+        try {
+          val = std::stoi(argv[i]);
+        } catch (const std::invalid_argument&) {
+          throw std::invalid_argument(
+              std::format("Error parsing split_alg: {}", argv[i]));
+        } catch (const std::out_of_range&) {
+          throw std::invalid_argument("Split_alg out of range");
+        }
         if (val < 1 || val > 2) {
           throw std::invalid_argument("Split_alg out of range");
         }
@@ -133,10 +152,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
       while (i < argc && argv[i][0] != '-') {
         try {
           val = std::stoi(argv[i]);
-        } catch (const std::invalid_argument& ie) {
-          (void)ie;
+        } catch (const std::invalid_argument&) {
           throw std::invalid_argument(
               std::format("Error parsing excluded throw value: {}", argv[i]));
+        } catch (const std::out_of_range&) {
+          throw std::invalid_argument(
+              std::format("Excluded throw value out of range: {}", argv[i]));
         }
         if (val < 0) {
           throw std::invalid_argument("Excluded throws must be non-negative");
@@ -169,10 +190,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
         ++i;
         try {
           val = std::stoi(argv[i]);
-        } catch (const std::invalid_argument& ie) {
-          (void)ie;
+        } catch (const std::invalid_argument&) {
           throw std::invalid_argument(
               std::format("Error parsing number of threads: {}", argv[i]));
+        } catch (const std::out_of_range&) {
+          throw std::invalid_argument(
+              std::format("Number of threads out of range: {}", argv[i]));
         }
         if (val < 1) {
           throw std::invalid_argument("Must have at least one worker thread");
@@ -191,10 +214,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
       if (hyphens == 0) {
         try {
           val = std::stoi(argv[i]);
-        } catch (const std::invalid_argument& ie) {
-          (void)ie;
+        } catch (const std::invalid_argument&) {
           throw std::invalid_argument(
               std::format("Error parsing pattern period: {}", argv[i]));
+        } catch (const std::out_of_range&) {
+          throw std::invalid_argument(
+              std::format("Pattern period out of range: {}", argv[i]));
         }
         if (val > 0) {
           n_min = n_max = static_cast<unsigned>(val);
@@ -208,10 +233,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
         if (!s1.empty()) {
           try {
             val = std::stoi(s1);
-          } catch (const std::invalid_argument& ie) {
-            (void)ie;
+          } catch (const std::invalid_argument&) {
             throw std::invalid_argument(
                 std::format("Error parsing pattern period: {}", s1));
+          } catch (const std::out_of_range&) {
+            throw std::invalid_argument(
+                std::format("Pattern period out of range: {}", s1));
           }
           if (val > 0) {
             n_min = static_cast<unsigned>(val);
@@ -222,10 +249,12 @@ void SearchConfig::from_args(size_t argc, char** argv)
         if (!s2.empty()) {
           try {
             val = std::stoi(s2);
-          } catch (const std::invalid_argument& ie) {
-            (void)ie;
+          } catch (const std::invalid_argument&) {
             throw std::invalid_argument(
                 std::format("Error parsing pattern period: {}", s2));
+          } catch (const std::out_of_range&) {
+            throw std::invalid_argument(
+                std::format("Pattern period out of range: {}", s2));
           }
           if (val > 0) {
             n_max = static_cast<unsigned>(val);

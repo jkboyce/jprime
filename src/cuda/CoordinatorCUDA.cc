@@ -19,6 +19,7 @@
 #include <sstream>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <cassert>
 
@@ -148,6 +149,23 @@ void CoordinatorCUDA::run_search()
 
 void CoordinatorCUDA::initialize()
 {
+  if (graph.numstates > std::numeric_limits<statenum_t>::max()) {
+    throw std::runtime_error(std::format(
+        "Number of states in memory ({}) exceeds CUDA limit of {}",
+        graph.numstates, std::numeric_limits<statenum_t>::max()));
+  }
+  if (graph.maxoutdegree > std::numeric_limits<uint8_t>::max()) {
+    throw std::runtime_error(std::format(
+        "Maximum outdegree ({}) exceeds CUDA limit of {}",
+        graph.maxoutdegree, std::numeric_limits<uint8_t>::max()));
+  }
+  if (alg == SearchAlgorithm::NORMAL_MARKING &&
+      config.h > std::numeric_limits<uint8_t>::max()) {
+    throw std::runtime_error(std::format(
+        "Maximum throw ({}) exceeds CUDA limit of {} for marking algorithm",
+        config.h, std::numeric_limits<uint8_t>::max()));
+  }
+
   prop = initialize_cuda_device();
   graph_buffer = make_graph_buffer();
   pattern_buffer_size = (config.countflag ? 0 :
@@ -1784,7 +1802,7 @@ void CoordinatorCUDA::set_info(unsigned slot, unsigned new_start_state,
   WorkerInfo& wi = wi_h[bank][id];
   wi.start_state = static_cast<statenum_t>(new_start_state);
   wi.end_state = static_cast<statenum_t>(new_end_state);
-  wi.pos = static_cast<int16_t>(new_pos);
+  wi.pos = static_cast<int32_t>(new_pos);
 }
 
 std::tuple<unsigned, unsigned, int> CoordinatorCUDA::get_info(unsigned slot)

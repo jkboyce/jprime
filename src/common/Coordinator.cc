@@ -89,7 +89,15 @@ bool Coordinator::run()
   signal(SIGINT, Coordinator::signal_handler);
 
   const auto start = std::chrono::high_resolution_clock::now();
-  run_search();
+  try {
+    run_search();
+  } catch (const std::runtime_error& re) {
+    erase_status_output();
+    std::flush(std::cout);
+    print_search_description();
+    jpout << std::format("ERROR: {}\n", re.what());
+    return false;
+  }
   const auto end = std::chrono::high_resolution_clock::now();
 
   const double runtime = calc_duration_secs(start, end);
@@ -135,25 +143,37 @@ void Coordinator::run_search()
 void Coordinator::calc_graph_size()
 {
   // size of the full graph
-  context.full_numstates = Graph::combinations(config.h, config.b);
+  context.full_numstates = 0;
   context.full_numcycles = 0;
   context.full_numshortcycles = 0;
   unsigned max_cycle_period = 0;
 
-  for (unsigned p = 1; p <= config.h; ++p) {
-    const auto cycles = Graph::shift_cycle_count(config.b, config.h, p);
-    context.full_numcycles += cycles;
-    if (p < config.h) {
-      context.full_numshortcycles += cycles;
+  try {
+    context.full_numstates = Graph::combinations(config.h, config.b);
+    for (unsigned p = 1; p <= config.h; ++p) {
+      const auto cycles = Graph::shift_cycle_count(config.b, config.h, p);
+      context.full_numcycles += cycles;
+      if (p < config.h) {
+        context.full_numshortcycles += cycles;
+      }
+      if (cycles > 0) {
+        max_cycle_period = p;
+      }
     }
-    if (cycles > 0) {
-      max_cycle_period = p;
+  } catch (const std::overflow_error&) {
+    if (config.graphmode != SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH) {
+      throw;
     }
+    context.full_numstates = 0;
+    context.full_numcycles = 0;
+    context.full_numshortcycles = 0;
   }
 
   // largest period possible of the pattern type selected, if all states are
   // active
-  if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
+  if (context.full_numstates == 0) {
+    context.n_bound = 0;
+  } else if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
     // two possibilities: Stay on a single cycle, or use multiple cycles
     context.n_bound = std::max(static_cast<std::uint64_t>(max_cycle_period),
         context.full_numstates - context.full_numcycles);
@@ -185,7 +205,8 @@ void Coordinator::calc_graph_size()
 bool Coordinator::passes_prechecks()
 {
   const auto n_requested = std::max(config.n_min, config.n_max);
-  const bool period_error = (n_requested > context.n_bound);
+  const bool period_error = (context.full_numstates > 0 &&
+                             n_requested > context.n_bound);
   const bool memory_error = (context.memory_numstates > MAX_STATES);
 
   if (!config.infoflag && !period_error && !memory_error) {
@@ -242,10 +263,14 @@ void Coordinator::initialize_graph()
 
     unsigned max_possible = 0;
     if (config.mode == SearchConfig::RunMode::NORMAL_SEARCH) {
-      max_possible = graph.has_shift_cycles()
-          ? graph.prime_period_bound(start_state)
-          : std::min(static_cast<unsigned>(context.n_bound),
-                     graph.numstates - start_state + 1);
+      if (graph.has_shift_cycles()) {
+        max_possible = graph.prime_period_bound(start_state);
+      } else if (context.full_numstates == 0) {
+        max_possible = graph.numstates - start_state + 1;
+      } else {
+        max_possible = static_cast<unsigned>(std::min(context.n_bound,
+            static_cast<std::uint64_t>(graph.numstates - start_state + 1)));
+      }
     } else if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
       if (config.shiftlimit == -1U) {
         max_possible = graph.superprime_period_bound(start_state);

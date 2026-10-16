@@ -518,9 +518,12 @@ void Graph::validate_graph(bool ground_only)
   //   std::vector<State> state;
   //   std::vector<unsigned> cyclenum;
   //   std::vector<unsigned> max_startstate_usable;
+  //   unsigned maxoutdegree;
   //   std::vector<unsigned> outdegree;
   //   std::vector<std::vector<unsigned>> outmatrix;
   //   std::vector<std::vector<unsigned>> outthrowval;
+
+  unsigned new_maxoutdegree = 0;
 
   for (size_t i = 1; i <= numstates; ++i) {
     const auto newi = newstatenum.at(i);
@@ -546,6 +549,7 @@ void Graph::validate_graph(bool ground_only)
     }
     assert(outthrownum != 0);
     outdegree.at(newi) = outthrownum;
+    new_maxoutdegree = std::max(new_maxoutdegree, outthrownum);
 
     for (size_t j = outthrownum; j < maxoutdegree; ++j) {
       outmatrix.at(newi).at(j) = 0;
@@ -554,6 +558,7 @@ void Graph::validate_graph(bool ground_only)
   }
 
   numstates = statenum - 1;
+  maxoutdegree = new_maxoutdegree;
   // State is not default constructable
   state.erase(state.begin() + numstates + 1, state.end());
   assert(state.size() == numstates + 1);
@@ -563,6 +568,10 @@ void Graph::validate_graph(bool ground_only)
   outdegree.resize(numstates + 1);
   outmatrix.resize(numstates + 1);
   outthrowval.resize(numstates + 1);
+  for (size_t i = 0; i <= numstates; ++i) {
+    outmatrix.at(i).resize(maxoutdegree);
+    outthrowval.at(i).resize(maxoutdegree);
+  }
 
   if (ground_only) {
     max_startstate_usable.assign(numstates + 1, 1);
