@@ -53,6 +53,8 @@
 #include <stdexcept>
 #include <format>
 #include <tuple>
+#include <cstdlib>
+#include <cstdio>
 
 
 int do_tests(int testnum = -1);  // defined in jprime_tests.cc
@@ -202,7 +204,7 @@ std::tuple<SearchConfig, SearchContext> prepare_calculation(int argc,
   // save original argument list
   for (int i = 0; i < argc; ++i) {
     if (i != 0) {
-      context.arglist += " ";
+      context.arglist += ' ';
     }
     context.arglist += argv[i];
   }
@@ -247,5 +249,8 @@ int main(int argc, char** argv)
     std::cout << std::format("Saving checkpoint file '{}'\n", config.outfile);
     context.to_file(config.outfile);
   }
-  return EXIT_SUCCESS;
+
+  std::cout.flush();
+  std::fflush(nullptr);
+  std::quick_exit(EXIT_SUCCESS);
 }

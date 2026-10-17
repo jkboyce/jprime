@@ -96,8 +96,8 @@ void Worker::run()
 
 void Worker::initialize()
 {
-  beat.resize(graph.numstates + 1);
-  pattern.assign(graph.numstates + 1, -1);
+  beat.resize(n_max + 2);
+  pattern.assign(n_max + 2, -1);
   used.assign(graph.numstates + 1, 0);
   cycleused.assign(graph.numcycles, 0);
   deadstates.assign(graph.numcycles, 0);
@@ -381,7 +381,7 @@ void Worker::set_work_assignment(const WorkAssignment& wa)
   root_pos = wa.root_pos;
   root_throwval_options = wa.root_throwval_options;
 
-  for (size_t i = 0; i <= graph.numstates; ++i) {
+  for (size_t i = 0; i < pattern.size(); ++i) {
     pattern.at(i) = (i < wa.partial_pattern.size()) ?
         static_cast<int>(wa.partial_pattern.at(i)) : -1;
   }
