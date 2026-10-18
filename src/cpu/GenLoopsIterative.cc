@@ -78,11 +78,12 @@ void Worker::iterative_gen_loops_normal()
   unsigned p = pos;
   uint64_t nn = nnodes;
   const unsigned nmax = n_max;
-  int* const u = used.data();
+  uint8_t* const u = used.data();
   unsigned steps = 0;
   unsigned steps_limit = steps_per_inbox_check;
   const unsigned st_state = start_state;
-  const unsigned* const outdegree = graph.outdegree.data();
+  const uint16_t* const outdegree = graph.outdegree.data();
+  const unsigned* const max_pos = max_pos_usable.data();
   std::uint64_t* const c = count.data();
 
   WorkCell* wc = &beat.at(pos);
@@ -198,12 +199,22 @@ void Worker::iterative_gen_loops_normal()
       continue;
     }
 
-    if (p + 1 == nmax) {
-      if constexpr (REPLAY) {
-        assert(false);
+    if constexpr (MARKING) {
+      if (p + 1 == nmax) {
+        if constexpr (REPLAY) {
+          assert(false);
+        }
+        ++wc->col;
+        continue;
       }
-      ++wc->col;
-      continue;
+    } else {
+      if (p + 1 > max_pos[to_state]) {
+        if constexpr (REPLAY) {
+          assert(false);
+        }
+        ++wc->col;
+        continue;
+      }
     }
 
     if constexpr (MARKING) {
@@ -288,7 +299,7 @@ void Worker::iterative_gen_loops_normal()
 //
 // See comments for the analagous functions in GenLoopsRecursive.cc
 
-inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
+inline bool Worker::mark(uint8_t* const& u, unsigned*& es, unsigned* const& ds)
 {
   bool valid = true;
   for (unsigned statenum; (statenum = *es) != 0; ++es) {
@@ -301,7 +312,7 @@ inline bool Worker::mark(int* const& u, unsigned*& es, unsigned* const& ds)
   return valid;
 }
 
-inline void Worker::unmark(int* const& u, unsigned*& es, unsigned* const& ds)
+inline void Worker::unmark(uint8_t* const& u, unsigned*& es, unsigned* const& ds)
 {
   if (es != nullptr) {
     for (unsigned statenum; (statenum = *es) != 0; ++es) {
@@ -347,12 +358,12 @@ void Worker::iterative_gen_loops_super()
 
   unsigned p = pos;
   uint64_t nn = nnodes;
-  const unsigned nmax = n_max;
-  int* const u = used.data();
+  uint8_t* const u = used.data();
   unsigned steps = 0;
-  int* const cu = cycleused.data();
-  const unsigned* const outdegree = graph.outdegree.data();
+  uint8_t* const cu = cycleused.data();
+  const uint16_t* const outdegree = graph.outdegree.data();
   const unsigned* const cyclenum = graph.cyclenum.data();
+  const unsigned* const max_pos = max_pos_usable.data();
   int* const iec = isexitcycle.data();
 
   WorkCell* wc = &beat.at(pos);
@@ -452,7 +463,7 @@ void Worker::iterative_gen_loops_super()
         continue;
       }
 
-      if (p + 1 == nmax) {
+      if (p + 1 > max_pos[to_state]) {
         if constexpr (REPLAY) {
           assert(false);
         }
@@ -511,7 +522,7 @@ void Worker::iterative_gen_loops_super()
         continue;
       }
 
-      if (p + 1 == nmax) {
+      if (p + 1 > max_pos[to_state]) {
         if constexpr (REPLAY) {
           assert(false);
         }

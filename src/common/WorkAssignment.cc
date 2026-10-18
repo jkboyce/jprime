@@ -310,7 +310,8 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
 
     partial_pattern.push_back(graph.outthrowval_at(from_state, col));
 
-    col_limit = std::min(graph.outdegree.at(from_state), col_limit);
+    col_limit = std::min(static_cast<unsigned>(graph.outdegree.at(from_state)),
+        col_limit);
     if (root_pos == -1U && col < col_limit - 1) {
       root_pos = i;
     }
@@ -328,7 +329,8 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
     // current WorkAssignment is SPLITTABLE
     auto [rwc_col, rwc_col_limit, rwc_fr_state] = ws->get_cell(slot, root_pos);
 
-    rwc_col_limit = std::min(graph.outdegree.at(rwc_fr_state), rwc_col_limit);
+    rwc_col_limit = std::min(
+        static_cast<unsigned>(graph.outdegree.at(rwc_fr_state)), rwc_col_limit);
 
     for (size_t col = rwc_col + 1; col < rwc_col_limit; ++col) {
       root_throwval_options.push_back(

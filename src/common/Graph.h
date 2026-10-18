@@ -45,9 +45,9 @@ class Graph {
 
   // graph transition matrices
   unsigned maxoutdegree = 0;
-  std::vector<unsigned> outdegree;
+  std::vector<uint16_t> outdegree;
   std::vector<unsigned> outmatrix;      // flat (numstates + 1) * maxoutdegree
-  std::vector<unsigned> outthrowval;    // flat (numstates + 1) * maxoutdegree
+  std::vector<uint16_t> outthrowval;    // flat (numstates + 1) * maxoutdegree
 
   // matrix element accessors
   const unsigned* outmatrix_row(size_t statenum) const
@@ -58,11 +58,11 @@ class Graph {
   {
     return outmatrix.data() + statenum * maxoutdegree;
   }
-  const unsigned* outthrowval_row(size_t statenum) const
+  const uint16_t* outthrowval_row(size_t statenum) const
   {
     return outthrowval.data() + statenum * maxoutdegree;
   }
-  unsigned* outthrowval_row(size_t statenum)
+  uint16_t* outthrowval_row(size_t statenum)
   {
     return outthrowval.data() + statenum * maxoutdegree;
   }
@@ -75,11 +75,11 @@ class Graph {
   {
     return outmatrix[statenum * maxoutdegree + col];
   }
-  unsigned outthrowval_at(size_t statenum, size_t col) const
+  uint16_t outthrowval_at(size_t statenum, size_t col) const
   {
     return outthrowval[statenum * maxoutdegree + col];
   }
-  unsigned& outthrowval_at(size_t statenum, size_t col)
+  uint16_t& outthrowval_at(size_t statenum, size_t col)
   {
     return outthrowval[statenum * maxoutdegree + col];
   }
@@ -111,6 +111,7 @@ class Graph {
   std::string state_string(unsigned statenum) const;
   std::string to_string() const;
 
+  static unsigned min_distance(const State& from, const State& to);
   constexpr static std::uint64_t combinations(unsigned a, unsigned b);
   constexpr static std::uint64_t shift_cycle_count(unsigned b, unsigned h,
     unsigned p);

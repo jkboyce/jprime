@@ -51,7 +51,7 @@ void Worker::gen_loops_normal()
       continue;
     }
 
-    if (pos + 1 == static_cast<int>(n_max)) {
+    if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
       continue;
     }
 
@@ -69,13 +69,13 @@ void Worker::gen_loops_normal()
     }
 
     // we need to go deeper
-    ++used[to];
+    used[to] = 1;
     ++pos;
     from = to;
     gen_loops_normal();
     from = old_from;
     --pos;
-    --used[to];
+    used[to] = 0;
 
     // only a single allowed throw value for `pos` < `root_pos`
     if (pos < static_cast<int>(root_pos)) {
@@ -143,13 +143,13 @@ void Worker::gen_loops_normal_marking()
     if (throwval != 0 && throwval != graph.h) {
       if (mark_unreachable_states_head(to)) {
         pattern[pos] = static_cast<int>(throwval);
-        ++used[to];
+        used[to] = 1;
         ++pos;
         from = to;
         gen_loops_normal_marking();
         from = old_from;
         --pos;
-        --used[to];
+        used[to] = 0;
       }
       unmark_unreachable_states_head(to);
     } else {
@@ -162,13 +162,13 @@ void Worker::gen_loops_normal_marking()
         steps_taken = 0;
       }
 
-      ++used[to];
+      used[to] = 1;
       ++pos;
       from = to;
       gen_loops_normal_marking();
       from = old_from;
       --pos;
-      --used[to];
+      used[to] = 0;
     }
 
     if (pos < static_cast<int>(root_pos)) {
@@ -203,7 +203,7 @@ void Worker::gen_loops_super()
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
   const unsigned* const om = graph.outmatrix_row(from);
-  const unsigned* const ov = graph.outthrowval_row(from);
+  const uint16_t* const ov = graph.outthrowval_row(from);
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
@@ -234,7 +234,7 @@ void Worker::gen_loops_super()
       if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
         continue;
       }
-      if (pos + 1 == static_cast<int>(n_max)) {
+      if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
         continue;
       }
 
@@ -250,13 +250,13 @@ void Worker::gen_loops_super()
         --exitcyclesleft;
       }
       cycleused[to_cycle] = 1;
-      ++used[to];
+      used[to] = 1;
       ++pos;
       from = to;
       gen_loops_super();
       from = old_from;
       --pos;
-      --used[to];
+      used[to] = 0;
       cycleused[to_cycle] = 0;
       exitcyclesleft = old_exitcyclesleft;
     } else {
@@ -271,17 +271,17 @@ void Worker::gen_loops_super()
           // don't allow all shift throws
           handle_finished_pattern();
         }
-      } else if (pos + 1 == static_cast<int>(n_max)) {
+      } else if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
         continue;
       } else {
         ++shiftcount;
-        ++used[to];
+        used[to] = 1;
         ++pos;
         from = to;
         gen_loops_super();
         from = old_from;
         --pos;
-        --used[to];
+        used[to] = 0;
         --shiftcount;
       }
     }
@@ -332,7 +332,7 @@ void Worker::gen_loops_super0()
     if (exitcyclesleft == 0) {
       continue;
     }
-    if (pos + 1 == static_cast<int>(n_max)) {
+    if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
       continue;
     }
 

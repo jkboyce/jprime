@@ -99,16 +99,21 @@ void Worker::initialize()
   beat.resize(n_max + 2);
   pattern.assign(n_max + 2, -1);
   used.assign(graph.numstates + 1, 0);
-  cycleused.assign(graph.numcycles, 0);
-  deadstates.assign(graph.numcycles, 0);
-  deadstates_bystate.assign(graph.numstates + 1, nullptr);
   count.assign(n_max + 1, 0);
+
+  if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
+    cycleused.assign(graph.numcycles, 0);
+  }
 
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
     assert(graph.has_shift_cycles());
+    deadstates.assign(graph.numcycles, 0);
+    deadstates_bystate.assign(graph.numstates + 1, nullptr);
     std::tie(excludestates_tail, excludestates_head) =
         graph.get_exclude_states();
+  } else {
+    max_pos_usable.assign(graph.numstates + 1, 0);
   }
 }
 
@@ -261,7 +266,7 @@ void Worker::send_stats_to_coordinator()
   msg.worker_deadstates_extra.assign(pos + 1, 0);
 
   unsigned from_state = start_state;
-  std::vector<int> u(graph.numstates + 1, 0);
+  std::vector<uint8_t> u(graph.numstates + 1, 0);
   std::vector<unsigned> ds(graph.numcycles, 0);
 
   if (coordinator.get_search_algorithm() ==
@@ -548,9 +553,11 @@ void Worker::gen_loops()
 
   ////////////////////// RELEASE THE KRAKEN //////////////////////
 
+#ifndef NDEBUG
   const auto pos_start = pos;
   const auto max_possible_start = max_possible;
-  std::vector<int> used_start(used);
+  const std::vector<uint8_t> used_start(used);
+#endif
 
   switch (algnum) {
     case 0:
@@ -584,11 +591,11 @@ void Worker::gen_loops()
       assert(false);
   }
 
-  (void)pos_start;
-  (void)max_possible_start;
+#ifndef NDEBUG
   assert(pos == pos_start);
   assert(max_possible == max_possible_start);
   assert(used == used_start);
+#endif
 }
 
 // Initialize all working variables prior to gen_loops().
@@ -669,6 +676,21 @@ void Worker::initialize_working_variables()
     isexitcycle = graph.get_exit_cycles(start_state);
     exitcyclesleft = static_cast<unsigned>(std::count(isexitcycle.cbegin(),
         isexitcycle.cend(), 1));
+  }
+
+  if (coordinator.get_search_algorithm() !=
+      Coordinator::SearchAlgorithm::NORMAL_MARKING &&
+      max_pos_usable_start_state != start_state) {
+    max_pos_usable.assign(graph.numstates + 1, 0);
+    const State& target = graph.state.at(start_state);
+    for (size_t i = start_state; i <= graph.numstates; ++i) {
+      if (start_state > graph.max_startstate_usable.at(i)) {
+        continue;
+      }
+      const unsigned dist = Graph::min_distance(graph.state.at(i), target);
+      max_pos_usable.at(i) = (n_max >= dist) ? (n_max - dist) : 0;
+    }
+    max_pos_usable_start_state = start_state;
   }
 }
 

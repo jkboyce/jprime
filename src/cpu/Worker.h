@@ -53,11 +53,13 @@ class Worker : public WorkSpace {
   // working variables for search
   std::vector<WorkCell> beat;  // workspace for iterative search
   std::vector<int> pattern;  // throw value at each position
-  std::vector<int> used;  // whether a state has been visited
-  std::vector<int> cycleused;  // whether cycle has been visited, in SUPER mode
+  std::vector<uint8_t> used;  // whether a state has been visited
+  std::vector<uint8_t> cycleused;  // whether cycle has been visited, in SUPER mode
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
   std::vector<int> isexitcycle;
+  std::vector<unsigned> max_pos_usable;  // max `pos` for each state
+  unsigned max_pos_usable_start_state = 0;
   int pos = 0;  // current index in the pattern
   unsigned from = 1;  // current state number
   unsigned shiftcount = 0;
@@ -127,8 +129,8 @@ class Worker : public WorkSpace {
   // iterative search routines; defined in GenLoopsIterative.cc
   template<bool MARKING, bool REPORT, bool REPLAY>
     void iterative_gen_loops_normal();
-  bool mark(int* const& u, unsigned*& es, unsigned* const& ds);
-  void unmark(int* const& u, unsigned*& es, unsigned* const& ds);
+  bool mark(uint8_t* const& u, unsigned*& es, unsigned* const& ds);
+  void unmark(uint8_t* const& u, unsigned*& es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
   void iterative_init_workspace();
   bool iterative_can_split();

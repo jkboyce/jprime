@@ -425,7 +425,7 @@ void Graph::find_max_startstate_usable()
 
 void Graph::update_usable_states(std::vector<bool>& state_usable) const
 {
-  std::vector<unsigned> usable_outdegree(outdegree);
+  std::vector<uint16_t> usable_outdegree(outdegree);
   std::vector<unsigned> usable_indegree(numstates + 1, 0);
 
   // Propagate unusable links and states through the graph
@@ -438,7 +438,7 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
         usable_outdegree.at(i) = 0;
         continue;
       }
-      unsigned outthrownum = 0;
+      uint16_t outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
         if (state_usable.at(outmatrix_at(i, j))) {
           ++outthrownum;
@@ -832,6 +832,58 @@ unsigned Graph::upstream_state(unsigned statenum) const
 std::string Graph::state_string(unsigned statenum) const
 {
   return state.at(statenum).to_string();
+}
+
+// Return the minimum number of graph hops required to transition from state
+// `from` to state `to`.
+//
+// Note this currently ignores any edits to the graph; it assumes the full
+// graph (b, h). So this represents a lower bound on the hop distance.
+
+unsigned Graph::min_distance(const State& from, const State& to)
+{
+  assert(from.size() == to.size());
+  const auto h = static_cast<unsigned>(from.size());
+
+  if (h <= 64) {
+    const uint64_t f0 = from.word(0);
+    const uint64_t inv_t0 = ~to.word(0);
+    for (unsigned d = 0; d < h; ++d) {
+      if (((f0 >> d) & inv_t0) == 0ULL) {
+        return d;
+      }
+    }
+    return h;
+  }
+
+  const size_t words_used = (h + 63) / 64;
+  uint64_t f[State::NUM_WORDS];
+  uint64_t inv_t[State::NUM_WORDS];
+  for (size_t w = 0; w < words_used; ++w) {
+    f[w] = from.word(w);
+    inv_t[w] = ~to.word(w);
+  }
+
+  for (unsigned d = 0; d <= h; ++d) {
+    bool match = true;
+    for (size_t w = 0; w < words_used; ++w) {
+      if ((f[w] & inv_t[w]) != 0ULL) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      return d;
+    }
+
+    for (size_t w = 0; w < words_used; ++w) {
+      f[w] >>= 1;
+      if (w + 1 < words_used) {
+        f[w] |= (f[w + 1] << 63);
+      }
+    }
+  }
+  return h;
 }
 
 // Return a text representation of the graph.

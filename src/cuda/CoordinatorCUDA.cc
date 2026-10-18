@@ -1154,7 +1154,8 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank)
       const auto& cell = workcell(bank, id, i);
       unsigned col = cell.col;
       const unsigned from_state = cell.from_state;
-      const unsigned col_limit = std::min(graph.outdegree.at(from_state),
+      const unsigned col_limit = std::min(
+          static_cast<unsigned>(graph.outdegree.at(from_state)),
           static_cast<unsigned>(cell.col_limit));
 
       if (col < col_limit - 1) {
@@ -1199,7 +1200,8 @@ CudaWorkerSummary CoordinatorCUDA::summarize_worker_status(unsigned bank)
       const auto& cell = workcell(bank, id, i);
       unsigned col = cell.col;
       const unsigned from_state = cell.from_state;
-      const unsigned col_limit = std::min(graph.outdegree.at(from_state),
+      const unsigned col_limit = std::min(
+          static_cast<unsigned>(graph.outdegree.at(from_state)),
           static_cast<unsigned>(cell.col_limit));
 
       if (col < col_limit - 1) {
