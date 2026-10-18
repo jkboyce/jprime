@@ -346,9 +346,12 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
 
 // Determine if a work assignment can be split.
 
-bool WorkAssignment::is_splittable() const
+bool WorkAssignment::is_splittable(unsigned split_alg) const
 {
   const auto type = get_type();
+  if (split_alg == 3) {
+    return type == Type::SPLITTABLE;
+  }
   return type == Type::SPLITTABLE || (end_state > start_state &&
       type == Type::UNSPLITTABLE);
 }
@@ -361,12 +364,13 @@ bool WorkAssignment::is_splittable() const
 
 WorkAssignment WorkAssignment::split(const Graph& graph, unsigned split_alg)
 {
-  if (end_state > start_state) {
+  if (end_state > start_state && split_alg != 3) {
     return split_takestartstates();
   }
 
   switch (split_alg) {
     case 1:
+    case 3:
       return split_takeall(graph);
     default:
       return split_takehalf(graph);
@@ -476,7 +480,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
       }
       assert(col < graph.outdegree.at(from_state));
 
-      if (i > root_pos && col < graph.outdegree.at(from_state) - 1) {
+      if (i > root_pos && col + 1 < graph.outdegree.at(from_state)) {
         new_root_pos = i;
         break;
       }

@@ -133,7 +133,7 @@ class WorkAssignment {
   void from_workspace(const WorkSpace* ws, unsigned slot);
 
   // work splitting
-  bool is_splittable() const;
+  bool is_splittable(unsigned split_alg = 1) const;
   WorkAssignment split(const Graph& graph, unsigned split_alg = 1);
 
  private:

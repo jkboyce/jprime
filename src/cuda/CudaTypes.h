@@ -35,6 +35,7 @@ struct WorkerInfo {  // 24 bytes
   //   00 if no error, 01 if error during initialization, 10 if error during
   //   runtime
 
+  uint16_t max_pos_slot = 0;  // slot index in max_pos_d (input)
   uint32_t cycles_startup = 0;  // measured GPU clock cycles to initialize
 };
 
@@ -117,12 +118,14 @@ struct CudaGlobalPointers {
   statenum_t* pb_d[2] = { nullptr, nullptr };  // if needed
   statenum_t* graphmatrix_d = nullptr;  // if needed
   uint32_t* used_d = nullptr;
+  statenum_t* max_pos_d = nullptr;  // if needed
 };
 
 
 // addresses of working buffers for a specific CUDA thread
 struct CudaThreadPointers {
   statenum_t* graphmatrix = nullptr;
+  const statenum_t* max_pos = nullptr;
 
   ThreadStorageUsed* used = nullptr;
   ThreadStorageUsed* deadstates = nullptr;

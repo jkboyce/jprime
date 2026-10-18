@@ -74,6 +74,7 @@ void CoordinatorCUDA::run_search()
     check_workerinfos(bank_b, __LINE__);
     const auto node_count = process_worker_counters(bank_b);
     const auto pattern_count = process_pattern_buffer(bank_b);
+    skip_unusable_startstates(bank_b);
     summary_after[bank_b] = summarize_worker_status(bank_b);
     check_workerinfos(bank_b, __LINE__);
 
@@ -112,11 +113,11 @@ void CoordinatorCUDA::run_search()
         context.assignments.push_back(read_work_assignment(bank_b, id));
       }
       wi_h[bank_b][id].status |= 1;
+      wi_h[bank_b][id].max_pos_slot = std::numeric_limits<uint16_t>::max();
       assert(wi_h[bank_b][id].nnodes == 0);
     }
     assign_new_jobs(bank_b);
     check_workerinfos(bank_b, __LINE__);
-    skip_unusable_startstates(bank_b);
     copy_worker_data_to_gpu(bank_b);
     const auto prev_idle_before =
         static_cast<unsigned>(summary_before[bank_b].workers_idle.size());
@@ -365,6 +366,13 @@ void CoordinatorCUDA::allocate_memory()
       cudaMalloc(&(gptrs.used_d), used_size), __FILE__, __LINE__);
   }
 
+  if (alg != SearchAlgorithm::NORMAL_MARKING) {
+    throw_on_cuda_error(
+      cudaMalloc(&(gptrs.max_pos_d), sizeof(statenum_t) *
+          (graph.numstates + 1) * MAX_START_STATES),
+      __FILE__, __LINE__);
+  }
+
   // Host memory (pinned) ------------------------------------------------------
 
   for (unsigned bank = 0; bank < 2; ++bank) {
@@ -384,6 +392,7 @@ void CoordinatorCUDA::allocate_memory()
       wi.pos = 0;
       wi.nnodes = 0;
       wi.status = 1;  // done
+      wi.max_pos_slot = std::numeric_limits<uint16_t>::max();
       for (unsigned i = 0; i < n_max; ++i) {
         auto& cell = workcell(bank, id, i);
         cell.col = 0;
@@ -405,6 +414,14 @@ void CoordinatorCUDA::allocate_memory()
       __FILE__, __LINE__);
 
     *pattern_count_h = 0;
+  }
+  if (alg != SearchAlgorithm::NORMAL_MARKING) {
+    throw_on_cuda_error(
+      cudaHostAlloc(&max_pos_h, sizeof(statenum_t) *
+          (graph.numstates + 1) * MAX_START_STATES, cudaHostAllocDefault),
+      __FILE__, __LINE__);
+    max_pos_slot_state.fill(0);
+    max_pos_slot_dirty.fill(false);
   }
 }
 
@@ -493,78 +510,6 @@ RunConfig CoordinatorCUDA::get_starting_config()
 // Main loop
 //------------------------------------------------------------------------------
 
-// Handle work assignments that can be (partially) skipped, by adjusting and
-// reloading them.
-//
-// This occurs when either `start_state` is unusable, or the maximum pattern
-// length is too short. This should exactly mirror the logic in
-// Worker::do_work_assignment() to keep operation identical between CPU and GPU.
-
-void CoordinatorCUDA::skip_unusable_startstates(unsigned bank)
-{
-  for (unsigned id = 0; id < num_threads[bank]; ++id) {
-    auto& wi = wi_h[bank][id];
-    if (wi.pos != -1) {
-      continue;  // not a new search at `start_state`, skip
-    }
-    if ((wi.status & 1) != 0) {
-      continue;
-    }
-
-    while (true) {
-      if (wi.start_state > wi.end_state) {
-        wi.status |= 1;
-        break;
-      }
-
-      const auto max_possible = get_max_length(wi.start_state);
-      if (max_possible == -1) {  // current start_state is unusable
-        ++wi.start_state;
-        continue;
-      }
-
-      if (max_possible < static_cast<int>(config.n_min)) {
-        wi.status |= 1;
-      }
-      break;
-    }
-
-    if ((wi.status & 1) == 0) {
-      WorkAssignment wa;
-      wa.start_state = wi.start_state;
-      wa.end_state = wi.end_state;
-      load_work_assignment(bank, id, wa);
-    }
-  }
-}
-
-// Copy worker data to the GPU.
-//
-// This copies WorkerInfo and WorkCells for threads [0, max_active_idx[bank]].
-// If optional `startup` is true then all WorkerInfo data is copied.
-
-void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup)
-{
-  unsigned idx_count = 0;
-  if (startup) {
-    idx_count = prop.multiProcessorCount * prop.maxThreadsPerBlock;
-  } else {
-    idx_count = std::max(max_active_idx[bank], last_max_active_idx[bank]) + 1;
-  }
-  last_max_active_idx[bank] = max_active_idx[bank];
-
-  throw_on_cuda_error(
-      cudaMemcpyAsync(gptrs.wi_d[bank], wi_h[bank],
-          sizeof(WorkerInfo) * idx_count,
-          cudaMemcpyHostToDevice, stream[bank]),
-      __FILE__, __LINE__);
-  throw_on_cuda_error(
-      cudaMemcpyAsync(gptrs.wc_d[bank], wc_h[bank],
-          sizeof(ThreadStorageWorkCell) * ((idx_count + 31) / 32) * n_max,
-          cudaMemcpyHostToDevice, stream[bank]),
-      __FILE__, __LINE__);
-}
-
 // Launch the appropriate CUDA kernel.
 //
 // In the event of an error, throw a `std::runtime_error` exception with an
@@ -584,174 +529,6 @@ void CoordinatorCUDA::launch_cuda_kernel(unsigned bank, uint64_t cycles)
     throw std::runtime_error(std::format("CUDA Error in kernel: {}",
         cudaGetErrorString(err)));
   }
-}
-
-// Advance to the next RunConfig for this bank.
-
-void CoordinatorCUDA::apply_next_run_config(unsigned bank)
-{
-  bool done = false;
-  bool retry = false;
-
-  while (!done) {
-    try {
-      run_config[bank] = tuner.get_next_config(bank, retry);
-      params[bank] = get_runtime_params(run_config[bank]);
-      done = true;
-    } catch (const std::invalid_argument& ie) {
-      retry = true;
-    }
-  }
-
-  num_threads[bank] = run_config[bank].warps * prop.warpSize *
-      prop.multiProcessorCount;
-
-  // TODO: eliminate the lines below?
-  config.num_threads = params[bank].num_blocks *
-      params[bank].num_threadsperblock;
-  assert(num_threads[bank] == config.num_threads);
-}
-
-// Create the CudaRuntimeParams used to invoke the kernel.
-
-CudaRuntimeParams CoordinatorCUDA::get_runtime_params(const RunConfig& rc)
-{
-  CudaRuntimeParams params;
-
-  params.num_blocks = prop.multiProcessorCount;
-  params.num_threadsperblock = rc.warps * prop.warpSize;
-  params.graph_size_s = (rc.graph_in_shared ?
-      graph_buffer.size() * sizeof(statenum_t) : 0);
-  params.used_in_shared = rc.used_in_shared;
-
-  // find the maximum window size that fits into shared memory
-  unsigned lower = 0;
-  unsigned upper = n_max;
-  for (; upper != 0; --upper) {
-    size_t shared_mem = calc_shared_memory_size(rc, upper - lower);
-    if (shared_mem <= prop.sharedMemPerBlockOptin) {
-      break;
-    }
-  }
-  if (upper == 0) {
-    throw std::invalid_argument(std::format(
-        "Insufficient shared memory to support (graph_in_shared = {}, "
-        "used_in_shared = {}, warps = {})",
-        rc.graph_in_shared, rc.used_in_shared, rc.warps));
-  }
-
-  // slide the window to maximize the fraction of memory accesses it covers
-  while (upper < n_max &&
-        access_fraction.at(lower) < access_fraction.at(upper)) {
-    ++lower;
-    ++upper;
-  }
-
-  params.window_lower = lower;
-  params.window_upper = upper;
-  params.total_allocated_s = calc_shared_memory_size(rc, upper - lower);
-  assert(params.total_allocated_s <= prop.sharedMemPerBlockOptin);
-
-  params.n_min = config.n_min;
-  params.n_max = n_max;
-  params.report = !config.countflag;
-  params.shiftlimit = config.shiftlimit;
-
-  return params;
-}
-
-// Print execution parameters for a run.
-
-void CoordinatorCUDA::print_execution_parameters(const CudaRuntimeParams& params)
-{
-  unsigned algnum = 0;
-  switch (alg) {
-    case Coordinator::SearchAlgorithm::NONE:
-      algnum = 0;
-      break;
-    case Coordinator::SearchAlgorithm::NORMAL:
-      algnum = 1;
-      break;
-    case Coordinator::SearchAlgorithm::NORMAL_MARKING:
-      algnum = 2;
-      break;
-    case Coordinator::SearchAlgorithm::SUPER:
-    case Coordinator::SearchAlgorithm::SUPER0:
-      algnum = 3;
-      break;
-  }
-
-  static constexpr std::array CUDA_ALGS = {
-    "no_algorithm",
-    "cuda_gen_loops_normal()",
-    "cuda_gen_loops_normal_marking()",
-    "cuda_gen_loops_super()",
-  };
-
-  jpout << "Execution parameters:\n"
-        << "  algorithm: " << CUDA_ALGS.at(algnum)
-        << "\n  worker count: "
-        << (params.num_blocks * params.num_threadsperblock)
-        << "\n  pattern buffer size: " << pattern_buffer_size
-        << " patterns ("
-        << (sizeof(statenum_t) * n_max * pattern_buffer_size)
-        << " bytes)"
-        << std::format("\n  placing graph into {} memory ({} bytes)",
-              (params.graph_size_s != 0 ? "shared" : "device"),
-              graph_buffer.size() * sizeof(statenum_t))
-        << std::format("\n  placing used[] into {} memory",
-              params.used_in_shared ? "shared" : "device")
-        << "\n  workcell[] window in shared memory = ["
-        << params.window_lower << ',' << params.window_upper << ')'
-        << "\n  shared memory used: " << params.total_allocated_s
-        << " bytes\n";
-}
-
-// Return the amount of shared memory needed per block, in bytes, to store
-// graph, used[] arrays, and `window` WorkCells per thread.
-//
-// Assumes that `prop` and `graph_buffer` are already initialized.
-
-size_t CoordinatorCUDA::calc_shared_memory_size(const RunConfig& rc,
-    unsigned window)
-{
-  size_t shared_bytes = 0;
-  const unsigned threadsperblock = rc.warps * prop.warpSize;
-
-  if (rc.graph_in_shared) {
-    shared_bytes += graph_buffer.size() * sizeof(statenum_t);
-  }
-
-  if (rc.used_in_shared) {
-    assert(alg != SearchAlgorithm::NONE);
-
-    if (alg != SearchAlgorithm::SUPER0) {
-      // used[] (1 bit/state)
-      shared_bytes += ((threadsperblock + 31) / 32) *
-          sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
-    }
-    if (alg == SearchAlgorithm::NORMAL_MARKING) {
-      // deadstates[] (8 bits/cycle)
-      shared_bytes += ((threadsperblock + 31) / 32) *
-          sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
-    }
-    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
-      // cycleused[] (1 bit/cycle)
-      shared_bytes += ((threadsperblock + 31) / 32) *
-          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
-      // isexitcycle[] (1 bit/cycle)
-      shared_bytes += ((threadsperblock + 31) / 32) *
-          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
-    }
-  }
-
-  if (window > 0) {
-    // workcell[] partially in shared memory
-    shared_bytes += ((threadsperblock + 31) / 32) *
-        sizeof(ThreadStorageWorkCell) * window;
-  }
-
-  return shared_bytes;
 }
 
 // Copy worker data from the GPU. Copy only the worker data for threads
@@ -951,6 +728,168 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
   return pattern_count;
 }
 
+// Handle work assignments that can be (partially) skipped, by adjusting and
+// reloading them.
+//
+// This occurs when either `start_state` is unusable, or the maximum pattern
+// length is too short. This should exactly mirror the logic in
+// Worker::do_work_assignment() to keep operation identical between CPU and GPU.
+
+void CoordinatorCUDA::skip_unusable_startstates(unsigned bank)
+{
+  // First release `max_pos_slot` references for workers that finished their
+  // previous `start_state` in the kernel (`pos == -1` or `status & 1`).
+  for (unsigned id = 0; id < num_threads[bank]; ++id) {
+    auto& wi = wi_h[bank][id];
+    if ((wi.status & 1) != 0 || wi.pos == -1) {
+      wi.max_pos_slot = std::numeric_limits<uint16_t>::max();
+    }
+  }
+
+  for (unsigned id = 0; id < num_threads[bank]; ++id) {
+    auto& wi = wi_h[bank][id];
+    if (wi.pos != -1 || (wi.status & 1) != 0) {
+      continue;  // not a new search at `start_state`, skip
+    }
+
+    if (!advance_to_usable_startstate(wi.start_state, wi.end_state)) {
+      wi.status |= 1;
+      continue;
+    }
+
+    if (alg != SearchAlgorithm::NORMAL_MARKING &&
+        find_or_allocate_max_pos_slot(wi.start_state) == -1) {
+      // All `MAX_START_STATES` slots are in use by other start states; park
+      // this unstarted range in `context.assignments` and free the worker.
+      WorkAssignment wa;
+      wa.start_state = wi.start_state;
+      wa.end_state = wi.end_state;
+      context.assignments.push_back(std::move(wa));
+      wi.status |= 1;
+      continue;
+    }
+
+    WorkAssignment wa;
+    wa.start_state = wi.start_state;
+    wa.end_state = wi.end_state;
+    load_work_assignment(bank, id, wa);
+  }
+}
+
+// Advance `start_state` past any unusable states in `[start_state, end_state]`.
+// Returns true if a usable `start_state` with max length >= `n_min` is found,
+// or false if no usable `start_state` remains in the range.
+
+bool CoordinatorCUDA::advance_to_usable_startstate(statenum_t& start_state,
+    statenum_t end_state) const
+{
+  while (true) {
+    if (start_state > end_state) {
+      return false;
+    }
+
+    const auto max_possible = get_max_length(start_state);
+    if (max_possible == -1) {  // current start_state is unusable
+      ++start_state;
+      continue;
+    }
+
+    if (max_possible < static_cast<int>(config.n_min)) {
+      return false;
+    }
+    return true;
+  }
+}
+
+// Find an existing slot for `start_state`, or allocate an unused slot and
+// compute `max_pos_usable` for `start_state`. Returns -1 if all slots are
+// currently in use by other start states.
+
+int CoordinatorCUDA::find_or_allocate_max_pos_slot(statenum_t start_state)
+{
+  if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    return 0;
+  }
+
+  for (unsigned s = 0; s < MAX_START_STATES; ++s) {
+    if (max_pos_slot_state.at(s) == start_state) {
+      return static_cast<int>(s);
+    }
+  }
+
+  // Prefer an empty slot first, otherwise any slot not currently in use
+  int free_slot = -1;
+  for (unsigned s = 0; s < MAX_START_STATES; ++s) {
+    if (max_pos_slot_state.at(s) == 0) {
+      free_slot = static_cast<int>(s);
+      break;
+    }
+    if (free_slot == -1 && !is_max_pos_slot_in_use(s)) {
+      free_slot = static_cast<int>(s);
+    }
+  }
+
+  if (free_slot != -1) {
+    compute_max_pos_usable(static_cast<unsigned>(free_slot), start_state);
+  }
+  return free_slot;
+}
+
+// Return true if `slot` in the `max_pos_usable` table is currently referenced
+// by any active worker in either bank.
+
+bool CoordinatorCUDA::is_max_pos_slot_in_use(unsigned slot) const
+{
+  if (max_pos_slot_state.at(slot) == 0) {
+    return false;
+  }
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    for (unsigned id = 0; id < num_threads[bank]; ++id) {
+      if ((wi_h[bank][id].status & 1) == 0 &&
+          wi_h[bank][id].max_pos_slot == slot) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Return the number of `max_pos_usable` slots currently in use across both
+// banks.
+
+unsigned CoordinatorCUDA::count_active_start_states() const
+{
+  unsigned count = 0;
+  for (unsigned s = 0; s < MAX_START_STATES; ++s) {
+    if (is_max_pos_slot_in_use(s)) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+// Populate `slot` of `max_pos_h` for `start_state` and mark it dirty for
+// transfer to GPU memory.
+
+void CoordinatorCUDA::compute_max_pos_usable(unsigned slot,
+    statenum_t start_state)
+{
+  statenum_t* row = &max_pos_h[slot * (graph.numstates + 1)];
+  std::fill(row, row + graph.numstates + 1, 0);
+
+  const State& target = graph.state.at(start_state);
+  for (size_t i = start_state; i <= graph.numstates; ++i) {
+    if (start_state > graph.max_startstate_usable.at(i)) {
+      continue;
+    }
+    const unsigned dist = Graph::min_distance(graph.state.at(i), target);
+    row[i] = (n_max >= dist) ? static_cast<statenum_t>(n_max - dist) : 0;
+  }
+
+  max_pos_slot_state.at(slot) = start_state;
+  max_pos_slot_dirty.at(slot) = true;
+}
+
 // Update the global time counters.
 
 void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
@@ -979,6 +918,216 @@ void CoordinatorCUDA::record_working_time(unsigned bank, double kernel_time,
       0.5 * static_cast<double>(idle_before + idle_after));
 }
 
+// Advance to the next RunConfig for this bank.
+
+void CoordinatorCUDA::apply_next_run_config(unsigned bank)
+{
+  bool done = false;
+  bool retry = false;
+
+  while (!done) {
+    try {
+      run_config[bank] = tuner.get_next_config(bank, retry);
+      params[bank] = get_runtime_params(run_config[bank]);
+      done = true;
+    } catch (const std::invalid_argument& ie) {
+      retry = true;
+    }
+  }
+
+  num_threads[bank] = run_config[bank].warps * prop.warpSize *
+      prop.multiProcessorCount;
+
+  // TODO: eliminate the lines below?
+  config.num_threads = params[bank].num_blocks *
+      params[bank].num_threadsperblock;
+  assert(num_threads[bank] == config.num_threads);
+}
+
+// Create the CudaRuntimeParams used to invoke the kernel.
+
+CudaRuntimeParams CoordinatorCUDA::get_runtime_params(const RunConfig& rc)
+{
+  CudaRuntimeParams params;
+
+  params.num_blocks = prop.multiProcessorCount;
+  params.num_threadsperblock = rc.warps * prop.warpSize;
+  params.graph_size_s = (rc.graph_in_shared ?
+      graph_buffer.size() * sizeof(statenum_t) : 0);
+  params.used_in_shared = rc.used_in_shared;
+
+  // find the maximum window size that fits into shared memory
+  unsigned lower = 0;
+  unsigned upper = n_max;
+  for (; upper != 0; --upper) {
+    size_t shared_mem = calc_shared_memory_size(rc, upper - lower);
+    if (shared_mem <= prop.sharedMemPerBlockOptin) {
+      break;
+    }
+  }
+  if (upper == 0) {
+    throw std::invalid_argument(std::format(
+        "Insufficient shared memory to support (graph_in_shared = {}, "
+        "used_in_shared = {}, warps = {})",
+        rc.graph_in_shared, rc.used_in_shared, rc.warps));
+  }
+
+  // slide the window to maximize the fraction of memory accesses it covers
+  while (upper < n_max &&
+        access_fraction.at(lower) < access_fraction.at(upper)) {
+    ++lower;
+    ++upper;
+  }
+
+  params.window_lower = lower;
+  params.window_upper = upper;
+  params.total_allocated_s = calc_shared_memory_size(rc, upper - lower);
+  assert(params.total_allocated_s <= prop.sharedMemPerBlockOptin);
+
+  params.n_min = config.n_min;
+  params.n_max = n_max;
+  params.report = !config.countflag;
+  params.shiftlimit = config.shiftlimit;
+
+  return params;
+}
+
+// Print execution parameters for a run.
+
+void CoordinatorCUDA::print_execution_parameters(const CudaRuntimeParams& params)
+{
+  unsigned algnum = 0;
+  switch (alg) {
+    case Coordinator::SearchAlgorithm::NONE:
+      algnum = 0;
+      break;
+    case Coordinator::SearchAlgorithm::NORMAL:
+      algnum = 1;
+      break;
+    case Coordinator::SearchAlgorithm::NORMAL_MARKING:
+      algnum = 2;
+      break;
+    case Coordinator::SearchAlgorithm::SUPER:
+    case Coordinator::SearchAlgorithm::SUPER0:
+      algnum = 3;
+      break;
+  }
+
+  static constexpr std::array CUDA_ALGS = {
+    "no_algorithm",
+    "cuda_gen_loops_normal()",
+    "cuda_gen_loops_normal_marking()",
+    "cuda_gen_loops_super()",
+  };
+
+  jpout << "Execution parameters:\n"
+        << "  algorithm: " << CUDA_ALGS.at(algnum)
+        << "\n  worker count: "
+        << (params.num_blocks * params.num_threadsperblock)
+        << "\n  pattern buffer size: " << pattern_buffer_size
+        << " patterns ("
+        << (sizeof(statenum_t) * n_max * pattern_buffer_size)
+        << " bytes)"
+        << std::format("\n  placing graph into {} memory ({} bytes)",
+              (params.graph_size_s != 0 ? "shared" : "device"),
+              graph_buffer.size() * sizeof(statenum_t))
+        << std::format("\n  placing used[] into {} memory",
+              params.used_in_shared ? "shared" : "device")
+        << "\n  workcell[] window in shared memory = ["
+        << params.window_lower << ',' << params.window_upper << ')'
+        << "\n  shared memory used: " << params.total_allocated_s
+        << " bytes\n";
+}
+
+// Return the amount of shared memory needed per block, in bytes, to store
+// graph, used[] arrays, and `window` WorkCells per thread.
+//
+// Assumes that `prop` and `graph_buffer` are already initialized.
+
+size_t CoordinatorCUDA::calc_shared_memory_size(const RunConfig& rc,
+    unsigned window)
+{
+  size_t shared_bytes = 0;
+  const unsigned threadsperblock = rc.warps * prop.warpSize;
+
+  if (rc.graph_in_shared) {
+    shared_bytes += graph_buffer.size() * sizeof(statenum_t);
+  }
+
+  if (rc.used_in_shared) {
+    assert(alg != SearchAlgorithm::NONE);
+
+    if (alg != SearchAlgorithm::SUPER0) {
+      // used[] (1 bit/state)
+      shared_bytes += ((threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * (((graph.numstates + 1) + 31) / 32);
+    }
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
+      // deadstates[] (8 bits/cycle)
+      shared_bytes += ((threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 3) / 4);
+    }
+    if (alg == SearchAlgorithm::SUPER || alg == SearchAlgorithm::SUPER0) {
+      // cycleused[] (1 bit/cycle)
+      shared_bytes += ((threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+      // isexitcycle[] (1 bit/cycle)
+      shared_bytes += ((threadsperblock + 31) / 32) *
+          sizeof(ThreadStorageUsed) * ((graph.numcycles + 31) / 32);
+    }
+  }
+
+  if (window > 0) {
+    // workcell[] partially in shared memory
+    shared_bytes += ((threadsperblock + 31) / 32) *
+        sizeof(ThreadStorageWorkCell) * window;
+  }
+
+  return shared_bytes;
+}
+
+// Copy worker data to the GPU.
+//
+// This copies WorkerInfo and WorkCells for threads [0, max_active_idx[bank]].
+// If optional `startup` is true then all WorkerInfo data is copied.
+
+void CoordinatorCUDA::copy_worker_data_to_gpu(unsigned bank, bool startup)
+{
+  unsigned idx_count = 0;
+  if (startup) {
+    idx_count = prop.multiProcessorCount * prop.maxThreadsPerBlock;
+  } else {
+    idx_count = std::max(max_active_idx[bank], last_max_active_idx[bank]) + 1;
+  }
+  last_max_active_idx[bank] = max_active_idx[bank];
+
+  throw_on_cuda_error(
+      cudaMemcpyAsync(gptrs.wi_d[bank], wi_h[bank],
+          sizeof(WorkerInfo) * idx_count,
+          cudaMemcpyHostToDevice, stream[bank]),
+      __FILE__, __LINE__);
+  throw_on_cuda_error(
+      cudaMemcpyAsync(gptrs.wc_d[bank], wc_h[bank],
+          sizeof(ThreadStorageWorkCell) * ((idx_count + 31) / 32) * n_max,
+          cudaMemcpyHostToDevice, stream[bank]),
+      __FILE__, __LINE__);
+
+  if (alg != SearchAlgorithm::NORMAL_MARKING) {
+    const size_t row_elems = graph.numstates + 1;
+    for (unsigned s = 0; s < MAX_START_STATES; ++s) {
+      if (max_pos_slot_dirty.at(s)) {
+        throw_on_cuda_error(
+            cudaMemcpyAsync(&gptrs.max_pos_d[s * row_elems],
+                &max_pos_h[s * row_elems],
+                sizeof(statenum_t) * row_elems,
+                cudaMemcpyHostToDevice, stream[bank]),
+            __FILE__, __LINE__);
+        max_pos_slot_dirty.at(s) = false;
+      }
+    }
+  }
+}
+
 // Calculate the next number of kernel cycles to run, based on timing and
 // progress.
 
@@ -986,6 +1135,18 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
       unsigned bank, unsigned last_threads, double kernel_time,
       double host_time, unsigned idle_start, uint32_t pattern_count)
 {
+  const auto next_idle_start =
+      static_cast<unsigned>(summary_before[bank].workers_idle.size());
+
+  // handle special cases first
+  if (next_idle_start > 0) {
+    for (unsigned id = 0; id < num_threads[bank]; ++id) {
+      if ((wi_h[bank][id].status & 1) == 0 && wi_h[bank][id].pos == -1) {
+        warmed_up[bank] = false;
+        return MINCYCLES;  // run for a short time so new start_state can split
+      }
+    }
+  }
   if (idle_start == last_threads) {
     return last_cycles;  // no workers ran last time
   }
@@ -997,8 +1158,6 @@ uint64_t CoordinatorCUDA::calc_next_kernel_cycles(uint64_t last_cycles,
     warmed_up[bank] = true;
   }
 
-  const auto next_idle_start =
-      static_cast<unsigned>(summary_before[bank].workers_idle.size());
   const auto idle_after =
       static_cast<unsigned>(summary_after[bank].workers_idle.size());
   const uint64_t last_cycles_startup = summary_after[bank].cycles_startup;
@@ -1108,6 +1267,10 @@ void CoordinatorCUDA::cleanup()
     cudaFree(gptrs.used_d);
     gptrs.used_d = nullptr;
   }
+  if (gptrs.max_pos_d != nullptr) {
+    cudaFree(gptrs.max_pos_d);
+    gptrs.max_pos_d = nullptr;
+  }
 
   // Host memory
   for (unsigned bank = 0; bank < 2; ++bank) {
@@ -1127,6 +1290,10 @@ void CoordinatorCUDA::cleanup()
   if (pb_h != nullptr) {
     cudaFreeHost(pb_h);
     pb_h = nullptr;
+  }
+  if (max_pos_h != nullptr) {
+    cudaFreeHost(max_pos_h);
+    max_pos_h = nullptr;
   }
 }
 
@@ -1501,27 +1668,41 @@ void CoordinatorCUDA::do_status_display(unsigned bank_b)
 
 void CoordinatorCUDA::load_initial_work_assignments()
 {
-  for (unsigned id = 0; id < num_threads[0]; ++id) {
-    if (context.assignments.empty()) {
-      break;
-    }
-
-    WorkAssignment wa = std::move(context.assignments.front());
-    context.assignments.pop_front();
-
-    if (wa.get_type() == WorkAssignment::Type::STARTUP) {
-      wa.start_state = (config.groundmode ==
+  auto it_assign = context.assignments.begin();
+  for (unsigned id = 0; id < num_threads[0] &&
+       it_assign != context.assignments.end(); ) {
+    if (it_assign->get_type() == WorkAssignment::Type::STARTUP) {
+      it_assign->start_state = (config.groundmode ==
           SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
-      wa.end_state = (config.groundmode ==
+      it_assign->end_state = (config.groundmode ==
           SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
     }
 
+    if (it_assign->partial_pattern.empty()) {
+      auto st = static_cast<statenum_t>(it_assign->start_state);
+      const auto end_st = static_cast<statenum_t>(it_assign->end_state);
+      if (!advance_to_usable_startstate(st, end_st)) {
+        it_assign = context.assignments.erase(it_assign);
+        continue;
+      }
+      it_assign->start_state = st;
+    }
+
+    if (alg != SearchAlgorithm::NORMAL_MARKING &&
+        find_or_allocate_max_pos_slot(
+            static_cast<statenum_t>(it_assign->start_state)) == -1) {
+      ++it_assign;
+      continue;
+    }
+
+    WorkAssignment wa = std::move(*it_assign);
+    it_assign = context.assignments.erase(it_assign);
     load_work_assignment(0, id, wa);
     max_active_idx[0] = id;
+    ++id;
   }
 
   for (unsigned bank = 0; bank < 2; ++bank) {
-    skip_unusable_startstates(bank);
     copy_worker_data_to_gpu(bank, true);
     summary_before[bank] = summarize_worker_status(bank);
   }
@@ -1540,6 +1721,14 @@ void CoordinatorCUDA::load_work_assignment(unsigned bank, unsigned id,
   wa.to_workspace(this, bank * max_threads + id);
   wi_h[bank][id].nnodes = 0;
   wi_h[bank][id].status = 0;
+  if (alg != SearchAlgorithm::NORMAL_MARKING) {
+    const int slot = find_or_allocate_max_pos_slot(
+        static_cast<statenum_t>(wa.start_state));
+    assert(slot >= 0);
+    wi_h[bank][id].max_pos_slot = static_cast<uint16_t>(slot);
+  } else {
+    wi_h[bank][id].max_pos_slot = 0;
+  }
 
 #ifndef NDEBUG
   // verify the assignment is unchanged by round trip through the workspace
@@ -1583,40 +1772,20 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bank_b)
   auto it_idle = idle_workers.begin();
   const auto it_idle_end = idle_workers.end();
 
-  // first try to assign from `context.assignments`
-  while (it_idle != it_idle_end && !context.assignments.empty()) {
-    if (*it_idle < num_threads[bank_b]) {
-      WorkAssignment wa = std::move(context.assignments.front());
-      context.assignments.pop_front();
-      load_work_assignment(bank_b, *it_idle, wa);
-      max_active_idx[bank_b] = std::max(max_active_idx[bank_b], *it_idle);
-    }
-    ++it_idle;
-  }
-
-  // split jobs until (a) all idle workers in this bank have jobs, and
-  // (b) we have `idle_before_a` jobs saved for the other bank
-
-  const auto idle_before_a =
-      static_cast<unsigned>(summary_before[1 - bank_b].workers_idle.size());
-
-  // iterate through the workers in this order, for splitting
-  std::vector<const std::vector<unsigned>*> worker_lists = {
-      &summary.workers_multiple_start_states,
-      &summary.workers_rpm_plus0,
-      &summary.workers_rpm_plus1,
-      &summary.workers_rpm_plus2,
-      &summary.workers_rpm_plus3,
-      &summary.workers_rpm_plus4p
-  };
-
   // convenience function to add an assignment into `summary`, which we can now
   // modify at this point in overall processing
-  auto add_worker_to_summary = [&](const WorkAssignment& wa, unsigned id) {
-    if (wa.end_state > wa.start_state) {
+  auto add_worker_to_summary = [&](const WorkAssignment& wa, unsigned id,
+      bool add_multiple_start_states, bool add_rpm) {
+    if (add_multiple_start_states && wa.end_state > wa.start_state) {
       summary.workers_multiple_start_states.push_back(id);
-    } else {
-      switch (static_cast<unsigned>(wa.root_pos) - summary.root_pos_min) {
+    }
+    if (add_rpm && wa.get_type() == WorkAssignment::Type::SPLITTABLE) {
+      if (summary.root_pos_min == -1U) {
+        summary.root_pos_min = wa.root_pos;
+      }
+      const unsigned diff = (wa.root_pos >= summary.root_pos_min) ?
+          (static_cast<unsigned>(wa.root_pos) - summary.root_pos_min) : 0;
+      switch (diff) {
         case 0:
           summary.workers_rpm_plus0.push_back(id);
           break;
@@ -1637,35 +1806,124 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bank_b)
   };
   const auto enable_resplit = true;
 
+  // first try to assign from `context.assignments`
+  auto it_assign = context.assignments.begin();
+  while (it_idle != it_idle_end && it_assign != context.assignments.end()) {
+    if (*it_idle >= num_threads[bank_b]) {
+      ++it_idle;
+      continue;
+    }
+
+    if (it_assign->partial_pattern.empty()) {
+      auto st = static_cast<statenum_t>(it_assign->start_state);
+      const auto end_st = static_cast<statenum_t>(it_assign->end_state);
+      if (!advance_to_usable_startstate(st, end_st)) {
+        it_assign = context.assignments.erase(it_assign);
+        continue;
+      }
+      it_assign->start_state = st;
+    }
+
+    if (alg != SearchAlgorithm::NORMAL_MARKING &&
+        find_or_allocate_max_pos_slot(
+            static_cast<statenum_t>(it_assign->start_state)) == -1) {
+      ++it_assign;
+      continue;
+    }
+
+    WorkAssignment wa = std::move(*it_assign);
+    it_assign = context.assignments.erase(it_assign);
+    load_work_assignment(bank_b, *it_idle, wa);
+    if (enable_resplit) {
+      add_worker_to_summary(wa, *it_idle, true, true);
+    }
+    max_active_idx[bank_b] = std::max(max_active_idx[bank_b], *it_idle);
+    ++it_idle;
+  }
+
+  // count remaining runnable assignments in `context.assignments` for bank_a
+  unsigned runnable_for_a = 0;
+  for (; it_assign != context.assignments.end(); ++it_assign) {
+    if (alg == SearchAlgorithm::NORMAL_MARKING) {
+      ++runnable_for_a;
+      continue;
+    }
+    for (unsigned s = 0; s < MAX_START_STATES; ++s) {
+      if (max_pos_slot_state.at(s) == it_assign->start_state) {
+        ++runnable_for_a;
+        break;
+      }
+    }
+  }
+
+  // split jobs until (a) all idle workers in this bank have jobs, and
+  // (b) we have `idle_before_a` jobs saved for the other bank
+
+  const auto idle_before_a =
+      static_cast<unsigned>(summary_before[1 - bank_b].workers_idle.size());
+
+  // iterate through the workers in this order, for splitting
+  std::vector<const std::vector<unsigned>*> worker_lists = {
+      &summary.workers_multiple_start_states,
+      &summary.workers_rpm_plus0,
+      &summary.workers_rpm_plus1,
+      &summary.workers_rpm_plus2,
+      &summary.workers_rpm_plus3,
+      &summary.workers_rpm_plus4p
+  };
+
   for (const auto* list_ptr : worker_lists) {
+    const bool is_multi_start_list =
+        (list_ptr == &summary.workers_multiple_start_states);
+
     for (size_t index = 0; index < list_ptr->size(); ++index) {
       while (it_idle != it_idle_end && *it_idle >= num_threads[bank_b]) {
         ++it_idle;
       }
-      if (it_idle == it_idle_end &&
-            context.assignments.size() >= idle_before_a) {
+      if (it_idle == it_idle_end && runnable_for_a >= idle_before_a) {
         return;
+      }
+
+      if (is_multi_start_list && alg != SearchAlgorithm::NORMAL_MARKING) {
+        if (it_idle == it_idle_end ||
+            count_active_start_states() >= MAX_START_STATES) {
+          break;
+        }
       }
 
       const auto splitting_id = list_ptr->at(index);
 
       // is the assignment slot still in use?
-      if (splitting_id >= num_threads[bank_b]) {
+      if (splitting_id >= num_threads[bank_b] ||
+          (wi_h[bank_b][splitting_id].status & 1) != 0) {
         continue;
       }
 
       // do we have a splittable assignment?
       WorkAssignment wa = read_work_assignment(bank_b, splitting_id);
-      if (!wa.is_splittable()) {
+      const unsigned eff_split_alg = (!is_multi_start_list &&
+          wa.end_state > wa.start_state) ? 3 : config.split_alg;
+      if (!wa.is_splittable(eff_split_alg)) {
         continue;
       }
 
-      WorkAssignment wa2 = wa.split(graph, config.split_alg);
+      WorkAssignment wa2 = wa.split(graph, eff_split_alg);
 
       // reload the split assignment into the same slot
       load_work_assignment(bank_b, splitting_id, wa);
       if (enable_resplit) {
-        add_worker_to_summary(wa, splitting_id);
+        add_worker_to_summary(wa, splitting_id, is_multi_start_list,
+            !is_multi_start_list);
+      }
+
+      // If `wa2` is a new `start_state` range, advance to a usable start state.
+      if (wa2.partial_pattern.empty()) {
+        auto st = static_cast<statenum_t>(wa2.start_state);
+        const auto end_st = static_cast<statenum_t>(wa2.end_state);
+        if (!advance_to_usable_startstate(st, end_st)) {
+          continue;
+        }
+        wa2.start_state = st;
       }
 
       // Avoid double counting nodes: Each of the nodes in the partial path for
@@ -1679,12 +1937,14 @@ void CoordinatorCUDA::assign_new_jobs(unsigned bank_b)
       if (it_idle != it_idle_end) {
         load_work_assignment(bank_b, *it_idle, wa2);
         if (enable_resplit) {
-          add_worker_to_summary(wa2, *it_idle);
+          add_worker_to_summary(wa2, *it_idle, is_multi_start_list,
+              !is_multi_start_list);
         }
         max_active_idx[bank_b] = std::max(max_active_idx[bank_b], *it_idle);
         ++it_idle;
       } else {
         context.assignments.push_back(std::move(wa2));
+        ++runnable_for_a;
       }
 
       ++context.splits_total;

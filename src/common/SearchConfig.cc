@@ -140,7 +140,7 @@ void SearchConfig::from_args(size_t argc, char** argv)
         } catch (const std::out_of_range&) {
           throw std::invalid_argument("Split_alg out of range");
         }
-        if (val < 1 || val > 2) {
+        if (val < 1 || val > 3) {
           throw std::invalid_argument("Split_alg out of range");
         }
         split_alg = static_cast<unsigned>(val);

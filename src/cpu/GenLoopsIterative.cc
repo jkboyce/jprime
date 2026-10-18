@@ -612,7 +612,7 @@ bool Worker::iterative_can_split()
 {
   WorkAssignment wa;
   wa.from_workspace(this, 0);
-  const bool can_split = wa.is_splittable();
+  const bool can_split = wa.is_splittable(config.split_alg);
 
   assert(wa.root_pos >= root_pos);
   if (wa.root_pos != root_pos) {

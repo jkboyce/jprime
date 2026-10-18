@@ -93,9 +93,14 @@ __device__ CudaThreadPointers get_thread_pointers(
   {
     ThreadStorageWorkCell* const warp_start =
         &gptrs.wc_d[bank][(id / 32) * n_max];
-    uint32_t* const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
+    auto *const warp_start_u32 = reinterpret_cast<uint32_t*>(warp_start);
     ptrs.workcell_d = reinterpret_cast<ThreadStorageWorkCell*>(
         &warp_start_u32[id & 31]);
+  }
+
+  if (gptrs.max_pos_d != nullptr) {
+    const auto slot = gptrs.wi_d[bank][id].max_pos_slot;
+    ptrs.max_pos = &gptrs.max_pos_d[slot * (numstates_d + 1)];
   }
 
   if (gptrs.used_d != nullptr) {
@@ -306,8 +311,9 @@ __device__ __forceinline__ bool mark_head(statenum_t to_st,
   const uint16_t idx_low = gr[to_st * (od + 5) + (od + 3)];
   const uint16_t idx_high = gr[to_st * (od + 5) + (od + 4)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
-  if (idx == 0)
+  if (idx == 0) {
     return true;
+  }
 
   bool valid = true;
   statenum_t st = 0;
@@ -316,7 +322,7 @@ __device__ __forceinline__ bool mark_head(statenum_t to_st,
 
   while ((st = gr[idx]) != 0) {
     const uint32_t old_used = u[st / 32].data;
-    const uint32_t new_used = old_used ^ (1u << (st & 31));
+    const uint32_t new_used = old_used ^ (1U << (st & 31));
     u[st / 32].data = new_used;
 
     if (new_used > old_used) {
@@ -344,8 +350,9 @@ __device__ __forceinline__ void unmark_tail(statenum_t from_st,
   const uint16_t idx_low = gr[from_st * (od + 5) + (od + 1)];
   const uint16_t idx_high = gr[from_st * (od + 5) + (od + 2)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
-  if (idx == 0)
+  if (idx == 0) {
     return;
+  }
 
   statenum_t st = 0;
   const uint32_t mask = static_cast<uint32_t>(255) << ((from_cy & 3) * 8);
@@ -378,8 +385,9 @@ __device__ __forceinline__ void unmark_head(statenum_t to_st,
   const uint16_t idx_low = gr[to_st * (od + 5) + (od + 3)];
   const uint16_t idx_high = gr[to_st * (od + 5) + (od + 4)];
   uint32_t idx = (static_cast<uint32_t>(idx_high) << 16) | idx_low;
-  if (idx == 0)
+  if (idx == 0) {
     return;
+  }
 
   statenum_t st = 0;
   const uint32_t mask = static_cast<uint32_t>(255) << ((to_cy & 3) * 8);
@@ -429,6 +437,7 @@ __global__ void cuda_gen_loops_normal(
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
   const auto graphmatrix = ptrs.graphmatrix;
+  const auto max_pos = ptrs.max_pos;
   auto st_state = wi.start_state;
   auto pos = wi.pos;
   auto nnodes = wi.nnodes;
@@ -537,7 +546,7 @@ __global__ void cuda_gen_loops_normal(
       continue;
     }
 
-    if (pos + 1 == n_max) {
+    if (pos + 1 > max_pos[to_state]) {
       ++wc->col;
       continue;
     }
@@ -600,7 +609,7 @@ __global__ void cuda_gen_loops_normal_marking(
   const auto start_clock = clock64();
   const auto ptrs = get_thread_pointers(gptrs, bank, alg, pos_lower_s,
       pos_upper_s, graph_size_s, n_max);
-  constexpr bool debugprint = false;
+  constexpr bool DEBUGPRINT = false;
 
   const unsigned id = blockDim.x * blockIdx.x + threadIdx.x;
   WorkerInfo& wi = gptrs.wi_d[bank][id];
@@ -641,8 +650,9 @@ __global__ void cuda_gen_loops_normal_marking(
     if (idx != 0) {
       while (true) {
         const statenum_t st = graphmatrix[idx];
-        if (st == 0)
+        if (st == 0) {
           break;
+        }
         set_bit(used, st);
         ++idx;
       }
@@ -655,8 +665,9 @@ __global__ void cuda_gen_loops_normal_marking(
     if (idx != 0) {
       while (true) {
         const statenum_t st = graphmatrix[idx];
-        if (st == 0)
+        if (st == 0) {
           break;
+        }
         set_bit(used, st);
         ++idx;
       }
@@ -724,7 +735,7 @@ __global__ void cuda_gen_loops_normal_marking(
   auto from_state = wc->from_state;
   bool firstworkcell = true;
 
-  if constexpr(debugprint) {
+  if constexpr(DEBUGPRINT) {
     if (id == 0) {
       printf("State after initialization:\n");
       dump_info(pos, workcell_d, used, deadstates, max_possible);
@@ -879,7 +890,7 @@ __global__ void cuda_gen_loops_normal_marking(
     }
   }
 
-  if constexpr (debugprint) {
+  if constexpr (DEBUGPRINT) {
     if (id == 0 && (wi.status & 1) == 0) {
       printf("State after execution:\n");
       dump_info(pos, workcell_d, used, deadstates, max_possible);
@@ -912,6 +923,7 @@ __global__ void cuda_gen_loops_super(
   // local variables for fast access
   const auto outdegree = maxoutdegree_d;
   const auto graphmatrix = ptrs.graphmatrix;
+  const auto max_pos = ptrs.max_pos;
   auto st_state = wi.start_state;
   auto pos = wi.pos;
   auto nnodes = wi.nnodes;
@@ -1100,7 +1112,7 @@ __global__ void cuda_gen_loops_super(
         continue;
       }
 
-      if (pos + 1 == n_max) {
+      if (pos + 1 > max_pos[to_state]) {
         ++wc->col;
         continue;
       }
@@ -1149,7 +1161,7 @@ __global__ void cuda_gen_loops_super(
         continue;
       }
 
-      if (pos + 1 == n_max) {
+      if (pos + 1 > max_pos[to_state]) {
         ++wc->col;
         continue;
       }

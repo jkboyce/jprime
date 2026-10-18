@@ -937,7 +937,7 @@ std::string Graph::to_string() const
     buffer << "  " << i << " -> { ";
     for (size_t j = 0; j < outdegree.at(i); ++j) {
       buffer << outmatrix_at(i, j);
-      if (j < outdegree.at(i) - 1) {
+      if (j + 1 < outdegree.at(i)) {
         buffer << ", ";
       }
     }
@@ -954,7 +954,7 @@ std::string Graph::to_string() const
     buffer << "  " << i << " -> { ";
     for (size_t j = 0; j < outdegree.at(i); ++j) {
       buffer << outthrowval_at(i, j);
-      if (j < outdegree.at(i) - 1) {
+      if (j + 1 < outdegree.at(i)) {
         buffer << ", ";
       }
     }

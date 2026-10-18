@@ -38,27 +38,27 @@ struct TestCase {
 
 static const std::vector<TestCase> tests {
   // NORMAL mode
-  {  3, "jprime 3 8 -count",                 11906414,   11906414,   49486833 },
-  {  3, "jprime 5 15 1-12 -g -count",        17996072,   17996072,   29601595 },
+  {  7, "jprime 3 8 -count",                 11906414,   11906414,   49486833 },
+  {  7, "jprime 5 15 1-12 -g -count",        17996072,   17996072,   29601595 },
   // NORMAL_MARKING mode
   {  7, "jprime 3 16 524",                         30,    8045966,  291293062 },
   {  7, "jprime 5 10 225",                        838,   23754590, 1458188812 },
   {  7, "jprime 4 8 41- -ng -count",           298662,    7084550,   43179517 },
   // SUPER mode
-  {  3, "jprime 5 13 10 -super 1 -count",      532478,     685522,    1466199 },
-  {  3, "jprime 3 18 47 -super 1",                 50,  128149175,  307570431 },
-  {  3, "jprime 4 11 -super 1 -g -count",    69797298,   69797298,  334364736 },
-  {  3, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   15309070 },
-  {  3, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,   48998794 },
-  {  3, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1393991504 },
-  {  3, "jprime 3 9 -super -count",         133410514,  133410514,  792615944 },
+  {  7, "jprime 5 13 10 -super 1 -count",      532478,     685522,    1466199 },
+  {  7, "jprime 3 18 47 -super 1",                 50,  128149175,  307570431 },
+  {  7, "jprime 4 11 -super 1 -g -count",    69797298,   69797298,  334364736 },
+  {  7, "jprime 5 15 1-12 -super 1 -g -count", 8519730,   8519730,   15309070 },
+  {  7, "jprime 5 15 1-12 -super 1 -count",  23826278,   23826278,   48998794 },
+  {  7, "jprime 3 19 51- -super 1 -count",        222,  535200936, 1393991504 },
+  {  7, "jprime 3 9 -super -count",         133410514,  133410514,  792615944 },
   // SUPER0 mode
   {  7, "jprime 3 21 -super 0 -g -count",   388339361,  388339361,  876591490 },
   {  7, "jprime 3 21 64 -super 0",                  1,  388339361,  876591490 },
-  {  3, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   12387419 },
+  {  7, "jprime 5 15 1-12 -super 0 -count",   6411338,    6411338,   12387419 },
   // single-period graph mode
-  {  3, "jprime 4 56 14 -g -count",          66129382,   84454394,  133370835 },
-  {  3, "jprime 2 50 25 -count",             42451179,   78584312,  151771111 },
+  {  7, "jprime 4 56 14 -g -count",          66129382,   84454394,  133370835 },
+  {  7, "jprime 2 50 25 -count",             42451179,   78584312,  151771111 },
 };
 
 // Run a single test case and compare against known values, outputting results

@@ -38,6 +38,10 @@ To increase efficiency, we use two separate banks of worker jobs and alternate
 between them, so that while bank_a is executing we do host processing of bank_b
 concurrently. Most newer GPUs support asynchronous copying of data between
 device and host while kernels are executing.
+
+The way we implement min_distance pruning requires some special care in how we
+split jobs. In particular we only allow MAX_START_STATES different values of
+start_state across all jobs running in the GPU.
 */
 
 class CoordinatorCUDA : public Coordinator, public WorkSpace {
@@ -60,6 +64,10 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   ThreadStorageWorkCell* wc_h[2] = { nullptr, nullptr };  // workcell arrays
   uint32_t* pattern_count_h = nullptr;  // pattern count, if needed
   statenum_t* pb_h = nullptr;  // pattern buffer, if needed
+  static constexpr unsigned MAX_START_STATES = 10;
+  statenum_t* max_pos_h = nullptr;  // max_pos_usable tables, if needed
+  std::array<statenum_t, MAX_START_STATES> max_pos_slot_state = {};
+  std::array<bool, MAX_START_STATES> max_pos_slot_dirty = {};
 
   // runtime configurations
   RunConfig run_config[2];
@@ -103,18 +111,24 @@ class CoordinatorCUDA : public Coordinator, public WorkSpace {
   RunConfig get_starting_config();
 
   // main loop
-  void skip_unusable_startstates(unsigned bank);
-  void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
   void launch_cuda_kernel(unsigned bank, uint64_t cycles);
+  void copy_worker_data_from_gpu(unsigned bank);
+  uint64_t process_worker_counters(unsigned bank);
+  uint32_t process_pattern_buffer(unsigned bank);
+  void skip_unusable_startstates(unsigned bank);
+  bool advance_to_usable_startstate(statenum_t& start_state,
+    statenum_t end_state) const;
+  int find_or_allocate_max_pos_slot(statenum_t start_state);
+  bool is_max_pos_slot_in_use(unsigned slot) const;
+  unsigned count_active_start_states() const;
+  void compute_max_pos_usable(unsigned slot, statenum_t start_state);
+  void record_working_time(unsigned bank, double kernel_time, double host_time,
+    uint64_t cycles_run);
   void apply_next_run_config(unsigned bank);
   CudaRuntimeParams get_runtime_params(const RunConfig& rc);
   void print_execution_parameters(const CudaRuntimeParams& params);
   size_t calc_shared_memory_size(const RunConfig& rc, unsigned window_size);
-  void copy_worker_data_from_gpu(unsigned bank);
-  uint64_t process_worker_counters(unsigned bank);
-  uint32_t process_pattern_buffer(unsigned bank);
-  void record_working_time(unsigned bank, double kernel_time, double host_time,
-    uint64_t cycles_run);
+  void copy_worker_data_to_gpu(unsigned bank, bool startup = false);
   uint64_t calc_next_kernel_cycles(uint64_t last_cycles, unsigned bank,
     unsigned last_threads, double kernel_time, double host_time,
     unsigned idle_start, uint32_t pattern_count);
