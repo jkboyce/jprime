@@ -32,19 +32,19 @@ void Worker::gen_loops_normal()
 {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* om = graph.outmatrix[from].data();
+  const unsigned* om = graph.outmatrix_row(from);
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
+        !mark_off_rootpos_option(graph.outthrowval_at(from, col), to)) {
       continue;
     }
     if (used[to] != 0) {
       continue;
     }
-    pattern[pos] = static_cast<int>(graph.outthrowval[from][col]);
+    pattern[pos] = static_cast<int>(graph.outthrowval_at(from, col));
 
     if (to == start_state) {
       handle_finished_pattern();
@@ -103,20 +103,20 @@ void Worker::gen_loops_normal_marking()
   bool did_mark_for_tail = false;
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* om = graph.outmatrix[from].data();
+  const unsigned* om = graph.outmatrix_row(from);
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
+        !mark_off_rootpos_option(graph.outthrowval_at(from, col), to)) {
       continue;
     }
     if (used[to] != 0) {
       continue;
     }
 
-    const unsigned throwval = graph.outthrowval[from][col];
+    const unsigned throwval = graph.outthrowval_at(from, col);
 
     if (throwval != 0 && throwval != graph.h && !did_mark_for_tail) {
       // all larger `col` values will also be link throws, so we only need to
@@ -202,8 +202,8 @@ void Worker::gen_loops_super()
 {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* const om = graph.outmatrix[from].data();
-  const unsigned* const ov = graph.outthrowval[from].data();
+  const unsigned* const om = graph.outmatrix_row(from);
+  const unsigned* const ov = graph.outthrowval_row(from);
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
@@ -306,20 +306,20 @@ void Worker::gen_loops_super0()
 {
   unsigned col = (loading_work ? load_one_throw() : 0);
   const unsigned limit = graph.outdegree[from];
-  const unsigned* const om = graph.outmatrix[from].data();
+  const unsigned* const om = graph.outmatrix_row(from);
   const unsigned old_from = from;
 
   for (; col < limit; ++col) {
     const unsigned to = om[col];
     if (pos == static_cast<int>(root_pos) &&
-        !mark_off_rootpos_option(graph.outthrowval.at(from).at(col), to)) {
+        !mark_off_rootpos_option(graph.outthrowval_at(from, col), to)) {
       continue;
     }
     if (to < start_state) {
       continue;
     }
 
-    pattern[pos] = static_cast<int>(graph.outthrowval[from][col]);
+    pattern[pos] = static_cast<int>(graph.outthrowval_at(from, col));
     if (to == start_state) {
       handle_finished_pattern();
       continue;
@@ -383,7 +383,7 @@ unsigned Worker::load_one_throw()
   }
 
   for (unsigned col = 0; col < graph.outdegree.at(from); ++col) {
-    if (graph.outthrowval.at(from).at(col) ==
+    if (graph.outthrowval_at(from, col) ==
           static_cast<unsigned>(pattern.at(pos))) {
       return col;
     }
@@ -406,15 +406,15 @@ unsigned Worker::load_one_throw()
             << "pattern: " << buffer.str() << '\n'
             << "outthrowval[from][]: ";
   for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
-    std::cerr << graph.outthrowval.at(from).at(i) << ", ";
+    std::cerr << graph.outthrowval_at(from, i) << ", ";
   }
   std::cerr << "\noutmatrix[from][]: ";
   for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
-    std::cerr << graph.outmatrix.at(from).at(i) << ", ";
+    std::cerr << graph.outmatrix_at(from, i) << ", ";
   }
   std::cerr << "\nstate[outmatrix[from][]]: ";
   for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
-    std::cerr << graph.state.at(graph.outmatrix.at(from).at(i)) << ", ";
+    std::cerr << graph.state.at(graph.outmatrix_at(from, i)) << ", ";
   }
   std::cerr << '\n';
   std::exit(EXIT_FAILURE);
@@ -450,7 +450,7 @@ bool Worker::mark_off_rootpos_option(unsigned throwval, unsigned to_state)
     // housekeeping: has this root_pos option been pruned from the graph?
     bool pruned = true;
     for (size_t i = 0; i < graph.outdegree.at(from); ++i) {
-      if (graph.outthrowval.at(from).at(i) == *iter) {
+      if (graph.outthrowval_at(from, i) == *iter) {
         pruned = false;
         break;
       }
@@ -501,7 +501,7 @@ void Worker::build_rootpos_throw_options(unsigned from_state,
   root_throwval_options.clear();
   for (unsigned col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
-    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
+    root_throwval_options.push_back(graph.outthrowval_at(from_state, col));
   }
 
   if (config.verboseflag) {

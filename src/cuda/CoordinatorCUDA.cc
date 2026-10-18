@@ -243,7 +243,7 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
     // state numbers for outgoing links
     for (unsigned j = 0; j < graph.maxoutdegree; ++j) {
       if (j < graph.outdegree.at(i)) {
-        buffer.push_back(static_cast<statenum_t>(graph.outmatrix.at(i).at(j)));
+        buffer.push_back(static_cast<statenum_t>(graph.outmatrix_at(i, j)));
       } else {
         buffer.push_back(0);
       }
@@ -894,8 +894,8 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
 
       int throwval = -1;
       for (unsigned k = 0; k < graph.outdegree.at(from_state); ++k) {
-        if (graph.outmatrix.at(from_state).at(k) == to_state) {
-          throwval = static_cast<int>(graph.outthrowval.at(from_state).at(k));
+        if (graph.outmatrix_at(from_state, k) == to_state) {
+          throwval = static_cast<int>(graph.outthrowval_at(from_state, k));
           break;
         }
       }
@@ -918,9 +918,9 @@ uint32_t CoordinatorCUDA::process_pattern_buffer(unsigned bank)
                   << graph.outdegree.at(from_state) << '\n';
         for (unsigned k = 0; k < graph.outdegree.at(from_state); ++k) {
           std::cerr << "outmatrix(from_state)[" << k << "] = "
-                    << graph.outmatrix.at(from_state).at(k)
+                    << graph.outmatrix_at(from_state, k)
                     << " ("
-                    << graph.state.at(graph.outmatrix.at(from_state).at(k))
+                    << graph.state.at(graph.outmatrix_at(from_state, k))
                     << ")\n";
         }
         throw std::runtime_error("CUDA error: invalid pattern");

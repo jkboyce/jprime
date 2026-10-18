@@ -58,12 +58,9 @@ void Worker::iterative_gen_loops_normal()
     // now we can resume
   }
 
-  // temp storage to access matrix elements quickly
-  std::vector<const unsigned*> om_row(graph.numstates + 1, nullptr);
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    om_row.at(i) = graph.outmatrix.at(i).data();
-  }
-  const unsigned** const outmatrix = om_row.data();
+  // direct pointer and stride to access matrix elements quickly
+  const unsigned* const outmatrix = graph.outmatrix.data();
+  const unsigned stride = graph.maxoutdegree;
 
   // marking-related items
   std::vector<unsigned*> es_tail_row;
@@ -175,7 +172,7 @@ void Worker::iterative_gen_loops_normal()
       }
     }
 
-    const unsigned to_state = outmatrix[from_state][wc->col];
+    const unsigned to_state = outmatrix[from_state * stride + wc->col];
 
     if (to_state == st_state) {
       // found a pattern
@@ -241,8 +238,8 @@ void Worker::iterative_gen_loops_normal()
         pos = static_cast<int>(p);
         if (iterative_can_split()) {
           for (int i = 0; i <= pos; ++i) {
-            pattern.at(i) = static_cast<int>(graph.outthrowval
-                .at(beat.at(i).from_state).at(beat.at(i).col));
+            pattern.at(i) = static_cast<int>(graph.outthrowval_at(
+                beat.at(i).from_state, beat.at(i).col));
           }
           pattern.at(pos + 1) = -1;
           nnodes = nn;
@@ -345,11 +342,8 @@ void Worker::iterative_gen_loops_super()
     }
   }
 
-  std::vector<const unsigned*> om_row(graph.numstates + 1, nullptr);
-  for (size_t i = 0; i <= graph.numstates; ++i) {
-    om_row.at(i) = graph.outmatrix.at(i).data();
-  }
-  const unsigned** const outmatrix = om_row.data();
+  const unsigned* const outmatrix = graph.outmatrix.data();
+  const unsigned stride = graph.maxoutdegree;
 
   unsigned p = pos;
   uint64_t nn = nnodes;
@@ -404,7 +398,7 @@ void Worker::iterative_gen_loops_super()
       continue;
     }
 
-    const unsigned to_state = outmatrix[from_state][wc->col];
+    const unsigned to_state = outmatrix[from_state * stride + wc->col];
 
     if constexpr (SUPER0) {
       if (to_state < start_state) {
@@ -473,8 +467,8 @@ void Worker::iterative_gen_loops_super()
           pos = static_cast<int>(p);
           if (iterative_can_split()) {
             for (int i = 0; i <= pos; ++i) {
-              pattern.at(i) = static_cast<int>(graph.outthrowval
-                  .at(beat.at(i).from_state).at(beat.at(i).col));
+              pattern.at(i) = static_cast<int>(graph.outthrowval_at(
+                  beat.at(i).from_state, beat.at(i).col));
             }
             pattern.at(pos + 1) = -1;
             nnodes = nn;
@@ -643,8 +637,8 @@ void Worker::iterative_update_after_split()
 inline void Worker::iterative_handle_finished_pattern()
 {
   for (int i = 0; i <= pos; ++i) {
-    pattern.at(i) = static_cast<int>(graph.outthrowval
-        .at(beat.at(i).from_state).at(beat.at(i).col));
+    pattern.at(i) = static_cast<int>(graph.outthrowval_at(
+        beat.at(i).from_state, beat.at(i).col));
   }
   pattern.at(pos + 1) = -1;
   report_pattern();

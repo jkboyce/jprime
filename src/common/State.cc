@@ -3,63 +3,45 @@
 //
 // Representation of an individual state in the juggling graph.
 //
-// Copyright (C) 1998-2025 Jack Boyce, <jboyce@gmail.com>
+// Copyright (C) 1998-2026 Jack Boyce, <jboyce@gmail.com>
 //
 // This file is distributed under the MIT License.
 //
 
 #include "State.h"
 
-#include <algorithm>
-#include <cstring>
+#include <bit>
+#include <cassert>
 #include <format>
+#include <iostream>
 #include <stdexcept>
 
 
 // Initialize an empty state with `h` slots.
 
 State::State(unsigned h)
-    : _slot(h, 0)
-{}
+    : _h(h)
+{
+  if (h > MAX_BITS) {
+    throw std::invalid_argument(std::format(
+        "State size h = {} exceeds State::MAX_BITS ({})", h, MAX_BITS));
+  }
+}
 
 // Initialize from a string representation.
 
 State::State(const std::string& s)
+    : _h(static_cast<unsigned>(s.size()))
 {
-  for (const char ch : s) {
-    _slot.push_back((ch == 'x' || ch == '1') ? 1 : 0);
+  if (s.size() > MAX_BITS) {
+    throw std::invalid_argument(std::format(
+        "State string size {} exceeds State::MAX_BITS ({})", s.size(), MAX_BITS));
   }
-}
-
-// Return the number of slots in the state.
-
-size_t State::size() const
-{
-  return _slot.size();
-}
-
-// Return a reference to the i'th slot in the state, indexing from 0.
-
-unsigned& State::slot(size_t i)
-{
-  return _slot.at(i);
-}
-
-const unsigned& State::slot(size_t i) const
-{
-  return _slot.at(i);
-}
-
-// Return raw pointer to the slot array.
-
-const unsigned* State::data() const
-{
-  return _slot.data();
-}
-
-unsigned* State::data()
-{
-  return _slot.data();
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == 'x' || s[i] == '1') {
+      _words[i / 64] |= (1ULL << (i % 64));
+    }
+  }
 }
 
 // Return a new State object that corresponds to the current State advanced by
@@ -71,10 +53,9 @@ unsigned* State::data()
 State State::advance_with_throw(unsigned throwval) const
 {
   State s = *this;
-  const unsigned head = *s._slot.begin();
+  const unsigned head = s.slot(0);
 
-  s._slot.erase(s._slot.begin());
-  s._slot.push_back(0);
+  s.shift_downstream_zero();
 
   if (throwval > size()) {
     throw std::invalid_argument(
@@ -99,12 +80,40 @@ State State::advance_with_throw(unsigned throwval) const
 
 void State::shift_downstream()
 {
-  if (_slot.empty()) {
+  if (_h == 0) {
     return;
   }
-  const unsigned head = _slot.front();
-  std::memmove(_slot.data(), _slot.data() + 1, (_slot.size() - 1) * sizeof(unsigned));
-  _slot.back() = head;
+  const uint64_t head = _words[0] & 1ULL;
+  shift_downstream_zero();
+  if (head != 0U) {
+    const size_t last_slot = _h - 1;
+    _words[last_slot / 64] |= (1ULL << (last_slot % 64));
+  }
+}
+
+// Shift the state downstream by 1 without wrap-around (slot h - 1 is set to 0).
+
+void State::shift_downstream_zero()
+{
+  if (_h == 0) {
+    return;
+  }
+  const size_t words_used = (_h + 63) / 64;
+  for (size_t w = 0; w < words_used; ++w) {
+    _words[w] >>= 1;
+    if (w + 1 < words_used) {
+      _words[w] |= (_words[w + 1] << 63);
+    }
+  }
+}
+
+// Return a state shifted downstream by 1 without wrap-around.
+
+State State::downstream_zero() const
+{
+  State s = *this;
+  s.shift_downstream_zero();
+  return s;
 }
 
 // Return the next state downstream in the state's shift cycle.
@@ -120,12 +129,30 @@ State State::downstream() const
 
 void State::shift_upstream()
 {
-  if (_slot.empty()) {
+  if (_h == 0) {
     return;
   }
-  const unsigned tail = _slot.back();
-  std::memmove(_slot.data() + 1, _slot.data(), (_slot.size() - 1) * sizeof(unsigned));
-  _slot[0] = tail;
+  const size_t tail_slot = _h - 1;
+  const uint64_t tail = (_words[tail_slot / 64] >> (tail_slot % 64)) & 1ULL;
+
+  const size_t words_used = (_h + 63) / 64;
+  for (int w = static_cast<int>(words_used) - 1; w >= 0; --w) {
+    _words[w] <<= 1;
+    if (w > 0) {
+      _words[w] |= (_words[w - 1] >> 63);
+    }
+  }
+
+  // Clear any bits >= _h that might have been shifted into the top active word
+  if (_h % 64 != 0) {
+    const uint64_t mask = (1ULL << (_h % 64)) - 1;
+    _words[words_used - 1] &= mask;
+  }
+
+  // Put tail into slot 0
+  if (tail != 0U) {
+    _words[0] |= 1ULL;
+  }
 }
 
 // Return the next state upstream in the state's shift cycle.
@@ -141,8 +168,13 @@ State State::upstream() const
 
 State State::reverse() const
 {
-  State s = *this;
-  std::ranges::reverse(s._slot);
+  State s(_h);
+  for (size_t i = 0; i < _h; ++i) {
+    if (((_words[i / 64] >> (i % 64)) & 1ULL) != 0U) {
+      const size_t rev_i = _h - 1 - i;
+      s._words[rev_i / 64] |= (1ULL << (rev_i % 64));
+    }
+  }
   return s;
 }
 
@@ -153,11 +185,12 @@ State State::reverse() const
 
 int State::compare_same_size(const State& s2) const
 {
-  for (int i = static_cast<int>(_slot.size()) - 1; i >= 0; --i) {
-    if (_slot[i] < s2._slot[i]) {
+  const size_t words_used = (_h + 63) / 64;
+  for (int w = static_cast<int>(words_used) - 1; w >= 0; --w) {
+    if (_words[w] < s2._words[w]) {
       return -1;
     }
-    if (_slot[i] > s2._slot[i]) {
+    if (_words[w] > s2._words[w]) {
       return 1;
     }
   }
@@ -166,12 +199,20 @@ int State::compare_same_size(const State& s2) const
 
 bool State::operator==(const State& s2) const
 {
-  return (size() == s2.size() && _slot == s2._slot);
+  if (_h != s2._h) {
+    return false;
+  }
+  for (size_t w = 0; w < NUM_WORDS; ++w) {
+    if (_words[w] != s2._words[w]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool State::operator!=(const State& s2) const
 {
-  return (size() != s2.size() || _slot != s2._slot);
+  return !(*this == s2);
 }
 
 bool State::operator<(const State& s2) const
@@ -184,7 +225,8 @@ bool State::operator<(const State& s2) const
 std::string State::to_string() const
 {
   std::string result;
-  for (size_t i = 0; i < size(); ++i) {
+  result.reserve(_h);
+  for (size_t i = 0; i < _h; ++i) {
     result += (slot(i) != 0 ? 'x' : '-');
   }
   return result;
@@ -204,12 +246,14 @@ std::ostream& operator<<(std::ostream& ost, const State& s)
 bool state_compare(const State& s1, const State& s2)
 {
   unsigned b1 = 0;
-  for (size_t i = 0; i < s1.size(); ++i) {
-    b1 += s1.slot(i);
+  const size_t w1 = (s1._h + 63) / 64;
+  for (size_t w = 0; w < w1; ++w) {
+    b1 += std::popcount(s1._words[w]);
   }
   unsigned b2 = 0;
-  for (size_t i = 0; i < s2.size(); ++i) {
-    b2 += s2.slot(i);
+  const size_t w2 = (s2._h + 63) / 64;
+  for (size_t w = 0; w < w2; ++w) {
+    b2 += std::popcount(s2._words[w]);
   }
 
   if (b1 < b2) {
@@ -218,10 +262,10 @@ bool state_compare(const State& s1, const State& s2)
   if (b1 > b2) {
     return false;
   }
-  if (s1.size() < s2.size()) {
+  if (s1._h < s2._h) {
     return true;
   }
-  if (s1.size() > s2.size()) {
+  if (s1._h > s2._h) {
     return false;
   }
 

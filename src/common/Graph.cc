@@ -267,33 +267,32 @@ void Graph::build_graph_matrix()
   }
   maxoutdegree = std::min(maxoutdegree, h - b + 1);
   outdegree.assign(numstates + 1, 0);
-  outmatrix.resize(numstates + 1);
-  outthrowval.resize(numstates + 1);
-  for (size_t i = 0; i <= numstates; ++i) {
-    outmatrix.at(i).assign(maxoutdegree, 0);
-    outthrowval.at(i).assign(maxoutdegree, 0);
-  }
+  const size_t total_elements = static_cast<size_t>(numstates + 1) * maxoutdegree;
+  outmatrix.assign(total_elements, 0);
+  outthrowval.assign(total_elements, 0);
 
   auto process_range = [this](size_t start, size_t end) {
     State temp(h);
+    const size_t stride = maxoutdegree;
     for (size_t i = start; i < end; ++i) {
       const auto& s = state.at(i);
       unsigned outthrownum = 0;
+      const size_t row_offset = i * stride;
 
       if (s.slot(0) == 0) {
         if (!xarray.at(0)) {
-          std::memmove(temp.data(), s.data() + 1, (h - 1) * sizeof(unsigned));
-          temp.slot(h - 1) = 0;
+          temp = s;
+          temp.shift_downstream_zero();
           const auto k = get_statenum(temp);
           if (k != 0) {
-            outmatrix.at(i).at(outthrownum) = k;
-            outthrowval.at(i).at(outthrownum) = 0;
+            outmatrix[row_offset + outthrownum] = k;
+            outthrowval[row_offset + outthrownum] = 0;
             ++outthrownum;
           }
         }
       } else {
-        std::memmove(temp.data(), s.data() + 1, (h - 1) * sizeof(unsigned));
-        temp.slot(h - 1) = 0;
+        temp = s;
+        temp.shift_downstream_zero();
 
         for (unsigned throwval = h; throwval > 0; --throwval) {
           if (xarray.at(throwval)) {
@@ -308,8 +307,8 @@ void Graph::build_graph_matrix()
           temp.slot(throwval - 1) = 0;
 
           if (k != 0) {
-            outmatrix.at(i).at(outthrownum) = k;
-            outthrowval.at(i).at(outthrownum) = throwval;
+            outmatrix[row_offset + outthrownum] = k;
+            outthrowval[row_offset + outthrownum] = throwval;
             ++outthrownum;
           }
         }
@@ -357,7 +356,7 @@ void Graph::find_max_startstate_usable()
   for (unsigned u = 1; u <= numstates; ++u) {
     out_degree.at(u) = outdegree.at(u);
     for (unsigned col = 0; col < outdegree.at(u); ++col) {
-      const auto v = outmatrix.at(u).at(col);
+      const auto v = outmatrix_at(u, col);
       if (v != 0) {
         ++in_degree.at(v);
         in_matrix.at(v).push_back(u);
@@ -381,7 +380,7 @@ void Graph::find_max_startstate_usable()
       q.pop();
 
       for (unsigned col = 0; col < outdegree.at(curr); ++col) {
-        const auto v = outmatrix.at(curr).at(col);
+        const auto v = outmatrix_at(curr, col);
         if (v != 0 && !removed.at(v)) {
           if (--in_degree.at(v) == 0) {
             removed.at(v) = true;
@@ -441,7 +440,7 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
       }
       unsigned outthrownum = 0;
       for (size_t j = 0; j < outdegree.at(i); ++j) {
-        if (state_usable.at(outmatrix.at(i).at(j))) {
+        if (state_usable.at(outmatrix_at(i, j))) {
           ++outthrownum;
         }
       }
@@ -465,7 +464,7 @@ void Graph::update_usable_states(std::vector<bool>& state_usable) const
       }
 
       for (size_t j = 0; j < outdegree.at(i); ++j) {
-        ++usable_indegree.at(outmatrix.at(i).at(j));
+        ++usable_indegree.at(outmatrix_at(i, j));
       }
     }
 
@@ -540,10 +539,10 @@ void Graph::validate_graph(bool ground_only)
 
     unsigned outthrownum = 0;
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      const auto newsn = newstatenum.at(outmatrix.at(i).at(j));
+      const auto newsn = newstatenum.at(outmatrix_at(i, j));
       if (newsn != 0) {
-        outmatrix.at(newi).at(outthrownum) = newsn;
-        outthrowval.at(newi).at(outthrownum) = outthrowval.at(i).at(j);
+        outmatrix_at(newi, outthrownum) = newsn;
+        outthrowval_at(newi, outthrownum) = outthrowval_at(i, j);
         ++outthrownum;
       }
     }
@@ -552,12 +551,13 @@ void Graph::validate_graph(bool ground_only)
     new_maxoutdegree = std::max(new_maxoutdegree, outthrownum);
 
     for (size_t j = outthrownum; j < maxoutdegree; ++j) {
-      outmatrix.at(newi).at(j) = 0;
-      outthrowval.at(newi).at(j) = 0;
+      outmatrix_at(newi, j) = 0;
+      outthrowval_at(newi, j) = 0;
     }
   }
 
   numstates = statenum - 1;
+  const unsigned old_maxoutdegree = maxoutdegree;
   maxoutdegree = new_maxoutdegree;
   // State is not default constructable
   state.erase(state.begin() + numstates + 1, state.end());
@@ -566,12 +566,18 @@ void Graph::validate_graph(bool ground_only)
     cyclenum.resize(numstates + 1);
   }
   outdegree.resize(numstates + 1);
-  outmatrix.resize(numstates + 1);
-  outthrowval.resize(numstates + 1);
-  for (size_t i = 0; i <= numstates; ++i) {
-    outmatrix.at(i).resize(maxoutdegree);
-    outthrowval.at(i).resize(maxoutdegree);
+
+  if (new_maxoutdegree < old_maxoutdegree) {
+    for (size_t k = 1; k <= numstates; ++k) {
+      for (size_t col = 0; col < new_maxoutdegree; ++col) {
+        outmatrix[k * new_maxoutdegree + col] = outmatrix[k * old_maxoutdegree + col];
+        outthrowval[k * new_maxoutdegree + col] = outthrowval[k * old_maxoutdegree + col];
+      }
+    }
   }
+  const size_t total_elements = static_cast<size_t>(numstates + 1) * maxoutdegree;
+  outmatrix.resize(total_elements);
+  outthrowval.resize(total_elements);
 
   if (ground_only) {
     max_startstate_usable.assign(numstates + 1, 1);
@@ -593,7 +599,7 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 
   for (size_t i = start_state + 1; i <= numstates; ++i) {
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      if (outmatrix.at(i).at(j) == start_state) {
+      if (outmatrix_at(i, j) == start_state) {
         isexitcycle.at(cyclenum.at(i)) = 1;
       }
     }
@@ -878,7 +884,7 @@ std::string Graph::to_string() const
   for (size_t i = 1; i <= numstates; ++i) {
     buffer << "  " << i << " -> { ";
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      buffer << outmatrix.at(i).at(j);
+      buffer << outmatrix_at(i, j);
       if (j < outdegree.at(i) - 1) {
         buffer << ", ";
       }
@@ -895,7 +901,7 @@ std::string Graph::to_string() const
   for (size_t i = 1; i <= numstates; ++i) {
     buffer << "  " << i << " -> { ";
     for (size_t j = 0; j < outdegree.at(i); ++j) {
-      buffer << outthrowval.at(i).at(j);
+      buffer << outthrowval_at(i, j);
       if (j < outdegree.at(i) - 1) {
         buffer << ", ";
       }

@@ -208,8 +208,9 @@ bool Coordinator::passes_prechecks()
   const bool period_error = (context.full_numstates > 0 &&
                              n_requested > context.n_bound);
   const bool memory_error = (context.memory_numstates > MAX_STATES);
+  const bool h_error = (config.h > State::MAX_BITS);
 
-  if (!config.infoflag && !period_error && !memory_error) {
+  if (!config.infoflag && !period_error && !memory_error && !h_error) {
     return true;
   }
 
@@ -223,6 +224,12 @@ bool Coordinator::passes_prechecks()
     jpout << std::format(
                "ERROR: Number of states {} exceeds memory limit of {}\n",
                context.memory_numstates, MAX_STATES);
+  }
+  if (h_error) {
+    jpout << std::format(
+               "ERROR: State size h = {} exceeds maximum supported size ({});\n"
+               "Increase State::NUM_WORDS in src/common/State.h and recompile\n",
+               config.h, State::MAX_BITS);
   }
   return false;
 }
@@ -302,16 +309,16 @@ void Coordinator::customize_graph(Graph& g) const
       unsigned outthrownum = 0;
 
       for (size_t j = 0; j < g.outdegree.at(i); ++j) {
-        const auto tv = g.outthrowval.at(i).at(j);
-        if (g.cyclenum.at(g.outmatrix.at(i).at(j)) ==
+        const auto tv = g.outthrowval_at(i, j);
+        if (g.cyclenum.at(g.outmatrix_at(i, j)) ==
             g.cyclenum.at(i) && tv != 0 && tv != config.h) {
           continue;
         }
 
         // throw is allowed
         if (outthrownum != j) {
-          g.outmatrix.at(i).at(outthrownum) = g.outmatrix.at(i).at(j);
-          g.outthrowval.at(i).at(outthrownum) = tv;
+          g.outmatrix_at(i, outthrownum) = g.outmatrix_at(i, j);
+          g.outthrowval_at(i, outthrownum) = tv;
         }
         ++outthrownum;
       }
@@ -368,7 +375,7 @@ void Coordinator::customize_graph(Graph& g) const
         auto s = g.downstream_state(i);
         if (s != 0) {
           for (size_t j = 0; j < g.outdegree.at(s); ++j) {
-            if (g.outmatrix.at(s).at(j) == k) {
+            if (g.outmatrix_at(s, j) == k) {
               allowed_to_shift_throw = true;
             }
           }
@@ -376,7 +383,7 @@ void Coordinator::customize_graph(Graph& g) const
 
         // does (x-)^b have a throw into i ?
         for (size_t j = 0; j < g.outdegree.at(k); ++j) {
-          if (g.outmatrix.at(k).at(j) == i) {
+          if (g.outmatrix_at(k, j) == i) {
             allowed_to_shift_throw = true;
           }
         }
@@ -389,13 +396,13 @@ void Coordinator::customize_graph(Graph& g) const
         // otherwise remove it
         unsigned outthrownum = 0;
         for (size_t j = 0; j < g.outdegree.at(i); ++j) {
-          const auto tv = g.outthrowval.at(i).at(j);
+          const auto tv = g.outthrowval_at(i, j);
           if (tv == 0 || tv == config.h) {
             continue;
           }
 
-          g.outmatrix.at(i).at(outthrownum) = g.outmatrix.at(i).at(j);
-          g.outthrowval.at(i).at(outthrownum) = tv;
+          g.outmatrix_at(i, outthrownum) = g.outmatrix_at(i, j);
+          g.outthrowval_at(i, outthrownum) = tv;
           ++outthrownum;
         }
         g.outdegree.at(i) = outthrownum;

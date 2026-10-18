@@ -283,12 +283,12 @@ void Worker::send_stats_to_coordinator()
 
     bool found = false;
     for (unsigned col = 0; col < graph.outdegree.at(from_state); ++col) {
-      const auto throwval = graph.outthrowval.at(from_state).at(col);
-      if (throwval != static_cast<unsigned>(pattern.at(i))) {
+      const auto throwval = graph.outthrowval_at(from_state, col);
+      if (std::cmp_not_equal(throwval, pattern.at(i))) {
         continue;
       }
 
-      const auto to_state = graph.outmatrix.at(from_state).at(col);
+      const auto to_state = graph.outmatrix_at(from_state, col);
       assert(to_state > 0);
       assert(!u.at(to_state));
 

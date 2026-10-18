@@ -96,7 +96,7 @@ void WorkAssignment::build_rootpos_throw_options(const Graph& graph,
   root_throwval_options.clear();
   for (unsigned col = start_column; col < graph.outdegree.at(from_state);
       ++col) {
-    root_throwval_options.push_back(graph.outthrowval.at(from_state).at(col));
+    root_throwval_options.push_back(graph.outthrowval_at(from_state, col));
   }
 }
 
@@ -210,7 +210,7 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
 
     const auto tv = partial_pattern.at(i);
     for (wc.col = 0; wc.col < wc.col_limit; ++wc.col) {
-      if (graph.outthrowval.at(wc.from_state).at(wc.col) == tv) {
+      if (graph.outthrowval_at(wc.from_state, wc.col) == tv) {
         break;
       }
     }
@@ -236,8 +236,8 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
                 << "links from state " << wc.from_state << ":\n";
       for (size_t j = 0; j < graph.outdegree.at(wc.from_state); ++j) {
         std::cerr << "col=" << j << ", throwval="
-                  << graph.outthrowval.at(wc.from_state).at(j)
-                  << ", to_state=" << graph.outmatrix.at(wc.from_state).at(j)
+                  << graph.outthrowval_at(wc.from_state, j)
+                  << ", to_state=" << graph.outmatrix_at(wc.from_state, j)
                   << '\n';
       }
     }
@@ -249,7 +249,7 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
 
     ws->set_cell(slot, static_cast<unsigned>(i), wc.col, wc.col_limit,
         wc.from_state);
-    from_state = graph.outmatrix.at(wc.from_state).at(wc.col);
+    from_state = graph.outmatrix_at(wc.from_state, wc.col);
   }
 
   if (partial_pattern.empty() || pos < static_cast<int>(root_pos)) {
@@ -271,7 +271,7 @@ void WorkAssignment::to_workspace(WorkSpace* ws, unsigned slot) const
     auto [col, col_limit, fr_state] = ws->get_cell(slot, root_pos);
     col_limit = 0;
     for (size_t i = 0; i < graph.outdegree.at(fr_state); ++i) {
-      const unsigned tv = graph.outthrowval.at(fr_state).at(i);
+      const unsigned tv = graph.outthrowval_at(fr_state, i);
       if (std::find(root_throwval_options.cbegin(),
           root_throwval_options.cend(), tv) != root_throwval_options.cend()) {
         col_limit = std::max(col_limit, static_cast<unsigned>(i + 1));
@@ -308,13 +308,13 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
     auto [col, col_limit, fr_state] = ws->get_cell(slot, i);
     assert(fr_state == from_state);
 
-    partial_pattern.push_back(graph.outthrowval.at(from_state).at(col));
+    partial_pattern.push_back(graph.outthrowval_at(from_state, col));
 
     col_limit = std::min(graph.outdegree.at(from_state), col_limit);
     if (root_pos == -1U && col < col_limit - 1) {
       root_pos = i;
     }
-    from_state = graph.outmatrix.at(from_state).at(col);
+    from_state = graph.outmatrix_at(from_state, col);
   }
 
   // find `root_throwval_options`
@@ -332,7 +332,7 @@ void WorkAssignment::from_workspace(const WorkSpace* ws, unsigned slot)
 
     for (size_t col = rwc_col + 1; col < rwc_col_limit; ++col) {
       root_throwval_options.push_back(
-          graph.outthrowval.at(rwc_fr_state).at(col));
+          graph.outthrowval_at(rwc_fr_state, col));
     }
     assert(get_type() == Type::SPLITTABLE);
   }
@@ -468,7 +468,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
     for (unsigned i = 0; i < partial_pattern.size(); ++i) {
       const auto tv = static_cast<unsigned>(partial_pattern.at(i));
       for (col = 0; col < graph.outdegree.at(from_state); ++col) {
-        if (graph.outthrowval.at(from_state).at(col) == tv) {
+        if (graph.outthrowval_at(from_state, col) == tv) {
           break;
         }
       }
@@ -479,7 +479,7 @@ WorkAssignment WorkAssignment::split_takefraction(const Graph& graph, double f)
         break;
       }
 
-      from_state = graph.outmatrix.at(from_state).at(col);
+      from_state = graph.outmatrix_at(from_state, col);
     }
 
     if (new_root_pos == -1U) {
