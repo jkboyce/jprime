@@ -229,13 +229,6 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
   // in NORMAL_MARKING mode, append a list of excluded states to the graph
   std::vector<statenum_t> exclude_buffer;
-  std::vector<std::vector<unsigned>> excludestates_tail;
-  std::vector<std::vector<unsigned>> excludestates_head;
-  if (alg == SearchAlgorithm::NORMAL_MARKING) {
-    assert(graph.has_shift_cycles());
-    std::tie(excludestates_tail, excludestates_head) =
-        graph.get_exclude_states();
-  }
   uint32_t exclude_offset = (graph.numstates + 1) * (graph.maxoutdegree + 5);
 
   for (unsigned i = 0; i <= graph.numstates; ++i) {
@@ -259,14 +252,14 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
 
     // indexes to lists of excluded states
     if (alg == SearchAlgorithm::NORMAL_MARKING) {
-      if (excludestates_tail.at(i).at(0) == 0) {
+      if (graph.excludestates_tail.at(i).at(0) == 0) {
         buffer.push_back(0);
         buffer.push_back(0);
       } else {
         buffer.push_back(static_cast<statenum_t>(exclude_offset & 0xFFFF));
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
-        for (auto s : excludestates_tail.at(i)) {
+        for (auto s : graph.excludestates_tail.at(i)) {
           if (s == 0) {
             break;
           }
@@ -276,14 +269,14 @@ std::vector<statenum_t> CoordinatorCUDA::make_graph_buffer()
         exclude_buffer.push_back(0);
         ++exclude_offset;
       }
-      if (excludestates_head.at(i).at(0) == 0) {
+      if (graph.excludestates_head.at(i).at(0) == 0) {
         buffer.push_back(0);
         buffer.push_back(0);
       } else {
         buffer.push_back(static_cast<statenum_t>(exclude_offset & 0xFFFF));
         buffer.push_back(static_cast<statenum_t>
             ((exclude_offset >> 16) & 0xFFFF));
-        for (auto s : excludestates_head.at(i)) {
+        for (auto s : graph.excludestates_head.at(i)) {
           if (s == 0) {
             break;
           }
@@ -879,7 +872,7 @@ void CoordinatorCUDA::compute_max_pos_usable(unsigned slot,
 
   const State& target = graph.state.at(start_state);
   for (size_t i = start_state; i <= graph.numstates; ++i) {
-    if (start_state > graph.max_startstate_usable.at(i)) {
+    if (!graph.is_usable_for_startstate(i, start_state)) {
       continue;
     }
     const unsigned dist = Graph::min_distance(graph.state.at(i), target);

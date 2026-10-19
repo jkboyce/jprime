@@ -63,16 +63,16 @@ void Worker::iterative_gen_loops_normal()
   const unsigned stride = graph.maxoutdegree;
 
   // marking-related items
-  std::vector<unsigned*> es_tail_row;
+  std::vector<const unsigned*> es_tail_row;
   unsigned** ds_bystate = nullptr;
   if constexpr (MARKING) {
     es_tail_row.resize(graph.numstates + 1, nullptr);
     for (size_t i = 0; i <= graph.numstates; ++i) {
-      es_tail_row.at(i) = excludestates_tail.at(i).data();
+      es_tail_row.at(i) = graph.excludestates_tail.at(i).data();
     }
     ds_bystate = deadstates_bystate.data();
   }
-  unsigned** const es_tail = es_tail_row.data();
+  const unsigned* const* const es_tail = es_tail_row.data();
 
   // local variables to improve performance
   unsigned p = pos;
@@ -83,7 +83,7 @@ void Worker::iterative_gen_loops_normal()
   unsigned steps_limit = steps_per_inbox_check;
   const unsigned st_state = start_state;
   const uint16_t* const outdegree = graph.outdegree.data();
-  const unsigned* const max_pos = max_pos_usable.data();
+  const uint16_t* const min_dist = min_distance_to_start.data();
   std::uint64_t* const c = count.data();
 
   WorkCell* wc = &beat.at(pos);
@@ -159,7 +159,7 @@ void Worker::iterative_gen_loops_normal()
           mark_any_link_throw = false;  // switch to marking only when col == 1
         }
 
-        unsigned* es = es_tail[from_state];
+        const unsigned* es = es_tail[from_state];
         wc->excludes_tail = es;  // save for backtracking
 
         if (!mark(u, es, ds_bystate[from_state])) {
@@ -208,7 +208,7 @@ void Worker::iterative_gen_loops_normal()
         continue;
       }
     } else {
-      if (p + 1 > max_pos[to_state]) {
+      if (p + min_dist[to_state] >= nmax) {
         if constexpr (REPLAY) {
           assert(false);
         }
@@ -220,7 +220,7 @@ void Worker::iterative_gen_loops_normal()
     if constexpr (MARKING) {
       if (wc->col != 0) {  // link throw
         // mark states excluded by the head
-        unsigned* es = excludestates_head[to_state].data();
+        const unsigned* es = graph.excludestates_head[to_state].data();
         unsigned* const ds = ds_bystate[to_state];
         wc->excludes_head = es;
 
@@ -276,8 +276,10 @@ void Worker::iterative_gen_loops_normal()
       wc->col_limit = outdegree[to_state];
       wc->from_state = to_state;
     }
-    wc->excludes_tail = nullptr;
-    wc->excludes_head = nullptr;
+    if constexpr (MARKING) {
+      wc->excludes_tail = nullptr;
+      wc->excludes_head = nullptr;
+    }
     from_state = to_state;
     if constexpr (MARKING && !REPLAY) {
       mark_any_link_throw = false;
@@ -299,7 +301,7 @@ void Worker::iterative_gen_loops_normal()
 //
 // See comments for the analagous functions in GenLoopsRecursive.cc
 
-inline bool Worker::mark(uint8_t* const& u, unsigned*& es, unsigned* const& ds)
+inline bool Worker::mark(uint8_t* const& u, const unsigned* es, unsigned* const& ds)
 {
   bool valid = true;
   for (unsigned statenum; (statenum = *es) != 0; ++es) {
@@ -312,7 +314,7 @@ inline bool Worker::mark(uint8_t* const& u, unsigned*& es, unsigned* const& ds)
   return valid;
 }
 
-inline void Worker::unmark(uint8_t* const& u, unsigned*& es, unsigned* const& ds)
+inline void Worker::unmark(uint8_t* const& u, const unsigned* es, unsigned* const& ds)
 {
   if (es != nullptr) {
     for (unsigned statenum; (statenum = *es) != 0; ++es) {
@@ -321,7 +323,6 @@ inline void Worker::unmark(uint8_t* const& u, unsigned*& es, unsigned* const& ds
         ++max_possible;
       }
     }
-    es = nullptr;
   }
 }
 
@@ -358,12 +359,13 @@ void Worker::iterative_gen_loops_super()
 
   unsigned p = pos;
   uint64_t nn = nnodes;
+  const unsigned nmax = n_max;
   uint8_t* const u = used.data();
   unsigned steps = 0;
   uint8_t* const cu = cycleused.data();
   const uint16_t* const outdegree = graph.outdegree.data();
   const unsigned* const cyclenum = graph.cyclenum.data();
-  const unsigned* const max_pos = max_pos_usable.data();
+  const uint16_t* const min_dist = min_distance_to_start.data();
   int* const iec = isexitcycle.data();
 
   WorkCell* wc = &beat.at(pos);
@@ -463,7 +465,7 @@ void Worker::iterative_gen_loops_super()
         continue;
       }
 
-      if (p + 1 > max_pos[to_state]) {
+      if (p + min_dist[to_state] >= nmax) {
         if constexpr (REPLAY) {
           assert(false);
         }
@@ -522,7 +524,7 @@ void Worker::iterative_gen_loops_super()
         continue;
       }
 
-      if (p + 1 > max_pos[to_state]) {
+      if (p + min_dist[to_state] >= nmax) {
         if constexpr (REPLAY) {
           assert(false);
         }

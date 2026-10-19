@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cassert>
 #include <format>
+#include <limits>
 
 
 CoordinatorCPU::CoordinatorCPU(SearchConfig& a, SearchContext& b,
@@ -264,6 +265,8 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
   workers_idle.insert(msg.worker_id);
   record_data_from_message(msg);
   worker_rootpos.at(msg.worker_id) = 0;
+  worker_startstate.at(msg.worker_id) = 0;
+  worker_endstate.at(msg.worker_id) = 0;
   if (config.statusflag) {
     longest_by_worker_ever.at(msg.worker_id) = 0;
     longest_by_worker_current.at(msg.worker_id) = 0;
@@ -284,6 +287,8 @@ void CoordinatorCPU::process_worker_idle(const MessageW2C& msg)
   // If we have a SPLIT_WORK request out for the worker, it will be ignored.
   // Remove it from the list of workers we're expecting to return work.
   workers_splitting.erase(msg.worker_id);
+
+  purge_min_distance_to_start();
 }
 
 // Handle a work assignment sent back from a worker.
@@ -438,6 +443,10 @@ void CoordinatorCPU::process_worker_update(const MessageW2C& msg)
     }
     buffer << " on: " << current_time_string();
     print_string(buffer.str());
+  }
+
+  if (startstate_changed) {
+    purge_min_distance_to_start();
   }
 }
 
@@ -672,4 +681,88 @@ std::string CoordinatorCPU::make_worker_status(const MessageW2C& msg)
   longest_by_worker_current.at(id) = 0;
 
   return buffer.str();
+}
+
+//------------------------------------------------------------------------------
+// Manage min_distance_to_start arrays
+//------------------------------------------------------------------------------
+
+// Return a const reference to the min_distance_to_start vector for `start_state`.
+// If not already cached, construct it.
+
+const std::vector<uint16_t>& CoordinatorCPU::get_min_distance_to_start(
+    unsigned start_state)
+{
+  std::unique_lock<std::mutex> lck(min_distance_lock);
+  for (const auto& pair : min_distance_list) {
+    if (pair.first == start_state) {
+      return pair.second;
+    }
+  }
+
+  min_distance_list.emplace_back(start_state,
+      std::vector<uint16_t>(graph.numstates + 1,
+          std::numeric_limits<uint16_t>::max()));
+  auto& dist = min_distance_list.back().second;
+
+  const State& target = graph.state.at(start_state);
+  for (size_t i = start_state; i <= graph.numstates; ++i) {
+    if (!graph.is_usable_for_startstate(i, start_state)) {
+      continue;
+    }
+    dist.at(i) = static_cast<uint16_t>(
+        Graph::min_distance(graph.state.at(i), target));
+  }
+
+  return dist;
+}
+
+// Check cached min_distance_to_start vectors and purge any that are no longer
+// in use by active workers and will not be needed by pending assignments.
+
+void CoordinatorCPU::purge_min_distance_to_start()
+{
+  std::unique_lock<std::mutex> lck(min_distance_lock);
+  auto it = min_distance_list.begin();
+  while (it != min_distance_list.end()) {
+    const unsigned s = it->first;
+    bool in_use = false;
+
+    // 1. Check active (non-idle) workers
+    for (unsigned id = 0; id < config.num_threads; ++id) {
+      if (!is_worker_idle(id)) {
+        if (s >= worker_startstate.at(id) && s <= worker_endstate.at(id)) {
+          in_use = true;
+          break;
+        }
+      }
+    }
+
+    // 2. Check pending work assignments
+    if (!in_use) {
+      for (const auto& wa : context.assignments) {
+        if (wa.get_type() == WorkAssignment::Type::STARTUP) {
+          const unsigned start_min = (config.groundmode ==
+              SearchConfig::GroundMode::EXCITED_SEARCH ? 2 : 1);
+          const unsigned start_max = (config.groundmode ==
+              SearchConfig::GroundMode::GROUND_SEARCH ? 1 : graph.numstates);
+          if (s >= start_min && s <= start_max) {
+            in_use = true;
+            break;
+          }
+        } else {
+          if (s >= wa.start_state && s <= wa.end_state) {
+            in_use = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!in_use) {
+      it = min_distance_list.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }

@@ -23,6 +23,8 @@
 #include <vector>
 #include <string>
 #include <thread>
+#include <list>
+#include <cstdint>
 
 
 class CoordinatorCPU : public Coordinator {
@@ -33,6 +35,9 @@ class CoordinatorCPU : public Coordinator {
   // for communicating with workers
   std::queue<MessageW2C> inbox;
   std::mutex inbox_lock;
+
+  // min_distance_to_start cache for workers
+  const std::vector<uint16_t>& get_min_distance_to_start(unsigned start_state);
 
  protected:
   // workers
@@ -84,6 +89,11 @@ class CoordinatorCPU : public Coordinator {
   // manage worker status
   void record_data_from_message(const MessageW2C& msg);
   std::string make_worker_status(const MessageW2C& msg);
+
+  // min_distance_to_start cache
+  std::list<std::pair<unsigned, std::vector<uint16_t>>> min_distance_list;
+  std::mutex min_distance_lock;
+  void purge_min_distance_to_start();
 };
 
 #endif

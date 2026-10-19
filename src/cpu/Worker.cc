@@ -110,10 +110,6 @@ void Worker::initialize()
     assert(graph.has_shift_cycles());
     deadstates.assign(graph.numcycles, 0);
     deadstates_bystate.assign(graph.numstates + 1, nullptr);
-    std::tie(excludestates_tail, excludestates_head) =
-        graph.get_exclude_states();
-  } else {
-    max_pos_usable.assign(graph.numstates + 1, 0);
   }
 }
 
@@ -272,7 +268,7 @@ void Worker::send_stats_to_coordinator()
   if (coordinator.get_search_algorithm() ==
       Coordinator::SearchAlgorithm::NORMAL_MARKING) {
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      if (start_state > graph.max_startstate_usable.at(i)) {
+      if (!graph.is_usable_for_startstate(i, start_state)) {
         u.at(i) = 1;
       }
     }
@@ -310,11 +306,11 @@ void Worker::send_stats_to_coordinator()
 
       // number of deadstates induced by a link throw, above the
       // one-per-shift cycle baseline
-      if (!excludestates_tail.empty() && throwval != 0 &&
+      if (graph.has_exclude_states() && throwval != 0 &&
           throwval != graph.h) {
         // throw
         for (size_t j = 0; ; ++j) {
-          auto es = excludestates_tail.at(from_state).at(j);
+          auto es = graph.excludestates_tail.at(from_state).at(j);
           if (es == 0) {
             break;
           }
@@ -326,7 +322,7 @@ void Worker::send_stats_to_coordinator()
 
         // catch
         for (size_t j = 0; ; ++j) {
-          auto es = excludestates_head.at(to_state).at(j);
+          auto es = graph.excludestates_head.at(to_state).at(j);
           if (es == 0) {
             break;
           }
@@ -422,6 +418,7 @@ WorkAssignment Worker::get_work_assignment() const
 
 void Worker::notify_coordinator_idle()
 {
+  min_distance_to_start = {};
   MessageW2C msg;
   msg.type = MessageW2C::Type::WORKER_IDLE;
   add_data_to_message(msg);
@@ -468,7 +465,7 @@ void Worker::do_work_assignment()
       if (config.verboseflag) {
         unsigned num_inactive = 0;
         for (size_t i = 1; i <= graph.numstates; ++i) {
-          if (start_state > graph.max_startstate_usable.at(i)) {
+          if (!graph.is_usable_for_startstate(i, start_state)) {
             ++num_inactive;
           }
         }
@@ -613,12 +610,12 @@ void Worker::initialize_working_variables()
     // Worker::mark_unreachable_states_tail()
     for (size_t i = 1; i < start_state; ++i) {
       used.at(i) = 1;
-      for (auto s : excludestates_tail.at(i)) {
+      for (auto s : graph.excludestates_tail.at(i)) {
         if (s != 0) {
           used.at(s) = 1;
         }
       }
-      for (auto s : excludestates_head.at(i)) {
+      for (auto s : graph.excludestates_head.at(i)) {
         if (s != 0) {
           used.at(s) = 1;
         }
@@ -631,7 +628,7 @@ void Worker::initialize_working_variables()
     for (size_t i = 1; i <= graph.numstates; ++i) {
       // assert equivalence of two ways of determining unusable graph states
       assert ((used.at(i) == 1) ==
-          (start_state > graph.max_startstate_usable.at(i)));
+          !graph.is_usable_for_startstate(i, start_state));
 
       deadstates_bystate.at(i) = deadstates.data() + graph.cyclenum.at(i);
       if (used.at(i) == 1) {
@@ -662,11 +659,13 @@ void Worker::initialize_working_variables()
     decreases node count by ~1%. It adds complexity to the GPU code though.
 
     for (size_t i = 1; i <= graph.numstates; ++i) {
-      if (start_state > graph.max_startstate_usable.at(i)) {
+      if (!graph.is_usable_for_startstate(i, start_state)) {
         used.at(i) = 1;
       }
     }
     */
+
+    min_distance_to_start = coordinator.get_min_distance_to_start(start_state);
   }
 
   if (config.mode == SearchConfig::RunMode::SUPER_SEARCH) {
@@ -676,21 +675,6 @@ void Worker::initialize_working_variables()
     isexitcycle = graph.get_exit_cycles(start_state);
     exitcyclesleft = static_cast<unsigned>(std::count(isexitcycle.cbegin(),
         isexitcycle.cend(), 1));
-  }
-
-  if (coordinator.get_search_algorithm() !=
-      Coordinator::SearchAlgorithm::NORMAL_MARKING &&
-      max_pos_usable_start_state != start_state) {
-    max_pos_usable.assign(graph.numstates + 1, 0);
-    const State& target = graph.state.at(start_state);
-    for (size_t i = start_state; i <= graph.numstates; ++i) {
-      if (start_state > graph.max_startstate_usable.at(i)) {
-        continue;
-      }
-      const unsigned dist = Graph::min_distance(graph.state.at(i), target);
-      max_pos_usable.at(i) = (n_max >= dist) ? (n_max - dist) : 0;
-    }
-    max_pos_usable_start_state = start_state;
   }
 }
 

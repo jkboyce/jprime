@@ -81,7 +81,6 @@ void Graph::initialize()
   assert(state.size() == numstates + 1);
 
   build_graph_matrix();
-  max_startstate_usable.assign(numstates + 1, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -579,10 +578,7 @@ void Graph::validate_graph(bool ground_only)
   outmatrix.resize(total_elements);
   outthrowval.resize(total_elements);
 
-  if (ground_only) {
-    max_startstate_usable.assign(numstates + 1, 1);
-    max_startstate_usable.at(0) = 0;
-  } else {
+  if (!ground_only) {
     find_max_startstate_usable();
   }
 }
@@ -615,12 +611,9 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 //
 // This should be called after validate_graph() and before gen_loops().
 
-std::tuple<std::vector<std::vector<unsigned>>,
-    std::vector<std::vector<unsigned>>> Graph::get_exclude_states() const
+void Graph::build_exclude_states()
 {
-  std::vector<std::vector<unsigned>> excludestates_tail;
-  std::vector<std::vector<unsigned>> excludestates_head;
-
+  assert(has_shift_cycles());
   excludestates_tail.resize(numstates + 1);
   excludestates_head.resize(numstates + 1);
   for (size_t i = 0; i <= numstates; ++i) {
@@ -665,8 +658,6 @@ std::tuple<std::vector<std::vector<unsigned>>,
     }
     excludestates_head.at(i).at(j) = 0;
   }
-
-  return make_tuple(excludestates_tail, excludestates_head);
 }
 
 //------------------------------------------------------------------------------
@@ -689,7 +680,7 @@ unsigned Graph::prime_period_bound(unsigned start_state) const
 
   std::vector<unsigned> num_active(numcycles, 0);
   for (size_t i = start_state; i <= numstates; ++i) {
-    if (start_state <= max_startstate_usable.at(i)) {
+    if (is_usable_for_startstate(i, start_state)) {
       ++num_active.at(cyclenum.at(i));
     }
   }
@@ -720,7 +711,7 @@ unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
 
   std::vector<bool> any_active(numcycles, false);
   for (size_t i = start_state; i <= numstates; ++i) {
-    if (start_state <= max_startstate_usable.at(i)) {
+    if (is_usable_for_startstate(i, start_state)) {
       any_active.at(cyclenum.at(i)) = true;
     }
   }

@@ -84,6 +84,15 @@ class Graph {
     return outthrowval[statenum * maxoutdegree + col];
   }
 
+  // excluded states for NORMAL_MARKING mode
+  std::vector<std::vector<unsigned>> excludestates_tail;
+  std::vector<std::vector<unsigned>> excludestates_head;
+
+  bool has_exclude_states() const
+  {
+    return !excludestates_tail.empty();
+  }
+
  private:
   void initialize();
   static void gen_states_all(std::vector<State>& s, unsigned b, unsigned h);
@@ -97,9 +106,13 @@ class Graph {
   unsigned find_shift_cycles();
   bool has_shift_cycles() const { return numcycles > 0; }
   void validate_graph(bool ground_only = false);
+  bool is_usable_for_startstate(size_t statenum, unsigned start_state) const
+  {
+    return max_startstate_usable.empty() ||
+           start_state <= max_startstate_usable.at(statenum);
+  }
   std::vector<int> get_exit_cycles(unsigned start_state) const;
-  std::tuple<std::vector<std::vector<unsigned>>,
-    std::vector<std::vector<unsigned>>> get_exclude_states() const;
+  void build_exclude_states();
   unsigned prime_period_bound(unsigned start_state) const;
   unsigned superprime_period_bound(unsigned start_state, unsigned shifts = -1U)
     const;

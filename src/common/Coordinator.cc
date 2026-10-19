@@ -259,11 +259,19 @@ void Coordinator::initialize_graph()
     alg = SearchAlgorithm::NORMAL;
   }
 
+  if (alg == SearchAlgorithm::NORMAL_MARKING) {
+    graph.build_exclude_states();
+  }
+
   // build table of maximum pattern length by start_state
+  const unsigned start_state_limit =
+      (config.groundmode == SearchConfig::GroundMode::GROUND_SEARCH)
+      ? 1 : graph.numstates;
+  max_length.reserve(start_state_limit + 1);
   max_length.push_back(-1);
-  for (unsigned start_state = 1; start_state <= graph.numstates;
+  for (unsigned start_state = 1; start_state <= start_state_limit;
       ++start_state) {
-    if (start_state > graph.max_startstate_usable.at(start_state)) {
+    if (!graph.is_usable_for_startstate(start_state, start_state)) {
       max_length.push_back(-1);
       continue;
     }

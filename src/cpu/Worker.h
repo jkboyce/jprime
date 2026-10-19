@@ -24,6 +24,7 @@
 #include <vector>
 #include <chrono>
 #include <cstdint>
+#include <span>
 
 
 class CoordinatorCPU;
@@ -47,8 +48,6 @@ class Worker : public WorkSpace {
   const unsigned n_min;  // minimum period to find
   const unsigned n_max;  // maximum period
   const Graph& graph;
-  std::vector<std::vector<unsigned>> excludestates_tail;
-  std::vector<std::vector<unsigned>> excludestates_head;
 
   // working variables for search
   std::vector<WorkCell> beat;  // workspace for iterative search
@@ -58,8 +57,7 @@ class Worker : public WorkSpace {
   std::vector<unsigned> deadstates;  // indexed by shift cycle number
   std::vector<unsigned*> deadstates_bystate;  // indexed by state number
   std::vector<int> isexitcycle;
-  std::vector<unsigned> max_pos_usable;  // max `pos` for each state
-  unsigned max_pos_usable_start_state = 0;
+  std::span<const uint16_t> min_distance_to_start;  // min hops to `start_state`
   int pos = 0;  // current index in the pattern
   unsigned from = 1;  // current state number
   unsigned shiftcount = 0;
@@ -129,8 +127,8 @@ class Worker : public WorkSpace {
   // iterative search routines; defined in GenLoopsIterative.cc
   template<bool MARKING, bool REPORT, bool REPLAY>
     void iterative_gen_loops_normal();
-  bool mark(uint8_t* const& u, unsigned*& es, unsigned* const& ds);
-  void unmark(uint8_t* const& u, unsigned*& es, unsigned* const& ds);
+  bool mark(uint8_t* const& u, const unsigned* es, unsigned* const& ds);
+  void unmark(uint8_t* const& u, const unsigned* es, unsigned* const& ds);
   template<bool SUPER0, bool REPLAY> void iterative_gen_loops_super();
   void iterative_init_workspace();
   bool iterative_can_split();

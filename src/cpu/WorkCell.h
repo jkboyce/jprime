@@ -20,8 +20,8 @@ struct WorkCell {
   unsigned from_state = 0;
 
   // initialized by replay versions of algorithms
-  unsigned* excludes_tail = nullptr;
-  unsigned* excludes_head = nullptr;
+  const unsigned* excludes_tail = nullptr;
+  const unsigned* excludes_head = nullptr;
 
   // padding increases speed on macOS and g++/x86-64
   unsigned unused1 = 0;

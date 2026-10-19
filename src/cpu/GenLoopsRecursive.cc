@@ -51,7 +51,7 @@ void Worker::gen_loops_normal()
       continue;
     }
 
-    if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
+    if (static_cast<unsigned>(pos) + min_distance_to_start[to] >= n_max) {
       continue;
     }
 
@@ -234,7 +234,7 @@ void Worker::gen_loops_super()
       if (shiftcount == config.shiftlimit && exitcyclesleft == 0) {
         continue;
       }
-      if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
+      if (static_cast<unsigned>(pos) + min_distance_to_start[to] >= n_max) {
         continue;
       }
 
@@ -271,7 +271,7 @@ void Worker::gen_loops_super()
           // don't allow all shift throws
           handle_finished_pattern();
         }
-      } else if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
+      } else if (static_cast<unsigned>(pos) + min_distance_to_start[to] >= n_max) {
         continue;
       } else {
         ++shiftcount;
@@ -332,7 +332,7 @@ void Worker::gen_loops_super0()
     if (exitcyclesleft == 0) {
       continue;
     }
-    if (static_cast<unsigned>(pos + 1) > max_pos_usable[to]) {
+    if (static_cast<unsigned>(pos) + min_distance_to_start[to] >= n_max) {
       continue;
     }
 
@@ -573,13 +573,13 @@ inline bool Worker::mark_unreachable_states_tail()
 {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = excludestates_tail[from].data();
+  const unsigned* es = graph.excludestates_tail[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++) != 0) {
     // assert that if we're flipping one of the unusable states, that it begins
     // with `-` and ends with `x`
-    assert(start_state <= graph.max_startstate_usable.at(statenum) ||
+    assert(graph.is_usable_for_startstate(statenum, start_state) ||
         (graph.state.at(statenum).slot(0) == 0 &&
         graph.state.at(statenum).slot(graph.h - 1) == 1));
 
@@ -607,11 +607,11 @@ inline bool Worker::mark_unreachable_states_head(unsigned to_state)
 {
   bool valid = true;
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = excludestates_head[to_state].data();
+  const unsigned* es = graph.excludestates_head[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++) != 0) {
-    assert(start_state <= graph.max_startstate_usable.at(statenum) ||
+    assert(graph.is_usable_for_startstate(statenum, start_state) ||
         (graph.state.at(statenum).slot(0) == 0 &&
         graph.state.at(statenum).slot(graph.h - 1) == 1));
 
@@ -630,7 +630,7 @@ inline bool Worker::mark_unreachable_states_head(unsigned to_state)
 inline void Worker::unmark_unreachable_states_tail()
 {
   unsigned* const ds = deadstates_bystate[from];
-  unsigned* es = excludestates_tail[from].data();
+  const unsigned* es = graph.excludestates_tail[from].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++) != 0) {
@@ -644,7 +644,7 @@ inline void Worker::unmark_unreachable_states_tail()
 inline void Worker::unmark_unreachable_states_head(unsigned to_state)
 {
   unsigned* const ds = deadstates_bystate[to_state];
-  unsigned* es = excludestates_head[to_state].data();
+  const unsigned* es = graph.excludestates_head[to_state].data();
   unsigned statenum = 0;
 
   while ((statenum = *es++) != 0) {
