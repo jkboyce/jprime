@@ -22,10 +22,13 @@
 
 // Full graph for `b` objects, max throw `h`.
 
-Graph::Graph(unsigned b, unsigned h)
+Graph::Graph(unsigned b, unsigned h, bool auto_validate)
     : b(b), h(h), xarray(h + 1, false)
 {
   initialize();
+  if (auto_validate) {
+    validate_graph();
+  }
 }
 
 // Initialize with two additional options:
@@ -39,12 +42,16 @@ Graph::Graph(unsigned b, unsigned h)
 // a period-n pattern. We only permit values n < h. When n == 0 we generate
 // the full graph.
 
-Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n)
+Graph::Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n,
+             bool auto_validate)
     : b(b), h(h), n(n), xarray(xa)
 {
   assert(xa.size() == h + 1);
   assert(n < h);
   initialize();
+  if (auto_validate) {
+    validate_graph();
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -517,9 +524,9 @@ void Graph::validate_graph(bool ground_only)
   //   std::vector<unsigned> cyclenum;
   //   std::vector<unsigned> max_startstate_usable;
   //   unsigned maxoutdegree;
-  //   std::vector<unsigned> outdegree;
-  //   std::vector<std::vector<unsigned>> outmatrix;
-  //   std::vector<std::vector<unsigned>> outthrowval;
+  //   std::vector<uint16_t> outdegree;
+  //   std::vector<unsigned> outmatrix;
+  //   std::vector<uint16_t> outthrowval;
 
   unsigned new_maxoutdegree = 0;
 
@@ -581,6 +588,7 @@ void Graph::validate_graph(bool ground_only)
   if (!ground_only) {
     find_max_startstate_usable();
   }
+  is_validated = true;
 }
 
 // Return vector `isexitcycle` that indicates which shift cycles can exit
@@ -589,6 +597,9 @@ void Graph::validate_graph(bool ground_only)
 
 std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 {
+  if (!is_validated) {
+    throw std::logic_error("Graph::get_exit_cycles: graph has not been validated");
+  }
   assert(has_shift_cycles());
 
   std::vector<int> isexitcycle(numcycles, 0);
@@ -613,6 +624,9 @@ std::vector<int> Graph::get_exit_cycles(unsigned start_state) const
 
 void Graph::build_exclude_states()
 {
+  if (!is_validated) {
+    throw std::logic_error("Graph::build_exclude_states: graph has not been validated");
+  }
   assert(has_shift_cycles());
   excludestates_tail.resize(numstates + 1);
   excludestates_head.resize(numstates + 1);
@@ -669,6 +683,9 @@ void Graph::build_exclude_states()
 
 unsigned Graph::prime_period_bound(unsigned start_state) const
 {
+  if (!is_validated) {
+    throw std::logic_error("Graph::prime_period_bound: graph has not been validated");
+  }
   assert(has_shift_cycles());
 
   // case 1: the pattern visits multiple shift cycles; it must miss at least one
@@ -707,6 +724,9 @@ unsigned Graph::prime_period_bound(unsigned start_state) const
 unsigned Graph::superprime_period_bound(unsigned start_state, unsigned shifts)
     const
 {
+  if (!is_validated) {
+    throw std::logic_error("Graph::superprime_period_bound: graph has not been validated");
+  }
   assert(has_shift_cycles());
 
   std::vector<bool> any_active(numcycles, false);

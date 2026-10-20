@@ -111,11 +111,7 @@ void Worker::iterative_gen_loops_normal()
         ds = ds_bystate[from_state];
         if (wc->col > 1) {
           unmark(u, wc->excludes_tail, ds);
-          /*
-          unsigned* es = es_tail[from_state];
-          unmark(u, es, ds);
           wc->excludes_tail = nullptr;
-          */
         }
       }
       assert(from_state == st_state || u[from_state] == 1);
@@ -132,11 +128,7 @@ void Worker::iterative_gen_loops_normal()
         assert( (wc->col != 0) == (wc->excludes_head != nullptr) );
         if (wc->col != 0) {
           unmark(u, wc->excludes_head, ds);
-          /*
-          unsigned* es = excludestates_head[from_state].data();
-          unmark(u, es, ds);
           wc->excludes_head = nullptr;
-          */
         }
         mark_any_link_throw = false;
       }
@@ -230,6 +222,7 @@ void Worker::iterative_gen_loops_normal()
             assert(false);
           }
           unmark(u, wc->excludes_head, ds);
+          wc->excludes_head = nullptr;
           ++wc->col;
           continue;
         }

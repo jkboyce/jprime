@@ -15,7 +15,6 @@
 
 #include <string>
 #include <vector>
-#include <tuple>
 #include <cstdint>
 #include <stdexcept>
 #include <format>
@@ -23,8 +22,9 @@
 
 class Graph {
  public:
-  Graph(unsigned b, unsigned h);
-  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n = 0);
+  Graph(unsigned b, unsigned h, bool auto_validate = true);
+  Graph(unsigned b, unsigned h, const std::vector<bool>& xa, unsigned n = 0,
+        bool auto_validate = true);
   Graph() = default;
 
   unsigned b = 0;  // number of objects
@@ -37,6 +37,7 @@ class Graph {
   std::vector<State> state;
   std::vector<unsigned> cyclenum;  // indexed by state number
   std::vector<unsigned> max_startstate_usable;
+  bool is_validated = false;
 
   // information about shift cycles
   unsigned numcycles = 0;
@@ -52,18 +53,22 @@ class Graph {
   // matrix element accessors
   const unsigned* outmatrix_row(size_t statenum) const
   {
+    assert(is_validated);
     return outmatrix.data() + statenum * maxoutdegree;
   }
   unsigned* outmatrix_row(size_t statenum)
   {
+    assert(is_validated);
     return outmatrix.data() + statenum * maxoutdegree;
   }
   const uint16_t* outthrowval_row(size_t statenum) const
   {
+    assert(is_validated);
     return outthrowval.data() + statenum * maxoutdegree;
   }
   uint16_t* outthrowval_row(size_t statenum)
   {
+    assert(is_validated);
     return outthrowval.data() + statenum * maxoutdegree;
   }
 
@@ -108,6 +113,9 @@ class Graph {
   void validate_graph(bool ground_only = false);
   bool is_usable_for_startstate(size_t statenum, unsigned start_state) const
   {
+    if (!is_validated) {
+      throw std::logic_error("Graph::is_usable_for_startstate: graph has not been validated");
+    }
     return max_startstate_usable.empty() ||
            start_state <= max_startstate_usable.at(statenum);
   }

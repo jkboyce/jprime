@@ -243,7 +243,8 @@ void Coordinator::initialize_graph()
     config.h,
     config.xarray,
     config.graphmode == SearchConfig::GraphMode::SINGLE_PERIOD_GRAPH
-                      ? config.n_min : 0
+                      ? config.n_min : 0,
+    false  // auto_validate = false
   };
 
   if (alg != SearchAlgorithm::NORMAL) {
