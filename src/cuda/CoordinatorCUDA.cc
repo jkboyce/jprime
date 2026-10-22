@@ -22,6 +22,7 @@
 #include <limits>
 #include <stdexcept>
 #include <cassert>
+#include <unordered_set>
 
 // defined in CudaKernels.cu
 void configure_cuda_shared_memory(const CudaRuntimeParams& p);
@@ -1642,6 +1643,35 @@ void CoordinatorCUDA::do_status_display(unsigned bank_b)
   last_njobs = njobs;
   last_nnodes = summary_after_b.nnodes;
   last_ntotal = summary_after_b.ntotal;
+
+  std::unordered_set<unsigned> unstarted_states;
+  for (const WorkAssignment& wa : context.assignments) {
+    auto s = static_cast<statenum_t>(wa.partial_pattern.empty() ?
+        wa.start_state : wa.start_state + 1);
+    const auto end_st = static_cast<statenum_t>(wa.end_state);
+    while (advance_to_usable_startstate(s, end_st)) {
+      unstarted_states.insert(s);
+      ++s;
+    }
+  }
+  for (unsigned bank = 0; bank < 2; ++bank) {
+    for (unsigned id = 0; id < num_threads[bank]; ++id) {
+      const auto& wi = wi_h[bank][id];
+      if ((wi.status & 1) == 0 && wi.end_state > wi.start_state) {
+        auto s = static_cast<statenum_t>(wi.start_state + 1);
+        const auto end_st = static_cast<statenum_t>(wi.end_state);
+        while (advance_to_usable_startstate(s, end_st)) {
+          unstarted_states.insert(s);
+          ++s;
+        }
+      }
+    }
+  }
+  const auto unstarted_count = static_cast<unsigned>(unstarted_states.size());
+  if (unstarted_count > 0) {
+    status_lines.push_back(std::format(
+      "Unstarted start states in queue: {}", unstarted_count));
+  }
 
   status_lines.push_back(std::format(
     "jobs/s: {}, nodes/s: {}, pats/s: {}, pats in range:{:19}",
